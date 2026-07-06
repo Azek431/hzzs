@@ -1,0 +1,92 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.largeFileOptimizations": true,
+  "editor.minimap.enabled": false,
+  "editor.codeLens": false,
+  "editor.stickyScroll.enabled": false,
+  "editor.smoothScrolling": false,
+
+  "workbench.list.smoothScrolling": false,
+  "workbench.editor.enablePreview": true,
+
+  "files.exclude": {
+    "**/.git": true,
+    "**/.gradle": true,
+    "**/.idea": true,
+    "**/.kotlin": true,
+    "**/build": true,
+    "**/.cxx": true,
+    "**/.externalNativeBuild": true,
+    "**/captures": true
+  },
+
+  "search.exclude": {
+    "**/.git": true,
+    "**/.gradle": true,
+    "**/.idea": true,
+    "**/.kotlin": true,
+    "**/build": true,
+    "**/.cxx": true,
+    "**/.externalNativeBuild": true,
+    "**/captures": true
+  },
+
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/.gradle/**": true,
+    "**/.idea/**": true,
+    "**/.kotlin/**": true,
+    "**/build/**": true,
+    "**/.cxx/**": true,
+    "**/.externalNativeBuild/**": true,
+    "**/captures/**": true
+  },
+
+  "search.followSymlinks": false,
+  "git.openRepositoryInParentFolders": "never",
+
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // Android APK 构建统一交给 Gradle Wrapper 与 tasks.json，
+  // 避免 VS Code Java 扩展额外启动 Gradle Build Server。
+  "java.import.gradle.enabled": false,
+  "java.gradle.buildServer.enabled": "off",
+  "java.autobuild.enabled": false,
+  "java.maxConcurrentBuilds": 1,
+
+  // 保留 Java 补全，但将语言服务器最大堆从 2GB 收紧为 1GB。
+  // -Xmx 是上限，不代表启动后立即占满 1GB。
+  "java.jdt.ls.vmargs": "-Xmx1024m -XX:MaxMetaspaceSize=384m",
+  "java.referencesCodeLens.enabled": false,
+
+  "[kotlin]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
+  },
+
+  "[xml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
+  },
+
+  "[json]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2
+  },
+
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "cSpell.words": [
+    "androidx",
+    "appcompat",
+    "myapplication",
+    "optimizationpasses",
+    "proguard"
+  ]
+}

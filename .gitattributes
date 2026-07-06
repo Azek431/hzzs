@@ -1,0 +1,49 @@
+# ============================================================
+# Android / Gradle 项目 Git 换行符规则
+# 目标：仓库文本统一 LF；Windows 批处理文件工作区保持 CRLF。
+# ============================================================
+
+# 默认：所有可识别的文本文件以文本方式处理，并在仓库中统一为 LF。
+* text=auto eol=lf
+
+# Gradle Wrapper
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+
+# Windows 脚本在 Windows 工作区使用 CRLF。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Android / Kotlin / Java / Gradle 常见文本文件统一 LF。
+*.kt text eol=lf
+*.kts text eol=lf
+*.java text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+*.pro text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# 常见二进制文件：禁止 Git 尝试改换行或当作文本 diff。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.apk binary
+*.aab binary
+*.so binary
+*.zip binary
+*.gz binary
+*.pdf binary
+*.mp3 binary
+*.mp4 binary
