@@ -1,0 +1,82 @@
+{
+  "version": "2.0.0",
+  "type": "shell",
+  "command": ".\\gradlew.bat",
+  "options": {
+    "cwd": "${workspaceFolder}"
+  },
+  "presentation": {
+    "reveal": "always",
+    "focus": false,
+    "panel": "shared",
+    "clear": true,
+    "showReuseMessage": false
+  },
+  "tasks": [
+    {
+      "label": "🔨 [MyApplication] 构建 Debug APK",
+      "args": [
+        "--console=plain",
+        ":app:assembleDebug"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🚀 [MyApplication] 一键构建并安装 Debug",
+      "args": [
+        "--console=plain",
+        ":app:installDebug"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "✅ [MyApplication] 验证 Debug（构建 + 单元测试）",
+      "args": [
+        "--console=plain",
+        ":app:assembleDebug",
+        ":app:testDebugUnitTest"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🔎 [MyApplication] 运行 Debug Lint（提交前）",
+      "args": [
+        "--console=plain",
+        ":app:lintDebug"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "📊 [MyApplication] 查看 Gradle Daemon 状态",
+      "args": [
+        "--console=plain",
+        "--status"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "🛑 [MyApplication] 停止 Gradle Daemon，释放内存",
+      "args": [
+        "--console=plain",
+        "--stop"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "🧹 [MyApplication] 清理构建产物（仅故障时）",
+      "args": [
+        "--console=plain",
+        "clean"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
