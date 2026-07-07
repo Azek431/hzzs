@@ -88,4 +88,9 @@
     <string name="overlay_analysis_stop">点击结束执行</string>
     <string name="overlay_analysis_started">已开始执行，等待接入数据源。</string>
     <string name="overlay_analysis_stopped">已结束执行。</string>
+
+    <!-- Overlay adjustments -->
+    <string name="overlay_adjust_alpha_label">透明度</string>
+    <string name="overlay_adjust_scale_label">尺寸</string>
+    <string name="overlay_adjust_radius_label">圆角</string>
 </resources>

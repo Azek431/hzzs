@@ -12,6 +12,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Drag handle + close button row -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="48dp">
@@ -62,10 +63,137 @@
 
         </FrameLayout>
 
+        <!-- Adjustable slider area -->
+        <LinearLayout
+            android:id="@+id/overlayAdjustArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="@string/overlay_adjust_alpha_label"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+            <SeekBar
+                android:id="@+id/overlayAlphaSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:min="30"
+                android:progress="100"
+                android:thumbTint="#FFB1C4D7"
+                android:progressTint="#FFB1C4D7" />
+
+            <TextView
+                android:id="@+id/overlayAlphaValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:includeFontPadding="false"
+                android:text="100%"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <!-- Scale slider -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="@string/overlay_adjust_scale_label"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+            <SeekBar
+                android:id="@+id/overlayScaleSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:min="0"
+                android:progress="100"
+                android:thumbTint="#FFB1C4D7"
+                android:progressTint="#FFB1C4D7" />
+
+            <TextView
+                android:id="@+id/overlayScaleValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:includeFontPadding="false"
+                android:text="100%"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <!-- Radius slider -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="@string/overlay_adjust_radius_label"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+            <SeekBar
+                android:id="@+id/overlayRadiusSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:min="0"
+                android:progress="16"
+                android:thumbTint="#FFB1C4D7"
+                android:progressTint="#FFB1C4D7" />
+
+            <TextView
+                android:id="@+id/overlayRadiusValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:includeFontPadding="false"
+                android:text="20 dp"
+                android:textColor="#FFCFC4CA"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="6dp"
             android:background="@drawable/bg_overlay_preview_status"
             android:gravity="center_vertical"
             android:orientation="horizontal"
