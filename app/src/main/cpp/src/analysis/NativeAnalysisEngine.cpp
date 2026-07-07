@@ -1,28 +1,57 @@
 #include "hzzs/analysis/NativeAnalysisEngine.h"
 
+#include <algorithm>
+
 namespace hzzs::analysis {
 
+/**
+ * 对单帧检测结果执行完整分析。
+ *
+ * 这是分析引擎的核心入口，按顺序调用所有子模块：
+ * 1. 场景识别 → SceneStateMachine（确定当前场景模式）
+ * 2. 角色追踪 → RunnerStateMachine（推断玩家姿态和运动状态）
+ * 3. 跳跃估计 → JumpStageEstimator（估计当前跳跃阶段 0/1/2）
+ * 4. 危险检测 → HazardEtaEstimator（计算 ETA，仅可分析场景）
+ * 5. 提示生成 → ActionPromptEngine（输出 HUD 提示，仅可分析场景）
+ * 6. 收藏物筛选 → 遍历所有对象，提取可收集物品
+ * 7. UI 元数据透传 → score, hearts, shield 直接从 frame 复制到 result
+ *
+ * 线程安全：此方法不修改 frame，所有状态变更仅影响内部子模块。
+ *
+ * @param frame 当前帧的检测结果（视觉层输入）
+ * @return AnalysisResult 完整的分析结果（供 HUD 渲染使用）
+ */
 AnalysisResult NativeAnalysisEngine::Analyze(const FrameDetections& frame) {
     AnalysisResult result{};
 
+    // 1. 场景状态机：确定当前处于什么场景。
     result.scene_mode = scene_state_machine_.Update(frame.scene);
-    result.scene_confidence = result.scene_mode == SceneMode::kUnknown
-        ? 0.0F
-        : frame.scene.hint_confidence;
+    result.scene_confidence = (
+        result.scene_mode == SceneMode::kUnknown
+            ? 0.0F
+            : frame.scene.hint_confidence
+    );
 
+    // 2. 玩家姿态估计：基于帧检测 + 场景模式推断。
     result.runner = runner_state_machine_.Update(
         frame,
         result.scene_mode
     );
 
+    // 3. 跳跃阶段估计：仅在地面跑酷模式下跟踪跳跃段数。
     result.jump_stage = jump_stage_estimator_.Update(
         result.runner,
         result.scene_mode,
         frame.timestamp_ms
     );
 
-    if (result.scene_mode == SceneMode::kGroundRun) {
+    // 4. 危险 ETA 估计：仅在可分析场景下执行。
+    //    FlightRun 下也计算 hazards（用于 HUD 展示），但提示会被抑制。
+    if (IsAnalyzableScene(result.scene_mode)) {
         result.hazards = hazard_eta_estimator_.Estimate(frame, result.runner);
+
+        // 5. 动作提示：ActionPromptEngine 内部会根据 FlightRun/Occluded
+        //    自行抑制提示，这里只需传递完整数据。
         result.prompt = action_prompt_engine_.Update(
             result.scene_mode,
             result.runner,
@@ -30,15 +59,18 @@ AnalysisResult NativeAnalysisEngine::Analyze(const FrameDetections& frame) {
             result.hazards
         );
     } else {
+        // 非可分析场景（Menu/Countdown/Result/Occluded）：清空所有提示。
         action_prompt_engine_.Reset();
     }
 
+    // 6. 收集物提取：遍历所有检测对象，提取可收集物品。
     for (const DetectedObject& object : frame.objects) {
         if (IsCollectible(object.type) && object.bounds.IsValid()) {
             result.collectibles.push_back(object);
         }
     }
 
+    // 7. 分数/生命/护盾等 UI 元数据透传。
     result.score = frame.score;
     result.score_confidence = frame.score_confidence;
     result.heart_count = frame.heart_count;
@@ -49,6 +81,12 @@ AnalysisResult NativeAnalysisEngine::Analyze(const FrameDetections& frame) {
     return result;
 }
 
+/**
+ * 重置所有子模块的状态。
+ *
+ * 在场景切换（如从游戏回到菜单）、分析中断或初始化时调用。
+ * 清除所有状态机的内部状态，确保下一帧从零开始分析。
+ */
 void NativeAnalysisEngine::Reset() {
     scene_state_machine_.Reset();
     runner_state_machine_.Reset();

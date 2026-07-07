@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    尺寸资源文件：所有 UI 元素的间距、字体大小、圆角半径等。
+
+    命名规范：
+    - space_*：通用间距（2xs=2dp, xs=4dp, sm=8dp, md=12dp, lg=16dp, xl=24dp, 2xl=32dp, 3xl=40dp）
+    - page_*：页面级别的间距
+    - top_bar_*：顶部标题栏相关尺寸
+    - card_*：卡片相关尺寸
+    - button_min_height：按钮最小高度（Material Design 建议 48dp）
+    - feature_*：功能卡片的图标和间距
+    - radius_*：圆角半径（small=12dp, medium=16dp, large=24dp）
+    - stroke_width：描边宽度
+    - text_*：字体大小（app_title, subtitle, hero_title, section_title, card_title, body, label, footer）
+    - overlay_*：悬浮窗面板的尺寸定义（宽度、圆角、内边距、按钮大小、文字大小）
+
+    所有尺寸使用 dp/sp 单位，确保在不同 DPI 设备上保持一致的视觉大小。
+-->
 <resources>
 
     <!-- Spacing -->
