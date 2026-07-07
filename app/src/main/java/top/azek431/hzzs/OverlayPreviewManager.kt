@@ -195,8 +195,8 @@ object OverlayPreviewManager {
             val closeButton = view.findViewById<View>(R.id.overlayCloseButton)
                 ?: throw IllegalStateException("overlayCloseButton is missing.")
 
-            val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
-                ?: throw IllegalStateException("overlayDragHandle is missing.")
+            val contentPanel = view.findViewById<View>(R.id.overlayContentPanel)
+                ?: throw IllegalStateException("overlayContentPanel is missing.")
 
             val statusText = view.findViewById<TextView>(R.id.overlayStatusText)
                 ?: throw IllegalStateException("overlayStatusText is missing.")
@@ -215,6 +215,8 @@ object OverlayPreviewManager {
             ) ?: throw IllegalStateException(
                 "overlayCommunityTelegram is missing.",
             )
+
+            val resizeHandle = view.findViewById<View>(R.id.overlayResizeHandle)
 
             // 计算悬浮窗宽度（228dp → px）和在屏幕上的最大 X 坐标
             val overlayWidth = dp(appContext, 228)
