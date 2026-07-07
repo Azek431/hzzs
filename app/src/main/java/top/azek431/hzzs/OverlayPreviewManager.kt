@@ -14,7 +14,7 @@ import android.view.WindowManager
 /**
  * 第一阶段悬浮窗预览管理器。
  *
- * 当前只负责展示、拖动、复制社区入口与关闭。
+ * 当前只负责展示、拖动、关闭与社区链接跳转。
  * 不接入前台服务、MediaProjection、屏幕采集、HUD 或自动操作。
  */
 object OverlayPreviewManager {
@@ -85,8 +85,12 @@ object OverlayPreviewManager {
                 "overlayCommunityTelegram is missing.",
             )
 
+            val overlayWidth = dp(appContext, 192)
+            val screenWidth = appContext.resources.displayMetrics.widthPixels
+            val maxX = (screenWidth - overlayWidth).coerceAtLeast(0)
+
             val layoutParams = WindowManager.LayoutParams(
-                dp(appContext, 208),
+                overlayWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -99,12 +103,8 @@ object OverlayPreviewManager {
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-
-                val screenWidth = appContext.resources.displayMetrics.widthPixels
-
-                x = (screenWidth - dp(appContext, 224))
-                    .coerceAtLeast(dp(appContext, 8))
-
+                x = (screenWidth - dp(appContext, 208))
+                    .coerceIn(0, maxX)
                 y = dp(appContext, 108)
             }
 
@@ -113,27 +113,31 @@ object OverlayPreviewManager {
             }
 
             communityQq.setOnClickListener {
-                CommunityLinks.copy(
+                hide()
+
+                CommunityLinks.openLink(
                     context = appContext,
                     label = appContext.getString(
                         R.string.community_qq_label,
                     ),
-                    value = CommunityLinks.HZZS_QQ_GROUP_ID,
-                    confirmation = appContext.getString(
-                        R.string.overlay_community_qq_copied,
+                    url = CommunityLinks.HZZS_QQ_GROUP_URL,
+                    fallbackMessage = appContext.getString(
+                        R.string.community_open_fallback,
                     ),
                 )
             }
 
             communityTelegram.setOnClickListener {
-                CommunityLinks.copy(
+                hide()
+
+                CommunityLinks.openLink(
                     context = appContext,
                     label = appContext.getString(
                         R.string.community_telegram_label,
                     ),
-                    value = CommunityLinks.AZEK_MAIN_TELEGRAM_CHANNEL,
-                    confirmation = appContext.getString(
-                        R.string.overlay_community_telegram_copied,
+                    url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
+                    fallbackMessage = appContext.getString(
+                        R.string.community_open_fallback,
                     ),
                 )
             }
@@ -154,11 +158,13 @@ object OverlayPreviewManager {
                     }
 
                     MotionEvent.ACTION_MOVE -> {
-                        layoutParams.x =
+                        layoutParams.x = (
                             downWindowX + (event.rawX - downRawX).toInt()
+                        ).coerceIn(0, maxX)
 
-                        layoutParams.y =
+                        layoutParams.y = (
                             downWindowY + (event.rawY - downRawY).toInt()
+                        ).coerceAtLeast(0)
 
                         try {
                             manager.updateViewLayout(view, layoutParams)

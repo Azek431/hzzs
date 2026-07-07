@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 
         applySystemBarInsets()
         bindHomeActions()
+        bindCommunityFooterLinks()
         refreshOverlayButton()
     }
 
@@ -39,7 +40,7 @@ class MainActivity : AppCompatActivity() {
         refreshOverlayButton()
     }
 
-    private fun bindHomeActions() {
+private fun bindHomeActions() {
         findViewByName("btnDevelopmentPlan")
             ?.setOnClickListener {
                 showDevelopmentPlan()
@@ -49,30 +50,33 @@ class MainActivity : AppCompatActivity() {
             ?.setOnClickListener {
                 handleOverlayPreview()
             }
+    }
 
-        findViewByName("btnCopyHzzsQqGroup")
+private fun bindCommunityFooterLinks() {
+        findViewByName("textCommunityQqLink")
             ?.setOnClickListener {
-                CommunityLinks.copy(
+                CommunityLinks.openLink(
                     context = this,
                     label = getString(R.string.community_qq_label),
-                    value = CommunityLinks.HZZS_QQ_GROUP_ID,
-                    confirmation = getString(R.string.community_qq_copied),
+                    url = CommunityLinks.HZZS_QQ_GROUP_URL,
+                    fallbackMessage = getString(
+                        R.string.community_open_fallback,
+                    ),
                 )
             }
 
-        findViewByName("btnCopyAzekMainChannel")
+        findViewByName("textCommunityTelegramLink")
             ?.setOnClickListener {
-                CommunityLinks.copy(
+                CommunityLinks.openLink(
                     context = this,
                     label = getString(R.string.community_telegram_label),
-                    value = CommunityLinks.AZEK_MAIN_TELEGRAM_CHANNEL,
-                    confirmation = getString(
-                        R.string.community_telegram_copied,
+                    url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
+                    fallbackMessage = getString(
+                        R.string.community_open_fallback,
                     ),
                 )
             }
     }
-
     private fun handleOverlayPreview() {
         if (!hasOverlayPermission()) {
             showOverlayPermissionDialog()
