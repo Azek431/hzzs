@@ -1,4 +1,27 @@
 <resources>
     <string name="app_name">火崽崽助手</string>
-    <string name="hello_world">Hello World!</string>
+    <string name="toolbar_subtitle">HZZS · 开发预览</string>
+    <string name="status_chip">准备中</string>
+    <string name="feature_title">跑酷实时分析</string>
+    <string name="feature_description">先建立稳定、清晰的工具基础。实时识别、悬浮 HUD 与本局战报会逐步接入。</string>
+    <string name="btn_development_plan">查看开发计划</string>
+    <string name="dialog_title">开发计划</string>
+    <string name="dialog_btn_close">关闭</string>
+    <string name="plan_step_1">1. 界面与导航</string>
+    <string name="plan_step_2">2. 权限与设备检查</string>
+    <string name="plan_step_3">3. 跑酷像素分析</string>
+    <string name="plan_step_4">4. 实时 HUD 与本局战报</string>
+    <string name="plan_step_5">5. 历史数据与校准</string>
+    <string name="section_planning">功能规划</string>
+    <string name="card_realtime_title">实时分析</string>
+    <string name="card_realtime_status">暂未启用</string>
+    <string name="card_realtime_desc">跳跃、下滑、障碍风险与 ETA。</string>
+    <string name="card_report_title">本局战报</string>
+    <string name="card_report_status">暂未启用</string>
+    <string name="card_report_desc">分数、动作事件、风险记录与复盘。</string>
+    <string name="card_calibration_title">校准与设置</string>
+    <string name="card_calibration_status">暂未启用</string>
+    <string name="card_calibration_desc">设备适配、主题视觉配置与 HUD。</string>
+    <string name="footer_dev">Azek431 · 独立开发</string>
+    <string name="footer_version">版本 0.1.0</string>
 </resources>
