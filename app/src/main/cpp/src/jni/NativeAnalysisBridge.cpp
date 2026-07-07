@@ -14,13 +14,14 @@ constexpr const char* kLogTag = "HZZS-Native";
 /**
  * 将 C++ std::string 转换为 JNI jstring。
  *
- * 使用 GetStringUTFChars + NewString 而非 NewStringUTF，以正确处理包含
- * 多字节 UTF-8 字符（如中文 '·' U+00B7）的字符串。NewStringUTF 在某些
- * JNI 实现上遇到此类字符会抛出 IllegalArgumentException。
+ * 使用 NewStringUTF 将 UTF-8 编码的 C++ 字符串转换为 JNI jstring。
+ * 注意：NewStringUTF 期望合法的 UTF-8 序列，遇到非法序列时会抛出
+ * IllegalArgumentException。当前所有调用方的字符串均为 ASCII，
+ * 不涉及多字节字符，因此此实现是安全的。
  *
  * @param env JNI 环境指针
  * @param value C++ 字符串
- * @return 转换后的 jstring，调用方负责 DeleteLocalRef
+ * @return 转换后的 jstring
  */
 jstring ToJString(JNIEnv* env, const std::string& value) {
     return env->NewStringUTF(value.c_str());

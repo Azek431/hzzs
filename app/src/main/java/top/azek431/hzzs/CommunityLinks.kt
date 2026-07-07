@@ -38,6 +38,47 @@ object CommunityLinks {
     private const val TAG = "HZZS"
 
     /**
+     * 社区链接数据条目，用于在 Activity 和悬浮窗中统一绑定社区链接。
+     *
+     * 使用 data class 而非普通 class，因为我们需要：
+     * 1. 简洁的构造函数（一行初始化两个字段）
+     * 2. 自动生成 equals/hashCode/toString（便于调试）
+     *
+     * 注意：此 data class 仅存放 label 和 url 数据，不包含 View 引用。
+     * View 绑定由各调用方（MainActivity、OverlayPreviewManager）自行处理，
+     * 因为两者的 View 生命周期不同。
+     *
+     * @property labelRes 链接标签的字符串资源 ID（用于剪贴板标识和日志）
+     * @property url 要打开的完整 URL
+     */
+    data class CommunityLinkEntry(
+        val labelRes: Int,
+        val url: String,
+    )
+
+    /**
+     * 所有社区链接的统一配置列表。
+     *
+     * 新增链接只需在此列表中添加一项，无需修改绑定逻辑。
+     * 此列表由 [MainActivity] 和 [OverlayPreviewManager] 共同消费。
+     *
+     * 设计决策：
+     * - 使用 object 的 val 而非 fun，因为列表在应用生命周期内不变
+     * - 使用 R.string.xxx 而非硬编码字符串，确保多语言一致性
+     * - 使用完整包名 top.azek431.hzzs.R 避免导入歧义
+     */
+    val entries: List<CommunityLinkEntry> = listOf(
+        CommunityLinkEntry(
+            labelRes = top.azek431.hzzs.R.string.community_qq_label,
+            url = HZZS_QQ_GROUP_URL,
+        ),
+        CommunityLinkEntry(
+            labelRes = top.azek431.hzzs.R.string.community_telegram_label,
+            url = AZEK_MAIN_TELEGRAM_URL,
+        ),
+    )
+
+    /**
      * 尝试在浏览器中打开指定链接，失败时回退到复制链接到剪贴板。
      *
      * 这是社区链接的统一入口方法，所有需要打开 QQ 群或 Telegram 链接的地方

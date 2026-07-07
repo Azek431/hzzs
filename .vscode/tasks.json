@@ -312,16 +312,16 @@
       }
     },
     {
-      "label": "🔌 [HZZS] 转发 JDWP 端口 (adb forward)",
-      "type": "shell",
+      "label": "🔌 [HZZS] 一键调试准备（构建+安装+启动+转发JDWP）",
+      "type": "process",
       "command": "pwsh.exe",
       "args": [
         "-NoLogo",
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$pids = @(adb jdwp 2>$null | Where-Object { $_.Trim() -ne '' }); if ($pids.Count -eq 0) { Write-Host 'No JDWP process found. Make sure the app is installed and running.' } else { foreach ($p in $pids) { $pid = $p.Trim(); adb forward tcp:5005 jdwp:$pid; Write-Host \"Forwarded jdwp:$pid -> tcp:5005\" }; Write-Host \"Done. Press F5 in VSCode to attach debugger.\" }"
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\DebugSetup.ps1"
       ],
       "problemMatcher": [],
       "presentation": {

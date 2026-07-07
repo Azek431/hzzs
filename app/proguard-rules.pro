@@ -1,22 +1,32 @@
 # ============================================================
 # HZZS（火崽崽助手）：项目专用 R8 Keep Rules
 # ============================================================
+
+# ---------------------------------------------------------------------------
+# JNI / Native 方法 Keep Rules
+# ---------------------------------------------------------------------------
+# NativeAnalysisBridge.kt 声明了 private external fun，R8 会将其重命名
+# 导致 C++ 端导出的 Java_top_azek431_hzzs_NativeAnalysisBridge_* 符号
+# 与 Kotlin 运行时查找的符号不匹配，引发 UnsatisfiedLinkError。
 #
-# 当前基础项目没有：
-# - 反射创建类或成员；
-# - WebView JavaScript 接口；
-# - JNI / Native 动态调用；
-# - JSON 反射序列化；
-# - 第三方 SDK 特殊混淆要求。
-#
-# 因此这里暂时不添加 Keep Rule。
-#
-# 后续只有在引入某个库、使用反射或 Release 构建出现 R8 警告时，
-# 再根据具体报错或官方文档添加”最小必要规则”。
-#
+# 保留整个 NativeAnalysisBridge object 不被混淆，包括其 native 方法名。
+-keep class top.azek431.hzzs.NativeAnalysisBridge {
+    private native java.lang.String nativeGetEngineInfo();
+    private native java.lang.String nativeRunSelfCheck();
+}
+
+# ---------------------------------------------------------------------------
+# Android 组件（Activity / Service / BroadcastReceiver）
+# 由 Android Gradle Plugin 根据 Manifest 自动处理，无需手动 keep。
+# ---------------------------------------------------------------------------
+
+# 以下为开发预留区域：
+# 后续仅在引入特定库、使用反射、或 Release 构建出现 R8 警告时，
+# 再根据具体报错或官方文档添加"最小必要规则"。
+
 # 注意：
 # - 不要添加旧 ProGuard 教程中的 -dontpreverify、
 #   -optimizationpasses、-verbose 等全局规则。
-# - 不要为了”保险”而 keep 所有 Activity / Service / Receiver；
+# - 不要为了"保险"而 keep 所有 Activity / Service / Receiver；
 #   Android Gradle Plugin 会根据 Manifest 自动处理 Android 组件。
 # ============================================================

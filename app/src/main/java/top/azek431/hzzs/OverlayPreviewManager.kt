@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.SeekBar
 import android.widget.TextView
@@ -261,18 +262,6 @@ object OverlayPreviewManager {
                 y = dp(appContext, 108)
             }
 
-            // 绑定关闭按钮：点击后隐藏悬浮窗
-            // 关闭按钮的 onTouch 返回 false，让 ACTION_MOVE 冒泡给 contentPanel 处理拖动
-            closeButton.setOnTouchListener { _, event ->
-                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                    // 只处理 DOWN 事件，让 onClick 能正常触发
-                    false
-                } else {
-                    // MOVE/UP 等事件不处理，冒泡给父 View
-                    false
-                }
-            }
-
             // 绑定开始/停止分析按钮：切换数据分析状态
             startAnalysisButton.setOnClickListener {
                 when (analysisUiState) {
@@ -332,32 +321,31 @@ object OverlayPreviewManager {
                 }
             }
 
-            // 绑定 QQ 群链接：打开 CommunityLinks.HZZS_QQ_GROUP_URL
-            communityQq.setOnClickListener {
-                CommunityLinks.openLink(
-                    context = appContext,
-                    label = appContext.getString(
-                        R.string.community_qq_label,
-                    ),
-                    url = CommunityLinks.HZZS_QQ_GROUP_URL,
-                    fallbackMessage = appContext.getString(
-                        R.string.community_open_fallback,
-                    ),
-                )
-            }
+            // 绑定社区链接：消费 CommunityLinks.entries 统一配置
+            // 通过 labelRes 反查 View（映射表以 R.id 为 key）
+            // 扩展方式：新增链接时只需在 CommunityLinks.entries 中添加一项，
+            // 并在 overlayLinkViews 映射表中补充 viewId → labelRes 的对应关系
+            val fallbackMsg = appContext.getString(R.string.community_open_fallback)
+            val overlayLinkViews = mapOf<Int, Int>(
+                R.id.overlayCommunityQq to R.string.community_qq_label,
+                R.id.overlayCommunityTelegram to R.string.community_telegram_label,
+            )
 
-            // 绑定 Telegram 链接：打开 CommunityLinks.AZEK_MAIN_TELEGRAM_URL
-            communityTelegram.setOnClickListener {
-                CommunityLinks.openLink(
-                    context = appContext,
-                    label = appContext.getString(
-                        R.string.community_telegram_label,
-                    ),
-                    url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
-                    fallbackMessage = appContext.getString(
-                        R.string.community_open_fallback,
-                    ),
-                )
+            for (entry in CommunityLinks.entries) {
+                val viewId = overlayLinkViews.entries.find { (_, labelRes) ->
+                    labelRes == entry.labelRes
+                }?.key
+
+                if (viewId != null) {
+                    view.findViewById<View>(viewId)?.setOnClickListener {
+                        CommunityLinks.openLink(
+                            context = appContext,
+                            label = appContext.getString(entry.labelRes),
+                            url = entry.url,
+                            fallbackMessage = fallbackMsg,
+                        )
+                    }
+                }
             }
 
             // 绑定调节控件（透明度滑块等）
@@ -378,23 +366,14 @@ object OverlayPreviewManager {
                 hide("close-button")
             }
 
-            // 让 contentPanel 的所有子 View 的触摸事件冒泡给 contentPanel 处理
-            // 这样整个面板都可以拖动，而关闭按钮等仍能通过 onClick 响应
-            for (i in 0 until contentPanel.childCount) {
-                contentPanel.getChildAt(i).setOnTouchListener { _, event ->
-                    // 所有触摸事件都返回 false，冒泡给父 View 处理
-                    false
-                }
-            }
-
             // 为内容面板设置触摸监听器——整个面板都可以拖动。
             //
             // 触摸分发优先级（从快到慢）：
-            // 1. ACTION_DOWN：记录初始位置，重置 isScaling = false
-            // 2. ACTION_MOVE：
-            //    a) 如果位移 <= 5dp 且未进入缩放模式 → 视为拖动
-            //    b) 如果位移 > 5dp 且在缩放手柄区域 → 进入缩放模式
-            //    c) 如果已进入缩放模式 → 调整宽度
+            // 1. ACTION_DOWN：
+            //    a) 如果触摸的是可点击子控件（关闭按钮、分析按钮、社区链接）→ 返回 false，
+            //       让 onClick 正常触发
+            //    b) 否则 → 记录初始位置，返回 true 开始拖动
+            // 2. ACTION_MOVE：拖动/缩放
             // 3. ACTION_UP / ACTION_CANCEL：释放 isScaling
             //
             // 缩放手柄区域：右下角 48dp × 48dp 范围内
@@ -402,15 +381,34 @@ object OverlayPreviewManager {
             // 宽度限制：0.5x ~ 1.5x 原始宽度
             contentPanel.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
-                    // 手指按下：记录初始位置和触摸坐标
+                    // 手指按下：检查是否点击了可交互子控件
                     MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        downWindowX = layoutParams.x
-                        downWindowY = layoutParams.y
-                        initialWidth = layoutParams.width
-                        isScaling = false
-                        true
+                        // 识别可点击的子控件：关闭按钮、分析按钮、社区链接、滑块
+                        val clickableIds = setOf(
+                            R.id.overlayCloseButton,
+                            R.id.overlayStartAnalysis,
+                            R.id.overlayCommunityQq,
+                            R.id.overlayCommunityTelegram,
+                            R.id.overlayAlphaSlider,
+                        )
+
+                        val touchedView = event.targetView
+                        val isClickableChild = touchedView != null &&
+                            clickableIds.contains(touchedView.id)
+
+                        if (isClickableChild) {
+                            // 触摸的是可点击控件，不拦截，让 onClick 正常触发
+                            false
+                        } else {
+                            // 普通区域：记录初始位置，开始拖动
+                            downRawX = event.rawX
+                            downRawY = event.rawY
+                            downWindowX = layoutParams.x
+                            downWindowY = layoutParams.y
+                            initialWidth = layoutParams.width
+                            isScaling = false
+                            true
+                        }
                     }
 
                     MotionEvent.ACTION_MOVE -> {
@@ -418,7 +416,8 @@ object OverlayPreviewManager {
                         val dy = (event.rawY - downRawY).toInt()
 
                         // 如果位移超过 5dp 阈值，视为拖动而非点击
-                        if (!isScaling && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+                        val dragThresholdPx = dp(appContext, 5)
+                        if (!isScaling && (Math.abs(dx) > dragThresholdPx || Math.abs(dy) > dragThresholdPx)) {
                             // 检查是否在缩放手柄区域（右下角 48dp 范围内）
                             // 注意：event.rawX/Y 是相对于 contentPanel 的坐标
                             val panelRight = v.width
@@ -473,10 +472,26 @@ object OverlayPreviewManager {
             }
 
             // 恢复上次保存的调节参数（透明度、圆角等）
-            restoreAdjustments(appContext, view, layoutParams)
+            restoreAdjustments(appContext, view)
 
             // 将悬浮窗添加到 WindowManager，此时窗口在屏幕上可见
-            manager.addView(view, layoutParams)
+            try {
+                manager.addView(view, layoutParams)
+            } catch (iae: IllegalStateException) {
+                // 视图已附加到 WindowManager（可能因进程重启后残留）。
+                // 这种情况通常发生在：用户打开悬浮窗 → 杀进程重启 → 悬浮窗仍存在。
+                // 此时 activeSession 为 null（单例已重建），但系统窗口还在。
+                // 直接将此 view 注册为 activeSession，避免重复 addView 导致崩溃。
+                Log.w(TAG, "[Overlay] view already attached, reusing session.", iae)
+                activeSession = OverlaySession(
+                    rootView = view,
+                    manager = manager,
+                )
+                return true
+            } catch (e: IllegalArgumentException) {
+                // WindowManager 拒绝此 view（如权限被撤销）
+                throw e
+            }
 
             // 保存会话引用，标记悬浮窗已激活
             activeSession = OverlaySession(
@@ -526,12 +541,10 @@ object OverlayPreviewManager {
      *
      * @param context 上下文
      * @param view 悬浮窗根 View
-     * @param layoutParams 窗口布局参数（目前未使用，预留扩展）
      */
     private fun restoreAdjustments(
         context: Context,
         view: View,
-        layoutParams: WindowManager.LayoutParams,
     ) {
         // 读取持久化的参数
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -569,7 +582,7 @@ object OverlayPreviewManager {
      * 5. 捕获可能的异常并记录日志
      */
     @Synchronized
-    fun hide(reason: String = "manual"): Boolean {
+    fun hide(reason: String = "(none)"): Boolean {
         val session = activeSession
 
         // 如果没有活跃会话，说明悬浮窗已经关闭，直接返回
@@ -580,18 +593,21 @@ object OverlayPreviewManager {
 
         /*
          * 先清空会话，阻止多次快速点击导致重复 removeView。
-         * removeViewImmediate 即使窗口被系统提前移除，也只会抛异常并被捕获。
+         * removeView 即使窗口被系统提前移除，也只会抛异常并被捕获。
          *
          * 这样做的好处：
          * - 用户快速连续点击"关闭"按钮时，第二次调用会直接返回 false
-         * - 不会尝试对已移除的 View 再次调用 removeViewImmediate
+         * - 不会尝试对已移除的 View 再次调用 removeView
          */
         activeSession = null
         analysisUiState = AnalysisUiState.IDLE
 
         return try {
-            // 立即移除悬浮窗（同步操作，阻塞直到移除完成）
-            session.manager.removeViewImmediate(session.rootView)
+            // 使用 removeView 而非 removeViewImmediate：
+            // 1. removeViewImmediate 是同步 IPC 调用，在 UI 线程上执行可能引起卡顿
+            // 2. 当前所有调用者均绑定在主线程，无需立即同步移除
+            // 3. removeView 将移除操作排队到主线程消息队列，不会阻塞调用线程
+            session.manager.removeView(session.rootView)
 
             Log.i(TAG, "[Overlay] window removed. reason=$reason")
             true
