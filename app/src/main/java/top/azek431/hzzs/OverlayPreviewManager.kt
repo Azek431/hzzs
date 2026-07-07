@@ -14,9 +14,9 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * HZZS 第一阶段悬浮窗。
+ * HZZS 第一阶段悬浮窗管理器。
  *
- * 当前能力：
+ * 当前负责：
  * - 显示、拖动、关闭
  * - 数据分析准备入口
  * - QQ 群与 Telegram 主频道跳转
@@ -37,23 +37,24 @@ object OverlayPreviewManager {
         PREPARING,
     }
 
-    private var overlayView: View? = null
-    private var windowManager: WindowManager? = null
+    private data class OverlaySession(
+        val rootView: View,
+        val manager: WindowManager,
+    )
+
+    private var activeSession: OverlaySession? = null
     private var analysisUiState = AnalysisUiState.IDLE
 
+    /**
+     * 只以内部会话是否存在判断状态。
+     *
+     * 不使用 View.isAttachedToWindow：
+     * 某些设备在 addView() 后短时间内仍可能返回 false，
+     * 但系统 Overlay 实际已经显示。若此时清空引用，将无法关闭窗口。
+     */
     @Synchronized
     fun isShowing(): Boolean {
-        val currentView = overlayView
-
-        if (currentView?.isAttachedToWindow == true) {
-            return true
-        }
-
-        overlayView = null
-        windowManager = null
-        analysisUiState = AnalysisUiState.IDLE
-
-        return false
+        return activeSession != null
     }
 
     @Synchronized
@@ -68,13 +69,13 @@ object OverlayPreviewManager {
             return false
         }
 
-        if (isShowing()) {
-            Log.d(TAG, "[Overlay] show ignored because overlay is already visible.")
+        if (activeSession != null) {
+            Log.d(TAG, "[Overlay] show ignored because a session is already active.")
             return true
         }
 
         var candidateView: View? = null
-        var candidateWindowManager: WindowManager? = null
+        var candidateManager: WindowManager? = null
 
         try {
             analysisUiState = AnalysisUiState.IDLE
@@ -83,7 +84,7 @@ object OverlayPreviewManager {
                 Context.WINDOW_SERVICE,
             ) as WindowManager
 
-            candidateWindowManager = manager
+            candidateManager = manager
 
             val view = LayoutInflater.from(appContext)
                 .inflate(R.layout.view_overlay_preview, null, false)
@@ -137,7 +138,10 @@ object OverlayPreviewManager {
                 y = dp(appContext, 108)
             }
 
-            bindCloseButton(closeButton)
+            closeButton.setOnClickListener {
+                Log.i(TAG, "[Overlay] close requested.")
+                hide("close-button")
+            }
 
             startAnalysisButton.setOnClickListener {
                 if (analysisUiState != AnalysisUiState.IDLE) {
@@ -236,10 +240,12 @@ object OverlayPreviewManager {
 
             manager.addView(view, layoutParams)
 
-            overlayView = view
-            windowManager = manager
+            activeSession = OverlaySession(
+                rootView = view,
+                manager = manager,
+            )
 
-            Log.i(TAG, "[Overlay] preview overlay is visible.")
+            Log.i(TAG, "[Overlay] session created and window is visible.")
 
             return true
         } catch (error: Exception) {
@@ -248,9 +254,9 @@ object OverlayPreviewManager {
             try {
                 if (
                     candidateView != null &&
-                    candidateWindowManager != null
+                    candidateManager != null
                 ) {
-                    candidateWindowManager.removeViewImmediate(candidateView)
+                    candidateManager.removeViewImmediate(candidateView)
                 }
             } catch (cleanupError: Exception) {
                 Log.w(
@@ -260,8 +266,7 @@ object OverlayPreviewManager {
                 )
             }
 
-            overlayView = null
-            windowManager = null
+            activeSession = null
             analysisUiState = AnalysisUiState.IDLE
 
             return false
@@ -269,84 +274,40 @@ object OverlayPreviewManager {
     }
 
     @Synchronized
-    fun hide(reason: String = "manual") {
-        val currentView = overlayView
-        val currentWindowManager = windowManager
+    fun hide(reason: String = "manual"): Boolean {
+        val session = activeSession
 
-        overlayView = null
-        windowManager = null
-        analysisUiState = AnalysisUiState.IDLE
-
-        if (currentView == null || currentWindowManager == null) {
-            Log.d(TAG, "[Overlay] hide ignored. reason=$reason, no active window.")
-            return
+        if (session == null) {
+            Log.d(TAG, "[Overlay] hide ignored. reason=$reason, no session.")
+            return false
         }
 
-        try {
-            currentWindowManager.removeViewImmediate(currentView)
+        /*
+         * 先清空会话，阻止多次快速点击导致重复 removeView。
+         * removeViewImmediate 即使窗口被系统提前移除，也只会抛异常并被捕获。
+         */
+        activeSession = null
+        analysisUiState = AnalysisUiState.IDLE
 
-            Log.i(TAG, "[Overlay] removed. reason=$reason")
+        return try {
+            session.manager.removeViewImmediate(session.rootView)
+
+            Log.i(TAG, "[Overlay] window removed. reason=$reason")
+            true
         } catch (error: IllegalArgumentException) {
             Log.w(
                 TAG,
-                "[Overlay] remove skipped because window was already detached. reason=$reason",
+                "[Overlay] window was already detached. reason=$reason",
                 error,
             )
+            false
         } catch (error: Exception) {
             Log.e(
                 TAG,
                 "[Overlay] unable to remove window. reason=$reason",
                 error,
             )
-        }
-    }
-
-    private fun bindCloseButton(closeButton: View) {
-        closeButton.isClickable = true
-        closeButton.isFocusable = true
-
-        closeButton.setOnClickListener {
-            Log.i(TAG, "[Overlay] close click requested.")
-            hide("close-button-click")
-        }
-
-        closeButton.setOnTouchListener { button, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    button.parent?.requestDisallowInterceptTouchEvent(true)
-                    button.isPressed = true
-
-                    Log.d(TAG, "[Overlay] close touch down.")
-                    true
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    val isInsideButton = (
-                        event.x >= 0f &&
-                        event.x <= button.width &&
-                        event.y >= 0f &&
-                        event.y <= button.height
-                    )
-
-                    button.isPressed = false
-
-                    if (isInsideButton) {
-                        Log.d(TAG, "[Overlay] close touch up.")
-                        button.performClick()
-                    }
-
-                    true
-                }
-
-                MotionEvent.ACTION_CANCEL -> {
-                    button.isPressed = false
-
-                    Log.d(TAG, "[Overlay] close touch cancelled.")
-                    true
-                }
-
-                else -> true
-            }
+            false
         }
     }
 
