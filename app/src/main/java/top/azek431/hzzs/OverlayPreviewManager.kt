@@ -344,15 +344,23 @@ object OverlayPreviewManager {
             // 绑定调节控件（透明度滑块等）
             setupAdjustmentSliders(appContext, view)
 
-            // ---- 拖动逻辑 ----
+            // ---- 拖动与缩放逻辑 ----
             // 记录手指按下时的原始坐标和窗口位置，用于计算拖动偏移量
             var downRawX = 0f
             var downRawY = 0f
             var downWindowX = 0
             var downWindowY = 0
+            var initialWidth = overlayWidth
+            var isScaling = false
 
-            // 为拖动手柄设置触摸监听器
-            dragHandle.setOnTouchListener { _, event ->
+            // 关闭按钮：点击后隐藏悬浮窗（不触发拖动）
+            closeButton.setOnClickListener {
+                Log.i(TAG, "[Overlay] close requested.")
+                hide("close-button")
+            }
+
+            // 为内容面板设置触摸监听器——整个面板都可以拖动
+            contentPanel.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
                     // 手指按下：记录初始位置和触摸坐标
                     MotionEvent.ACTION_DOWN -> {
@@ -360,41 +368,64 @@ object OverlayPreviewManager {
                         downRawY = event.rawY
                         downWindowX = layoutParams.x
                         downWindowY = layoutParams.y
+                        initialWidth = layoutParams.width
+                        isScaling = false
                         true
                     }
 
-                    // 手指移动：计算偏移量并更新窗口位置
                     MotionEvent.ACTION_MOVE -> {
-                        // 计算新的 X 坐标：初始位置 + 移动距离，限制在 [0, maxX] 范围内
-                        layoutParams.x = (
-                            downWindowX + (event.rawX - downRawX).toInt()
-                        ).coerceIn(0, maxX)
+                        val dx = (event.rawX - downRawX).toInt()
+                        val dy = (event.rawY - downRawY).toInt()
 
-                        // 计算新的 Y 坐标：初始位置 + 移动距离，限制最小值为 0（不允许超出屏幕顶部）
-                        layoutParams.y = (
-                            downWindowY + (event.rawY - downRawY).toInt()
-                        ).coerceAtLeast(0)
+                        // 如果位移超过 5dp 阈值，视为拖动而非点击
+                        if (!isScaling && Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                            // 检查是否在缩放手柄区域（右下角 48dp 范围内）
+                            val panelRight = layoutParams.x + layoutParams.width
+                            val panelBottom = layoutParams.y + v.height
+                            val isInResizeCorner = (event.rawX > panelRight - dp(appContext, 48)) &&
+                                (event.rawY > panelBottom - dp(appContext, 48))
 
-                        // 更新悬浮窗位置
-                        try {
-                            manager.updateViewLayout(view, layoutParams)
-                        } catch (error: IllegalArgumentException) {
-                            // 窗口已被系统移除（如用户从设置页面退出），忽略
-                            Log.w(
-                                TAG,
-                                "[Overlay] detached while dragging.",
-                                error,
+                            if (isInResizeCorner && resizeHandle != null) {
+                                // 在缩放手柄区域：进入缩放模式
+                                isScaling = true
+                            }
+                        }
+
+                        if (isScaling && resizeHandle != null) {
+                            // 缩放模式：调整宽度
+                            val scaleFactor = 0.8f.coerceIn(0.5f, 1.5f) // 最小 50%，最大 150%
+                            val newWidth = (initialWidth + dx).coerceIn(
+                                (initialWidth * 0.5).toInt(),
+                                (initialWidth * 1.5).toInt()
                             )
+                            layoutParams.width = newWidth
+                            manager.updateViewLayout(v, layoutParams)
+                        } else {
+                            // 拖动模式：更新位置
+                            layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
+                            layoutParams.y = (downWindowY + dy).coerceAtLeast(0)
+
+                            try {
+                                manager.updateViewLayout(v, layoutParams)
+                            } catch (error: IllegalArgumentException) {
+                                Log.w(
+                                    TAG,
+                                    "[Overlay] detached while dragging.",
+                                    error,
+                                )
+                            }
                         }
 
                         true
                     }
 
-                    // 手指抬起或手势取消：释放拖拽状态
+                    // 手指抬起或手势取消：释放状态
                     MotionEvent.ACTION_UP,
-                    MotionEvent.ACTION_CANCEL -> true
+                    MotionEvent.ACTION_CANCEL -> {
+                        isScaling = false
+                        true
+                    }
 
-                    // 其他事件（如双指缩放）：不处理
                     else -> false
                 }
             }
