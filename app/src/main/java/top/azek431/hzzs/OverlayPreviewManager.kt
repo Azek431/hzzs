@@ -34,7 +34,7 @@ object OverlayPreviewManager {
 
     private enum class AnalysisUiState {
         IDLE,
-        PREPARING,
+        EXECUTING,
     }
 
     private data class OverlaySession(
@@ -144,24 +144,42 @@ object OverlayPreviewManager {
             }
 
             startAnalysisButton.setOnClickListener {
-                if (analysisUiState != AnalysisUiState.IDLE) {
-                    return@setOnClickListener
+                when (analysisUiState) {
+                    AnalysisUiState.IDLE -> {
+                        analysisUiState = AnalysisUiState.EXECUTING
+
+                        statusText.setText(
+                            R.string.overlay_analysis_preparing,
+                        )
+
+                        startAnalysisButton.setText(
+                            R.string.overlay_analysis_waiting,
+                        )
+
+                        startAnalysisButton.isEnabled = true
+                        startAnalysisButton.alpha = 1f
+
+                        Log.i(
+                            TAG,
+                            "[Analysis] execution entry enabled.",
+                        )
+
+                        Toast.makeText(
+                            appContext,
+                            R.string.overlay_analysis_placeholder,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+
+                    AnalysisUiState.EXECUTING -> {
+                        Log.i(
+                            TAG,
+                            "[Analysis] execute button clicked again; closing overlay.",
+                        )
+
+                        hide("execute-button-second-click")
+                    }
                 }
-
-                analysisUiState = AnalysisUiState.PREPARING
-
-                statusText.setText(R.string.overlay_analysis_preparing)
-                startAnalysisButton.setText(R.string.overlay_analysis_waiting)
-                startAnalysisButton.isEnabled = false
-                startAnalysisButton.alpha = 0.72f
-
-                Log.i(TAG, "[Analysis] data-analysis preparation requested.")
-
-                Toast.makeText(
-                    appContext,
-                    R.string.overlay_analysis_placeholder,
-                    Toast.LENGTH_SHORT,
-                ).show()
             }
 
             communityQq.setOnClickListener {

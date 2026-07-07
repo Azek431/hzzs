@@ -80,8 +80,8 @@
             <string name="community_telegram_content_description">点击打开 Azek431 Telegram 主频道</string>
             <string name="community_open_fallback">无法直接打开，链接已复制到剪贴板。</string>
             <string name="community_open_failed">链接打开失败，请稍后重试。</string>
-            <string name="overlay_analysis_start">开始数据分析</string>
-            <string name="overlay_analysis_preparing">数据分析准备中</string>
-            <string name="overlay_analysis_waiting">等待数据源</string>
-            <string name="overlay_analysis_placeholder">当前已进入数据分析准备流程，屏幕采集与帧分析模块尚未接入。</string>
+                <string name="overlay_analysis_start">开始执行</string>
+                <string name="overlay_analysis_preparing">执行准备中</string>
+                <string name="overlay_analysis_waiting">再次点击关闭</string>
+                <string name="overlay_analysis_placeholder">已进入执行准备状态；再次点击主按钮即可关闭悬浮窗。</string>
 </resources>
