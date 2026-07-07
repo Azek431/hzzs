@@ -444,6 +444,6 @@ Built with ❤️ by [Azek431](https://github.com/Azek431)
 <!-- HZZS-COMMUNITY-START -->
 ## 交流与动态
 
-- HZZS 项目 QQ 交流群（测试、反馈与问题讨论）：[点击加入群聊【火崽崽助手 交流群】](https://qm.qq.com/q/5T5fjwRgVq)
-- Azek431 主频道（同步 HZZS 与更多项目动态）：[打开 @AzekMain](https://t.me/AzekMain)
+- HZZS 项目 QQ 交流群（测试、反馈与问题讨论）：[qq群：130330601](https://qm.qq.com/q/5T5fjwRgVq)
+- Azek431 主频道（同步 HZZS 与更多项目动态）：[tg频道：@AzekMain](https://t.me/AzekMain)
 <!-- HZZS-COMMUNITY-END -->
