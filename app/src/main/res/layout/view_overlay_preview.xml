@@ -1,285 +1,232 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="228dp"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_overlay_preview_panel"
-    android:clipToOutline="true"
-    android:padding="12dp">
+    android:id="@+id/overlayRootPanel">
 
-    <LinearLayout
+    <!-- 12dp padding ring for resize hit areas -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="match_parent"
+        android:padding="12dp">
 
-        <!-- Drag handle + close button row -->
+        <!-- Actual content panel -->
         <FrameLayout
+            android:id="@+id/overlayContentPanel"
             android:layout_width="match_parent"
-            android:layout_height="48dp">
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_overlay_preview_panel"
+            android:clipToOutline="true"
+            android:padding="12dp">
 
             <LinearLayout
-                android:id="@+id/overlayDragHandle"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginEnd="52dp"
-                android:gravity="center_vertical"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- Drag handle + close button row -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp">
+
+                    <LinearLayout
+                        android:id="@+id/overlayDragHandle"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="52dp"
+                        android:gravity="center_vertical"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="@string/overlay_preview_brand"
+                            android:textColor="#FFF8EEF2"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:includeFontPadding="false"
+                            android:text="@string/overlay_preview_product_name"
+                            android:textColor="#FFCFC4CA"
+                            android:textSize="11sp" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/overlayCloseButton"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_gravity="top|end"
+                        android:background="@drawable/bg_overlay_preview_close"
+                        android:clickable="true"
+                        android:contentDescription="@string/overlay_preview_close"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:text="×"
+                        android:textColor="#FFFFD9E3"
+                        android:textSize="23sp"
+                        android:textStyle="bold" />
+
+                </FrameLayout>
+
+                <!-- Alpha slider -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/overlay_adjust_alpha_label"
+                        android:textColor="#FFCFC4CA"
+                        android:textSize="10sp" />
+
+                    <SeekBar
+                        android:id="@+id/overlayAlphaSlider"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:min="30"
+                        android:progress="100"
+                        android:progressTint="#FFB1C4D7"
+                        android:thumbTint="#FFB1C4D7" />
+
+                    <TextView
+                        android:id="@+id/overlayAlphaValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:text="100%"
+                        android:textColor="#FFCFC4CA"
+                        android:textSize="10sp" />
+
+                </LinearLayout>
+
+                <!-- Window size hint (replaces old scale slider) -->
                 <TextView
+                    android:id="@+id/overlaySizeHint"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginStart="4dp"
                     android:includeFontPadding="false"
-                    android:text="@string/overlay_preview_brand"
-                    android:textColor="#FFF8EEF2"
-                    android:textSize="15sp"
+                    android:text="@string/overlay_adjust_window_hint"
+                    android:textColor="#80CFC4CA"
+                    android:textSize="9sp" />
+
+                <!-- Status pill -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_overlay_preview_status"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="4dp">
+
+                    <View
+                        android:layout_width="7dp"
+                        android:layout_height="7dp"
+                        android:background="#FFFFA9C0" />
+
+                    <TextView
+                        android:id="@+id/overlayStatusText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:includeFontPadding="false"
+                        android:text="@string/overlay_preview_status"
+                        android:textColor="#FFFFC8D7"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <!-- Analysis button -->
+                <TextView
+                    android:id="@+id/overlayStartAnalysis"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="11dp"
+                    android:background="@drawable/bg_overlay_analysis_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:text="@string/overlay_analysis_start"
+                    android:textColor="#FF30151E"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="11dp"
+                    android:background="#24FFFFFF" />
+
+                <!-- Community QQ -->
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
+                    android:id="@+id/overlayCommunityQq"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_overlay_text_link"
+                    android:clickable="true"
+                    android:contentDescription="@string/community_qq_content_description"
+                    android:ellipsize="end"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
                     android:includeFontPadding="false"
-                    android:text="@string/overlay_preview_product_name"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="9dp"
+                    android:singleLine="true"
+                    android:text="@string/overlay_community_qq"
+                    android:textColor="#FFFFB1C4"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Community Telegram -->
+                <TextView
+                    android:id="@+id/overlayCommunityTelegram"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="2dp"
+                    android:background="@drawable/bg_overlay_text_link"
+                    android:clickable="true"
+                    android:contentDescription="@string/community_telegram_content_description"
+                    android:ellipsize="end"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:includeFontPadding="false"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="9dp"
+                    android:singleLine="true"
+                    android:text="@string/overlay_community_telegram"
                     android:textColor="#FFCFC4CA"
-                    android:textSize="11sp" />
+                    android:textSize="12sp" />
 
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/overlayCloseButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="top|end"
-                android:background="@drawable/bg_overlay_preview_close"
-                android:clickable="true"
-                android:contentDescription="@string/overlay_preview_close"
-                android:focusable="true"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:text="×"
-                android:textColor="#FFFFD9E3"
-                android:textSize="23sp"
-                android:textStyle="bold" />
-
         </FrameLayout>
-
-        <!-- Adjustable slider area -->
-        <LinearLayout
-            android:id="@+id/overlayAdjustArea"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:includeFontPadding="false"
-                android:text="@string/overlay_adjust_alpha_label"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-            <SeekBar
-                android:id="@+id/overlayAlphaSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:max="100"
-                android:min="30"
-                android:progress="100"
-                android:thumbTint="#FFB1C4D7"
-                android:progressTint="#FFB1C4D7" />
-
-            <TextView
-                android:id="@+id/overlayAlphaValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:includeFontPadding="false"
-                android:text="100%"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Scale slider -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:includeFontPadding="false"
-                android:text="@string/overlay_adjust_scale_label"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-            <SeekBar
-                android:id="@+id/overlayScaleSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:max="100"
-                android:min="0"
-                android:progress="100"
-                android:thumbTint="#FFB1C4D7"
-                android:progressTint="#FFB1C4D7" />
-
-            <TextView
-                android:id="@+id/overlayScaleValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:includeFontPadding="false"
-                android:text="100%"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Radius slider -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:includeFontPadding="false"
-                android:text="@string/overlay_adjust_radius_label"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-            <SeekBar
-                android:id="@+id/overlayRadiusSlider"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:max="100"
-                android:min="0"
-                android:progress="16"
-                android:thumbTint="#FFB1C4D7"
-                android:progressTint="#FFB1C4D7" />
-
-            <TextView
-                android:id="@+id/overlayRadiusValue"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:includeFontPadding="false"
-                android:text="20 dp"
-                android:textColor="#FFCFC4CA"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_overlay_preview_status"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp">
-
-            <View
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:background="#FFFFA9C0" />
-
-            <TextView
-                android:id="@+id/overlayStatusText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:includeFontPadding="false"
-                android:text="@string/overlay_preview_status"
-                android:textColor="#FFFFC8D7"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/overlayStartAnalysis"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="11dp"
-            android:background="@drawable/bg_overlay_analysis_button"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:includeFontPadding="false"
-            android:text="@string/overlay_analysis_start"
-            android:textColor="#FF30151E"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="11dp"
-            android:background="#24FFFFFF" />
-
-        <TextView
-            android:id="@+id/overlayCommunityQq"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_overlay_text_link"
-            android:clickable="true"
-            android:contentDescription="@string/community_qq_content_description"
-            android:ellipsize="end"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:includeFontPadding="false"
-            android:paddingStart="9dp"
-            android:paddingEnd="9dp"
-            android:singleLine="true"
-            android:text="@string/overlay_community_qq"
-            android:textColor="#FFFFB1C4"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/overlayCommunityTelegram"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_marginTop="2dp"
-            android:background="@drawable/bg_overlay_text_link"
-            android:clickable="true"
-            android:contentDescription="@string/community_telegram_content_description"
-            android:ellipsize="end"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:includeFontPadding="false"
-            android:paddingStart="9dp"
-            android:paddingEnd="9dp"
-            android:singleLine="true"
-            android:text="@string/overlay_community_telegram"
-            android:textColor="#FFCFC4CA"
-            android:textSize="12sp" />
-
-    </LinearLayout>
+    </FrameLayout>
 
 </FrameLayout>
