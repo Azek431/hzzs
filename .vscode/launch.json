@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "🐛 [HZZS] Android JDWP 调试",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005,
+      "stopOnEntry": false,
+      "sourceFileEncoding": "UTF-8",
+      "skipClasses": [
+        "javax.*",
+        "java.*",
+        "android.*",
+        "com.android.*",
+        "org.apache.*"
+      ]
+    }
+  ]
+}

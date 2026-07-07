@@ -105,7 +105,20 @@ object OverlayPreviewManager {
      */
     private var activeSession: OverlaySession? = null
 
-    /** 当前数据分析 UI 的状态（@Volatile 保证多线程可见性） */
+    /**
+     * 当前数据分析 UI 的状态（@Volatile 保证多线程可见性）。
+     *
+     * 使用 @Volatile 而非 @Synchronized 修饰变量，因为：
+     * - analysisUiState 只在 show() 和 hide() 中被读写
+     * - show() 和 hide() 本身已由 @Synchronized 保护
+     * - @Volatile 确保当一个线程修改状态后，其他线程立即可见
+     * - 比 synchronized 块开销更小
+     *
+     * 注意：analysisUiState 与 activeSession 是两个独立的状态：
+     * - activeSession：控制悬浮窗是否可见（物理层面）
+     * - analysisUiState：控制"开始执行/结束执行"按钮的文本（逻辑层面）
+     * 关闭悬浮窗时两者都重置，但它们是正交的概念。
+     */
     @Volatile
     private var analysisUiState = AnalysisUiState.IDLE
 
@@ -249,9 +262,15 @@ object OverlayPreviewManager {
             }
 
             // 绑定关闭按钮：点击后隐藏悬浮窗
-            closeButton.setOnClickListener {
-                Log.i(TAG, "[Overlay] close requested.")
-                hide("close-button")
+            // 关闭按钮的 onTouch 返回 false，让 ACTION_MOVE 冒泡给 contentPanel 处理拖动
+            closeButton.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    // 只处理 DOWN 事件，让 onClick 能正常触发
+                    false
+                } else {
+                    // MOVE/UP 等事件不处理，冒泡给父 View
+                    false
+                }
             }
 
             // 绑定开始/停止分析按钮：切换数据分析状态
@@ -359,7 +378,19 @@ object OverlayPreviewManager {
                 hide("close-button")
             }
 
-            // 为内容面板设置触摸监听器——整个面板都可以拖动
+            // 为内容面板设置触摸监听器——整个面板都可以拖动。
+            //
+            // 触摸分发优先级（从快到慢）：
+            // 1. ACTION_DOWN：记录初始位置，重置 isScaling = false
+            // 2. ACTION_MOVE：
+            //    a) 如果位移 <= 5dp 且未进入缩放模式 → 视为拖动
+            //    b) 如果位移 > 5dp 且在缩放手柄区域 → 进入缩放模式
+            //    c) 如果已进入缩放模式 → 调整宽度
+            // 3. ACTION_UP / ACTION_CANCEL：释放 isScaling
+            //
+            // 缩放手柄区域：右下角 48dp × 48dp 范围内
+            // 拖动阈值：5dp（避免轻微抖动被误判为拖动）
+            // 宽度限制：0.5x ~ 1.5x 原始宽度
             contentPanel.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
                     // 手指按下：记录初始位置和触摸坐标
@@ -394,6 +425,7 @@ object OverlayPreviewManager {
 
                         if (isScaling && resizeHandle != null) {
                             // 缩放模式：调整宽度
+                            // 限制范围：最小 50% 原始宽度，最大 150% 原始宽度
                             val newWidth = (initialWidth + dx).coerceIn(
                                 (initialWidth * 0.5).toInt(),
                                 (initialWidth * 1.5).toInt()
