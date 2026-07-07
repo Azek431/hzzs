@@ -77,9 +77,9 @@ RunnerPose RunnerStateMachine::Update(const FrameDetections& frame) {
             );
             pose = RunnerPose::kRun;
         }
-    } elseif (vertical_velocity < kUpwardVelocityThreshold) {
+    } else if (vertical_velocity < kUpwardVelocityThreshold) {
         pose = RunnerPose::kJumpUp;
-    } elseif (vertical_velocity > kDownwardVelocityThreshold) {
+    } else if (vertical_velocity > kDownwardVelocityThreshold) {
         pose = RunnerPose::kJumpDown;
     } else {
         pose = RunnerPose::kJumpTop;
