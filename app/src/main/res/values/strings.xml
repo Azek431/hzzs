@@ -54,4 +54,6 @@
     <string name="overlay_preview_close">关闭悬浮窗</string>
     <string name="overlay_preview_open_failed">悬浮窗未能打开，请检查授权状态。</string>
     <string name="overlay_permission_go_to_settings">前往授权</string>
+    <string name="overlay_preview_product_name">火崽崽助手</string>
+    <string name="overlay_preview_drag_hint">拖动顶部区域移动</string>
 </resources>

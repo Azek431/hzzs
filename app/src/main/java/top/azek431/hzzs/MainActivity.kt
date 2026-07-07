@@ -57,16 +57,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val isNowShowing = if (OverlayPreviewManager.isShowing()) {
+        if (OverlayPreviewManager.isShowing()) {
             OverlayPreviewManager.hide()
-            false
-        } else {
-            OverlayPreviewManager.show(this)
+            refreshOverlayButton()
+            return
         }
+
+        val opened = OverlayPreviewManager.show(this)
 
         refreshOverlayButton()
 
-        if (!isNowShowing && !OverlayPreviewManager.isShowing()) {
+        if (!opened) {
             Toast.makeText(
                 this,
                 stringOrFallback(

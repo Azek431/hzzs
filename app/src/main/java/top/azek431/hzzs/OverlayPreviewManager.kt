@@ -5,29 +5,48 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.ImageButton
 
 /**
- * 第一阶段悬浮窗预览管理器。
+ * 第一阶段悬浮窗管理器。
  *
- * 当前只负责安全显示、拖动与关闭悬浮窗。
- * 不启动前台服务，不接入 MediaProjection，不执行后台分析。
+ * 当前只负责：
+ * - 显示
+ * - 拖动
+ * - 关闭
+ * - 安全处理异常
+ *
+ * 不负责：
+ * - 前台服务
+ * - MediaProjection
+ * - 屏幕采集
+ * - HUD 分析
+ * - 自动操作
  */
 object OverlayPreviewManager {
 
-    private const val TAG = "HzzsOverlayPreview"
+    private const val TAG = "HZZS"
 
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
 
     @Synchronized
     fun isShowing(): Boolean {
-        return overlayView != null
+        val currentView = overlayView
+
+        if (currentView?.isAttachedToWindow == true) {
+            return true
+        }
+
+        overlayView = null
+        windowManager = null
+
+        return false
     }
 
     @Synchronized
@@ -38,121 +57,177 @@ object OverlayPreviewManager {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
             !Settings.canDrawOverlays(appContext)
         ) {
-            Log.w(TAG, "Overlay permission is not granted.")
+            Log.w(TAG, "[Overlay] permission is not granted.")
             return false
         }
 
-        if (overlayView != null) {
+        if (isShowing()) {
+            Log.d(TAG, "[Overlay] show ignored because overlay is already visible.")
             return true
         }
 
-        val manager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val view = LayoutInflater.from(appContext)
-            .inflate(R.layout.view_overlay_preview, null, false)
+        var candidateView: View? = null
+        var candidateWindowManager: WindowManager? = null
 
-        val layoutParams = WindowManager.LayoutParams(
-            dp(appContext, 188),
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        try {
+            /*
+             * Overlay 不能直接依赖 applicationContext 的默认系统主题。
+             * 这里显式读取 AndroidManifest 中 application theme，
+             * 然后创建带主题的 Context，保证以后即使重新使用 Material 组件，
+             * 也不会因为 Overlay Context 丢失主题而崩溃。
+             */
+            val applicationThemeId = appContext.applicationInfo.theme
+
+            val themedContext = if (applicationThemeId != 0) {
+                ContextThemeWrapper(appContext, applicationThemeId)
             } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = appContext.resources.displayMetrics.widthPixels - dp(appContext, 208)
-            y = dp(appContext, 92)
-        }
+                context
+            }
 
-        view.findViewById<ImageButton>(R.id.overlayCloseButton).setOnClickListener {
-            hide()
-        }
+            candidateWindowManager =
+                appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
+            val view = LayoutInflater.from(themedContext)
+                .inflate(R.layout.view_overlay_preview, null, false)
 
-        var downRawX = 0f
-        var downRawY = 0f
-        var downWindowX = 0
-        var downWindowY = 0
+            candidateView = view
 
-        dragHandle.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downRawX = event.rawX
-                    downRawY = event.rawY
-                    downWindowX = layoutParams.x
-                    downWindowY = layoutParams.y
-                    true
-                }
+            val closeButton = view.findViewById<View>(R.id.overlayCloseButton)
+                ?: throw IllegalStateException("overlayCloseButton is missing.")
 
-                MotionEvent.ACTION_MOVE -> {
-                    layoutParams.x = downWindowX + (event.rawX - downRawX).toInt()
-                    layoutParams.y = downWindowY + (event.rawY - downRawY).toInt()
+            val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
+                ?: throw IllegalStateException("overlayDragHandle is missing.")
 
-                    try {
-                        manager.updateViewLayout(view, layoutParams)
-                    } catch (error: IllegalArgumentException) {
-                        Log.w(TAG, "Overlay was detached while dragging.", error)
+            val layoutParams = WindowManager.LayoutParams(
+                dp(appContext, 172),
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+
+                val screenWidth = appContext.resources.displayMetrics.widthPixels
+                x = maxOf(dp(appContext, 8), screenWidth - dp(appContext, 188))
+                y = dp(appContext, 108)
+            }
+
+            closeButton.setOnClickListener {
+                hide()
+            }
+
+            var downRawX = 0f
+            var downRawY = 0f
+            var downWindowX = 0
+            var downWindowY = 0
+
+            dragHandle.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        downWindowX = layoutParams.x
+                        downWindowY = layoutParams.y
+                        true
                     }
 
-                    true
+                    MotionEvent.ACTION_MOVE -> {
+                        layoutParams.x =
+                            downWindowX + (event.rawX - downRawX).toInt()
+
+                        layoutParams.y =
+                            downWindowY + (event.rawY - downRawY).toInt()
+
+                        try {
+                            candidateWindowManager.updateViewLayout(
+                                view,
+                                layoutParams,
+                            )
+                        } catch (error: IllegalArgumentException) {
+                            Log.w(
+                                TAG,
+                                "[Overlay] overlay was detached while dragging.",
+                                error,
+                            )
+                        }
+
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> true
+
+                    else -> false
                 }
-
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL -> true
-
-                else -> false
             }
-        }
 
-        return try {
-            manager.addView(view, layoutParams)
+            candidateWindowManager.addView(view, layoutParams)
 
             overlayView = view
-            windowManager = manager
+            windowManager = candidateWindowManager
 
-            true
-        } catch (error: SecurityException) {
-            Log.e(TAG, "Overlay permission was rejected by the system.", error)
-            false
-        } catch (error: WindowManager.BadTokenException) {
-            Log.e(TAG, "Overlay window token is invalid.", error)
-            false
-        } catch (error: IllegalStateException) {
-            Log.e(TAG, "Overlay view is already attached.", error)
-            false
-        } catch (error: RuntimeException) {
-            Log.e(TAG, "Unable to create overlay preview.", error)
-            false
+            Log.i(TAG, "[Overlay] preview overlay is visible.")
+
+            return true
+        } catch (error: Exception) {
+            Log.e(TAG, "[Overlay] unable to show preview overlay.", error)
+
+            try {
+                if (
+                    candidateView?.isAttachedToWindow == true &&
+                    candidateWindowManager != null
+                ) {
+                    candidateWindowManager.removeViewImmediate(candidateView)
+                }
+            } catch (cleanupError: Exception) {
+                Log.w(
+                    TAG,
+                    "[Overlay] cleanup after show failure also failed.",
+                    cleanupError,
+                )
+            }
+
+            overlayView = null
+            windowManager = null
+
+            return false
         }
     }
 
     @Synchronized
     fun hide() {
-        val view = overlayView ?: return
-        val manager = windowManager
+        val currentView = overlayView ?: return
+        val currentWindowManager = windowManager
 
         overlayView = null
         windowManager = null
 
-        if (manager == null) {
+        if (currentWindowManager == null) {
             return
         }
 
         try {
-            manager.removeViewImmediate(view)
+            if (currentView.isAttachedToWindow) {
+                currentWindowManager.removeViewImmediate(currentView)
+            }
+
+            Log.i(TAG, "[Overlay] preview overlay is hidden.")
         } catch (error: IllegalArgumentException) {
-            Log.w(TAG, "Overlay view was already removed.", error)
-        } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to remove overlay preview.", error)
+            Log.w(TAG, "[Overlay] preview overlay was already removed.", error)
+        } catch (error: Exception) {
+            Log.w(TAG, "[Overlay] unable to remove preview overlay.", error)
         }
     }
 
     private fun dp(context: Context, value: Int): Int {
-        return (value * context.resources.displayMetrics.density + 0.5f).toInt()
+        return (
+            value * context.resources.displayMetrics.density + 0.5f
+        ).toInt()
     }
 }
