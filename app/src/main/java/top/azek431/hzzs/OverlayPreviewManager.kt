@@ -105,7 +105,8 @@ object OverlayPreviewManager {
      */
     private var activeSession: OverlaySession? = null
 
-    /** 当前数据分析 UI 的状态 */
+    /** 当前数据分析 UI 的状态（@Volatile 保证多线程可见性） */
+    @Volatile
     private var analysisUiState = AnalysisUiState.IDLE
 
     /**
