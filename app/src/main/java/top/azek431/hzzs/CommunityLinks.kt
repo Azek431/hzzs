@@ -130,21 +130,10 @@ object CommunityLinks {
         confirmation: String,
     ) {
         try {
-            // 获取系统剪贴板服务
+            // 获取系统剪贴板服务（Android 框架保证此服务始终可用）
             val clipboard = context.getSystemService(
                 ClipboardManager::class.java,
             )
-
-            // 极端情况：系统不提供剪贴板服务
-            if (clipboard == null) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.community_open_failed),
-                    Toast.LENGTH_SHORT,
-                ).show()
-
-                return
-            }
 
             // 创建纯文本剪贴板数据并设置为主剪贴板
             // label 作为剪贴板内容的标识名称（用于多条目剪贴板场景）

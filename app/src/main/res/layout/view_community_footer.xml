@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    首页底部社区链接区域布局。
+
+    包含：
+    1. 分隔线（52dp 宽，1dp 高，半透明白色）
+    2. 标题："交流与动态"
+    3. QQ 群链接按钮（点击打开 CommunityLinks.HZZS_QQ_GROUP_URL）
+    4. Telegram 频道链接按钮（点击打开 CommunityLinks.AZEK_MAIN_TELEGRAM_URL）
+
+    此布局通过 include 标签嵌入 activity_main.xml 的底部区域。
+    点击事件由 MainActivity.bindCommunityFooterLinks() 统一处理。
+-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -7,11 +19,13 @@
     android:gravity="center_horizontal"
     android:orientation="vertical">
 
+    <!-- 分隔线：52dp 宽，1dp 高，半透明白色 -->
     <View
         android:layout_width="52dp"
         android:layout_height="1dp"
         android:background="#42FFFFFF" />
 
+    <!-- 社区标题 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -21,6 +35,7 @@
         android:textSize="11sp"
         android:textStyle="bold" />
 
+    <!-- QQ 群链接按钮：点击后由 MainActivity 调用 CommunityLinks.openLink() -->
     <TextView
         android:id="@+id/textCommunityQqLink"
         android:layout_width="wrap_content"
@@ -38,6 +53,7 @@
         android:textColor="#FFFFB1C4"
         android:textSize="13sp" />
 
+    <!-- Telegram 频道链接按钮：点击后由 MainActivity 调用 CommunityLinks.openLink() -->
     <TextView
         android:id="@+id/textCommunityTelegramLink"
         android:layout_width="wrap_content"
