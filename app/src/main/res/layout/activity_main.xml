@@ -386,6 +386,12 @@
                 android:layout_marginTop="@dimen/space_2xl"
                 android:background="@color/divider" />
 
+            <!-- 社区链接区域：QQ 群、Telegram 频道 -->
+            <include
+                android:id="@+id/communityFooter"
+                layout="@layout/view_community_footer" />
+
+            <!-- 开发者署名和版本信息 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -394,54 +400,6 @@
                 android:paddingTop="@dimen/space_xl"
                 android:paddingBottom="@dimen/space_sm">
 
-                                        <!-- HZZS_COMMUNITY_FOOTER_START -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/space_lg"
-                    android:text="@string/community_footer_heading"
-                    android:textColor="@color/outline"
-                    android:textSize="@dimen/text_footer_small"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/textCommunityQqLink"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginTop="@dimen/space_sm"
-                    android:background="@drawable/bg_community_footer_link"
-                    android:clickable="true"
-                    android:contentDescription="@string/community_qq_content_description"
-                    android:ellipsize="end"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:paddingStart="@dimen/space_sm"
-                    android:paddingEnd="@dimen/space_sm"
-                    android:text="@string/community_footer_qq"
-                    android:textColor="@color/brand_primary"
-                    android:textSize="@dimen/text_footer" />
-
-                <TextView
-                    android:id="@+id/textCommunityTelegramLink"
-                    android:layout_width="wrap_content"
-                    android:layout_height="38dp"
-                    android:layout_marginTop="@dimen/space_2xs"
-                    android:background="@drawable/bg_community_footer_link"
-                    android:clickable="true"
-                    android:contentDescription="@string/community_telegram_content_description"
-                    android:ellipsize="end"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:paddingStart="@dimen/space_sm"
-                    android:paddingEnd="@dimen/space_sm"
-                    android:text="@string/community_footer_telegram"
-                    android:textColor="@color/on_surface_variant"
-                    android:textSize="@dimen/text_footer" />
-                <!-- HZZS_COMMUNITY_FOOTER_END -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
