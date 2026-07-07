@@ -139,9 +139,6 @@
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-        <include
-            layout="@layout/view_community_promotion" />
 <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -396,7 +393,51 @@
                 android:paddingTop="@dimen/space_xl"
                 android:paddingBottom="@dimen/space_sm">
 
-                <TextView
+                        <!-- HZZS_COMMUNITY_FOOTER_START -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_lg"
+            android:text="@string/community_footer_heading"
+            android:textColor="@color/outline"
+            android:textSize="@dimen/text_footer_small"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textCommunityQqLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_sm"
+            android:background="@drawable/bg_community_footer_link"
+            android:clickable="true"
+            android:contentDescription="@string/community_qq_content_description"
+            android:focusable="true"
+            android:gravity="center"
+            android:minHeight="44dp"
+            android:paddingStart="@dimen/space_sm"
+            android:paddingEnd="@dimen/space_sm"
+            android:text="@string/community_footer_qq"
+            android:textColor="@color/brand_primary"
+            android:textSize="@dimen/text_footer" />
+
+        <TextView
+            android:id="@+id/textCommunityTelegramLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_2xs"
+            android:background="@drawable/bg_community_footer_link"
+            android:clickable="true"
+            android:contentDescription="@string/community_telegram_content_description"
+            android:focusable="true"
+            android:gravity="center"
+            android:minHeight="44dp"
+            android:paddingStart="@dimen/space_sm"
+            android:paddingEnd="@dimen/space_sm"
+            android:text="@string/community_footer_telegram"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="@dimen/text_footer" />
+        <!-- HZZS_COMMUNITY_FOOTER_END -->
+<TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/footer_developer"
