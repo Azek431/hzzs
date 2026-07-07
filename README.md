@@ -421,11 +421,15 @@ Android 版本
 - 不把规划中的功能描述成已经实现。
 - 提交说明能够准确反映改动目的。
 
-## Star 趋势
+## Star History
 
-> Star 趋势图会在仓库公开并获得 Star 后逐步显示数据。
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Azek431/hzzs&type=Date)](https://www.star-history.com/#Azek431/hzzs&Date)
+<a href="https://www.star-history.com/?repos=Azek431%2Fhzzs&type=timeline&logscale=&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=timeline&theme=dark&logscale&legend=top-left&sealed_token=5nGYwu6dyFZCBkjQpE4_BONnzaLSsYtPWFhzRt8hTVk7wquqIFambdz031_AYxA8S-cAZSGChh7QXUpVenbo_bG-VJlg0d4nmQ56p6FnI_N4pIbOL8X-20nvQNActWBIUsQGhTm4hI-mDS0YRnBn5d0_o5ICvU3Q6Qp717Eau6y_c1l3X-hdJgRUhsk0" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=timeline&logscale&legend=top-left&sealed_token=5nGYwu6dyFZCBkjQpE4_BONnzaLSsYtPWFhzRt8hTVk7wquqIFambdz031_AYxA8S-cAZSGChh7QXUpVenbo_bG-VJlg0d4nmQ56p6FnI_N4pIbOL8X-20nvQNActWBIUsQGhTm4hI-mDS0YRnBn5d0_o5ICvU3Q6Qp717Eau6y_c1l3X-hdJgRUhsk0" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Azek431/hzzs&type=timeline&logscale&legend=top-left&sealed_token=5nGYwu6dyFZCBkjQpE4_BONnzaLSsYtPWFhzRt8hTVk7wquqIFambdz031_AYxA8S-cAZSGChh7QXUpVenbo_bG-VJlg0d4nmQ56p6FnI_N4pIbOL8X-20nvQNActWBIUsQGhTm4hI-mDS0YRnBn5d0_o5ICvU3Q6Qp717Eau6y_c1l3X-hdJgRUhsk0" />
+ </picture>
+</a>
 
 ## 开源许可证
 
