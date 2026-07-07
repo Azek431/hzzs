@@ -23,12 +23,7 @@ constexpr const char* kLogTag = "HZZS-Native";
  * @return 转换后的 jstring，调用方负责 DeleteLocalRef
  */
 jstring ToJString(JNIEnv* env, const std::string& value) {
-    const char* utf8 = env->GetStringUTFChars(value.c_str(), nullptr);
-    if (!utf8) return nullptr;
-
-    jstring result = env->NewString(utf8, env->GetStringLength(utf8));
-    env->ReleaseStringUTFChars(value.c_str(), utf8);
-    return result;
+    return env->NewStringUTF(value.c_str());
 }
 
 /**
