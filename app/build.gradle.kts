@@ -29,13 +29,25 @@ android {
     }
 
     signingConfigs {
-        if (releaseSigningConfigured) {
-            create("release") {
-                storeFile = file(releaseStoreFile)
-                storePassword = releaseStorePassword
-                keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
-                storeType = "PKCS12"
+    if (releaseSigningConfigured) {
+        create("release") {
+            storeFile = file(releaseStoreFile)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            storeType = "PKCS12"
+
+            // 本项目最低支持 Android 7.0（API 24），不需要 V1。
+            enableV1Signing = false
+
+            // Android 7.0+ 的基础 APK 签名方案。
+            enableV2Signing = true
+
+            // Android 9.0+ 的现代签名方案，并为未来签名轮换保留能力。
+            enableV3Signing = true
+
+            // 仅用于 Android 11+ 的 ADB 增量安装，不作为普通发布 APK 的默认配置。
+            enableV4Signing = false
             }
         }
     }
