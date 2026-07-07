@@ -1,74 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    首页底部社区链接区域布局。
+    社区链接页脚布局。
 
     包含：
-    1. 分隔线（52dp 宽，1dp 高，半透明白色）
-    2. 标题："交流与动态"
-    3. QQ 群链接按钮（点击打开 CommunityLinks.HZZS_QQ_GROUP_URL）
-    4. Telegram 频道链接按钮（点击打开 CommunityLinks.AZEK_MAIN_TELEGRAM_URL）
+    - 分区标题（交流与动态）
+    - QQ 群链接（可点击，跳转或复制）
+    - Telegram 频道链接（可点击，跳转或复制）
 
-    此布局通过 include 标签嵌入 activity_main.xml 的底部区域。
-    点击事件由 MainActivity.bindCommunityFooterLinks() 统一处理。
+    此布局通过 <include layout="@layout/view_community_footer" />
+    在 activity_main.xml 中引用，android:id="@+id/communityFooter"
+    使 include 容器可以被 ViewCompat.setOnApplyWindowInsetsListener 等
+    方法引用。
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="30dp"
     android:gravity="center_horizontal"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingTop="@dimen/space_xl"
+    android:paddingBottom="@dimen/space_sm">
 
-    <!-- 分隔线：52dp 宽，1dp 高，半透明白色 -->
-    <View
-        android:layout_width="52dp"
-        android:layout_height="1dp"
-        android:background="#42FFFFFF" />
-
-    <!-- 社区标题 -->
+    <!-- 分区标题 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="@dimen/space_lg"
         android:text="@string/community_footer_heading"
-        android:textColor="#FF948B91"
-        android:textSize="11sp"
+        android:textColor="@color/outline"
+        android:textSize="@dimen/text_footer_small"
         android:textStyle="bold" />
 
-    <!-- QQ 群链接按钮：点击后由 MainActivity 调用 CommunityLinks.openLink() -->
+    <!-- QQ 群链接 -->
     <TextView
         android:id="@+id/textCommunityQqLink"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_height="40dp"
+        android:layout_marginTop="@dimen/space_sm"
         android:background="@drawable/bg_community_footer_link"
         android:clickable="true"
         android:contentDescription="@string/community_qq_content_description"
+        android:ellipsize="end"
         android:focusable="true"
         android:gravity="center"
-        android:minHeight="44dp"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:paddingStart="@dimen/space_sm"
+        android:paddingEnd="@dimen/space_sm"
         android:text="@string/community_footer_qq"
-        android:textColor="#FFFFB1C4"
-        android:textSize="13sp" />
+        android:textColor="@color/brand_primary"
+        android:textSize="@dimen/text_footer" />
 
-    <!-- Telegram 频道链接按钮：点击后由 MainActivity 调用 CommunityLinks.openLink() -->
+    <!-- Telegram 频道链接 -->
     <TextView
         android:id="@+id/textCommunityTelegramLink"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_height="38dp"
+        android:layout_marginTop="@dimen/space_2xs"
         android:background="@drawable/bg_community_footer_link"
         android:clickable="true"
         android:contentDescription="@string/community_telegram_content_description"
+        android:ellipsize="end"
         android:focusable="true"
         android:gravity="center"
-        android:minHeight="44dp"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:paddingStart="@dimen/space_sm"
+        android:paddingEnd="@dimen/space_sm"
         android:text="@string/community_footer_telegram"
-        android:textColor="#FFCFC4CA"
-        android:textSize="12sp" />
+        android:textColor="@color/on_surface_variant"
+        android:textSize="@dimen/text_footer" />
 
 </LinearLayout>
