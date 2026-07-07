@@ -66,9 +66,13 @@ std::uint8_t JumpStageEstimator::Update(
         timestamp_ms - last_jump_impulse_ms_ >= kMinImpulseGapMs
     );
 
-    if (starts_first_jump || (stage_ == 0 && motion.pose == RunnerPose::kJumpUp)) {
+    if (starts_first_jump) {
         stage_ = 1;
         last_jump_impulse_ms_ = timestamp_ms;
+    } else if (stage_ == 1 && motion.pose == RunnerPose::kJumpUp) {
+        // 已在空中且检测到起跳姿态：可能是二段跳脉冲的前置帧，
+        // 但不直接设 stage=1（防止 last_grounded==false 时错误重置）。
+        // 二段跳的实际推进由 gets_second_jump_impulse 条件处理。
     } else if (gets_second_jump_impulse) {
         stage_ = kMaxJumpStage;
         last_jump_impulse_ms_ = timestamp_ms;

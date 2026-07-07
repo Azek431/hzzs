@@ -417,11 +417,12 @@ object OverlayPreviewManager {
 
             // 尝试清理部分创建的 View，防止残留
             try {
-                if (
-                    candidateView != null &&
-                    candidateManager != null
-                ) {
-                    candidateManager.removeViewImmediate(candidateView)
+                if (candidateView != null && candidateManager != null) {
+                    // 使用 removeView 而非 removeViewImmediate，因为此时 View 可能
+                    // 尚未被 addView（异常发生在 addView 之前），removeViewImmediate
+                    // 会抛出 IllegalStateException。removeView 更安全：如果 View
+                    // 已附加则移除，如果未附加则无操作。
+                    candidateManager.removeView(candidateView)
                 }
             } catch (cleanupError: Exception) {
                 Log.w(
