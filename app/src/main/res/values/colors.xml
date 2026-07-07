@@ -1,39 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Core surfaces -->
-    <color name="surface_background">#101010</color>
-    <color name="surface">#171717</color>
-    <color name="surface_container_low">#1C1B1B</color>
-    <color name="surface_container">#211F20</color>
-    <color name="surface_container_high">#2A2728</color>
-    <color name="surface_container_highest">#353233</color>
+    <!-- Core surfaces (light M3) -->
+    <color name="surface_background">#FFF8F6</color>
+    <color name="surface">#FFFDFC</color>
+    <color name="surface_container_low">#FFFAF9</color>
+    <color name="surface_container">#F7F2EE</color>
+    <color name="surface_container_high">#F0EAE5</color>
+    <color name="surface_container_highest">#E9E2DC</color>
 
     <!-- Brand: coral red / rose -->
     <color name="brand_primary">#C73650</color>
     <color name="brand_on_primary">#FFFFFF</color>
-    <color name="brand_primary_container">#5E1426</color>
-    <color name="brand_on_primary_container">#FFD9DE</color>
+    <color name="brand_primary_container">#FFD9DE</color>
+    <color name="brand_on_primary_container">#610D26</color>
 
-    <!-- Status: preparing -->
-    <color name="status_preparing_container">#463A00</color>
-    <color name="status_preparing_on_container">#FFE08D</color>
-    <color name="status_preparing_outline">#766437</color>
+    <!-- Status: preparing (light) -->
+    <color name="status_preparing_container">#FFF8E1</color>
+    <color name="status_preparing_on_container">#7A6200</color>
+    <color name="status_preparing_outline">#C8B472</color>
 
-    <!-- Text and outlines -->
-    <color name="on_surface">#F5EFF0</color>
-    <color name="on_surface_variant">#D7C2C5</color>
-    <color name="outline">#9D9193</color>
-    <color name="outline_variant">#514548</color>
-    <color name="divider">#3D3436</color>
+    <!-- Text and outlines (light) -->
+    <color name="on_surface">#1F1816</color>
+    <color name="on_surface_variant">#5F5553</color>
+    <color name="outline">#938886</color>
+    <color name="outline_variant">#D7C2C5</color>
+    <color name="divider">#E0D5D3</color>
 
-    <!-- Feature icon containers -->
-    <color name="feature_icon_container">#4A2029</color>
-    <color name="feature_icon_tint">#FFD9DE</color>
+    <!-- Feature icon containers (light) -->
+    <color name="feature_icon_container">#FCE4EC</color>
+    <color name="feature_icon_tint">#C73650</color>
 
-    <!-- Disabled / planned state -->
-    <color name="planned_container">#332F30</color>
-    <color name="planned_on_container">#D9CDD0</color>
-    <color name="planned_outline">#5B5153</color>
+    <!-- Disabled / planned state (light) -->
+    <color name="planned_container">#F5EDEA</color>
+    <color name="planned_on_container">#7A6E6B</color>
+    <color name="planned_outline">#D0C4C2</color>
+
+    <!-- Overlay card (light) -->
+    <color name="overlay_card_background">#FFFFFF</color>
+    <color name="overlay_text_primary">#1F1816</color>
+    <color name="overlay_text_secondary">#5F5553</color>
+    <color name="overlay_close_tint">#5F5553</color>
 
 </resources>

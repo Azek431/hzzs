@@ -121,6 +121,22 @@
                         app:iconPadding="@dimen/space_sm"
                         app:iconTint="@color/brand_on_primary" />
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnOverlayExecution"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/button_min_height"
+                        android:layout_marginTop="@dimen/space_sm"
+                        android:text="@string/action_start_overlay_execution"
+                        android:textColor="@color/brand_primary"
+                        app:cornerRadius="@dimen/radius_medium"
+                        app:icon="@drawable/ic_arrow_forward_24"
+                        app:iconGravity="textEnd"
+                        app:iconPadding="@dimen/space_sm"
+                        app:iconTint="@color/brand_primary"
+                        app:strokeColor="@color/brand_primary" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

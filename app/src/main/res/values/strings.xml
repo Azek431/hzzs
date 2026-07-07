@@ -28,4 +28,21 @@
     <string name="footer_developer">Azek431 · 独立开发</string>
     <string name="footer_version">当前版本 0.1.0</string>
 
+    <!-- Overlay execution -->
+    <string name="action_start_overlay_execution">开启悬浮执行</string>
+    <string name="overlay_permission_required_title">需要悬浮窗权限</string>
+    <string name="overlay_permission_required_message">悬浮执行面板需要"显示在其他应用上层"权限。当前仅用于显示可关闭的控制面板，不会录屏、读取屏幕或自动操作。</string>
+    <string name="action_go_to_authorization">去授权</string>
+    <string name="overlay_notification_channel_name">悬浮执行</string>
+    <string name="overlay_notification_channel_description">悬浮执行面板的前台通知</string>
+    <string name="overlay_notification_title">火崽崽助手</string>
+    <string name="overlay_notification_text">悬浮执行面板已开启</string>
+    <string name="action_close_overlay">关闭</string>
+
+    <!-- Overlay panel text -->
+    <string name="overlay_panel_title">悬浮执行</string>
+    <string name="overlay_panel_status">准备中</string>
+    <string name="overlay_panel_description">执行引擎暂未接入</string>
+    <string name="overlay_panel_note">当前仅验证悬浮控制面板与权限流程。</string>
+
 </resources>

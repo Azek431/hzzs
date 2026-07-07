@@ -1,8 +1,14 @@
 package top.azek431.hzzs
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
+import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -22,9 +28,10 @@ class MainActivity : AppCompatActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        // Light theme: dark status bar icons
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
 
         setContentView(R.layout.activity_main)
@@ -33,6 +40,10 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnDevelopmentPlan).setOnClickListener {
             showDevelopmentPlan()
+        }
+
+        findViewById<MaterialButton>(R.id.btnOverlayExecution).setOnClickListener {
+            handleOverlayExecution()
         }
     }
 
@@ -81,5 +92,55 @@ class MainActivity : AppCompatActivity() {
             .setMessage(R.string.development_plan_message)
             .setPositiveButton(R.string.action_close, null)
             .show()
+    }
+
+    private fun handleOverlayExecution() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                showOverlayPermissionDialog()
+            } else {
+                startOverlayService()
+            }
+        } else {
+            // Pre-API 23: OVERLAY_PERMISSION is always granted
+            startOverlayService()
+        }
+    }
+
+    private fun showOverlayPermissionDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.overlay_permission_required_title)
+            .setMessage(R.string.overlay_permission_required_message)
+            .setNegativeButton(R.string.action_close, null)
+            .setPositiveButton(R.string.action_go_to_authorization) { _, _ ->
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+            .show()
+    }
+
+    private fun startOverlayService() {
+        // Check if service is already running to prevent duplicate
+        if (isOverlayServiceRunning()) {
+            return
+        }
+        val intent = Intent(this, OverlayExecutionService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun isOverlayServiceRunning(): Boolean {
+        return try {
+            val token = getSystemService(WINDOW_SERVICE) as WindowManager
+            token.defaultDisplay.hashCode() != 0 // Just a sanity check
+            OverlayExecutionService.isInstanceAlive()
+        } catch (_: Exception) {
+            false
+        }
     }
 }
