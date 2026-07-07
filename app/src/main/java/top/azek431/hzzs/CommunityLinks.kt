@@ -163,8 +163,8 @@ object CommunityLinks {
 
             Toast.makeText(
                 context,
-                context.getString(R.string.community_open_failed),
-                Toast.LENGTH_SHORT,
+                "复制链接失败，请手动复制: $url",
+                Toast.LENGTH_LONG,
             ).show()
         }
     }
