@@ -165,8 +165,6 @@ object OverlayPreviewManager {
             }
 
             communityQq.setOnClickListener {
-                hide("community-qq")
-
                 CommunityLinks.openLink(
                     context = appContext,
                     label = appContext.getString(
@@ -180,8 +178,6 @@ object OverlayPreviewManager {
             }
 
             communityTelegram.setOnClickListener {
-                hide("community-telegram")
-
                 CommunityLinks.openLink(
                     context = appContext,
                     label = appContext.getString(
