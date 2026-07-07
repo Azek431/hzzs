@@ -116,8 +116,7 @@
             android:id="@+id/overlayContentPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_overlay_preview_card"
-            android:descendantFocusability="blocksDescendants">
+            android:background="@drawable/bg_overlay_preview_card">
 
             <LinearLayout
                 android:layout_width="match_parent"
