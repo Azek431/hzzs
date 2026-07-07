@@ -3,6 +3,7 @@ package top.azek431.hzzs
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -122,13 +123,6 @@ object OverlayPreviewManager {
                 "overlayCommunityTelegram is missing.",
             )
 
-            // 调节控件（可选，不存在时跳过）
-            val _ = view.findViewById<SeekBar>(R.id.overlayAlphaSlider)
-            val _2 = view.findViewById<TextView>(R.id.overlayAlphaValue)
-            val _3 = view.findViewById<SeekBar>(R.id.overlayScaleSlider)
-            val _4 = view.findViewById<TextView>(R.id.overlayScaleValue)
-            val _5 = view.findViewById<SeekBar>(R.id.overlayRadiusSlider)
-            val _6 = view.findViewById<TextView>(R.id.overlayRadiusValue)
 
             val overlayWidth = dp(appContext, 228)
             val screenWidth = appContext.resources.displayMetrics.widthPixels
@@ -343,12 +337,7 @@ object OverlayPreviewManager {
 
         // 圆角（dp → px）
         val radiusPx = (radiusDp * context.resources.displayMetrics.density).roundToInt()
-        view.background?.setCornerRadii(floatArrayOf(
-            radiusPx.toFloat(), radiusPx.toFloat(),
-            radiusPx.toFloat(), radiusPx.toFloat(),
-            radiusPx.toFloat(), radiusPx.toFloat(),
-            radiusPx.toFloat(), radiusPx.toFloat(),
-        ))
+        applyOverlayCornerRadius(view, radiusPx)
 
         // 尺寸缩放（通过 scaleX/scaleY）
         view.scaleX = scale
@@ -459,12 +448,7 @@ object OverlayPreviewManager {
                 if (!fromUser) return
                 val radiusDp = 4 + progress
                 val radiusPx = (radiusDp * context.resources.displayMetrics.density).roundToInt()
-                view.background?.setCornerRadii(floatArrayOf(
-                    radiusPx.toFloat(), radiusPx.toFloat(),
-                    radiusPx.toFloat(), radiusPx.toFloat(),
-                    radiusPx.toFloat(), radiusPx.toFloat(),
-                    radiusPx.toFloat(), radiusPx.toFloat(),
-                ))
+                applyOverlayCornerRadius(view, radiusPx)
                 radiusValue?.text = "$radiusDp dp"
                 prefs.edit().putInt(KEY_RADIUS, radiusDp).apply()
             }
@@ -478,5 +462,23 @@ object OverlayPreviewManager {
         return (
             value * context.resources.displayMetrics.density + 0.5f
         ).toInt()
+    }
+
+    private fun applyOverlayCornerRadius(
+        view: View,
+        radiusPx: Int,
+    ) {
+        val drawable = view.background as? GradientDrawable
+
+        if (drawable == null) {
+            Log.w(
+                TAG,
+                "[Overlay] root background is not a GradientDrawable; corner radius update skipped.",
+            )
+            return
+        }
+
+        drawable.mutate()
+        drawable.cornerRadius = radiusPx.toFloat()
     }
 }
