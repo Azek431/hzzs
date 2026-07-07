@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    字符串资源文件：HZZS 应用所有用户可见文本。
+
+    分组说明：
+    - 首页文本：应用名称、标题、描述、功能卡片文案
+    - 开发计划：弹窗中的路线图文本
+    - 悬浮窗权限：权限申请对话框和引导文本
+    - 悬浮窗面板：悬浮窗内的品牌名、状态、按钮文本
+    - 社区链接：QQ 群和 Telegram 频道的标签、复制提示
+    - 分析执行：悬浮窗内"开始执行/结束执行"按钮文本
+    - 调节控件：透明度、尺寸、圆角滑块标签
+    - 悬浮窗调整大小：无障碍描述（contentDescription）
+
+    所有用户可见文本均使用中文。
+    技术名词、类名、URL 等保留英文原名。
+-->
 <resources>
 
     <string name="app_name">火崽崽助手</string>
@@ -95,4 +111,14 @@
     <string name="overlay_adjust_radius_label">圆角</string>
 
     <string name="overlay_adjust_window_hint">拖动窗口边缘或四角调整大小</string>
+
+    <!-- Overlay resize grips (contentDescription for accessibility) -->
+    <string name="overlay_resize_left">左侧调整大小</string>
+    <string name="overlay_resize_top">上侧调整大小</string>
+    <string name="overlay_resize_right">右侧调整大小</string>
+    <string name="overlay_resize_bottom">下侧调整大小</string>
+    <string name="overlay_resize_top_left">左上角调整大小</string>
+    <string name="overlay_resize_top_right">右上角调整大小</string>
+    <string name="overlay_resize_bottom_left">左下角调整大小</string>
+    <string name="overlay_resize_bottom_right">右下角调整大小</string>
 </resources>

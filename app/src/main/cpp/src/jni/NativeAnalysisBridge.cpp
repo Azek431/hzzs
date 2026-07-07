@@ -8,12 +8,37 @@
 
 namespace {
 
+/** 日志标签，用于 Android logcat 中过滤 HZZS 相关日志 */
 constexpr const char* kLogTag = "HZZS-Native";
 
+/**
+ * 将 C++ std::string 转换为 JNI jstring。
+ *
+ * 使用 NewStringUTF 编码 UTF-8 字符串，供 JNI 方法返回给 Kotlin 层。
+ *
+ * @param env JNI 环境指针
+ * @param value C++ 字符串
+ * @return 转换后的 jstring，调用方负责释放
+ */
 jstring ToJString(JNIEnv* env, const std::string& value) {
     return env->NewStringUTF(value.c_str());
 }
 
+/**
+ * 创建一个模拟的地面跑酷帧数据，用于自检。
+ *
+ * 构造的帧包含：
+ * - 场景模式：kGroundRun（置信度 0.98）
+ * - 玩家矩形：归一化坐标 (0.14, 0.66, 0.24, 0.84)，置信度 0.96
+ * - 背景滚动速度：-0.45（世界向左滚动）
+ * - 一个蛋糕断层对象：位于玩家前方 (0.52, 0.78, 0.66, 0.98)，置信度 0.93
+ *
+ * 此帧数据模拟了玩家在跑酷过程中接近一个蛋糕断面的典型场景。
+ * 自检程序通过对此帧进行分析，验证引擎能否正确识别断层并输出跳跃提示。
+ *
+ * @param timestamp_ms 帧时间戳（毫秒），用于帧间时序计算
+ * @return 构造好的 FrameDetections 对象
+ */
 hzzs::analysis::FrameDetections CreateGroundFrame(
     std::int64_t timestamp_ms
 ) {
@@ -49,6 +74,16 @@ hzzs::analysis::FrameDetections CreateGroundFrame(
 
 }  // namespace
 
+/**
+ * JNI 导出方法：获取引擎信息字符串。
+ *
+ * 由 Kotlin 端 NativeAnalysisBridge.engineInfo() 调用。
+ * 返回引擎名称、C++ 标准和功能列表的描述字符串。
+ *
+ * @param env JNI 环境指针
+ * @param obj JNI 对象（此方法不需要，保留占位）
+ * @return 引擎信息字符串
+ */
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
@@ -69,6 +104,25 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
     return ToJString(env, message);
 }
 
+/**
+ * JNI 导出方法：执行引擎自检。
+ *
+ * 由 Kotlin 端 NativeAnalysisBridge.runSelfCheck() 调用。
+ * 自检流程：
+ * 1. 创建 NativeAnalysisEngine 实例
+ * 2. 注入两帧模拟地面跑酷数据（时间戳 16ms 和 32ms）
+ * 3. 分析第二帧，验证以下断言：
+ *    - scene_mode == kGroundRun（场景识别正确）
+ *    - runner.pose == kRun（角色姿态正确）
+ *    - prompt.action == kJump（跳跃提示正确）
+ *    - jump_stage == 0（跳跃阶段正确，尚未起跳）
+ *
+ * 如果所有断言通过，返回 "PASS: ..."；否则返回 "FAIL: ..."。
+ *
+ * @param env JNI 环境指针
+ * @param obj JNI 对象（此方法不需要，保留占位）
+ * @return 自检结果字符串
+ */
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
@@ -77,11 +131,15 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
 ) {
     hzzs::analysis::NativeAnalysisEngine engine{};
 
+    // 第一帧：初始化基线（不检查第一帧结果）
     engine.Analyze(CreateGroundFrame(16));
+
+    // 第二帧：验证分析结果
     const hzzs::analysis::AnalysisResult result = engine.Analyze(
         CreateGroundFrame(32)
     );
 
+    // 验证四个关键断言
     const bool passed = (
         result.scene_mode == hzzs::analysis::SceneMode::kGroundRun &&
         result.runner.pose == hzzs::analysis::RunnerPose::kRun &&

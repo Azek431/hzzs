@@ -11,6 +11,7 @@
   <a href="#功能边界">功能边界</a> ·
   <a href="#开发路线图">开发路线图</a> ·
   <a href="#开发与构建">开发与构建</a> ·
+  <a href="#文档">文档</a> ·
   <a href="#交流与反馈">交流与反馈</a>
 </p>
 
@@ -266,7 +267,13 @@ hzzs/
 │  │  │  ├─ java/top/azek431/hzzs/
 │  │  │  │  ├─ MainActivity.kt
 │  │  │  │  ├─ OverlayPreviewManager.kt
-│  │  │  │  └─ CommunityLinks.kt
+│  │  │  │  ├─ CommunityLinks.kt
+│  │  │  │  └─ NativeAnalysisBridge.kt
+│  │  │  ├─ cpp/
+│  │  │  │  ├─ include/hzzs/analysis/
+│  │  │  │  ├─ src/analysis/
+│  │  │  │  ├─ src/jni/
+│  │  │  │  └─ CMakeLists.txt
 │  │  │  ├─ res/
 │  │  │  │  ├─ layout/
 │  │  │  │  │  ├─ activity_main.xml
@@ -276,6 +283,11 @@ hzzs/
 │  │  │  └─ AndroidManifest.xml
 │  │  ├─ build.gradle.kts
 │  │  └─ proguard-rules.pro
+├─ docs/
+│  ├─ architecture.md
+│  ├─ analysis-algorithm.md
+│  ├─ testing.md
+│  └─ privacy-and-boundaries.md
 ├─ gradle/
 ├─ .vscode/
 ├─ build.gradle.kts
@@ -284,7 +296,9 @@ hzzs/
 ├─ gradlew
 ├─ gradlew.bat
 ├─ LICENSE
-└─ README.md
+├─ README.md
+├─ CONTRIBUTING.md
+└─ CHANGELOG.md
 ```
 
 后续预计会逐步形成更清晰的模块边界：
@@ -330,7 +344,7 @@ Android SDK Build-Tools：37.0.0
 Debug APK 默认输出位置：
 
 ```text
-appuild\outputspk\debugpp-debug.apk
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Debug APK 使用 Android 自动生成的调试签名，仅适合本地开发与测试。
