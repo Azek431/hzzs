@@ -118,4 +118,10 @@
     <string name="overlay_resize_top_right">右上角调整大小</string>
     <string name="overlay_resize_bottom_left">左下角调整大小</string>
     <string name="overlay_resize_bottom_right">右下角调整大小</string>
+
+    <!-- Overlay close button label -->
+    <string name="overlay_close_button">×</string>
+
+    <!-- Overlay alpha value initial display -->
+    <string name="overlay_alpha_value_default">100%%</string>
 </resources>

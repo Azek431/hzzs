@@ -6,14 +6,16 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.MaterialButton
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.button.MaterialButton as MaterialButtonWidget
 
 /**
  * 火崽崽助手 (HZZS) 主 Activity。
@@ -24,12 +26,52 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  * - 绑定首页按钮点击事件（开发计划弹窗、悬浮窗开关）
  * - 管理悬浮窗权限请求与授权引导
  * - 绑定底部社区链接（QQ 群、Telegram 频道）
- * - 通过反射式 findViewById 动态查找控件（避免硬编码 R.id 依赖）
  *
- * 当前处于早期开发阶段，核心分析引擎尚未接入，
- * 主要验证 UI 流程、悬浮窗面板与权限交互。
+ * View 引用在 onCreate 中一次性缓存，避免反复使用 getIdentifier() 查找。
  */
 class MainActivity : AppCompatActivity() {
+
+    // ==================== 缓存的 View 引用 ====================
+    // 在 onCreate 中通过 findViewById(R.id.xxx) 一次性查找并缓存，
+    // 避免后续每次调用都执行 getIdentifier() 字符串查找。
+
+    /** 根容器：CoordinatorLayout */
+    private lateinit var rootContainer: View
+
+    /** 顶部栏：LinearLayout */
+    private lateinit var topBarContainer: View
+
+    /** 滚动区域：NestedScrollView */
+    private lateinit var homeScrollView: View
+
+    /** 开发计划按钮 */
+    private lateinit var btnDevelopmentPlan: MaterialButtonWidget
+
+    /** 悬浮窗开关按钮 */
+    private lateinit var btnOverlayExecution: MaterialButtonWidget
+
+    /** 社区 QQ 群链接 TextView（位于 view_community_footer.xml 中） */
+    private lateinit var textCommunityQqLink: TextView
+
+    /** 社区 Telegram 链接 TextView（位于 view_community_footer.xml 中） */
+    private lateinit var textCommunityTelegramLink: TextView
+
+    /** 悬浮窗面板根容器（在悬浮窗布局中） */
+    private lateinit var overlayContentPanel: View
+
+    // ==================== Padding 初始值缓存 ====================
+    // 用于防止 applySystemBarInsets 在折叠屏等设备上重复叠加 padding。
+
+    private var topBarPaddingStartInit = 0
+    private var topBarPaddingTopInit = 0
+    private var topBarPaddingEndInit = 0
+
+    private var scrollPaddingStartInit = 0
+    private var scrollPaddingTopInit = 0
+    private var scrollPaddingEndInit = 0
+    private var scrollPaddingBottomInit = 0
+
+    // ==================== 生命周期 ====================
 
     /**
      * 活动首次创建时的生命周期回调。
@@ -38,34 +80,34 @@ class MainActivity : AppCompatActivity() {
      * 1. 启用 Edge-to-Edge 模式，使内容延伸到系统栏下方
      * 2. 设置状态栏和导航栏图标颜色为深色（适配浅色背景）
      * 3. 加载主布局 activity_main.xml
-     * 4. 应用系统栏安全边距
-     * 5. 绑定首页按钮点击事件
-     * 6. 绑定底部社区链接点击事件
-     * 7. 刷新悬浮窗按钮文本（根据悬浮窗当前状态）
+     * 4. 缓存所有 View 引用（避免后续反复 getIdentifier 查找）
+     * 5. 缓存 padding 初始值
+     * 6. 应用系统栏安全边距
+     * 7. 绑定按钮点击事件
+     * 8. 刷新悬浮窗按钮文本（根据悬浮窗当前状态）
      */
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 调用父类 onCreate，恢复保存的实例状态
-        super.onCreate(savedInstanceState)
+        super.onCreate(this@MainActivity)
 
         // 启用 Edge-to-Edge 模式：让应用内容延伸至屏幕边缘
-        // 包括状态栏和导航栏下方，实现真正的沉浸式全屏效果
         WindowCompat.enableEdgeToEdge(window)
 
         // 配置状态栏和导航栏的图标颜色
-        // isAppearanceLightStatusBars = false → 深色图标（白色文字/图标）
-        // isAppearanceLightNavigationBars = false → 深色导航栏图标
-        // 这与浅色背景主题 (surface_background = #FFF8F6) 形成对比
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
 
-        // 加载主界面布局：activity_main.xml
-        // 包含：顶部标题栏、功能卡片、开发计划按钮、悬浮窗开关按钮、底部社区链接
+        // 加载主界面布局
         setContentView(R.layout.activity_main)
 
-        // 应用系统栏安全区域（状态栏高度、导航栏高度、刘海屏 cutout）
-        // 确保顶部栏和滚动区域不被系统 UI 遮挡
+        // 缓存所有 View 引用（一次性查找，后续直接复用）
+        cacheViews()
+
+        // 缓存 padding 初始值，防止重复叠加
+        cacheInitialPadding()
+
+        // 应用系统栏安全区域
         applySystemBarInsets()
 
         // 绑定首页功能按钮的点击事件
@@ -89,55 +131,78 @@ class MainActivity : AppCompatActivity() {
         refreshOverlayButton()
     }
 
+    // ==================== View 缓存 ====================
+
+    /**
+     * 一次性查找并缓存所有需要频繁访问的 View 引用。
+     *
+     * 替代原来的 findViewByName() 反射式查找，
+     * 使用 findViewById(R.id.xxx) 直接获取，性能更好且类型安全。
+     */
+    private fun cacheViews() {
+        rootContainer = findViewById(R.id.rootContainer)
+        topBarContainer = findViewById(R.id.topBarContainer)
+        homeScrollView = findViewById(R.id.homeScrollView)
+        btnDevelopmentPlan = findViewById(R.id.btnDevelopmentPlan)
+        btnOverlayExecution = findViewById(R.id.btnOverlayExecution)
+        textCommunityQqLink = findViewById(R.id.textCommunityQqLink)
+        textCommunityTelegramLink = findViewById(R.id.textCommunityTelegramLink)
+    }
+
+    /**
+     * 缓存 padding 初始值，用于 applySystemBarInsets 中防止重复叠加。
+     */
+    private fun cacheInitialPadding() {
+        topBarPaddingStartInit = topBarContainer.paddingStart
+        topBarPaddingTopInit = topBarContainer.paddingTop
+        topBarPaddingEndInit = topBarContainer.paddingEnd
+
+        scrollPaddingStartInit = homeScrollView.paddingStart
+        scrollPaddingTopInit = homeScrollView.paddingTop
+        scrollPaddingEndInit = homeScrollView.paddingEnd
+        scrollPaddingBottomInit = homeScrollView.paddingBottom
+    }
+
+    // ==================== 事件绑定 ====================
+
     /**
      * 绑定首页功能按钮的点击事件。
      *
-     * 通过字符串名称动态查找 View，避免在布局文件中写死 id 引用。
-     * 当前绑定两个按钮：
-     * - btnDevelopmentPlan → 弹出开发计划对话框
-     * - btnOverlayExecution → 切换悬浮窗显示/隐藏
+     * 使用缓存的 View 引用，不再需要 findViewByName()。
      */
     private fun bindHomeActions() {
-        findViewByName("btnDevelopmentPlan")
-            ?.setOnClickListener {
-                showDevelopmentPlan()
-            }
+        btnDevelopmentPlan.setOnClickListener {
+            showDevelopmentPlan()
+        }
 
-        findViewByName("btnOverlayExecution")
-            ?.setOnClickListener {
-                handleOverlayPreview()
-            }
+        btnOverlayExecution.setOnClickListener {
+            handleOverlayPreview()
+        }
     }
 
     /**
      * 绑定底部社区链接的点击事件。
      *
-     * 点击后调用 CommunityLinks.openLink() 尝试在浏览器中打开对应链接。
-     * 如果设备上没有可以打开链接的应用（ActivityNotFoundException），
-     * 则自动将链接复制到剪贴板并提示用户。
-     *
-     * 绑定的链接：
-     * - textCommunityQqLink → HZZS QQ 交流群
-     * - textCommunityTelegramLink → Azek431 Telegram 主频道
+     * 使用缓存的 View 引用，不再需要 findViewByName()。
      */
     private fun bindCommunityFooterLinks() {
         val fallbackMsg = getString(R.string.community_open_fallback)
 
         val links = listOf(
             CommunityLinkEntry(
-                viewName = "textCommunityQqLink",
+                view = textCommunityQqLink,
                 labelRes = R.string.community_qq_label,
                 url = CommunityLinks.HZZS_QQ_GROUP_URL,
             ),
             CommunityLinkEntry(
-                viewName = "textCommunityTelegramLink",
+                view = textCommunityTelegramLink,
                 labelRes = R.string.community_telegram_label,
                 url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
             ),
         )
 
         for (entry in links) {
-            findViewByName(entry.viewName)?.setOnClickListener {
+            entry.view.setOnClickListener {
                 CommunityLinks.openLink(
                     context = applicationContext,
                     label = getString(entry.labelRes),
@@ -151,48 +216,36 @@ class MainActivity : AppCompatActivity() {
     /**
      * 社区链接数据条目，用于 [bindCommunityFooterLinks] 的数据驱动绑定。
      *
-     * @param viewName 布局中 TextView 的 id 资源名（如 "textCommunityQqLink"）
+     * @param view 要绑定的 TextView 实例（已从 cacheViews 缓存）
      * @param labelRes 链接标签的字符串资源 ID
      * @param url 要打开的完整 URL
      */
     private data class CommunityLinkEntry(
-        val viewName: String,
+        val view: TextView,
         val labelRes: Int,
         val url: String,
     )
 
+    // ==================== 悬浮窗管理 ====================
+
     /**
      * 处理悬浮窗预览面板的打开/关闭操作。
-     *
-     * 完整流程：
-     * 1. 检查是否已获得 SYSTEM_ALERT_WINDOW（悬浮窗）权限
-     *    → 未获得则弹出权限申请引导对话框
-     * 2. 如果悬浮窗已在显示中，则调用 OverlayPreviewManager.hide() 关闭
-     * 3. 如果悬浮窗未显示，则调用 OverlayPreviewManager.show() 打开
-     * 4. 操作完成后刷新按钮文本
-     * 5. 如果打开失败，弹出 Toast 提示用户检查授权状态
      */
     private fun handleOverlayPreview() {
-        // 第一步：检查悬浮窗权限
         if (!hasOverlayPermission()) {
             showOverlayPermissionDialog()
             return
         }
 
-        // 第二步：如果悬浮窗已在显示中，则关闭它
         if (OverlayPreviewManager.isShowing()) {
             OverlayPreviewManager.hide()
             refreshOverlayButton()
             return
         }
 
-        // 第三步：打开悬浮窗面板
         val opened = OverlayPreviewManager.show(this)
-
-        // 第四步：刷新按钮文本（"打开悬浮窗" ↔ "关闭悬浮窗"）
         refreshOverlayButton()
 
-        // 第五步：如果打开失败，提示用户
         if (!opened) {
             Toast.makeText(
                 this,
@@ -207,12 +260,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 检查当前应用是否已获得悬浮窗权限。
-     *
-     * 判断逻辑：
-     * - Android 6.0（API 23）以下：不需要此权限，直接返回 true
-     * - Android 6.0 及以上：调用 Settings.canDrawOverlays() 查询系统授予的状态
-     *
-     * @return true 如果已有权限或系统版本低于 M
      */
     private fun hasOverlayPermission(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
@@ -221,13 +268,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 显示悬浮窗权限申请对话框。
-     *
-     * 使用 MaterialAlertDialogBuilder 创建一个模态对话框，说明为什么需要此权限，
-     * 并提供"前往授权"按钮跳转到系统设置页面（Settings.ACTION_MANAGE_OVERLAY_PERMISSION）。
-     * 用户可以在系统设置中手动授予权限。
-     *
-     * 如果跳转系统设置页面失败（某些定制 ROM 可能路径不同），
-     * 则捕获异常并提示用户手动前往设置授权。
      */
     private fun showOverlayPermissionDialog() {
         MaterialAlertDialogBuilder(this)
@@ -256,8 +296,6 @@ class MainActivity : AppCompatActivity() {
                     "前往授权",
                 ),
             ) { _, _ ->
-                // 构造跳转到系统悬浮窗权限设置页面的 Intent
-                // Uri 格式：package:当前应用包名
                 val intent = Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:$packageName"),
@@ -266,7 +304,6 @@ class MainActivity : AppCompatActivity() {
                 try {
                     startActivity(intent)
                 } catch (_: Exception) {
-                    // 某些设备可能不支持此 Intent action，给出降级提示
                     Toast.makeText(
                         this,
                         "无法打开系统授权页面，请前往系统设置手动授权。",
@@ -280,16 +317,10 @@ class MainActivity : AppCompatActivity() {
     /**
      * 刷新悬浮窗按钮的文本内容。
      *
-     * 根据当前悬浮窗是否正在显示，动态切换按钮文字：
-     * - 悬浮窗已显示 → "关闭悬浮窗"
-     * - 悬浮窗未显示 → "打开悬浮窗"
-     *
-     * 使用 stringOrFallback() 确保即使在字符串资源缺失时也有合理的默认文本。
+     * 使用缓存的 btnOverlayExecution 引用，不再需要 findViewByName()。
      */
     private fun refreshOverlayButton() {
-        val button = findViewByName("btnOverlayExecution") as? MaterialButton ?: return
-
-        button.text = if (OverlayPreviewManager.isShowing()) {
+        btnOverlayExecution.text = if (OverlayPreviewManager.isShowing()) {
             stringOrFallback(
                 "overlay_preview_close",
                 "关闭悬浮窗",
@@ -304,14 +335,6 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 显示开发计划对话框。
-     *
-     * 使用 MaterialAlertDialogBuilder 弹出一个模态对话框，
-     * 展示当前应用的开发路线图，包括：
-     * 1) 界面与导航
-     * 2) 权限与设备检查
-     * 3) 跑酷像素分析
-     * 4) 实时 HUD 与本局战报
-     * 5) 历史数据与校准
      */
     private fun showDevelopmentPlan() {
         MaterialAlertDialogBuilder(this)
@@ -337,113 +360,58 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // ==================== 系统栏适配 ====================
+
     /**
      * 应用系统栏安全区域（Edge-to-Edge Insets）。
      *
-     * 在启用 Edge-to-Edge 模式后，状态栏和导航栏会覆盖在内容上方。
-     * 此方法为顶部栏（topBarContainer）和滚动区域（homeScrollView）
-     * 添加额外的 padding，确保内容不会被系统 UI 遮挡。
-     *
-     * 具体处理：
-     * - 顶部栏：增加左、上、右三侧 padding（底部不需要，因为内容由 ScrollView 控制）
-     * - 滚动区域：增加左、右、下三侧 padding（顶部不需要，因为顶部栏已经处理了上边距）
-     * - 同时考虑 displayCutout（刘海屏/挖孔屏区域）
-     *
-     * 使用 ViewCompat.setOnApplyWindowInsetsListener 监听系统栏高度变化
-     * （例如折叠屏展开/收起时），确保始终正确适配。
+     * 使用缓存的 padding 初始值，防止折叠屏等设备上重复叠加。
      */
     private fun applySystemBarInsets() {
-        // 获取根容器、顶部栏和滚动区域的 View 引用
-        val root = findViewByName("rootContainer") ?: return
-        val topBar = findViewByName("topBarContainer")
-        val scrollView = findViewByName("homeScrollView")
-
-        // 保存当前的 padding 值，避免重复叠加
-        val topBarPaddingStart = topBar?.paddingStart ?: 0
-        val topBarPaddingTop = topBar?.paddingTop ?: 0
-        val topBarPaddingEnd = topBar?.paddingEnd ?: 0
-
-        val scrollPaddingStart = scrollView?.paddingStart ?: 0
-        val scrollPaddingTop = scrollView?.paddingTop ?: 0
-        val scrollPaddingEnd = scrollView?.paddingEnd ?: 0
-        val scrollPaddingBottom = scrollView?.paddingBottom ?: 0
-
-        // 注册系统栏 Insets 监听器
-        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            // 获取系统栏 + 刘海屏的安全区域
+        ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
             val safeInsets = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or
                     WindowInsetsCompat.Type.displayCutout(),
             )
 
-            // 为顶部栏增加左/上/右 padding
-            topBar?.updatePadding(
-                left = topBarPaddingStart + safeInsets.left,
-                top = topBarPaddingTop + safeInsets.top,
-                right = topBarPaddingEnd + safeInsets.right,
+            // 使用初始 padding 值叠加，避免重复叠加
+            topBarContainer.updatePadding(
+                left = topBarPaddingStartInit + safeInsets.left,
+                top = topBarPaddingTopInit + safeInsets.top,
+                right = topBarPaddingEndInit + safeInsets.right,
+                bottom = topBarPaddingEndInit, // 底部不需要 insets padding
             )
 
-            // 为滚动区域增加左/右/下 padding（顶部不需要，由顶部栏处理）
-            scrollView?.updatePadding(
-                left = scrollPaddingStart + safeInsets.left,
-                top = scrollPaddingTop,
-                right = scrollPaddingEnd + safeInsets.right,
-                bottom = scrollPaddingBottom + safeInsets.bottom,
+            homeScrollView.updatePadding(
+                left = scrollPaddingStartInit + safeInsets.left,
+                top = scrollPaddingTopInit,
+                right = scrollPaddingEndInit + safeInsets.right,
+                bottom = scrollPaddingBottomInit + safeInsets.bottom,
             )
 
             insets
         }
 
-        // 触发一次 Insets 计算，确保初始状态就正确
-        ViewCompat.requestApplyInsets(root)
+        ViewCompat.requestApplyInsets(rootContainer)
     }
 
-    /**
-     * 通过 View 的名称（id 的资源名）动态查找 View。
-     *
-     * 使用 Resources.getIdentifier() 根据字符串名称查找资源 ID，
-     * 然后调用 findViewById() 获取 View 实例。
-     *
-     * 这种方式的优势：
-     * - 不需要在代码中硬编码 R.id.xxx 引用
-     * - 方便在 XML 布局中通过 android:id="@+id/xxx" 定义后动态访问
-     * - 便于后期维护和扩展新的控件
-     *
-     * @param name View 的 id 名称（如 "btnDevelopmentPlan"）
-     * @return 找到的 View，如果不存在则返回 null
-     */
-    private fun findViewByName(name: String): View? {
-        // 根据名称查找资源 ID
-        val id = resources.getIdentifier(name, "id", packageName)
-
-        return if (id == 0) {
-            // 资源 ID 为 0 表示未找到对应的资源
-            null
-        } else {
-            findViewById(id)
-        }
-    }
+    // ==================== 工具方法 ====================
 
     /**
      * 安全地获取字符串资源，如果资源不存在则返回备用文本。
      *
      * 在开发过程中，字符串资源可能尚未添加或命名不一致。
-     * 此方法确保即使资源缺失，UI 也能显示合理的默认文本，
-     * 避免因 getString() 抛出 NotFoundException 而导致崩溃。
+     * 此方法确保即使资源缺失，UI 也能显示合理的默认文本。
      *
      * @param name 字符串资源的名称（不含 "R.string." 前缀）
      * @param fallback 当资源不存在时返回的备用文本
-     * @return 实际的字符串资源值，或 fallback
      */
     private fun stringOrFallback(name: String, fallback: String): String {
-        // 根据名称查找字符串资源 ID
         val id = resources.getIdentifier(name, "string", packageName)
 
         return if (id == 0) {
-            // 资源不存在，返回备用文本
             fallback
         } else {
-            // 资源存在，返回实际的字符串
             getString(id)
         }
     }
