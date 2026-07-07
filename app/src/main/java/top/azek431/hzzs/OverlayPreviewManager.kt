@@ -149,11 +149,11 @@ object OverlayPreviewManager {
                         analysisUiState = AnalysisUiState.EXECUTING
 
                         statusText.setText(
-                            R.string.overlay_analysis_preparing,
+                            R.string.overlay_analysis_running,
                         )
 
                         startAnalysisButton.setText(
-                            R.string.overlay_analysis_waiting,
+                            R.string.overlay_analysis_stop,
                         )
 
                         startAnalysisButton.isEnabled = true
@@ -161,23 +161,40 @@ object OverlayPreviewManager {
 
                         Log.i(
                             TAG,
-                            "[Analysis] execution entry enabled.",
+                            "[Analysis] execution started.",
                         )
 
                         Toast.makeText(
                             appContext,
-                            R.string.overlay_analysis_placeholder,
+                            R.string.overlay_analysis_started,
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
 
                     AnalysisUiState.EXECUTING -> {
-                        Log.i(
-                            TAG,
-                            "[Analysis] execute button clicked again; closing overlay.",
+                        analysisUiState = AnalysisUiState.IDLE
+
+                        statusText.setText(
+                            R.string.overlay_preview_status,
                         )
 
-                        hide("execute-button-second-click")
+                        startAnalysisButton.setText(
+                            R.string.overlay_analysis_start,
+                        )
+
+                        startAnalysisButton.isEnabled = true
+                        startAnalysisButton.alpha = 1f
+
+                        Log.i(
+                            TAG,
+                            "[Analysis] execution stopped; overlay remains visible.",
+                        )
+
+                        Toast.makeText(
+                            appContext,
+                            R.string.overlay_analysis_stopped,
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 }
             }
