@@ -41,7 +41,10 @@ object CommunityLinks {
      * 尝试在浏览器中打开指定链接，失败时回退到复制链接到剪贴板。
      *
      * 这是社区链接的统一入口方法，所有需要打开 QQ 群或 Telegram 链接的地方
-     * 都应调用此方法，而不是各自构造 Intent。
+     * 都应调用此方法，而不是各自构造 Intent。好处：
+     * - 集中管理链接打开逻辑，修改时只需改一处
+     * - 统一使用 ApplicationContext，避免内存泄漏
+     * - 统一的错误处理和日志记录
      *
      * @param context 上下文（可以是 Activity 或 Application）
      * @param label 链接的标签名称，用于日志记录和剪贴板标识
@@ -51,9 +54,11 @@ object CommunityLinks {
      * 执行流程：
      * 1. 获取 ApplicationContext（避免持有 Activity 引用导致内存泄漏）
      * 2. 构造 ACTION_VIEW Intent 并设置 NEW_TASK 标志
+     *    （FLAG_ACTIVITY_NEW_TASK 是必须的，因为这不是从 Activity 发起的）
      * 3. 尝试启动 Activity 打开浏览器
      * 4. 成功：记录 Info 级别日志
-     * 5. 失败（无浏览器 / 其他异常）：调用 copyLink() 将 URL 复制到剪贴板
+     * 5. 失败（无浏览器 / ActivityNotFoundException）：调用 copyLink() 将 URL 复制到剪贴板
+     * 6. 其他异常（SecurityException 等）：同样回退到复制剪贴板
      */
     fun openLink(
         context: Context,
@@ -71,6 +76,7 @@ object CommunityLinks {
                 Uri.parse(url),
             ).apply {
                 // 在新任务栈中启动，因为这不是从 Activity 发起的
+                // 如果不设置 NEW_TASK 标志，会抛出 ActivityNotFoundException
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
@@ -117,11 +123,12 @@ object CommunityLinks {
      *
      * 执行流程：
      * 1. 通过 getSystemService 获取 ClipboardManager 服务
-     * 2. 如果系统不提供剪贴板服务（极罕见），显示通用失败提示
-     * 3. 使用 ClipData.newPlainText() 创建剪贴板数据并设置到主剪贴板
-     * 4. 显示成功 Toast，告知用户链接已复制
-     * 5. 记录 Info 日志
-     * 6. 如果复制失败，捕获异常并显示通用失败提示
+     *    （Android 框架保证此服务始终可用，但做了 null 检查以防万一）
+     * 2. 使用 ClipData.newPlainText() 创建剪贴板数据并设置到主剪贴板
+     *    （label 作为剪贴板内容的标识名称，用于多条目剪贴板场景）
+     * 3. 显示成功 Toast，告知用户链接已复制
+     * 4. 记录 Info 日志
+     * 5. 如果复制失败（如权限问题），捕获异常并显示通用失败提示
      */
     private fun copyLink(
         context: Context,

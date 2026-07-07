@@ -310,6 +310,42 @@
         "instanceLimit": 1,
         "instancePolicy": "warn"
       }
+    },
+    {
+      "label": "🔌 [HZZS] 转发 JDWP 端口 (adb forward)",
+      "type": "shell",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$pid = (adb jdwp 2>$null | Select-Object -First 1).Trim(); if ($pid) { adb forward tcp:5005 jdwp:$pid; Write-Host \"JDWP port forwarded for PID: $pid\" } else { Write-Host \"No JDWP process found. Make sure the app is installed and running.\" }"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🐛 [HZZS] 一键调试（构建→安装→启动→附加调试器）",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "📲 [HZZS] 构建并安装 Debug APK",
+        "🚀 [HZZS] 构建、安装并启动 Debug"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
     }
   ]
 }
