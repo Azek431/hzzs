@@ -341,6 +341,9 @@ Android SDK Build-Tools：37.0.0
 .\gradlew.bat :app:assembleDebug
 ```
 
+> 注意：上述命令在 PowerShell 中也可写作 `.\gradlew.bat :app:assembleDebug`。
+> 如果你使用的是 CMD，可以直接运行 `gradlew.bat :app:assembleDebug`（无需 `.\` 前缀）。
+
 Debug APK 默认输出位置：
 
 ```text

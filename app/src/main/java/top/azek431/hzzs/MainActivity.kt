@@ -121,30 +121,45 @@ class MainActivity : AppCompatActivity() {
      * - textCommunityTelegramLink → Azek431 Telegram 主频道
      */
     private fun bindCommunityFooterLinks() {
-        findViewByName("textCommunityQqLink")
-            ?.setOnClickListener {
-                CommunityLinks.openLink(
-                    context = this,
-                    label = getString(R.string.community_qq_label),
-                    url = CommunityLinks.HZZS_QQ_GROUP_URL,
-                    fallbackMessage = getString(
-                        R.string.community_open_fallback,
-                    ),
-                )
-            }
+        val fallbackMsg = getString(R.string.community_open_fallback)
 
-        findViewByName("textCommunityTelegramLink")
-            ?.setOnClickListener {
+        val links = listOf(
+            CommunityLinkEntry(
+                viewName = "textCommunityQqLink",
+                labelRes = R.string.community_qq_label,
+                url = CommunityLinks.HZZS_QQ_GROUP_URL,
+            ),
+            CommunityLinkEntry(
+                viewName = "textCommunityTelegramLink",
+                labelRes = R.string.community_telegram_label,
+                url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
+            ),
+        )
+
+        for (entry in links) {
+            findViewByName(entry.viewName)?.setOnClickListener {
                 CommunityLinks.openLink(
-                    context = this,
-                    label = getString(R.string.community_telegram_label),
-                    url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
-                    fallbackMessage = getString(
-                        R.string.community_open_fallback,
-                    ),
+                    context = applicationContext,
+                    label = getString(entry.labelRes),
+                    url = entry.url,
+                    fallbackMessage = fallbackMsg,
                 )
             }
+        }
     }
+
+    /**
+     * 社区链接数据条目，用于 [bindCommunityFooterLinks] 的数据驱动绑定。
+     *
+     * @param viewName 布局中 TextView 的 id 资源名（如 "textCommunityQqLink"）
+     * @param labelRes 链接标签的字符串资源 ID
+     * @param url 要打开的完整 URL
+     */
+    private data class CommunityLinkEntry(
+        val viewName: String,
+        val labelRes: Int,
+        val url: String,
+    )
 
     /**
      * 处理悬浮窗预览面板的打开/关闭操作。
