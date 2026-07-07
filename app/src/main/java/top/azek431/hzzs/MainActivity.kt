@@ -49,6 +49,28 @@ class MainActivity : AppCompatActivity() {
             ?.setOnClickListener {
                 handleOverlayPreview()
             }
+
+        findViewByName("btnCopyHzzsQqGroup")
+            ?.setOnClickListener {
+                CommunityLinks.copy(
+                    context = this,
+                    label = getString(R.string.community_qq_label),
+                    value = CommunityLinks.HZZS_QQ_GROUP_ID,
+                    confirmation = getString(R.string.community_qq_copied),
+                )
+            }
+
+        findViewByName("btnCopyAzekMainChannel")
+            ?.setOnClickListener {
+                CommunityLinks.copy(
+                    context = this,
+                    label = getString(R.string.community_telegram_label),
+                    value = CommunityLinks.AZEK_MAIN_TELEGRAM_CHANNEL,
+                    confirmation = getString(
+                        R.string.community_telegram_copied,
+                    ),
+                )
+            }
     }
 
     private fun handleOverlayPreview() {
