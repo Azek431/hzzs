@@ -24,15 +24,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".OverlayExecutionService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-initiated, dismissible floating execution control panel. This milestone does not capture screen content, automate input, or run scripts." />
-        </service>
-
     </application>
 
 </manifest>

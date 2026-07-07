@@ -1,14 +1,12 @@
 package top.azek431.hzzs
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
-import android.view.WindowManager
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -24,42 +22,165 @@ class MainActivity : AppCompatActivity() {
 
         WindowCompat.enableEdgeToEdge(window)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-        }
-
-        // Light theme: dark status bar icons
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
 
         setContentView(R.layout.activity_main)
 
         applySystemBarInsets()
+        bindHomeActions()
+        refreshOverlayButton()
+    }
 
-        findViewById<MaterialButton>(R.id.btnDevelopmentPlan).setOnClickListener {
-            showDevelopmentPlan()
+    override fun onResume() {
+        super.onResume()
+        refreshOverlayButton()
+    }
+
+    private fun bindHomeActions() {
+        findViewByName("btnDevelopmentPlan")
+            ?.setOnClickListener {
+                showDevelopmentPlan()
+            }
+
+        findViewByName("btnOverlayExecution")
+            ?.setOnClickListener {
+                handleOverlayPreview()
+            }
+    }
+
+    private fun handleOverlayPreview() {
+        if (!hasOverlayPermission()) {
+            showOverlayPermissionDialog()
+            return
         }
 
-        findViewById<MaterialButton>(R.id.btnOverlayExecution).setOnClickListener {
-            handleOverlayExecution()
+        val isNowShowing = if (OverlayPreviewManager.isShowing()) {
+            OverlayPreviewManager.hide()
+            false
+        } else {
+            OverlayPreviewManager.show(this)
+        }
+
+        refreshOverlayButton()
+
+        if (!isNowShowing && !OverlayPreviewManager.isShowing()) {
+            Toast.makeText(
+                this,
+                stringOrFallback(
+                    "overlay_preview_open_failed",
+                    "悬浮窗未能打开，请检查授权状态。",
+                ),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
+    private fun hasOverlayPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            Settings.canDrawOverlays(this)
+    }
+
+    private fun showOverlayPermissionDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(
+                stringOrFallback(
+                    "overlay_permission_required_title",
+                    "需要悬浮窗权限",
+                ),
+            )
+            .setMessage(
+                stringOrFallback(
+                    "overlay_permission_required_message",
+                    "火崽崽助手需要“显示在其他应用上层”的权限，才能显示悬浮窗预览。",
+                ),
+            )
+            .setNegativeButton(
+                stringOrFallback(
+                    "action_close",
+                    "关闭",
+                ),
+                null,
+            )
+            .setPositiveButton(
+                stringOrFallback(
+                    "overlay_permission_go_to_settings",
+                    "前往授权",
+                ),
+            ) { _, _ ->
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName"),
+                )
+
+                try {
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(
+                        this,
+                        "无法打开系统授权页面，请前往系统设置手动授权。",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            .show()
+    }
+
+    private fun refreshOverlayButton() {
+        val button = findViewByName("btnOverlayExecution") as? MaterialButton ?: return
+
+        button.text = if (OverlayPreviewManager.isShowing()) {
+            stringOrFallback(
+                "overlay_preview_close",
+                "关闭悬浮窗",
+            )
+        } else {
+            stringOrFallback(
+                "overlay_preview_open",
+                "打开悬浮窗",
+            )
+        }
+    }
+
+    private fun showDevelopmentPlan() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(
+                stringOrFallback(
+                    "development_plan_title",
+                    "开发计划",
+                ),
+            )
+            .setMessage(
+                stringOrFallback(
+                    "development_plan_message",
+                    "1）界面与导航\n\n2）权限与设备检查\n\n3）跑酷像素分析\n\n4）实时 HUD 与本局战报\n\n5）历史数据与校准",
+                ),
+            )
+            .setPositiveButton(
+                stringOrFallback(
+                    "action_close",
+                    "关闭",
+                ),
+                null,
+            )
+            .show()
+    }
+
     private fun applySystemBarInsets() {
-        val root = findViewById<View>(R.id.rootContainer)
-        val topBar = findViewById<View>(R.id.topBarContainer)
-        val scrollView = findViewById<View>(R.id.homeScrollView)
+        val root = findViewByName("rootContainer") ?: return
+        val topBar = findViewByName("topBarContainer")
+        val scrollView = findViewByName("homeScrollView")
 
-        val topBarPaddingStart = topBar.paddingStart
-        val topBarPaddingTop = topBar.paddingTop
-        val topBarPaddingEnd = topBar.paddingEnd
+        val topBarPaddingStart = topBar?.paddingStart ?: 0
+        val topBarPaddingTop = topBar?.paddingTop ?: 0
+        val topBarPaddingEnd = topBar?.paddingEnd ?: 0
 
-        val scrollPaddingStart = scrollView.paddingStart
-        val scrollPaddingTop = scrollView.paddingTop
-        val scrollPaddingEnd = scrollView.paddingEnd
-        val scrollPaddingBottom = scrollView.paddingBottom
+        val scrollPaddingStart = scrollView?.paddingStart ?: 0
+        val scrollPaddingTop = scrollView?.paddingTop ?: 0
+        val scrollPaddingEnd = scrollView?.paddingEnd ?: 0
+        val scrollPaddingBottom = scrollView?.paddingBottom ?: 0
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val safeInsets = insets.getInsets(
@@ -67,13 +188,13 @@ class MainActivity : AppCompatActivity() {
                     WindowInsetsCompat.Type.displayCutout(),
             )
 
-            topBar.updatePadding(
+            topBar?.updatePadding(
                 left = topBarPaddingStart + safeInsets.left,
                 top = topBarPaddingTop + safeInsets.top,
                 right = topBarPaddingEnd + safeInsets.right,
             )
 
-            scrollView.updatePadding(
+            scrollView?.updatePadding(
                 left = scrollPaddingStart + safeInsets.left,
                 top = scrollPaddingTop,
                 right = scrollPaddingEnd + safeInsets.right,
@@ -86,61 +207,23 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.requestApplyInsets(root)
     }
 
-    private fun showDevelopmentPlan() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.development_plan_title)
-            .setMessage(R.string.development_plan_message)
-            .setPositiveButton(R.string.action_close, null)
-            .show()
-    }
+    private fun findViewByName(name: String): View? {
+        val id = resources.getIdentifier(name, "id", packageName)
 
-    private fun handleOverlayExecution() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                showOverlayPermissionDialog()
-            } else {
-                startOverlayService()
-            }
+        return if (id == 0) {
+            null
         } else {
-            // Pre-API 23: OVERLAY_PERMISSION is always granted
-            startOverlayService()
+            findViewById(id)
         }
     }
 
-    private fun showOverlayPermissionDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.overlay_permission_required_title)
-            .setMessage(R.string.overlay_permission_required_message)
-            .setNegativeButton(R.string.action_close, null)
-            .setPositiveButton(R.string.action_go_to_authorization) { _, _ ->
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                    data = Uri.parse("package:$packageName")
-                }
-                startActivity(intent)
-            }
-            .show()
-    }
+    private fun stringOrFallback(name: String, fallback: String): String {
+        val id = resources.getIdentifier(name, "string", packageName)
 
-    private fun startOverlayService() {
-        // Check if service is already running to prevent duplicate
-        if (isOverlayServiceRunning()) {
-            return
-        }
-        val intent = Intent(this, OverlayExecutionService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
+        return if (id == 0) {
+            fallback
         } else {
-            startService(intent)
-        }
-    }
-
-    private fun isOverlayServiceRunning(): Boolean {
-        return try {
-            val token = getSystemService(WINDOW_SERVICE) as WindowManager
-            token.defaultDisplay.hashCode() != 0 // Just a sanity check
-            OverlayExecutionService.isInstanceAlive()
-        } catch (_: Exception) {
-            false
+            getString(id)
         }
     }
 }
