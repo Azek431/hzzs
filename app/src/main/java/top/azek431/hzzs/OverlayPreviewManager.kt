@@ -380,8 +380,9 @@ object OverlayPreviewManager {
                         // 如果位移超过 5dp 阈值，视为拖动而非点击
                         if (!isScaling && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                             // 检查是否在缩放手柄区域（右下角 48dp 范围内）
-                            val panelRight = layoutParams.x + layoutParams.width
-                            val panelBottom = layoutParams.y + v.height
+                            // 注意：event.rawX/Y 是相对于 contentPanel 的坐标
+                            val panelRight = v.width
+                            val panelBottom = v.height
                             val isInResizeCorner = (event.rawX > panelRight - dp(appContext, 48)) &&
                                 (event.rawY > panelBottom - dp(appContext, 48))
 
