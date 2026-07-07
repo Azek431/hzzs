@@ -332,3 +332,5 @@ $RECYCLE.BIN/
 
 # Gradle 临时恢复备份，不提交到仓库
 gradle/gradle-daemon-jvm.properties.backup-*
+# Android CMake / NDK build intermediates
+app/.cxx/

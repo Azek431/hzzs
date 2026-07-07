@@ -15,6 +15,11 @@ plugins {
 }
 
 android {
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
     namespace = "top.azek431.hzzs"
     compileSdk = 37
 
