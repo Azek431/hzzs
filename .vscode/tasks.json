@@ -14,7 +14,7 @@
   },
   "tasks": [
     {
-      "label": "🔨 [MyApplication] 构建 Debug APK",
+      "label": "🔨 [HZZS] 构建 Debug APK",
       "args": [
         "--console=plain",
         ":app:assembleDebug"
@@ -23,18 +23,199 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
     },
     {
-      "label": "🚀 [MyApplication] 一键构建并安装 Debug",
+      "label": "📲 [HZZS] 构建并安装 Debug APK",
       "args": [
         "--console=plain",
         ":app:installDebug"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
     },
     {
-      "label": "✅ [MyApplication] 验证 Debug（构建 + 单元测试）",
+      "label": "▶️ [HZZS] 启动已安装应用",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "Launch"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🚀 [HZZS] 构建、安装并启动 Debug",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "BuildInstallLaunch"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🩺 [HZZS] 检查 Android 设备与应用状态",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "Health"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🧽 [HZZS] 清空设备运行日志",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "ClearLogs"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🐞 [HZZS] 监听应用运行日志",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "Watch"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🧪 [HZZS] 真机诊断（构建、安装、启动并持续记录）",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "Diagnose"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "📤 [HZZS] 导出当前诊断快照",
+      "type": "process",
+      "command": "pwsh.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
+        "-Mode",
+        "ExportSnapshot"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "✅ [HZZS] 验证 Debug（构建 + 单元测试）",
       "args": [
         "--console=plain",
         ":app:assembleDebug",
@@ -44,39 +225,91 @@
         "kind": "test",
         "isDefault": true
       },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
     },
     {
-      "label": "🔎 [MyApplication] 运行 Debug Lint（提交前）",
+      "label": "🔎 [HZZS] 运行 Debug Lint（提交前）",
       "args": [
         "--console=plain",
         ":app:lintDebug"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
     },
     {
-      "label": "📊 [MyApplication] 查看 Gradle Daemon 状态",
+      "label": "🛡️ [HZZS] 提交前完整验证（构建 + 测试 + Lint）",
+      "args": [
+        "--console=plain",
+        ":app:assembleDebug",
+        ":app:testDebugUnitTest",
+        ":app:lintDebug"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
+    },
+    {
+      "label": "📦 [HZZS] 构建 Release APK",
+      "args": [
+        "--console=plain",
+        ":app:assembleRelease"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
+    },
+    {
+      "label": "📊 [HZZS] 查看 Gradle Daemon 状态",
       "args": [
         "--console=plain",
         "--status"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": false,
+        "showReuseMessage": false
+      }
     },
     {
-      "label": "🛑 [MyApplication] 停止 Gradle Daemon，释放内存",
+      "label": "🛑 [HZZS] 停止 Gradle Daemon，释放内存",
       "args": [
         "--console=plain",
         "--stop"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": false,
+        "showReuseMessage": false
+      }
     },
     {
-      "label": "🧹 [MyApplication] 清理构建产物（仅故障时）",
+      "label": "🧹 [HZZS] 清理构建产物（仅故障时）",
       "args": [
         "--console=plain",
         "clean"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      }
     }
   ]
 }
