@@ -2,334 +2,397 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/surface"
-    android:fitsSystemWindows="true"
-    tools:context=".MainActivity">
+    android:background="@color/surface_background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_background"
+        app:elevation="0dp">
+
+        <LinearLayout
+            android:id="@+id/topBarContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="@dimen/top_bar_min_height"
+            android:orientation="vertical"
+            android:paddingStart="@dimen/page_padding_horizontal"
+            android:paddingTop="@dimen/top_bar_padding_top"
+            android:paddingEnd="@dimen/page_padding_horizontal"
+            android:paddingBottom="@dimen/top_bar_padding_bottom">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@color/on_surface"
+                android:textSize="@dimen/text_app_title"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_2xs"
+                android:text="@string/app_subtitle"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="@dimen/text_app_subtitle" />
+
+        </LinearLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/homeScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:paddingHorizontal="@dimen/padding_screen"
-        android:paddingTop="@dimen/spacing_md"
-        android:paddingBottom="@dimen/spacing_lg">
+        android:fillViewport="true"
+        android:paddingStart="@dimen/page_padding_horizontal"
+        android:paddingTop="@dimen/space_sm"
+        android:paddingEnd="@dimen/page_padding_horizontal"
+        android:paddingBottom="@dimen/page_padding_bottom"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Status Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_md"
-                app:cardBackgroundColor="@color/surface_variant"
-                app:cardCornerRadius="@dimen/radius_card"
+                app:cardBackgroundColor="@color/surface_container"
+                app:cardCornerRadius="@dimen/radius_large"
                 app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="@color/outline_variant">
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="@dimen/stroke_width">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="@dimen/padding_card">
+                    android:padding="@dimen/card_padding">
 
-                    <!-- Status Row: Chip + Title -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
+                    <com.google.android.material.chip.Chip
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:checkable="false"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:text="@string/home_status_preparing"
+                        android:textColor="@color/status_preparing_on_container"
+                        app:chipBackgroundColor="@color/status_preparing_container"
+                        app:chipStrokeColor="@color/status_preparing_outline"
+                        app:chipStrokeWidth="@dimen/stroke_width" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:backgroundTint="@color/brand_primary"
-                            android:paddingHorizontal="@dimen/spacing_sm"
-                            android:paddingVertical="@dimen/spacing_xs"
-                            android:background="@android:drawable/dialog_holo_light_frame"
-                            android:text="@string/status_chip"
-                            android:textColor="@color/brand_on_primary"
-                            android:textSize="@dimen/text_small"
-                            android:textStyle="bold" />
-
-                        <Space
-                            android:layout_width="0dp"
-                            android:layout_height="0dp"
-                            android:layout_weight="1" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/feature_title"
-                            android:textColor="@color/on_surface"
-                            android:textSize="@dimen/text_title"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="@dimen/spacing_md"
-                        android:background="@color/outline_variant" />
-
-                    <!-- Description -->
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/feature_description"
-                        android:textColor="@color/on_surface_variant"
-                        android:textSize="@dimen/text_body"
-                        android:lineSpacingExtra="2dp"
-                        android:layout_marginBottom="@dimen/spacing_md" />
+                        android:layout_marginTop="@dimen/space_lg"
+                        android:text="@string/home_hero_title"
+                        android:textColor="@color/on_surface"
+                        android:textSize="@dimen/text_hero_title"
+                        android:textStyle="bold" />
 
-                    <!-- Button -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_sm"
+                        android:lineSpacingExtra="@dimen/text_line_spacing"
+                        android:text="@string/home_hero_description"
+                        android:textColor="@color/on_surface_variant"
+                        android:textSize="@dimen/text_body" />
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnDevelopmentPlan"
+                        style="@style/Widget.Material3.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/btn_development_plan"
+                        android:minHeight="@dimen/button_min_height"
+                        android:layout_marginTop="@dimen/space_xl"
+                        android:text="@string/action_view_development_plan"
                         android:textColor="@color/brand_on_primary"
-                        android:textSize="@dimen/text_small"
-                        style="@style/Widget.Material3.Button"
                         app:backgroundTint="@color/brand_primary"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="@dimen/radius_medium"
+                        app:icon="@drawable/ic_arrow_forward_24"
+                        app:iconGravity="textEnd"
+                        app:iconPadding="@dimen/space_sm"
+                        app:iconTint="@color/brand_on_primary" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Section Title: 功能规划 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:layout_marginBottom="@dimen/spacing_md"
-                android:text="@string/section_planning"
+                android:layout_marginTop="@dimen/space_2xl"
+                android:layout_marginBottom="@dimen/space_md"
+                android:text="@string/section_feature_plan"
                 android:textColor="@color/on_surface"
-                android:textSize="@dimen/text_subtitle"
+                android:textSize="@dimen/text_section_title"
                 android:textStyle="bold" />
 
-            <!-- Feature Cards -->
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginBottom="@dimen/spacing_lg">
+                android:layout_marginBottom="@dimen/space_md"
+                android:clickable="false"
+                android:focusable="false"
+                app:cardBackgroundColor="@color/surface_container_low"
+                app:cardCornerRadius="@dimen/radius_medium"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="@dimen/stroke_width">
 
-                <!-- Card 1: 实时分析 -->
-                <com.google.android.material.card.MaterialCardView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/spacing_md"
-                    app:cardBackgroundColor="@color/surface_variant"
-                    app:cardCornerRadius="@dimen/radius_card"
-                    app:cardElevation="0dp"
-                    app:strokeWidth="1dp"
-                    app:strokeColor="@color/outline_variant">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/feature_card_padding">
+
+                    <FrameLayout
+                        android:layout_width="@dimen/feature_icon_container_size"
+                        android:layout_height="@dimen/feature_icon_container_size"
+                        android:background="@drawable/bg_feature_icon_container">
+
+                        <ImageView
+                            android:layout_width="@dimen/feature_icon_size"
+                            android:layout_height="@dimen/feature_icon_size"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_insights_24"
+                            app:tint="@color/feature_icon_tint" />
+
+                    </FrameLayout>
 
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="@dimen/padding_card">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="▶"
-                                android:textColor="@color/brand_primary"
-                                android:textSize="18sp" />
-
-                            <Space
-                                android:layout_width="@dimen/spacing_md"
-                                android:layout_height="0dp" />
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/card_realtime_title"
-                                android:textColor="@color/on_surface"
-                                android:textSize="@dimen/text_subtitle"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/card_realtime_status"
-                                android:textColor="@color/outline"
-                                android:textSize="@dimen/text_caption" />
-                        </LinearLayout>
+                        android:layout_marginStart="@dimen/space_lg"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/spacing_sm"
-                            android:text="@string/card_realtime_desc"
-                            android:textColor="@color/on_surface_variant"
-                            android:textSize="@dimen/text_body" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- Card 2: 本局战报 -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/spacing_md"
-                    app:cardBackgroundColor="@color/surface_variant"
-                    app:cardCornerRadius="@dimen/radius_card"
-                    app:cardElevation="0dp"
-                    app:strokeWidth="1dp"
-                    app:strokeColor="@color/outline_variant">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="@dimen/padding_card">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="★"
-                                android:textColor="@color/brand_primary"
-                                android:textSize="18sp" />
-
-                            <Space
-                                android:layout_width="@dimen/spacing_md"
-                                android:layout_height="0dp" />
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/card_report_title"
-                                android:textColor="@color/on_surface"
-                                android:textSize="@dimen/text_subtitle"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/card_report_status"
-                                android:textColor="@color/outline"
-                                android:textSize="@dimen/text_caption" />
-                        </LinearLayout>
+                            android:text="@string/feature_realtime_title"
+                            android:textColor="@color/on_surface"
+                            android:textSize="@dimen/text_card_title"
+                            android:textStyle="bold" />
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/spacing_sm"
-                            android:text="@string/card_report_desc"
+                            android:layout_marginTop="@dimen/space_xs"
+                            android:lineSpacingExtra="@dimen/text_line_spacing"
+                            android:text="@string/feature_realtime_description"
                             android:textColor="@color/on_surface_variant"
                             android:textSize="@dimen/text_body" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
 
-                <!-- Card 3: 校准与设置 -->
-                <com.google.android.material.card.MaterialCardView
+                    </LinearLayout>
+
+                    <com.google.android.material.chip.Chip
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_sm"
+                        android:checkable="false"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:text="@string/feature_status_not_enabled"
+                        android:textColor="@color/planned_on_container"
+                        android:textSize="@dimen/text_label"
+                        app:chipBackgroundColor="@color/planned_container"
+                        app:chipStrokeColor="@color/planned_outline"
+                        app:chipStrokeWidth="@dimen/stroke_width" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/space_md"
+                android:clickable="false"
+                android:focusable="false"
+                app:cardBackgroundColor="@color/surface_container_low"
+                app:cardCornerRadius="@dimen/radius_medium"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="@dimen/stroke_width">
+
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:cardBackgroundColor="@color/surface_variant"
-                    app:cardCornerRadius="@dimen/radius_card"
-                    app:cardElevation="0dp"
-                    app:strokeWidth="1dp"
-                    app:strokeColor="@color/outline_variant">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/feature_card_padding">
+
+                    <FrameLayout
+                        android:layout_width="@dimen/feature_icon_container_size"
+                        android:layout_height="@dimen/feature_icon_container_size"
+                        android:background="@drawable/bg_feature_icon_container">
+
+                        <ImageView
+                            android:layout_width="@dimen/feature_icon_size"
+                            android:layout_height="@dimen/feature_icon_size"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_report_24"
+                            app:tint="@color/feature_icon_tint" />
+
+                    </FrameLayout>
 
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="@dimen/padding_card">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="⚙"
-                                android:textColor="@color/brand_primary"
-                                android:textSize="18sp" />
-
-                            <Space
-                                android:layout_width="@dimen/spacing_md"
-                                android:layout_height="0dp" />
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="@string/card_calibration_title"
-                                android:textColor="@color/on_surface"
-                                android:textSize="@dimen/text_subtitle"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/card_calibration_status"
-                                android:textColor="@color/outline"
-                                android:textSize="@dimen/text_caption" />
-                        </LinearLayout>
+                        android:layout_marginStart="@dimen/space_lg"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/spacing_sm"
-                            android:text="@string/card_calibration_desc"
+                            android:text="@string/feature_report_title"
+                            android:textColor="@color/on_surface"
+                            android:textSize="@dimen/text_card_title"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/space_xs"
+                            android:lineSpacingExtra="@dimen/text_line_spacing"
+                            android:text="@string/feature_report_description"
                             android:textColor="@color/on_surface_variant"
                             android:textSize="@dimen/text_body" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
 
-            <!-- Footer -->
+                    </LinearLayout>
+
+                    <com.google.android.material.chip.Chip
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_sm"
+                        android:checkable="false"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:text="@string/feature_status_not_enabled"
+                        android:textColor="@color/planned_on_container"
+                        android:textSize="@dimen/text_label"
+                        app:chipBackgroundColor="@color/planned_container"
+                        app:chipStrokeColor="@color/planned_outline"
+                        app:chipStrokeWidth="@dimen/stroke_width" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:focusable="false"
+                app:cardBackgroundColor="@color/surface_container_low"
+                app:cardCornerRadius="@dimen/radius_medium"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline_variant"
+                app:strokeWidth="@dimen/stroke_width">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/feature_card_padding">
+
+                    <FrameLayout
+                        android:layout_width="@dimen/feature_icon_container_size"
+                        android:layout_height="@dimen/feature_icon_container_size"
+                        android:background="@drawable/bg_feature_icon_container">
+
+                        <ImageView
+                            android:layout_width="@dimen/feature_icon_size"
+                            android:layout_height="@dimen/feature_icon_size"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_tune_24"
+                            app:tint="@color/feature_icon_tint" />
+
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_lg"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/feature_calibration_title"
+                            android:textColor="@color/on_surface"
+                            android:textSize="@dimen/text_card_title"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/space_xs"
+                            android:lineSpacingExtra="@dimen/text_line_spacing"
+                            android:text="@string/feature_calibration_description"
+                            android:textColor="@color/on_surface_variant"
+                            android:textSize="@dimen/text_body" />
+
+                    </LinearLayout>
+
+                    <com.google.android.material.chip.Chip
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_sm"
+                        android:checkable="false"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:text="@string/feature_status_not_enabled"
+                        android:textColor="@color/planned_on_container"
+                        android:textSize="@dimen/text_label"
+                        app:chipBackgroundColor="@color/planned_container"
+                        app:chipStrokeColor="@color/planned_outline"
+                        app:chipStrokeWidth="@dimen/stroke_width" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <View
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/outline_variant" />
+                android:layout_height="@dimen/stroke_width"
+                android:layout_marginTop="@dimen/space_2xl"
+                android:background="@color/divider" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
                 android:gravity="center_horizontal"
-                android:paddingVertical="@dimen/spacing_md">
+                android:orientation="vertical"
+                android:paddingTop="@dimen/space_xl"
+                android:paddingBottom="@dimen/space_sm">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/footer_dev"
+                    android:text="@string/footer_developer"
                     android:textColor="@color/on_surface_variant"
-                    android:textSize="@dimen/text_caption" />
+                    android:textSize="@dimen/text_footer" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_xs"
+                    android:layout_marginTop="@dimen/space_xs"
                     android:text="@string/footer_version"
                     android:textColor="@color/outline"
-                    android:textSize="@dimen/text_small" />
+                    android:textSize="@dimen/text_footer_small" />
+
             </LinearLayout>
 
         </LinearLayout>
