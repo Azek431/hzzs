@@ -10,19 +10,36 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.TextView
+import android.widget.Toast
 
 /**
  * 第一阶段悬浮窗预览管理器。
  *
- * 当前只负责展示、拖动、关闭与社区链接跳转。
- * 不接入前台服务、MediaProjection、屏幕采集、HUD 或自动操作。
+ * 当前负责：
+ * - 显示、拖动、关闭
+ * - 社区链接跳转
+ * - 分析启动入口的 UI 状态
+ *
+ * 当前不负责：
+ * - 屏幕采集
+ * - MediaProjection
+ * - 帧分析
+ * - 障碍识别
+ * - 自动操作
  */
 object OverlayPreviewManager {
 
     private const val TAG = "HZZS"
 
+    private enum class AnalysisUiState {
+        IDLE,
+        PREPARING,
+    }
+
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
+    private var analysisUiState = AnalysisUiState.IDLE
 
     @Synchronized
     fun isShowing(): Boolean {
@@ -34,6 +51,7 @@ object OverlayPreviewManager {
 
         overlayView = null
         windowManager = null
+        analysisUiState = AnalysisUiState.IDLE
 
         return false
     }
@@ -59,6 +77,8 @@ object OverlayPreviewManager {
         var candidateWindowManager: WindowManager? = null
 
         try {
+            analysisUiState = AnalysisUiState.IDLE
+
             val manager = appContext.getSystemService(
                 Context.WINDOW_SERVICE,
             ) as WindowManager
@@ -75,6 +95,15 @@ object OverlayPreviewManager {
 
             val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
                 ?: throw IllegalStateException("overlayDragHandle is missing.")
+
+            val statusText = view.findViewById<TextView>(R.id.overlayStatusText)
+                ?: throw IllegalStateException("overlayStatusText is missing.")
+
+            val startAnalysisButton = view.findViewById<TextView>(
+                R.id.overlayStartAnalysis,
+            ) ?: throw IllegalStateException(
+                "overlayStartAnalysis is missing.",
+            )
 
             val communityQq = view.findViewById<View>(R.id.overlayCommunityQq)
                 ?: throw IllegalStateException("overlayCommunityQq is missing.")
@@ -110,6 +139,27 @@ object OverlayPreviewManager {
 
             closeButton.setOnClickListener {
                 hide()
+            }
+
+            startAnalysisButton.setOnClickListener {
+                if (analysisUiState != AnalysisUiState.IDLE) {
+                    return@setOnClickListener
+                }
+
+                analysisUiState = AnalysisUiState.PREPARING
+
+                statusText.setText(R.string.overlay_analysis_preparing)
+                startAnalysisButton.setText(R.string.overlay_analysis_waiting)
+                startAnalysisButton.isEnabled = false
+                startAnalysisButton.alpha = 0.72f
+
+                Log.i(TAG, "[Analysis] analysis preparation requested.")
+
+                Toast.makeText(
+                    appContext,
+                    R.string.overlay_analysis_placeholder,
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
 
             communityQq.setOnClickListener {
@@ -214,6 +264,7 @@ object OverlayPreviewManager {
 
             overlayView = null
             windowManager = null
+            analysisUiState = AnalysisUiState.IDLE
 
             return false
         }
@@ -226,6 +277,7 @@ object OverlayPreviewManager {
 
         overlayView = null
         windowManager = null
+        analysisUiState = AnalysisUiState.IDLE
 
         if (currentWindowManager == null) {
             return
