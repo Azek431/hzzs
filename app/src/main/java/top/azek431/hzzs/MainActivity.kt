@@ -33,7 +33,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  * 架构设计要点：
  * - 使用 lateinit var 缓存 View 引用，在 onCreate 中一次性初始化
  * - 使用 MaterialAlertDialogBuilder 替代 AlertDialog，保持 Material 3 风格
- * - 使用 CommunityLinkEntry 数据类实现社区链接的数据驱动绑定
+ * - 通过 CommunityLinks.entries 统一配置社区链接，数据驱动绑定点击事件
  * - 使用 stringOrFallback() 确保字符串资源缺失时不崩溃
  *
  * 当前处于早期开发阶段，核心分析引擎（C++）尚未接入首页。
@@ -95,6 +95,7 @@ class MainActivity : AppCompatActivity() {
     private var topBarPaddingStartInit = 0
     private var topBarPaddingTopInit = 0
     private var topBarPaddingEndInit = 0
+    private var topBarPaddingBottomInit = 0
 
     private var scrollPaddingStartInit = 0
     private var scrollPaddingTopInit = 0
@@ -226,6 +227,8 @@ class MainActivity : AppCompatActivity() {
         scrollPaddingTopInit = homeScrollView.paddingTop
         scrollPaddingEndInit = homeScrollView.paddingEnd
         scrollPaddingBottomInit = homeScrollView.paddingBottom
+
+        topBarPaddingBottomInit = topBarContainer.paddingBottom
     }
 
     // ==================== 事件绑定 ====================
@@ -251,63 +254,47 @@ class MainActivity : AppCompatActivity() {
     /**
      * 绑定底部社区链接的点击事件。
      *
-     * 使用数据驱动方式：将 View、标签资源 ID 和 URL 打包为 CommunityLinkEntry，
-     * 通过 for 循环统一绑定点击事件，避免重复代码。
+     * 使用数据驱动方式：消费 [CommunityLinks.entries] 统一配置，
+     * 通过映射表将条目与缓存的 TextView 关联，避免硬编码。
      *
      * 点击后的行为：
      * 1. 尝试在系统浏览器中打开链接
      * 2. 如果设备上没有浏览器，自动将链接复制到剪贴板
      * 3. 显示 Toast 提示用户
+     *
+     * 扩展方式：新增链接时，只需在 CommunityLinks.entries 中添加一项，
+     * 并在 [cachedLinkViews] 映射表中补充 viewRes → entry 的对应关系。
      */
     private fun bindCommunityFooterLinks() {
         // 复用同一个 fallback 消息，避免多次 getString() 调用
         val fallbackMsg = getString(R.string.community_open_fallback)
 
-        // 将社区链接配置为数据列表，便于扩展和维护
-        // 新增链接只需在此列表中添加一项，无需修改绑定逻辑
-        val links = listOf(
-            CommunityLinkEntry(
-                view = textCommunityQqLink,
-                labelRes = R.string.community_qq_label,
-                url = CommunityLinks.HZZS_QQ_GROUP_URL,
-            ),
-            CommunityLinkEntry(
-                view = textCommunityTelegramLink,
-                labelRes = R.string.community_telegram_label,
-                url = CommunityLinks.AZEK_MAIN_TELEGRAM_URL,
-            ),
+        // 将缓存的 TextView 引用与社区链接条目建立映射关系
+        // key = R.id 资源值，value = (TextView, labelRes, url)
+        val cachedLinkViews = mapOf<Int, Pair<TextView, Int>>(
+            R.id.textCommunityQqLink to (textCommunityQqLink to R.string.community_qq_label),
+            R.id.textCommunityTelegramLink to (textCommunityTelegramLink to R.string.community_telegram_label),
         )
 
-        // 遍历数据列表，为每个链接 View 绑定点击事件
-        for (entry in links) {
-            entry.view.setOnClickListener {
-                CommunityLinks.openLink(
-                    context = applicationContext, // 使用 ApplicationContext 避免内存泄漏
-                    label = getString(entry.labelRes),
-                    url = entry.url,
-                    fallbackMessage = fallbackMsg,
-                )
+        // 遍历统一配置列表，为每个链接 View 绑定点击事件
+        for (entry in CommunityLinks.entries) {
+            // 根据 labelRes 反查 R.id（因为映射表以 R.id 为 key）
+            val targetId = cachedLinkViews.entries.find { (_, pair) ->
+                pair.second == entry.labelRes
+            }?.key
+
+            if (targetId != null) {
+                findViewById<TextView>(targetId)?.setOnClickListener {
+                    CommunityLinks.openLink(
+                        context = applicationContext, // 使用 ApplicationContext 避免内存泄漏
+                        label = getString(entry.labelRes),
+                        url = entry.url,
+                        fallbackMessage = fallbackMsg,
+                    )
+                }
             }
         }
     }
-
-    /**
-     * 社区链接数据条目，用于 [bindCommunityFooterLinks] 的数据驱动绑定。
-     *
-     * 使用 data class 而非普通 class，因为我们需要：
-     * 1. 简洁的构造函数（一行初始化三个字段）
-     * 2. 自动生成 equals/hashCode/toString（便于调试）
-     * 3. 支持解构声明（for 循环中不需要）
-     *
-     * @property view 要绑定的 TextView 实例（已从 cacheViews 缓存）
-     * @property labelRes 链接标签的字符串资源 ID（用于剪贴板标识和日志）
-     * @property url 要打开的完整 URL
-     */
-    private data class CommunityLinkEntry(
-        val view: TextView,
-        val labelRes: Int,
-        val url: String,
-    )
 
     // ==================== 悬浮窗管理 ====================
 
@@ -548,7 +535,7 @@ class MainActivity : AppCompatActivity() {
                 left = topBarPaddingStartInit + safeInsets.left,
                 top = topBarPaddingTopInit + safeInsets.top,
                 right = topBarPaddingEndInit + safeInsets.right,
-                bottom = topBarPaddingEndInit, // 底部不需要 insets padding
+                bottom = topBarPaddingBottomInit, // 底部不需要 insets padding
             )
 
             // 为滚动区域增加左/右/下 padding（顶部不需要，由顶部栏处理）

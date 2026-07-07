@@ -81,6 +81,9 @@ SceneMode SceneStateMachine::Update(const SceneObservation& observation) {
     if (pending_frame_count_ >= kTransitionConfirmFrames) {
         current_scene_ = candidate;
         pending_frame_count_ = 0;
+    } else if (pending_frame_count_ > kTransitionConfirmFrames) {
+        // 安全屏障：防止极端情况下整数溢出（UB）
+        pending_frame_count_ = kTransitionConfirmFrames;
     }
 
     return current_scene_;
