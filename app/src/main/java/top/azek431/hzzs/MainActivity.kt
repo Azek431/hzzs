@@ -1,4 +1,4 @@
-package com.example.myapplication
+package top.azek431.hzzs
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
