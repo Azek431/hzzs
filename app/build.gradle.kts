@@ -3,16 +3,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapplication"
+    namespace = "top.azek431.hzzs"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.myapplication"
+        applicationId = "top.azek431.hzzs"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
-
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

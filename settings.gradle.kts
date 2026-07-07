@@ -33,5 +33,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyApplication"
+rootProject.name = "hzzs"
 include(":app")
