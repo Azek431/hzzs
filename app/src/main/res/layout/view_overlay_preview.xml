@@ -25,6 +25,7 @@
 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:id="@+id/overlayRootPanel">
@@ -108,13 +109,15 @@
             android:contentDescription="@string/overlay_resize_bottom_right" />
 
         <!-- 实际内容面板：包含品牌、滑块、状态、按钮、社区链接 -->
-        <FrameLayout
+        <!-- 使用 MaterialCardView 替代 FrameLayout + clipToOutline，
+             确保在所有 API 级别（包括 24-27）上都能正确显示圆角裁切。 -->
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/overlayContentPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_overlay_preview_panel"
-            android:clipToOutline="true"
-            android:padding="12dp">
+            app:cardBackgroundColor="@color/overlay_card_background"
+            app:cardCornerRadius="@dimen/overlay_corner_radius"
+            app:cardElevation="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
