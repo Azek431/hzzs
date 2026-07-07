@@ -378,7 +378,7 @@ object OverlayPreviewManager {
                         val dy = (event.rawY - downRawY).toInt()
 
                         // 如果位移超过 5dp 阈值，视为拖动而非点击
-                        if (!isScaling && Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                        if (!isScaling && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                             // 检查是否在缩放手柄区域（右下角 48dp 范围内）
                             val panelRight = layoutParams.x + layoutParams.width
                             val panelBottom = layoutParams.y + v.height
@@ -393,27 +393,27 @@ object OverlayPreviewManager {
 
                         if (isScaling && resizeHandle != null) {
                             // 缩放模式：调整宽度
-                            val scaleFactor = 0.8f.coerceIn(0.5f, 1.5f) // 最小 50%，最大 150%
                             val newWidth = (initialWidth + dx).coerceIn(
                                 (initialWidth * 0.5).toInt(),
                                 (initialWidth * 1.5).toInt()
                             )
                             layoutParams.width = newWidth
-                            manager.updateViewLayout(v, layoutParams)
                         } else {
                             // 拖动模式：更新位置
                             layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
                             layoutParams.y = (downWindowY + dy).coerceAtLeast(0)
+                        }
 
-                            try {
-                                manager.updateViewLayout(v, layoutParams)
-                            } catch (error: IllegalArgumentException) {
-                                Log.w(
-                                    TAG,
-                                    "[Overlay] detached while dragging.",
-                                    error,
-                                )
-                            }
+                        // 注意：updateViewLayout 必须用根 View（view），不能用子 View（v）
+                        // 因为 layoutParams 是根 View 的 LayoutParams，不是子 View 的
+                        try {
+                            manager.updateViewLayout(view, layoutParams)
+                        } catch (error: IllegalArgumentException) {
+                            Log.w(
+                                TAG,
+                                "[Overlay] detached while dragging.",
+                                error,
+                            )
                         }
 
                         true
