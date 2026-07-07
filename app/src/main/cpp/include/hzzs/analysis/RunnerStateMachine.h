@@ -5,11 +5,14 @@
 namespace hzzs::analysis {
 
 /**
- * 根据连续帧中的玩家逻辑坐标推断基础跑酷姿态。
+ * 根据连续帧的玩家边界推断跑步、起跳、滞空、下落和下滑。
+ *
+ * 该类不关心屏幕采集、模板匹配或 UI；它只消费稳定后的玩家矩形。
  */
 class RunnerStateMachine {
 public:
-    RunnerPose Update(const FrameDetections& frame);
+    RunnerMotion Update(const FrameDetections& frame, SceneMode scene_mode);
+
     void Reset();
 
 private:

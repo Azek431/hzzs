@@ -1,21 +1,30 @@
 #pragma once
 
+#include <vector>
+
 #include "hzzs/analysis/AnalysisTypes.h"
 
 namespace hzzs::analysis {
 
 /**
- * 根据障碍 ETA 与置信度生成跳跃或下滑提示。
- * 同一种候选动作需要连续确认两帧，降低单帧抖动误提示。
+ * 根据危险 ETA、玩家状态和二连跳余量输出只读提示。
+ *
+ * 提示需连续两帧稳定才显示，避免单帧误检造成 HUD 闪烁。
  */
 class ActionPromptEngine {
 public:
-    PromptAction Update(const FrameDetections& frame);
+    ActionPrompt Update(
+        SceneMode scene_mode,
+        const RunnerMotion& runner,
+        std::uint8_t jump_stage,
+        const std::vector<HazardForecast>& hazards
+    );
+
     void Reset();
 
 private:
-    PromptAction pending_action_{PromptAction::kNone};
-    PromptAction emitted_action_{PromptAction::kNone};
+    ActionPrompt pending_prompt_{};
+    ActionPrompt active_prompt_{};
     int stable_frame_count_{0};
 };
 

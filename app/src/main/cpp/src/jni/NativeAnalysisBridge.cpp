@@ -14,6 +14,39 @@ jstring ToJString(JNIEnv* env, const std::string& value) {
     return env->NewStringUTF(value.c_str());
 }
 
+hzzs::analysis::FrameDetections CreateGroundFrame(
+    std::int64_t timestamp_ms
+) {
+    hzzs::analysis::FrameDetections frame{};
+    frame.timestamp_ms = timestamp_ms;
+    frame.scene.hint = hzzs::analysis::SceneMode::kGroundRun;
+    frame.scene.hint_confidence = 0.98F;
+    frame.player_bounds = hzzs::analysis::RectF{
+        0.14F,
+        0.66F,
+        0.24F,
+        0.84F,
+    };
+    frame.player_confidence = 0.96F;
+    frame.world_scroll_speed_x_per_second = -0.45F;
+
+    hzzs::analysis::DetectedObject gap{};
+    gap.type = hzzs::analysis::GameObjectType::kCakeGap;
+    gap.bounds = hzzs::analysis::RectF{
+        0.52F,
+        0.78F,
+        0.66F,
+        0.98F,
+    };
+    gap.danger_bounds = gap.bounds;
+    gap.confidence = 0.93F;
+    gap.track_id = 1;
+    gap.velocity_x_per_second = -0.45F;
+    frame.objects.push_back(gap);
+
+    return frame;
+}
+
 }  // namespace
 
 extern "C"
@@ -24,9 +57,15 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
 ) {
     const std::string message =
         "HZZS native core ready | C++17 | "
-        "RunnerStateMachine + ActionPromptEngine";
+        "scene + runner + double-jump + hazard ETA";
 
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", message.c_str());
+    __android_log_print(
+        ANDROID_LOG_INFO,
+        kLogTag,
+        "%s",
+        message.c_str()
+    );
+
     return ToJString(env, message);
 }
 
@@ -38,33 +77,21 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
 ) {
     hzzs::analysis::NativeAnalysisEngine engine{};
 
-    hzzs::analysis::FrameDetections first_frame{};
-    first_frame.timestamp_ms = 16;
-    first_frame.player_bounds = hzzs::analysis::RectF{
-        0.15F,
-        0.68F,
-        0.24F,
-        0.86F
-    };
-    first_frame.player_confidence = 0.95F;
-    first_frame.ground_hazard_eta_ms = 420.0F;
-    first_frame.ground_hazard_confidence = 0.90F;
-
-    hzzs::analysis::FrameDetections second_frame = first_frame;
-    second_frame.timestamp_ms = 32;
-    second_frame.ground_hazard_eta_ms = 390.0F;
-
-    engine.Analyze(first_frame);
-    const hzzs::analysis::AnalysisResult result = engine.Analyze(second_frame);
+    engine.Analyze(CreateGroundFrame(16));
+    const hzzs::analysis::AnalysisResult result = engine.Analyze(
+        CreateGroundFrame(32)
+    );
 
     const bool passed = (
-        result.pose == hzzs::analysis::RunnerPose::kRun &&
-        result.suggested_action == hzzs::analysis::PromptAction::kJump
+        result.scene_mode == hzzs::analysis::SceneMode::kGroundRun &&
+        result.runner.pose == hzzs::analysis::RunnerPose::kRun &&
+        result.prompt.action == hzzs::analysis::PromptAction::kJump &&
+        result.jump_stage == 0
     );
 
     const std::string message = passed
-        ? "PASS: native runner state and two-frame jump prompt check."
-        : "FAIL: native runner state self-check.";
+        ? "PASS: scene, runner, hazard ETA and jump prompt self-check."
+        : "FAIL: native analysis self-check.";
 
     __android_log_print(
         passed ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,

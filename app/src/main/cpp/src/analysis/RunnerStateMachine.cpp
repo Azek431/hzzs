@@ -18,13 +18,31 @@ float Lerp(float from, float to, float amount) {
 
 }  // namespace
 
-RunnerPose RunnerStateMachine::Update(const FrameDetections& frame) {
+RunnerMotion RunnerStateMachine::Update(
+    const FrameDetections& frame,
+    SceneMode scene_mode
+) {
+    RunnerMotion result{};
+
     if (
         !frame.player_bounds.has_value() ||
         !frame.player_bounds->IsValid() ||
         frame.player_confidence < kMinPlayerConfidence
     ) {
-        return RunnerPose::kUnknown;
+        return result;
+    }
+
+    result.bounds = frame.player_bounds;
+    result.confidence = frame.player_confidence;
+
+    if (scene_mode == SceneMode::kFlightRun) {
+        result.pose = RunnerPose::kFlight;
+        result.grounded = false;
+        return result;
+    }
+
+    if (scene_mode != SceneMode::kGroundRun) {
+        return result;
     }
 
     const RectF& player = *frame.player_bounds;
@@ -37,7 +55,10 @@ RunnerPose RunnerStateMachine::Update(const FrameDetections& frame) {
         baseline_height_ = player_height;
         last_player_bottom_ = player_bottom;
         last_timestamp_ms_ = frame.timestamp_ms;
-        return RunnerPose::kRun;
+
+        result.pose = RunnerPose::kRun;
+        result.grounded = true;
+        return result;
     }
 
     float delta_seconds = 1.0F / 60.0F;
@@ -54,41 +75,47 @@ RunnerPose RunnerStateMachine::Update(const FrameDetections& frame) {
     ) / delta_seconds;
 
     const float airborne_gap = baseline_bottom_ - player_bottom;
-    RunnerPose pose = RunnerPose::kUnknown;
+    const bool near_ground = airborne_gap <= kAirborneThreshold;
 
-    if (airborne_gap <= kAirborneThreshold) {
+    result.vertical_velocity_per_second = vertical_velocity;
+
+    if (near_ground) {
         const bool looks_like_slide = (
             baseline_height_ > 0.0F &&
             player_height < baseline_height_ * kSlideHeightRatio
         );
 
         if (looks_like_slide) {
-            pose = RunnerPose::kSlide;
+            result.pose = RunnerPose::kSlide;
+            result.grounded = true;
         } else {
             baseline_bottom_ = Lerp(
                 baseline_bottom_,
                 player_bottom,
                 kBaselineSmoothing
             );
+
             baseline_height_ = Lerp(
                 baseline_height_,
                 player_height,
                 kBaselineSmoothing
             );
-            pose = RunnerPose::kRun;
+
+            result.pose = RunnerPose::kRun;
+            result.grounded = true;
         }
     } else if (vertical_velocity < kUpwardVelocityThreshold) {
-        pose = RunnerPose::kJumpUp;
+        result.pose = RunnerPose::kJumpUp;
     } else if (vertical_velocity > kDownwardVelocityThreshold) {
-        pose = RunnerPose::kJumpDown;
+        result.pose = RunnerPose::kJumpDown;
     } else {
-        pose = RunnerPose::kJumpTop;
+        result.pose = RunnerPose::kJumpTop;
     }
 
     last_player_bottom_ = player_bottom;
     last_timestamp_ms_ = frame.timestamp_ms;
 
-    return pose;
+    return result;
 }
 
 void RunnerStateMachine::Reset() {
