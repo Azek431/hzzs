@@ -234,6 +234,9 @@ class MainActivity : AppCompatActivity() {
      * 绑定首页功能按钮的点击事件。
      *
      * 使用缓存的 View 引用，不再需要 findViewByName()。
+     * 绑定的按钮：
+     * - btnDevelopmentPlan → showDevelopmentPlan()：弹出开发计划对话框
+     * - btnOverlayExecution → handleOverlayPreview()：打开/关闭悬浮窗
      */
     private fun bindHomeActions() {
         btnDevelopmentPlan.setOnClickListener {
@@ -248,11 +251,20 @@ class MainActivity : AppCompatActivity() {
     /**
      * 绑定底部社区链接的点击事件。
      *
-     * 使用缓存的 View 引用，不再需要 findViewByName()。
+     * 使用数据驱动方式：将 View、标签资源 ID 和 URL 打包为 CommunityLinkEntry，
+     * 通过 for 循环统一绑定点击事件，避免重复代码。
+     *
+     * 点击后的行为：
+     * 1. 尝试在系统浏览器中打开链接
+     * 2. 如果设备上没有浏览器，自动将链接复制到剪贴板
+     * 3. 显示 Toast 提示用户
      */
     private fun bindCommunityFooterLinks() {
+        // 复用同一个 fallback 消息，避免多次 getString() 调用
         val fallbackMsg = getString(R.string.community_open_fallback)
 
+        // 将社区链接配置为数据列表，便于扩展和维护
+        // 新增链接只需在此列表中添加一项，无需修改绑定逻辑
         val links = listOf(
             CommunityLinkEntry(
                 view = textCommunityQqLink,
@@ -266,10 +278,11 @@ class MainActivity : AppCompatActivity() {
             ),
         )
 
+        // 遍历数据列表，为每个链接 View 绑定点击事件
         for (entry in links) {
             entry.view.setOnClickListener {
                 CommunityLinks.openLink(
-                    context = applicationContext,
+                    context = applicationContext, // 使用 ApplicationContext 避免内存泄漏
                     label = getString(entry.labelRes),
                     url = entry.url,
                     fallbackMessage = fallbackMsg,
@@ -281,9 +294,14 @@ class MainActivity : AppCompatActivity() {
     /**
      * 社区链接数据条目，用于 [bindCommunityFooterLinks] 的数据驱动绑定。
      *
-     * @param view 要绑定的 TextView 实例（已从 cacheViews 缓存）
-     * @param labelRes 链接标签的字符串资源 ID
-     * @param url 要打开的完整 URL
+     * 使用 data class 而非普通 class，因为我们需要：
+     * 1. 简洁的构造函数（一行初始化三个字段）
+     * 2. 自动生成 equals/hashCode/toString（便于调试）
+     * 3. 支持解构声明（for 循环中不需要）
+     *
+     * @property view 要绑定的 TextView 实例（已从 cacheViews 缓存）
+     * @property labelRes 链接标签的字符串资源 ID（用于剪贴板标识和日志）
+     * @property url 要打开的完整 URL
      */
     private data class CommunityLinkEntry(
         val view: TextView,
