@@ -37,7 +37,6 @@ object OverlayPreviewManager {
     private const val TAG = "HZZS"
     private const val PREFS_NAME = "hzzs_overlay_prefs"
     private const val KEY_ALPHA = "overlay_alpha"
-    private const val KEY_SCALE = "overlay_scale"
     private const val KEY_RADIUS = "overlay_radius"
 
     private enum class AnalysisUiState {
@@ -329,7 +328,7 @@ object OverlayPreviewManager {
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val alpha = prefs.getFloat(KEY_ALPHA, 1.0f)
-        val scale = prefs.getFloat(KEY_SCALE, 1.0f)
+
         val radiusDp = prefs.getInt(KEY_RADIUS, 20)
 
         // 透明度
@@ -339,9 +338,6 @@ object OverlayPreviewManager {
         val radiusPx = (radiusDp * context.resources.displayMetrics.density).roundToInt()
         applyOverlayCornerRadius(view, radiusPx)
 
-        // 尺寸缩放（通过 scaleX/scaleY）
-        view.scaleX = scale
-        view.scaleY = scale
 
         // SeekBar 进度回写
         val alphaSlider = view.findViewById<SeekBar>(R.id.overlayAlphaSlider)
@@ -349,15 +345,8 @@ object OverlayPreviewManager {
         alphaSlider?.progress = (alpha * 100).toInt()
         alphaValue?.text = "${alphaSlider.progress}%"
 
-        val scaleSlider = view.findViewById<SeekBar>(R.id.overlayScaleSlider)
-        val scaleValue = view.findViewById<TextView>(R.id.overlayScaleValue)
-        scaleSlider?.progress = ((scale - 0.6f) / 0.6f * 100).toInt()
-        scaleValue?.text = "${(scale * 100).roundToInt()}%"
 
-        val radiusSlider = view.findViewById<SeekBar>(R.id.overlayRadiusSlider)
-        val radiusValue = view.findViewById<TextView>(R.id.overlayRadiusValue)
-        radiusSlider?.progress = radiusDp - 4
-        radiusValue?.text = "$radiusDp dp"
+
     }
 
     @Synchronized
@@ -399,7 +388,7 @@ object OverlayPreviewManager {
     }
 
     /**
-     * 绑定悬浮窗上的三个调节滑块：透明度、尺寸缩放、圆角半径。
+     * 绑定悬浮窗当前可用的透明度调节控件。窗口大小通过拖动边缘或四角调整。
      */
     private fun setupAdjustmentSliders(
         context: Context,
@@ -423,39 +412,8 @@ object OverlayPreviewManager {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // --- 尺寸缩放滑块（0.6 → 1.6，映射到 0~100） ---
-        val scaleSlider = view.findViewById<SeekBar>(R.id.overlayScaleSlider)
-        val scaleValue = view.findViewById<TextView>(R.id.overlayScaleValue)
-        scaleSlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                val scale = 0.6f + (progress / 100f) * 1.0f
-                view.scaleX = scale
-                view.scaleY = scale
-                scaleValue?.text = "${(scale * 100).roundToInt()}%"
-                prefs.edit().putFloat(KEY_SCALE, scale).apply()
-            }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
 
-        // --- 圆角滑块（4~40 dp，映射到 0~100） ---
-        val radiusSlider = view.findViewById<SeekBar>(R.id.overlayRadiusSlider)
-        val radiusValue = view.findViewById<TextView>(R.id.overlayRadiusValue)
-        radiusSlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                val radiusDp = 4 + progress
-                val radiusPx = (radiusDp * context.resources.displayMetrics.density).roundToInt()
-                applyOverlayCornerRadius(view, radiusPx)
-                radiusValue?.text = "$radiusDp dp"
-                prefs.edit().putInt(KEY_RADIUS, radiusDp).apply()
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
     }
 
     private fun dp(context: Context, value: Int): Int {
