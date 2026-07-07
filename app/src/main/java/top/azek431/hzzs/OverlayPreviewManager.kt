@@ -378,6 +378,15 @@ object OverlayPreviewManager {
                 hide("close-button")
             }
 
+            // 让 contentPanel 的所有子 View 的触摸事件冒泡给 contentPanel 处理
+            // 这样整个面板都可以拖动，而关闭按钮等仍能通过 onClick 响应
+            for (i in 0 until contentPanel.childCount) {
+                contentPanel.getChildAt(i).setOnTouchListener { _, event ->
+                    // 所有触摸事件都返回 false，冒泡给父 View 处理
+                    false
+                }
+            }
+
             // 为内容面板设置触摸监听器——整个面板都可以拖动。
             //
             // 触摸分发优先级（从快到慢）：
