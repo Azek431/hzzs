@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="208dp"
+    android:layout_width="192dp"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_overlay_preview_panel"
     android:clipToOutline="true"
@@ -95,30 +95,20 @@
             android:background="#24FFFFFF" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/overlay_community_title"
-            android:textColor="#FFF8EEF2"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
             android:id="@+id/overlayCommunityQq"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:background="@drawable/bg_overlay_preview_community_action"
+            android:background="@drawable/bg_overlay_text_link"
             android:clickable="true"
+            android:contentDescription="@string/community_qq_content_description"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:minHeight="42dp"
-            android:paddingStart="10dp"
-            android:paddingTop="9dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="9dp"
+            android:minHeight="40dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="@string/overlay_community_qq"
-            android:textColor="#FFFFD9E3"
+            android:textColor="#FFFFB1C4"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -126,37 +116,18 @@
             android:id="@+id/overlayCommunityTelegram"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_overlay_preview_community_action"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/bg_overlay_text_link"
             android:clickable="true"
+            android:contentDescription="@string/community_telegram_content_description"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:minHeight="42dp"
-            android:paddingStart="10dp"
-            android:paddingTop="9dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="9dp"
+            android:minHeight="40dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="@string/overlay_community_telegram"
-            android:textColor="#FFFFD9E3"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:lineSpacingExtra="2dp"
-            android:text="@string/overlay_community_hint"
             android:textColor="#FFCFC4CA"
-            android:textSize="10sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/overlay_preview_drag_hint"
-            android:textColor="#FF9F969B"
-            android:textSize="10sp" />
+            android:textSize="11sp" />
 
     </LinearLayout>
 

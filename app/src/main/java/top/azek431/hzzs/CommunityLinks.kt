@@ -1,45 +1,82 @@
 package top.azek431.hzzs
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 
 /**
- * HZZS 社区与开发者频道信息。
+ * HZZS 社区与开发动态入口。
  *
- * QQ 群：HZZS 项目专属交流。
- * Telegram：Azek431 主频道，分享 HZZS 与更多项目动态。
- *
- * 当前只复制信息，不自动打开第三方应用，不联网，不收集用户数据。
+ * QQ 群仅用于火崽崽助手项目交流、测试与反馈。
+ * Telegram 为 Azek431 主频道，会同步 HZZS 与更多项目动态。
  */
 object CommunityLinks {
 
-    const val HZZS_QQ_GROUP_ID = "130330601"
-    const val AZEK_MAIN_TELEGRAM_CHANNEL = "@AzekMain"
+    const val HZZS_QQ_GROUP_URL = "https://qm.qq.com/q/5T5fjwRgVq"
+    const val AZEK_MAIN_TELEGRAM_URL = "https://t.me/AzekMain"
 
     private const val TAG = "HZZS"
 
-    fun copy(
+    fun openLink(
         context: Context,
         label: String,
-        value: String,
-        confirmation: String,
+        url: String,
+        fallbackMessage: String,
     ) {
         val appContext = context.applicationContext
 
         try {
-            val clipboard = appContext.getSystemService(
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(url),
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            appContext.startActivity(intent)
+
+            Log.i(TAG, "[Community] opened $label.")
+        } catch (error: ActivityNotFoundException) {
+            Log.w(TAG, "[Community] no app can open $label.", error)
+
+            copyLink(
+                context = appContext,
+                label = label,
+                url = url,
+                confirmation = fallbackMessage,
+            )
+        } catch (error: Exception) {
+            Log.e(TAG, "[Community] unable to open $label.", error)
+
+            copyLink(
+                context = appContext,
+                label = label,
+                url = url,
+                confirmation = fallbackMessage,
+            )
+        }
+    }
+
+    private fun copyLink(
+        context: Context,
+        label: String,
+        url: String,
+        confirmation: String,
+    ) {
+        try {
+            val clipboard = context.getSystemService(
                 ClipboardManager::class.java,
             )
 
             if (clipboard == null) {
-                Log.w(TAG, "[Community] ClipboardManager is unavailable.")
-
                 Toast.makeText(
-                    appContext,
-                    appContext.getString(R.string.community_copy_failed),
+                    context,
+                    context.getString(R.string.community_open_failed),
                     Toast.LENGTH_SHORT,
                 ).show()
 
@@ -47,22 +84,22 @@ object CommunityLinks {
             }
 
             clipboard.setPrimaryClip(
-                ClipData.newPlainText(label, value),
+                ClipData.newPlainText(label, url),
             )
 
-            Log.i(TAG, "[Community] copied $label.")
-
             Toast.makeText(
-                appContext,
+                context,
                 confirmation,
                 Toast.LENGTH_SHORT,
             ).show()
+
+            Log.i(TAG, "[Community] copied fallback link for $label.")
         } catch (error: Exception) {
-            Log.e(TAG, "[Community] unable to copy $label.", error)
+            Log.e(TAG, "[Community] unable to copy fallback link.", error)
 
             Toast.makeText(
-                appContext,
-                appContext.getString(R.string.community_copy_failed),
+                context,
+                context.getString(R.string.community_open_failed),
                 Toast.LENGTH_SHORT,
             ).show()
         }

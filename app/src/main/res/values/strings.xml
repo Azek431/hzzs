@@ -46,21 +46,21 @@
     <string name="overlay_panel_note">当前仅验证悬浮控制面板与权限流程。</string>
 
 
-        <string name="overlay_preview_brand">HZZS</string>
-        <string name="overlay_preview_status">悬浮窗预览</string>
+            <string name="overlay_preview_brand">HZZS</string>
+            <string name="overlay_preview_status">悬浮窗预览</string>
     <string name="overlay_preview_description">当前仅验证悬浮球显示、拖动与关闭。</string>
     <string name="overlay_preview_hint">拖动顶部区域移动，点击右上角关闭。</string>
     <string name="overlay_preview_open">打开悬浮窗</string>
-        <string name="overlay_preview_close">关闭悬浮窗</string>
+            <string name="overlay_preview_close">关闭悬浮窗</string>
     <string name="overlay_preview_open_failed">悬浮窗未能打开，请检查授权状态。</string>
     <string name="overlay_permission_go_to_settings">前往授权</string>
-        <string name="overlay_preview_product_name">火崽崽助手</string>
+            <string name="overlay_preview_product_name">火崽崽助手</string>
         <string name="overlay_preview_drag_hint">拖动顶部区域移动</string>
         <string name="community_card_eyebrow">交流与开发动态</string>
         <string name="community_card_title">HZZS 项目交流与 Azek431 动态</string>
         <string name="community_card_description">QQ群用于 HZZS 的测试交流、使用反馈和问题讨论；Telegram 主频道会同步 HZZS 与更多独立项目的开发动态。</string>
-        <string name="community_qq_label">HZZS 项目 QQ 交流群</string>
-        <string name="community_telegram_label">Azek431 Telegram 主频道</string>
+            <string name="community_qq_label">HZZS QQ 交流群</string>
+            <string name="community_telegram_label">Azek431 主频道</string>
         <string name="community_qq_button">HZZS QQ 交流群 · 130330601 · 点击复制</string>
         <string name="community_telegram_button">Azek431 主频道 · @AzekMain · 点击复制</string>
         <string name="community_card_hint">QQ群聚焦 HZZS；主频道分享更多项目。点击任意入口即可复制。</string>
@@ -68,9 +68,16 @@
         <string name="community_telegram_copied">Azek431 主频道已复制：@AzekMain</string>
         <string name="community_copy_failed">复制失败，请手动记录社区信息。</string>
         <string name="overlay_community_title">交流与开发动态</string>
-        <string name="overlay_community_qq">HZZS QQ 群 · 130330601</string>
-        <string name="overlay_community_telegram">Azek431 主频道 · @AzekMain</string>
+            <string name="overlay_community_qq">加入 HZZS QQ 交流群</string>
+            <string name="overlay_community_telegram">Azek431 主频道 · @AzekMain</string>
         <string name="overlay_community_hint">QQ群用于 HZZS 交流；主频道分享更多项目动态</string>
         <string name="overlay_community_qq_copied">HZZS QQ 群号已复制：130330601</string>
         <string name="overlay_community_telegram_copied">Azek431 主频道已复制：@AzekMain</string>
+    <string name="community_footer_heading">交流与动态</string>
+    <string name="community_footer_qq">加入 HZZS QQ 交流群</string>
+    <string name="community_footer_telegram">Azek431 主频道 · @AzekMain</string>
+    <string name="community_qq_content_description">点击加入火崽崽助手 QQ 交流群</string>
+    <string name="community_telegram_content_description">点击打开 Azek431 Telegram 主频道</string>
+    <string name="community_open_fallback">无法直接打开，链接已复制到剪贴板。</string>
+    <string name="community_open_failed">链接打开失败，请稍后重试。</string>
 </resources>
