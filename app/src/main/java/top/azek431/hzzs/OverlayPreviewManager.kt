@@ -5,7 +5,6 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -13,20 +12,10 @@ import android.view.View
 import android.view.WindowManager
 
 /**
- * 第一阶段悬浮窗管理器。
+ * 第一阶段悬浮窗预览管理器。
  *
- * 当前只负责：
- * - 显示
- * - 拖动
- * - 关闭
- * - 安全处理异常
- *
- * 不负责：
- * - 前台服务
- * - MediaProjection
- * - 屏幕采集
- * - HUD 分析
- * - 自动操作
+ * 当前只负责展示、拖动、复制社区入口与关闭。
+ * 不接入前台服务、MediaProjection、屏幕采集、HUD 或自动操作。
  */
 object OverlayPreviewManager {
 
@@ -70,24 +59,13 @@ object OverlayPreviewManager {
         var candidateWindowManager: WindowManager? = null
 
         try {
-            /*
-             * Overlay 不能直接依赖 applicationContext 的默认系统主题。
-             * 这里显式读取 AndroidManifest 中 application theme，
-             * 然后创建带主题的 Context，保证以后即使重新使用 Material 组件，
-             * 也不会因为 Overlay Context 丢失主题而崩溃。
-             */
-            val applicationThemeId = appContext.applicationInfo.theme
+            val manager = appContext.getSystemService(
+                Context.WINDOW_SERVICE,
+            ) as WindowManager
 
-            val themedContext = if (applicationThemeId != 0) {
-                ContextThemeWrapper(appContext, applicationThemeId)
-            } else {
-                context
-            }
+            candidateWindowManager = manager
 
-            candidateWindowManager =
-                appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-
-            val view = LayoutInflater.from(themedContext)
+            val view = LayoutInflater.from(appContext)
                 .inflate(R.layout.view_overlay_preview, null, false)
 
             candidateView = view
@@ -98,8 +76,17 @@ object OverlayPreviewManager {
             val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
                 ?: throw IllegalStateException("overlayDragHandle is missing.")
 
+            val communityQq = view.findViewById<View>(R.id.overlayCommunityQq)
+                ?: throw IllegalStateException("overlayCommunityQq is missing.")
+
+            val communityTelegram = view.findViewById<View>(
+                R.id.overlayCommunityTelegram,
+            ) ?: throw IllegalStateException(
+                "overlayCommunityTelegram is missing.",
+            )
+
             val layoutParams = WindowManager.LayoutParams(
-                dp(appContext, 172),
+                dp(appContext, 208),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -114,12 +101,41 @@ object OverlayPreviewManager {
                 gravity = Gravity.TOP or Gravity.START
 
                 val screenWidth = appContext.resources.displayMetrics.widthPixels
-                x = maxOf(dp(appContext, 8), screenWidth - dp(appContext, 188))
+
+                x = (screenWidth - dp(appContext, 224))
+                    .coerceAtLeast(dp(appContext, 8))
+
                 y = dp(appContext, 108)
             }
 
             closeButton.setOnClickListener {
                 hide()
+            }
+
+            communityQq.setOnClickListener {
+                CommunityLinks.copy(
+                    context = appContext,
+                    label = appContext.getString(
+                        R.string.community_qq_label,
+                    ),
+                    value = CommunityLinks.HZZS_QQ_GROUP_ID,
+                    confirmation = appContext.getString(
+                        R.string.overlay_community_qq_copied,
+                    ),
+                )
+            }
+
+            communityTelegram.setOnClickListener {
+                CommunityLinks.copy(
+                    context = appContext,
+                    label = appContext.getString(
+                        R.string.community_telegram_label,
+                    ),
+                    value = CommunityLinks.AZEK_MAIN_TELEGRAM_CHANNEL,
+                    confirmation = appContext.getString(
+                        R.string.overlay_community_telegram_copied,
+                    ),
+                )
             }
 
             var downRawX = 0f
@@ -145,10 +161,7 @@ object OverlayPreviewManager {
                             downWindowY + (event.rawY - downRawY).toInt()
 
                         try {
-                            candidateWindowManager.updateViewLayout(
-                                view,
-                                layoutParams,
-                            )
+                            manager.updateViewLayout(view, layoutParams)
                         } catch (error: IllegalArgumentException) {
                             Log.w(
                                 TAG,
@@ -167,10 +180,10 @@ object OverlayPreviewManager {
                 }
             }
 
-            candidateWindowManager.addView(view, layoutParams)
+            manager.addView(view, layoutParams)
 
             overlayView = view
-            windowManager = candidateWindowManager
+            windowManager = manager
 
             Log.i(TAG, "[Overlay] preview overlay is visible.")
 
