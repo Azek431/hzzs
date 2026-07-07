@@ -1,3 +1,15 @@
+val releaseStoreFile = System.getenv("AZEK431_RELEASE_STORE_FILE").orEmpty()
+val releaseStorePassword = System.getenv("AZEK431_RELEASE_STORE_PASSWORD").orEmpty()
+val releaseKeyAlias = System.getenv("AZEK431_RELEASE_KEY_ALIAS").orEmpty()
+val releaseKeyPassword = System.getenv("AZEK431_RELEASE_KEY_PASSWORD").orEmpty()
+
+val releaseSigningConfigured = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { it.isNotBlank() }
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -12,13 +24,30 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "PKCS12"
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
 
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
