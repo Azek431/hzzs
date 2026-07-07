@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="192dp"
+    android:layout_width="228dp"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_overlay_preview_panel"
     android:clipToOutline="true"
@@ -12,25 +12,22 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingBottom="6dp">
+            android:layout_height="48dp">
 
             <LinearLayout
                 android:id="@+id/overlayDragHandle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginEnd="50dp"
                 android:gravity="center_vertical"
-                android:minHeight="38dp"
                 android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
                     android:text="@string/overlay_preview_brand"
                     android:textColor="#FFF8EEF2"
                     android:textSize="15sp"
@@ -39,7 +36,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
+                    android:layout_marginTop="3dp"
+                    android:includeFontPadding="false"
                     android:text="@string/overlay_preview_product_name"
                     android:textColor="#FFCFC4CA"
                     android:textSize="11sp" />
@@ -48,24 +46,26 @@
 
             <TextView
                 android:id="@+id/overlayCloseButton"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="top|end"
                 android:background="@drawable/bg_overlay_preview_close"
                 android:clickable="true"
                 android:contentDescription="@string/overlay_preview_close"
                 android:focusable="true"
                 android:gravity="center"
+                android:includeFontPadding="false"
                 android:text="×"
                 android:textColor="#FFFFD9E3"
-                android:textSize="21sp"
+                android:textSize="23sp"
                 android:textStyle="bold" />
 
-        </LinearLayout>
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:background="@drawable/bg_overlay_preview_status"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -84,6 +84,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
+                android:includeFontPadding="false"
                 android:text="@string/overlay_preview_status"
                 android:textColor="#FFFFC8D7"
                 android:textSize="11sp"
@@ -94,12 +95,13 @@
         <TextView
             android:id="@+id/overlayStartAnalysis"
             android:layout_width="match_parent"
-            android:layout_height="46dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="44dp"
+            android:layout_marginTop="11dp"
             android:background="@drawable/bg_overlay_analysis_button"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
+            android:includeFontPadding="false"
             android:text="@string/overlay_analysis_start"
             android:textColor="#FF30151E"
             android:textSize="13sp"
@@ -114,15 +116,18 @@
         <TextView
             android:id="@+id/overlayCommunityQq"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="40dp"
             android:layout_marginTop="8dp"
             android:background="@drawable/bg_overlay_text_link"
             android:clickable="true"
             android:contentDescription="@string/community_qq_content_description"
+            android:ellipsize="end"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:includeFontPadding="false"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:singleLine="true"
             android:text="@string/overlay_community_qq"
             android:textColor="#FFFFB1C4"
             android:textSize="12sp"
@@ -131,15 +136,18 @@
         <TextView
             android:id="@+id/overlayCommunityTelegram"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="4dp"
+            android:layout_height="38dp"
+            android:layout_marginTop="2dp"
             android:background="@drawable/bg_overlay_text_link"
             android:clickable="true"
             android:contentDescription="@string/community_telegram_content_description"
+            android:ellipsize="end"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:includeFontPadding="false"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:singleLine="true"
             android:text="@string/overlay_community_telegram"
             android:textColor="#FFCFC4CA"
             android:textSize="12sp" />
