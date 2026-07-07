@@ -124,4 +124,7 @@
 
     <!-- Overlay alpha value initial display -->
     <string name="overlay_alpha_value_default">100%%</string>
+
+    <!-- Overlay resize handle content description -->
+    <string name="overlay_resize_handle_content_description">长按拖动调整悬浮窗大小</string>
 </resources>

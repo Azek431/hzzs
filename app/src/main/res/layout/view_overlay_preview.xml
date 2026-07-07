@@ -337,6 +337,18 @@
 
             </LinearLayout>
 
+            <!-- 右下角缩放手柄：长按触发缩放模式，拖动调整悬浮窗大小 -->
+            <View
+                android:id="@+id/overlayResizeHandle"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_overlay_resize_handle"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/overlay_resize_handle_content_description" />
+
         </FrameLayout>
     </FrameLayout>
 
