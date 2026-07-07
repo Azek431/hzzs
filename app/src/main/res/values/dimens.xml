@@ -41,4 +41,14 @@
     <dimen name="text_footer_small">11sp</dimen>
     <dimen name="text_line_spacing">3dp</dimen>
 
+    <!-- Overlay panel -->
+    <dimen name="overlay_width">260dp</dimen>
+    <dimen name="overlay_corner_radius">16dp</dimen>
+    <dimen name="overlay_padding">14dp</dimen>
+    <dimen name="overlay_close_button_size">32dp</dimen>
+    <dimen name="overlay_text_title">14sp</dimen>
+    <dimen name="overlay_text_status">12sp</dimen>
+    <dimen name="overlay_text_desc">11sp</dimen>
+    <dimen name="overlay_text_note">10sp</dimen>
+
 </resources>
