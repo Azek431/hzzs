@@ -6,16 +6,17 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
-import android.widget.MaterialButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import com.google.android.material.button.MaterialButton as MaterialButtonWidget
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * 火崽崽助手 (HZZS) 主 Activity。
@@ -45,10 +46,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeScrollView: View
 
     /** 开发计划按钮 */
-    private lateinit var btnDevelopmentPlan: MaterialButtonWidget
+    private lateinit var btnDevelopmentPlan: MaterialButton
 
     /** 悬浮窗开关按钮 */
-    private lateinit var btnOverlayExecution: MaterialButtonWidget
+    private lateinit var btnOverlayExecution: MaterialButton
 
     /** 社区 QQ 群链接 TextView（位于 view_community_footer.xml 中） */
     private lateinit var textCommunityQqLink: TextView
@@ -87,7 +88,7 @@ class MainActivity : AppCompatActivity() {
      * 8. 刷新悬浮窗按钮文本（根据悬浮窗当前状态）
      */
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(this@MainActivity)
+        super.onCreate(savedInstanceState)
 
         // 启用 Edge-to-Edge 模式：让应用内容延伸至屏幕边缘
         WindowCompat.enableEdgeToEdge(window)
