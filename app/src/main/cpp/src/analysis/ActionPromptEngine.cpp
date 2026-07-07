@@ -1,81 +1,124 @@
 #include "hzzs/analysis/ActionPromptEngine.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace hzzs::analysis {
 namespace {
 
-constexpr float kMinPromptEtaMs = 130.0F;
+constexpr float kMinPromptEtaMs = 170.0F;
 constexpr float kMaxPromptEtaMs = 900.0F;
 constexpr float kMinPromptConfidence = 0.72F;
 constexpr int kRequiredStableFrames = 2;
 
-bool IsEligible(float eta_ms, float confidence) {
-    return (
-        eta_ms >= kMinPromptEtaMs &&
-        eta_ms <= kMaxPromptEtaMs &&
-        confidence >= kMinPromptConfidence
-    );
+bool IsSamePrompt(
+    const ActionPrompt& left,
+    const ActionPrompt& right
+) {
+    return left.action == right.action &&
+        left.target == right.target &&
+        left.required_jump_stage == right.required_jump_stage;
 }
 
-PromptAction SelectCandidate(const FrameDetections& frame) {
-    const bool has_ground_hazard = IsEligible(
-        frame.ground_hazard_eta_ms,
-        frame.ground_hazard_confidence
-    );
+ActionPrompt FindCandidate(
+    const RunnerMotion& runner,
+    std::uint8_t jump_stage,
+    const std::vector<HazardForecast>& hazards
+) {
+    for (const HazardForecast& hazard : hazards) {
+        if (
+            hazard.preferred_action == PromptAction::kNone ||
+            hazard.eta_ms < kMinPromptEtaMs ||
+            hazard.eta_ms > kMaxPromptEtaMs ||
+            hazard.confidence < kMinPromptConfidence
+        ) {
+            continue;
+        }
 
-    const bool has_overhead_hazard = IsEligible(
-        frame.overhead_hazard_eta_ms,
-        frame.overhead_hazard_confidence
-    );
+        ActionPrompt candidate{};
+        candidate.target = hazard.type;
+        candidate.eta_ms = hazard.eta_ms;
+        candidate.confidence = std::min(
+            hazard.confidence,
+            runner.confidence
+        );
+        candidate.required_jump_stage = hazard.required_jump_stage;
 
-    if (!has_ground_hazard && !has_overhead_hazard) {
-        return PromptAction::kNone;
+        if (hazard.preferred_action == PromptAction::kSlide) {
+            if (!runner.grounded) {
+                continue;
+            }
+
+            candidate.action = PromptAction::kSlide;
+            return candidate;
+        }
+
+        if (hazard.preferred_action == PromptAction::kJump) {
+            if (jump_stage == 0) {
+                candidate.action = PromptAction::kJump;
+                return candidate;
+            }
+
+            if (
+                jump_stage == 1 &&
+                hazard.required_jump_stage >= kMaxJumpStage
+            ) {
+                candidate.action = PromptAction::kJumpAgain;
+                return candidate;
+            }
+        }
     }
 
-    if (has_ground_hazard && !has_overhead_hazard) {
-        return PromptAction::kJump;
-    }
-
-    if (!has_ground_hazard && has_overhead_hazard) {
-        return PromptAction::kSlide;
-    }
-
-    return frame.ground_hazard_eta_ms <= frame.overhead_hazard_eta_ms
-        ? PromptAction::kJump
-        : PromptAction::kSlide;
+    return {};
 }
 
 }  // namespace
 
-PromptAction ActionPromptEngine::Update(const FrameDetections& frame) {
-    const PromptAction candidate = SelectCandidate(frame);
-
-    if (candidate == PromptAction::kNone) {
+ActionPrompt ActionPromptEngine::Update(
+    SceneMode scene_mode,
+    const RunnerMotion& runner,
+    std::uint8_t jump_stage,
+    const std::vector<HazardForecast>& hazards
+) {
+    if (
+        scene_mode != SceneMode::kGroundRun ||
+        runner.pose == RunnerPose::kUnknown ||
+        !runner.bounds.has_value()
+    ) {
         Reset();
-        return PromptAction::kNone;
+        return {};
     }
 
-    if (candidate != pending_action_) {
-        pending_action_ = candidate;
+    const ActionPrompt candidate = FindCandidate(
+        runner,
+        jump_stage,
+        hazards
+    );
+
+    if (candidate.action == PromptAction::kNone) {
+        Reset();
+        return {};
+    }
+
+    if (!IsSamePrompt(candidate, pending_prompt_)) {
+        pending_prompt_ = candidate;
         stable_frame_count_ = 1;
-        return PromptAction::kNone;
+        active_prompt_ = {};
+        return {};
     }
 
     stable_frame_count_++;
 
-    if (
-        stable_frame_count_ < kRequiredStableFrames ||
-        candidate == emitted_action_
-    ) {
-        return PromptAction::kNone;
+    if (stable_frame_count_ >= kRequiredStableFrames) {
+        active_prompt_ = candidate;
     }
 
-    emitted_action_ = candidate;
-    return candidate;
+    return active_prompt_;
 }
 
 void ActionPromptEngine::Reset() {
-    pending_action_ = PromptAction::kNone;
-    emitted_action_ = PromptAction::kNone;
+    pending_prompt_ = {};
+    active_prompt_ = {};
     stable_frame_count_ = 0;
 }
 

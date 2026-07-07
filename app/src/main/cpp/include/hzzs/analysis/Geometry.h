@@ -5,8 +5,10 @@
 namespace hzzs::analysis {
 
 /**
- * 统一使用 0.0 ~ 1.0 的逻辑坐标。
- * 视觉层后续应先把真实像素坐标转换为逻辑坐标，再交给算法层。
+ * 使用 0.0 ~ 1.0 的归一化游戏坐标。
+ *
+ * 上层视觉模块应先移除状态栏、导航栏和非游戏区域，
+ * 再把游戏视口内的像素坐标转换为该逻辑坐标。
  */
 struct RectF {
     float left{0.0F};
@@ -33,10 +35,19 @@ struct RectF {
     [[nodiscard]] bool IsValid() const {
         return right > left && bottom > top;
     }
+
+    [[nodiscard]] bool Intersects(const RectF& other) const {
+        return left < other.right && right > other.left &&
+            top < other.bottom && bottom > other.top;
+    }
 };
 
+inline float Clamp(float value, float min_value, float max_value) {
+    return std::clamp(value, min_value, max_value);
+}
+
 inline float Clamp01(float value) {
-    return std::clamp(value, 0.0F, 1.0F);
+    return Clamp(value, 0.0F, 1.0F);
 }
 
 }  // namespace hzzs::analysis

@@ -6,7 +6,10 @@ add_library(
     hzzs_native
     SHARED
     src/jni/NativeAnalysisBridge.cpp
+    src/analysis/SceneStateMachine.cpp
     src/analysis/RunnerStateMachine.cpp
+    src/analysis/JumpStageEstimator.cpp
+    src/analysis/HazardEtaEstimator.cpp
     src/analysis/ActionPromptEngine.cpp
     src/analysis/NativeAnalysisEngine.cpp
 )
@@ -31,10 +34,13 @@ target_compile_options(
     -Wpedantic
 )
 
-find_library(log_lib log)
+find_library(
+    log-lib
+    log
+)
 
 target_link_libraries(
     hzzs_native
     PRIVATE
-    ${log_lib}
+    ${log-lib}
 )
