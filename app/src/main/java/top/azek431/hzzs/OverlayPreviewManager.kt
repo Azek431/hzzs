@@ -14,16 +14,16 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * 第一阶段悬浮窗预览管理器。
+ * HZZS 第一阶段悬浮窗。
  *
- * 当前负责：
+ * 当前能力：
  * - 显示、拖动、关闭
- * - 社区链接跳转
- * - 分析启动入口的 UI 状态
+ * - 数据分析准备入口
+ * - QQ 群与 Telegram 主频道跳转
  *
- * 当前不负责：
- * - 屏幕采集
+ * 当前不接入：
  * - MediaProjection
+ * - 屏幕采集
  * - 帧分析
  * - 障碍识别
  * - 自动操作
@@ -114,7 +114,7 @@ object OverlayPreviewManager {
                 "overlayCommunityTelegram is missing.",
             )
 
-            val overlayWidth = dp(appContext, 192)
+            val overlayWidth = dp(appContext, 228)
             val screenWidth = appContext.resources.displayMetrics.widthPixels
             val maxX = (screenWidth - overlayWidth).coerceAtLeast(0)
 
@@ -132,14 +132,12 @@ object OverlayPreviewManager {
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = (screenWidth - dp(appContext, 208))
+                x = (screenWidth - dp(appContext, 244))
                     .coerceIn(0, maxX)
                 y = dp(appContext, 108)
             }
 
-            closeButton.setOnClickListener {
-                hide()
-            }
+            bindCloseButton(closeButton)
 
             startAnalysisButton.setOnClickListener {
                 if (analysisUiState != AnalysisUiState.IDLE) {
@@ -153,7 +151,7 @@ object OverlayPreviewManager {
                 startAnalysisButton.isEnabled = false
                 startAnalysisButton.alpha = 0.72f
 
-                Log.i(TAG, "[Analysis] analysis preparation requested.")
+                Log.i(TAG, "[Analysis] data-analysis preparation requested.")
 
                 Toast.makeText(
                     appContext,
@@ -163,7 +161,7 @@ object OverlayPreviewManager {
             }
 
             communityQq.setOnClickListener {
-                hide()
+                hide("community-qq")
 
                 CommunityLinks.openLink(
                     context = appContext,
@@ -178,7 +176,7 @@ object OverlayPreviewManager {
             }
 
             communityTelegram.setOnClickListener {
-                hide()
+                hide("community-telegram")
 
                 CommunityLinks.openLink(
                     context = appContext,
@@ -221,7 +219,7 @@ object OverlayPreviewManager {
                         } catch (error: IllegalArgumentException) {
                             Log.w(
                                 TAG,
-                                "[Overlay] overlay was detached while dragging.",
+                                "[Overlay] detached while dragging.",
                                 error,
                             )
                         }
@@ -249,7 +247,7 @@ object OverlayPreviewManager {
 
             try {
                 if (
-                    candidateView?.isAttachedToWindow == true &&
+                    candidateView != null &&
                     candidateWindowManager != null
                 ) {
                     candidateWindowManager.removeViewImmediate(candidateView)
@@ -271,28 +269,84 @@ object OverlayPreviewManager {
     }
 
     @Synchronized
-    fun hide() {
-        val currentView = overlayView ?: return
+    fun hide(reason: String = "manual") {
+        val currentView = overlayView
         val currentWindowManager = windowManager
 
         overlayView = null
         windowManager = null
         analysisUiState = AnalysisUiState.IDLE
 
-        if (currentWindowManager == null) {
+        if (currentView == null || currentWindowManager == null) {
+            Log.d(TAG, "[Overlay] hide ignored. reason=$reason, no active window.")
             return
         }
 
         try {
-            if (currentView.isAttachedToWindow) {
-                currentWindowManager.removeViewImmediate(currentView)
-            }
+            currentWindowManager.removeViewImmediate(currentView)
 
-            Log.i(TAG, "[Overlay] preview overlay is hidden.")
+            Log.i(TAG, "[Overlay] removed. reason=$reason")
         } catch (error: IllegalArgumentException) {
-            Log.w(TAG, "[Overlay] preview overlay was already removed.", error)
+            Log.w(
+                TAG,
+                "[Overlay] remove skipped because window was already detached. reason=$reason",
+                error,
+            )
         } catch (error: Exception) {
-            Log.w(TAG, "[Overlay] unable to remove preview overlay.", error)
+            Log.e(
+                TAG,
+                "[Overlay] unable to remove window. reason=$reason",
+                error,
+            )
+        }
+    }
+
+    private fun bindCloseButton(closeButton: View) {
+        closeButton.isClickable = true
+        closeButton.isFocusable = true
+
+        closeButton.setOnClickListener {
+            Log.i(TAG, "[Overlay] close click requested.")
+            hide("close-button-click")
+        }
+
+        closeButton.setOnTouchListener { button, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    button.parent?.requestDisallowInterceptTouchEvent(true)
+                    button.isPressed = true
+
+                    Log.d(TAG, "[Overlay] close touch down.")
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val isInsideButton = (
+                        event.x >= 0f &&
+                        event.x <= button.width &&
+                        event.y >= 0f &&
+                        event.y <= button.height
+                    )
+
+                    button.isPressed = false
+
+                    if (isInsideButton) {
+                        Log.d(TAG, "[Overlay] close touch up.")
+                        button.performClick()
+                    }
+
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    button.isPressed = false
+
+                    Log.d(TAG, "[Overlay] close touch cancelled.")
+                    true
+                }
+
+                else -> true
+            }
         }
     }
 
