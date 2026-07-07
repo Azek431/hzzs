@@ -45,4 +45,13 @@
     <string name="overlay_panel_description">执行引擎暂未接入</string>
     <string name="overlay_panel_note">当前仅验证悬浮控制面板与权限流程。</string>
 
+
+    <string name="overlay_preview_brand">HZZS · 火崽崽助手</string>
+    <string name="overlay_preview_status">悬浮窗预览</string>
+    <string name="overlay_preview_description">当前仅验证悬浮球显示、拖动与关闭。</string>
+    <string name="overlay_preview_hint">拖动顶部区域移动，点击右上角关闭。</string>
+    <string name="overlay_preview_open">打开悬浮窗</string>
+    <string name="overlay_preview_close">关闭悬浮窗</string>
+    <string name="overlay_preview_open_failed">悬浮窗未能打开，请检查授权状态。</string>
+    <string name="overlay_permission_go_to_settings">前往授权</string>
 </resources>
