@@ -32,7 +32,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
-import top.azek431.hzzs.ui.community.CommunityLinks
+import top.azek431.hzzs.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.util.FeatureFlags

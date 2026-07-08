@@ -4,7 +4,7 @@
 // 1. HZZS QQ 交流群 — 用于项目交流、测试反馈和问题讨论
 // 2. Azek431 Telegram 主频道 — 同步 HZZS 及其他独立项目的开发动态
 
-package top.azek431.hzzs.ui.community
+package top.azek431.hzzs
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -14,6 +14,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import top.azek431.hzzs.R
 
 enum class CommunityLinks(
     val labelRes: Int,
