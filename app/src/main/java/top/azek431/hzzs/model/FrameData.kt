@@ -211,25 +211,56 @@ data class HazardDetail(
 
 /**
  * 检测到的游戏对象（玩家、危险物、收藏物统一表示）。
- * 用于替代分散的 playerBounds/hazardBounds 参数传递。
+ *
+ * 用于替代分散的 playerBounds/hazardBounds 参数传递，
+ * 将所有检测到的游戏对象统一为一个数据结构。
+ *
+ * @property type 对象类型（玩家/地面危险物/顶部危险物/收藏物/平台）
+ * @property bounds 归一化边界坐标（0.0 ~ 1.0）
+ * @property confidence 检测可信度（0.0 ~ 1.0）
+ * @property velocityX X 方向速度（归一化坐标/秒），向左滚动时为负数
+ * @property velocityY Y 方向速度（归一化坐标/秒），向上运动时为负数
+ * @property trackId 对象追踪 ID，用于跨帧跟踪同一对象
  */
 data class DetectedObject(
-    val type: ObjectType,         // 对象类型
-    val bounds: RectF,            // 归一化边界
-    val confidence: Float,        // 检测可信度
-    val velocityX: Float = 0f,    // X 方向速度（归一化/秒）
-    val velocityY: Float = 0f,    // Y 方向速度（归一化/秒）
-    val trackId: Int = 0,         // 追踪 ID（跨帧跟踪用）
+    val type: ObjectType,
+    val bounds: RectF,
+    val confidence: Float,
+    val velocityX: Float = 0f,
+    val velocityY: Float = 0f,
+    val trackId: Int = 0,
 ) {
+    /** 检测对象类型枚举 */
     enum class ObjectType {
-        UNKNOWN, PLAYER, HAZARD_GROUND, HAZARD_TOP, COLLECTIBLE, PLATFORM
+        /** 未知类型，无法分类的对象 */
+        UNKNOWN,
+        /** 玩家角色 */
+        PLAYER,
+        /** 地面危险物（如蛋糕断层） */
+        HAZARD_GROUND,
+        /** 顶部危险物（如悬垂裱花袋） */
+        HAZARD_TOP,
+        /** 可收集物品（如糖果、护盾） */
+        COLLECTIBLE,
+        /** 平台/地面 */
+        PLATFORM,
     }
 }
 
-/** 结构化动作提示 */
+/**
+ * 结构化动作提示。
+ *
+ * 由 ActionPromptEngine 输出，供 HUD 渲染器显示给用户。
+ * 包含动作类型、目标对象、ETA 和可信度。
+ *
+ * @property action 动作类型（PROMPT_NONE/JUMP/JUMP_AGAIN/SLIDE）
+ * @property target 目标对象类型（GameObjectType 枚举值）
+ * @property etaMs 预计到达时间（毫秒），-1.0 表示不可用
+ * @property confidence 可信度（0.0 ~ 1.0）
+ */
 data class ActionPrompt(
-    val action: Int,              // PROMPT_* 常量
-    val target: Int,              // 目标对象类型
-    val etaMs: Float,             // 到达时间
-    val confidence: Float,        // 可信度
+    val action: Int,
+    val target: Int,
+    val etaMs: Float,
+    val confidence: Float,
 )
