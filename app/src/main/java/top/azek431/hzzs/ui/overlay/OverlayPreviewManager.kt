@@ -23,41 +23,45 @@
 package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
-import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import kotlin.math.roundToInt
 import top.azek431.hzzs.R
 import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
 
+/**
+ * 悬浮窗管理器单例。
+ *
+ * 这是悬浮窗系统的入口点，负责：
+ * 1. 权限检查
+ * 2. 去重检查（防止重复创建）
+ * 3. 创建 WindowManager.LayoutParams（委托给 OverlayWindowController）
+ * 4. inflate 布局文件
+ * 5. 查找必需子控件
+ * 6. 绑定开始/停止分析按钮
+ * 7. 绑定社区链接
+ * 8. 初始化拖动/缩放/设置控制器
+ * 9. 初始化 HUD 渲染器
+ * 10. 添加到 WindowManager 并启动前台通知服务
+ * 11. 隐藏/关闭悬浮窗
+ *
+ * 设计原因：
+ * - 保持单例模式，确保全局只有一个悬浮窗实例
+ * - 所有子控件绑定逻辑委托给独立的 Controller 类
+ * - show/hide 方法使用 @Synchronized 确保线程安全
+ */
 object OverlayPreviewManager {
 
     /** 日志标签 */
     private const val TAG = "HZZS"
-
-    /** SharedPreferences 文件名 */
-    private const val PREFS_NAME = "hzzs_overlay_prefs"
-
-    /** 透明度参数键 */
-    private const val KEY_ALPHA = "overlay_alpha"
-
-    /** 圆角半径参数键 */
-    private const val KEY_RADIUS = "overlay_radius"
-
-    /** 悬浮窗缩放系数 */
-    private const val KEY_SCALE_RATIO = "overlay_scale_ratio"
 
     // ==================== HUD 渲染器 ====================
 
@@ -100,10 +104,10 @@ object OverlayPreviewManager {
      * 完整流程：
      * 1. 权限检查：SYSTEM_ALERT_WINDOW 权限是否已授予
      * 2. 去重检查：是否已有活跃会话
-     * 3. 创建 WindowManager.LayoutParams（TYPE_APPLICATION_OVERLAY / TYPE_PHONE）
+     * 3. 创建 WindowManager.LayoutParams（委托给 OverlayWindowController）
      * 4. inflate 布局文件 view_overlay_preview.xml
-     * 5. 绑定所有子控件的点击事件（关闭/开始分析/社区链接/透明度/自动操作）
-     * 6. 设置拖动和缩放逻辑
+     * 5. 绑定所有子控件的点击事件（关闭/开始分析/社区链接）
+     * 6. 初始化拖动/缩放/设置控制器
      * 7. 从 SharedPreferences 恢复上次保存的参数
      * 8. 初始化 HUD 渲染器并绑定视图引用
      * 9. 添加到 WindowManager 并启动前台通知服务
@@ -161,28 +165,9 @@ object OverlayPreviewManager {
             val rootPanel = view.findViewById<View>(R.id.overlayRootPanel)
                 ?: throw IllegalStateException("overlayRootPanel is missing.")
 
-            // 计算悬浮窗尺寸和位置
-            val overlayWidth = dp(appContext, 228)
-            val screenWidth = appContext.resources.displayMetrics.widthPixels
-            val maxX = (screenWidth - overlayWidth).coerceAtLeast(0)
-
-            val layoutParams = WindowManager.LayoutParams(
-                overlayWidth,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
-                    @Suppress("DEPRECATION")
-                    WindowManager.LayoutParams.TYPE_PHONE
-                },
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                x = (screenWidth - dp(appContext, 244)).coerceIn(0, maxX)
-                y = dp(appContext, 108)
-            }
+            // 创建窗口参数控制器
+            val windowController = OverlayWindowController(appContext)
+            val layoutParams = windowController.createLayoutParams()
 
             // 绑定开始/停止分析按钮
             startAnalysisButton.setOnClickListener {
@@ -227,104 +212,38 @@ object OverlayPreviewManager {
                 }
             }
 
-            // 绑定透明度滑块
-            setupAdjustmentSliders(appContext, view)
-
-            // ---- 拖动与缩放逻辑 ----
-            /** 基础宽度（px），所有缩放计算以此为基准 */
-            val baseWidthPx = dp(appContext, 228)
-            /** 缩放系数（相对初始宽度的倍数），用于持久化 */
-            var scaleRatio = 1f
-            /** 初始宽度（px），用于缩放计算 */
-            var initialWidth = 0
-            /** 拖动/缩放的起始坐标快照（供 dragHandle 和 resizeHandle 共享） */
-            var downRawX = 0f
-            var downRawY = 0f
-            var downWindowX = 0
-            var downWindowY = 0
-            /** 是否已确认启动拖动（超过阈值后才为 true） */
-            var dragStarted = false
-            /** 最小拖动距离（像素），避免手指抖动误触 */
-            val MIN_DRAG_DISTANCE_PX = 10
-
-            // 标题栏拖动：仅在 overlayDragHandle 区域响应拖动事件
-            dragHandle.setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        downWindowX = layoutParams.x
-                        downWindowY = layoutParams.y
-                        dragStarted = false
-                        false // 让标题栏自身 clickable 事件正常响应
+            // 初始化拖动控制器
+            val dragController = OverlayDragController(dragHandle, object : OnDragUpdateListener {
+                override fun onDragUpdated(lp: WindowManager.LayoutParams) {
+                    lp.x = (lp.x).coerceIn(0, windowController.calculateMaxX(layoutParams.width))
+                    lp.y = (lp.y).coerceIn(0, windowController.calculateMaxY(view.height))
+                    try {
+                        manager.updateViewLayout(view, lp)
+                    } catch (e: IllegalArgumentException) {
+                        Log.w(TAG, "[Overlay] detached while dragging.", e)
                     }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - downRawX).toInt()
-                        val dy = (event.rawY - downRawY).toInt()
-                        val distance = Math.sqrt((dx * dx + dy * dy).toDouble()).toInt()
+                }
+            })
+            dragController.attach()
 
-                        if (!dragStarted && distance < MIN_DRAG_DISTANCE_PX) {
-                            return@setOnTouchListener false
-                        }
-                        if (!dragStarted) {
-                            dragStarted = true
-                        }
-
-                        val screenHeight = appContext.resources.displayMetrics.heightPixels
-                        val maxY = (screenHeight - view.height).coerceAtLeast(0)
-                        layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
-                        layoutParams.y = (downWindowY + dy).coerceIn(0, maxY)
-
-                        try {
-                            manager.updateViewLayout(view, layoutParams)
-                        } catch (e: IllegalArgumentException) {
-                            Log.w(TAG, "[Overlay] detached while dragging.", e)
-                        }
-                        true
+            // 初始化缩放控制器
+            val resizeListener = object : OnResizeUpdateListener {
+                override fun onResized(newWidth: Int, scaleRatio: Float) {
+                    layoutParams.width = newWidth
+                    try {
+                        manager.updateViewLayout(view, layoutParams)
+                    } catch (e: IllegalArgumentException) {
+                        Log.w(TAG, "[Overlay] detached while resizing.", e)
                     }
-                    else -> false
                 }
             }
+            val resizeController = OverlayResizeController(resizeHandle, appContext, resizeListener)
+            resizeController.attach()
 
-            // 缩放手柄缩放：仅在右下角 resizeHandle 区域响应
-            resizeHandle?.setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        initialWidth = view.measuredWidth.takeIf { it > 0 } ?: baseWidthPx
-                        scaleRatio = layoutParams.width.toFloat() / initialWidth
-                        false
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - downRawX).toInt()
-                        val dy = (event.rawY - downRawY).toInt()
-                        val delta = (dx + dy) / 2 // 取 x 和 y 变化的平均值，使缩放更平滑
-                        val newWidth = (initialWidth + delta).coerceIn(
-                            (initialWidth * 0.5).toInt(),
-                            (initialWidth * 2.0).toInt()
-                        )
-                        layoutParams.width = newWidth
-                        scaleRatio = newWidth.toFloat() / initialWidth
-
-                        try {
-                            manager.updateViewLayout(view, layoutParams)
-                        } catch (e: IllegalArgumentException) {
-                            Log.w(TAG, "[Overlay] detached while resizing.", e)
-                        }
-                        true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        // 保存缩放系数到 SharedPreferences
-                        if (scaleRatio != 1.0f) {
-                            val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                            prefs.edit().putFloat(KEY_SCALE_RATIO, scaleRatio).apply()
-                        }
-                        true
-                    }
-                    else -> false
-                }
-            }
+            // 初始化设置绑定器
+            val settingsBinder = OverlaySettingsBinder(appContext, view)
+            settingsBinder.bind()
+            settingsBinder.restoreAll(baseWidth = windowController.baseWidthPx())
 
             // 关闭按钮
             closeButton.setOnClickListener {
@@ -336,18 +255,12 @@ object OverlayPreviewManager {
             rootPanel.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        downWindowX = layoutParams.x
-                        downWindowY = layoutParams.y
+                        dragController.recordStartPosition(layoutParams.x, layoutParams.y)
                         true
                     }
                     else -> false
                 }
             }
-
-            // 恢复上次保存的参数
-            restoreAdjustments(appContext, view)
 
             // 初始化 HUD 渲染器（仅驱动模拟帧生成 + C++ 引擎，不再绑定 UI 视图）
             hudRenderer = OverlayHUDRenderer(appContext)
@@ -415,105 +328,5 @@ object OverlayPreviewManager {
             Log.e(TAG, "[Overlay] unable to remove window. reason=$reason", error)
             false
         }
-    }
-
-    // ==================== 原有辅助方法 ====================
-
-    /**
-     * 绑定透明度调节滑块到 UI 组件。
-     *
-     * SeekBar 范围 0~100，映射到 0.0~1.0 的 alpha 值，
-     * 实时应用到整个悬浮窗 View 的 alpha 属性上。
-     * 用户调整后通过 apply() 写入 SharedPreferences。
-     */
-    private fun setupAdjustmentSliders(
-        context: Context,
-        view: View,
-    ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-        val alphaSlider = view.findViewById<SeekBar>(R.id.overlayAlphaSlider)
-        val alphaValue = view.findViewById<TextView>(R.id.overlayAlphaValue)
-
-        alphaSlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                val alpha = progress / 100f
-                view.alpha = alpha
-                alphaValue?.text = "$progress%"
-                prefs.edit().putFloat(KEY_ALPHA, alpha).apply()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-    }
-
-    /**
-     * 将 SharedPreferences 中保存的调节参数应用到悬浮窗 View 上。
-     *
-     * 恢复内容：
-     * 1. 透明度（alpha）— 直接设置 view.alpha
-     * 2. 圆角半径（radiusDp）— 转换为 px 后通过 GradientDrawable 设置
-     * 3. 透明度滑块的进度值和显示文本
-     * 4. 悬浮窗缩放系数（scaleRatio）— 直接设置 view.layoutParams.width
-     */
-    private fun restoreAdjustments(
-        context: Context,
-        view: View,
-    ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alpha = prefs.getFloat(KEY_ALPHA, 1.0f)
-        val radiusDp = prefs.getInt(KEY_RADIUS, 20)
-        val savedScale = prefs.getFloat(KEY_SCALE_RATIO, 1.0f)
-
-        view.alpha = alpha
-
-        val radiusPx = (radiusDp * context.resources.displayMetrics.density).roundToInt()
-        applyOverlayCornerRadius(view, radiusPx)
-
-        val alphaSlider = view.findViewById<SeekBar>(R.id.overlayAlphaSlider)
-        val alphaValue = view.findViewById<TextView>(R.id.overlayAlphaValue)
-        alphaSlider?.progress = (alpha * 100).toInt()
-        alphaValue?.text = "${alphaSlider.progress}%"
-
-        // 恢复缩放系数
-        if (savedScale != 1.0f) {
-            val baseWidth = dp(context, 228)
-            val scaledWidth = (baseWidth * savedScale).toInt().coerceIn(
-                (baseWidth * 0.5).toInt(),
-                (baseWidth * 2.0).toInt()
-            )
-            val lp = view.layoutParams
-            lp.width = scaledWidth
-            view.layoutParams = lp
-        }
-    }
-
-    /**
-     * dp 转 px 工具方法。
-     *
-     * @param value dp 值
-     * @return 对应的 px 值（四舍五入）
-     */
-    private fun dp(context: Context, value: Int): Int {
-        return (value * context.resources.displayMetrics.density + 0.5f).toInt()
-    }
-
-    /**
-     * 将悬浮窗背景的圆角半径设置为指定值。
-     *
-     * 通过 GradientDrawable.mutate() + setCornerRadii 实现。
-     * 如果背景不是 GradientDrawable（如被其他 drawable 替换），则跳过并记录警告。
-     *
-     * @param radiusPx 圆角半径（像素）
-     */
-    private fun applyOverlayCornerRadius(view: View, radiusPx: Int) {
-        val drawable = view.background as? GradientDrawable
-        if (drawable == null) {
-            Log.w(TAG, "[Overlay] root background is not a GradientDrawable; corner radius update skipped.")
-            return
-        }
-        drawable.mutate()
-        drawable.cornerRadius = radiusPx.toFloat()
     }
 }
