@@ -76,8 +76,11 @@ class MainActivity : AppCompatActivity() {
     /** 社区 Telegram 链接 TextView：位于 view_community_footer.xml 中，点击后打开 Telegram 频道 */
     private lateinit var textCommunityTelegramLink: TextView
 
-    /** 悬浮窗面板根容器（在悬浮窗布局中） */
-    private lateinit var overlayContentPanel: View
+    /** 悬浮窗面板根容器（在悬浮窗布局中，由 OverlayPreviewManager 管理） */
+    // 注意：此 View 不属于 activity_main.xml，而是在悬浮窗布局 view_overlay_preview.xml 中。
+    // 它不由 MainActivity 缓存，而是由 OverlayPreviewManager 自行管理生命周期。
+    // 此处声明仅为方便 MainActivity 在需要时引用（如调整 padding），实际赋值由 showOverlayPreview() 完成。
+    private var overlayContentPanel: View? = null
 
     // ==================== Padding 初始值缓存 ====================
     // 用于防止 applySystemBarInsets 在折叠屏等设备上重复叠加 padding。
@@ -202,12 +205,19 @@ class MainActivity : AppCompatActivity() {
      */
     private fun cacheViews() {
         rootContainer = findViewById(R.id.rootContainer)
+            ?: throw IllegalStateException("rootContainer not found in activity_main.xml")
         topBarContainer = findViewById(R.id.topBarContainer)
+            ?: throw IllegalStateException("topBarContainer not found in activity_main.xml")
         homeScrollView = findViewById(R.id.homeScrollView)
+            ?: throw IllegalStateException("homeScrollView not found in activity_main.xml")
         btnDevelopmentPlan = findViewById(R.id.btnDevelopmentPlan)
+            ?: throw IllegalStateException("btnDevelopmentPlan not found in activity_main.xml")
         btnOverlayExecution = findViewById(R.id.btnOverlayExecution)
+            ?: throw IllegalStateException("btnOverlayExecution not found in activity_main.xml")
         textCommunityQqLink = findViewById(R.id.textCommunityQqLink)
+            ?: throw IllegalStateException("textCommunityQqLink not found in activity_main.xml")
         textCommunityTelegramLink = findViewById(R.id.textCommunityTelegramLink)
+            ?: throw IllegalStateException("textCommunityTelegramLink not found in activity_main.xml")
     }
 
     /**
@@ -266,32 +276,28 @@ class MainActivity : AppCompatActivity() {
      * 并在 [cachedLinkViews] 映射表中补充 viewRes → entry 的对应关系。
      */
     private fun bindCommunityFooterLinks() {
-        // 复用同一个 fallback 消息，避免多次 getString() 调用
         val fallbackMsg = getString(R.string.community_open_fallback)
 
-        // 将缓存的 TextView 引用与社区链接条目建立映射关系
-        // key = R.id 资源值，value = (TextView, labelRes, url)
-        val cachedLinkViews = mapOf<Int, Pair<TextView, Int>>(
+        // 直接用 R.id → (TextView, labelRes) 的正向映射，避免在循环中线性反查
+        val linkBindings = mapOf(
             R.id.textCommunityQqLink to (textCommunityQqLink to R.string.community_qq_label),
             R.id.textCommunityTelegramLink to (textCommunityTelegramLink to R.string.community_telegram_label),
         )
 
-        // 遍历统一配置列表，为每个链接 View 绑定点击事件
-        for (entry in CommunityLinks.entries) {
-            // 根据 labelRes 反查 R.id（因为映射表以 R.id 为 key）
-            val targetId = cachedLinkViews.entries.find { (_, pair) ->
-                pair.second == entry.labelRes
-            }?.key
+        // 遍历绑定关系，为每个链接 View 设置点击事件
+        for ((resId, binding) in linkBindings) {
+            val textView = findViewById<TextView>(resId) ?: continue
+            val (_, labelRes) = binding
+            val communityEntry = CommunityLinks.entries.find { it.labelRes == labelRes }
+                ?: continue  // 跳过未在 CommunityLinks 中注册的条目
 
-            if (targetId != null) {
-                findViewById<TextView>(targetId)?.setOnClickListener {
-                    CommunityLinks.openLink(
-                        context = applicationContext, // 使用 ApplicationContext 避免内存泄漏
-                        label = getString(entry.labelRes),
-                        url = entry.url,
-                        fallbackMessage = fallbackMsg,
-                    )
-                }
+            textView.setOnClickListener {
+                CommunityLinks.openLink(
+                    context = applicationContext,
+                    label = getString(communityEntry.labelRes),
+                    url = communityEntry.url,
+                    fallbackMessage = fallbackMsg,
+                )
             }
         }
     }
