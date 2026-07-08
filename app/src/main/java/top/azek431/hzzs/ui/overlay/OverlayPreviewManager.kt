@@ -8,15 +8,12 @@
 // - 数据分析准备入口（开始/停止按钮）
 // - QQ 群与 Telegram 主频道跳转
 // - 悬浮窗透明度调节滑块
-// - 悬浮窗位置、透明度参数的持久化存储与恢复
-// - 自动操作开关与延迟调节
+// - 悬浮窗位置、透明度、缩放系数的持久化存储与恢复
 //
 // 触摸交互逻辑：
-// - ACTION_DOWN：判断点击位置是否在可点击子控件内（按钮/滑块/链接）
-//   如果是，不启动拖动；否则记录初始位置
-// - ACTION_MOVE：计算 dx/dy，如果超过 5dp 阈值则启动拖动
-//   如果在右下角 48dp 区域内且存在 resizeHandle，切换为缩放模式
-// - ACTION_UP/CANCEL：结束拖动或缩放
+// - 拖动：仅在顶部标题栏（overlayDragHandle）区域响应，× 按钮不受拖动影响
+// - 缩放：仅在右下角缩放手柄（overlayResizeHandle）区域响应
+// - 其他区域不响应拖动或缩放，点击事件交由子控件自行处理
 //
 // 预留接口：
 // - MediaProjection（屏幕采集）
@@ -26,7 +23,6 @@
 package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -40,12 +36,11 @@ import android.view.WindowManager
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.widget.SwitchCompat
 import kotlin.math.roundToInt
 import top.azek431.hzzs.R
 import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
-import top.azek431.hzzs.CommunityLinks
+import top.azek431.hzzs.ui.community.CommunityLinks
 
 object OverlayPreviewManager {
 
@@ -60,6 +55,9 @@ object OverlayPreviewManager {
 
     /** 圆角半径参数键 */
     private const val KEY_RADIUS = "overlay_radius"
+
+    /** 悬浮窗缩放系数 */
+    private const val KEY_SCALE_RATIO = "overlay_scale_ratio"
 
     // ==================== HUD 渲染器 ====================
 
@@ -147,6 +145,8 @@ object OverlayPreviewManager {
             // 查找必需子控件
             val closeButton = view.findViewById<View>(R.id.overlayCloseButton)
                 ?: throw IllegalStateException("overlayCloseButton is missing.")
+            val dragHandle = view.findViewById<View>(R.id.overlayDragHandle)
+                ?: throw IllegalStateException("overlayDragHandle is missing.")
             val contentPanel = view.findViewById<View>(R.id.overlayContentPanel)
                 ?: throw IllegalStateException("overlayContentPanel is missing.")
             val statusText = view.findViewById<TextView>(R.id.overlayStatusText)
@@ -230,143 +230,118 @@ object OverlayPreviewManager {
             // 绑定透明度滑块
             setupAdjustmentSliders(appContext, view)
 
-            // === 绑定自动操作控件 ===
-            bindAutoOperationControls(appContext, view)
-
             // ---- 拖动与缩放逻辑 ----
+            /** 基础宽度（px），所有缩放计算以此为基准 */
+            val baseWidthPx = dp(appContext, 228)
+            /** 缩放系数（相对初始宽度的倍数），用于持久化 */
+            var scaleRatio = 1f
+            /** 初始宽度（px），用于缩放计算 */
+            var initialWidth = 0
+            /** 拖动/缩放的起始坐标快照（供 dragHandle 和 resizeHandle 共享） */
             var downRawX = 0f
             var downRawY = 0f
             var downWindowX = 0
             var downWindowY = 0
-            var initialWidth = overlayWidth
-            var initialHeight = layoutParams.height
-            var isScaling = false
             /** 是否已确认启动拖动（超过阈值后才为 true） */
-            var isDragging = false
-            /** 点击计数器：快速连续两次点击视为双击，不触发拖动 */
-            private var lastTapTime = 0L
-            private val DOUBLE_TAP_TIMEOUT_MS = 300L
-            /** 最小拖动距离（像素），约 10dp，避免手指抖动误触拖动 */
-            private val MIN_DRAG_DISTANCE_PX = 10
+            var dragStarted = false
+            /** 最小拖动距离（像素），避免手指抖动误触 */
+            val MIN_DRAG_DISTANCE_PX = 10
 
-            closeButton.setOnClickListener {
-                Log.i(TAG, "[Overlay] close requested.")
-                hide("close-button")
-            }
-
-            // 触摸监听器绑定到根布局（overlayRootPanel），确保所有子区域（包括缩放手柄）的事件都能被捕获。
-            // 使用 rawX/rawY（屏幕绝对坐标）计算偏移，避免嵌套 FrameLayout 导致的事件坐标偏差。
-            // 拖动逻辑：
-            // - ACTION_DOWN：记录初始位置，跳过可点击子控件
-            // - ACTION_MOVE：先判断位移是否超过 MIN_DRAG_DISTANCE_PX（10px），未超过则返回 false
-            //   让系统正常处理点击事件；超过后才启动拖动/缩放
-            // - 右下角 48dp 区域内切换为缩放模式
-            rootPanel.setOnTouchListener { _, event ->
+            // 标题栏拖动：仅在 overlayDragHandle 区域响应拖动事件
+            dragHandle.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        val clickableIds = setOf(
-                            R.id.overlayCloseButton,
-                            R.id.overlayStartAnalysis,
-                            R.id.overlayCommunityQq,
-                            R.id.overlayCommunityTelegram,
-                            R.id.overlayAlphaSlider,
-                            R.id.overlayAutoOpSwitch,
-                            R.id.overlayAutoOpDelaySlider,
-                        )
-
-                        // 将 rawX/rawY 转换为相对于 contentPanel 的坐标，用于检测可点击子控件
-                        val contentOffsetX = contentPanel.left.toFloat()
-                        val contentOffsetY = contentPanel.top.toFloat()
-                        val localX = (event.rawX - contentOffsetX).toInt()
-                        val localY = (event.rawY - contentOffsetY).toInt()
-                        var isClickableChild = false
-
-                        for (clickableId in clickableIds) {
-                            val child = contentPanel.findViewById<View>(clickableId) ?: continue
-                            if (child.isClickable && child.visibility == View.VISIBLE) {
-                                if (localX >= child.left && localX <= child.right &&
-                                    localY >= child.top && localY <= child.bottom) {
-                                    isClickableChild = true
-                                    break
-                                }
-                            }
-                        }
-
-                        if (isClickableChild) {
-                            false
-                        } else {
-                            downRawX = event.rawX
-                            downRawY = event.rawY
-                            downWindowX = layoutParams.x
-                            downWindowY = layoutParams.y
-                            initialWidth = layoutParams.width
-                            initialHeight = layoutParams.height
-                            isScaling = false
-                            isDragging = false
-                            true
-                        }
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        downWindowX = layoutParams.x
+                        downWindowY = layoutParams.y
+                        dragStarted = false
+                        false // 让标题栏自身 clickable 事件正常响应
                     }
-
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - downRawX).toInt()
                         val dy = (event.rawY - downRawY).toInt()
                         val distance = Math.sqrt((dx * dx + dy * dy).toDouble()).toInt()
 
-                        // 位移未达到最小阈值前，不启动拖动——让点击事件正常传递
-                        if (!isDragging && distance < MIN_DRAG_DISTANCE_PX) {
+                        if (!dragStarted && distance < MIN_DRAG_DISTANCE_PX) {
                             return@setOnTouchListener false
                         }
-
-                        // 首次超过阈值：确认启动拖动
-                        if (!isDragging) {
-                            isDragging = true
+                        if (!dragStarted) {
+                            dragStarted = true
                         }
 
-                        if (!isScaling && isDragging && distance >= MIN_DRAG_DISTANCE_PX) {
-                            val panelRight = downRawX + initialWidth
-                            val panelBottom = downRawY + initialHeight
-                            val isInResizeCorner = (event.rawX > panelRight - dp(appContext, 48)) &&
-                                (event.rawY > panelBottom - dp(appContext, 48))
-
-                            if (isInResizeCorner && resizeHandle != null) {
-                                isScaling = true
-                            }
-                        }
-
-                        if (isScaling && resizeHandle != null) {
-                            // 同时调整宽度和高度（保持纵横比）
-                            val newWidth = (initialWidth + dx).coerceIn(
-                                (initialWidth * 0.5).toInt(),
-                                (initialWidth * 1.5).toInt()
-                            )
-                            val newHeight = (initialHeight + dy).coerceIn(
-                                (initialHeight * 0.5).toInt(),
-                                (initialHeight * 1.5).toInt()
-                            )
-                            layoutParams.width = newWidth
-                            layoutParams.height = newHeight
-                        } else if (isDragging) {
-                            val screenHeight = appContext.resources.displayMetrics.heightPixels
-                            val maxY = (screenHeight - (initialHeight)).coerceAtLeast(0)
-                            layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
-                            layoutParams.y = (downWindowY + dy).coerceIn(0, maxY)
-                        }
+                        val screenHeight = appContext.resources.displayMetrics.heightPixels
+                        val maxY = (screenHeight - view.height).coerceAtLeast(0)
+                        layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
+                        layoutParams.y = (downWindowY + dy).coerceIn(0, maxY)
 
                         try {
                             manager.updateViewLayout(view, layoutParams)
-                        } catch (error: IllegalArgumentException) {
-                            Log.w(TAG, "[Overlay] detached while dragging.", error)
+                        } catch (e: IllegalArgumentException) {
+                            Log.w(TAG, "[Overlay] detached while dragging.", e)
                         }
-
                         true
                     }
+                    else -> false
+                }
+            }
 
+            // 缩放手柄缩放：仅在右下角 resizeHandle 区域响应
+            resizeHandle?.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        initialWidth = view.measuredWidth.takeIf { it > 0 } ?: baseWidthPx
+                        scaleRatio = layoutParams.width.toFloat() / initialWidth
+                        false
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - downRawX).toInt()
+                        val dy = (event.rawY - downRawY).toInt()
+                        val delta = (dx + dy) / 2 // 取 x 和 y 变化的平均值，使缩放更平滑
+                        val newWidth = (initialWidth + delta).coerceIn(
+                            (initialWidth * 0.5).toInt(),
+                            (initialWidth * 2.0).toInt()
+                        )
+                        layoutParams.width = newWidth
+                        scaleRatio = newWidth.toFloat() / initialWidth
+
+                        try {
+                            manager.updateViewLayout(view, layoutParams)
+                        } catch (e: IllegalArgumentException) {
+                            Log.w(TAG, "[Overlay] detached while resizing.", e)
+                        }
+                        true
+                    }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        isScaling = false
-                        isDragging = false
+                        // 保存缩放系数到 SharedPreferences
+                        if (scaleRatio != 1.0f) {
+                            val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                            prefs.edit().putFloat(KEY_SCALE_RATIO, scaleRatio).apply()
+                        }
                         true
                     }
+                    else -> false
+                }
+            }
 
+            // 关闭按钮
+            closeButton.setOnClickListener {
+                Log.i(TAG, "[Overlay] close requested.")
+                hide("close-button")
+            }
+
+            // 触摸监听器绑定到根布局：拦截非拖动/非缩放区域的点击，防止穿透到下层
+            rootPanel.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        downWindowX = layoutParams.x
+                        downWindowY = layoutParams.y
+                        true
+                    }
                     else -> false
                 }
             }
@@ -374,10 +349,8 @@ object OverlayPreviewManager {
             // 恢复上次保存的参数
             restoreAdjustments(appContext, view)
 
-            // 初始化 HUD 渲染器
-            hudRenderer = OverlayHUDRenderer(appContext).apply {
-                bindViews(view)
-            }
+            // 初始化 HUD 渲染器（仅驱动模拟帧生成 + C++ 引擎，不再绑定 UI 视图）
+            hudRenderer = OverlayHUDRenderer(appContext)
 
             // 添加到 WindowManager
             try {
@@ -444,87 +417,6 @@ object OverlayPreviewManager {
         }
     }
 
-    // ==================== 自动操作控件绑定 ====================
-
-    /**
-     * 绑定自动操作开关和延迟滑块到 UI 组件。
-     *
-     * 控件列表：
-     * - overlayAutoOpSwitch：SwitchCompat，启用/禁用自动操作
-     * - overlayAutoOpStatus：TextView，显示当前状态文本
-     * - overlayAutoOpDelaySlider：SeekBar（0~50），映射到 0~500ms 延迟
-     * - overlayAutoOpDelayValue：TextView，显示当前延迟值
-     *
-     * 数据持久化：
-     * - 从 SharedPreferences 读取上次保存的 auto_op_enabled 和 auto_op_delay
-     * - 用户修改后通过 apply() 异步写入 SharedPreferences
-     *
-     * 注意：SeekBar 的 onProgressChanged 中使用 fromUser 标志，
-     * 避免恢复设置时触发不必要的 UI 更新。
-     */
-    private fun bindAutoOperationControls(
-        appContext: Context,
-        view: View,
-    ) {
-        val autoOpSwitch = view.findViewById<SwitchCompat>(R.id.overlayAutoOpSwitch)
-        val autoOpStatus = view.findViewById<TextView>(R.id.overlayAutoOpStatus)
-        val autoOpDelaySlider = view.findViewById<SeekBar>(R.id.overlayAutoOpDelaySlider)
-        val autoOpDelayValue = view.findViewById<TextView>(R.id.overlayAutoOpDelayValue)
-
-        // 从 SharedPreferences 恢复设置
-        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val autoOpEnabled = prefs.getBoolean("auto_op_enabled", false)
-        val autoOpDelayProgress = prefs.getInt("auto_op_delay", 10) // 0~50 → 0~500ms
-
-        autoOpSwitch?.isChecked = autoOpEnabled
-        autoOpDelaySlider?.progress = autoOpDelayProgress
-        updateAutoOpStatus(autoOpStatus, autoOpEnabled, false, appContext)
-
-        // 更新延迟显示文本
-        autoOpDelayValue?.text = "${autoOpDelayProgress * 10} ms"
-
-        // 绑定自动操作开关
-        autoOpSwitch?.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("auto_op_enabled", isChecked).apply()
-            hudRenderer?.autoOperationEnabled = isChecked
-            updateAutoOpStatus(autoOpStatus, isChecked, false, appContext)
-        }
-
-        // 绑定延迟滑块
-        autoOpDelaySlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                val ms = progress * 10
-                autoOpDelayValue?.text = "$ms ms"
-                hudRenderer?.autoOperationDelayMs = ms
-                prefs.edit().putInt("auto_op_delay", progress).apply()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-    }
-
-    /**
-     * 更新自动操作状态文本。
-     *
-     * 根据 enabled 和 paused 状态显示三种文本之一：
-     * - disabled：自动操作未启用
-     * - paused：自动操作已暂停
-     * - enabled：自动操作运行中
-     */
-    private fun updateAutoOpStatus(
-        textView: TextView?,
-        enabled: Boolean,
-        paused: Boolean,
-        ctx: Context,
-    ) {
-        textView?.text = when {
-            !enabled -> ctx.getString(R.string.overlay_auto_op_status_disabled)
-            paused -> ctx.getString(R.string.overlay_auto_op_status_paused)
-            else -> ctx.getString(R.string.overlay_auto_op_status_enabled)
-        }
-    }
-
     // ==================== 原有辅助方法 ====================
 
     /**
@@ -563,6 +455,7 @@ object OverlayPreviewManager {
      * 1. 透明度（alpha）— 直接设置 view.alpha
      * 2. 圆角半径（radiusDp）— 转换为 px 后通过 GradientDrawable 设置
      * 3. 透明度滑块的进度值和显示文本
+     * 4. 悬浮窗缩放系数（scaleRatio）— 直接设置 view.layoutParams.width
      */
     private fun restoreAdjustments(
         context: Context,
@@ -571,6 +464,7 @@ object OverlayPreviewManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val alpha = prefs.getFloat(KEY_ALPHA, 1.0f)
         val radiusDp = prefs.getInt(KEY_RADIUS, 20)
+        val savedScale = prefs.getFloat(KEY_SCALE_RATIO, 1.0f)
 
         view.alpha = alpha
 
@@ -581,6 +475,18 @@ object OverlayPreviewManager {
         val alphaValue = view.findViewById<TextView>(R.id.overlayAlphaValue)
         alphaSlider?.progress = (alpha * 100).toInt()
         alphaValue?.text = "${alphaSlider.progress}%"
+
+        // 恢复缩放系数
+        if (savedScale != 1.0f) {
+            val baseWidth = dp(context, 228)
+            val scaledWidth = (baseWidth * savedScale).toInt().coerceIn(
+                (baseWidth * 0.5).toInt(),
+                (baseWidth * 2.0).toInt()
+            )
+            val lp = view.layoutParams
+            lp.width = scaledWidth
+            view.layoutParams = lp
+        }
     }
 
     /**

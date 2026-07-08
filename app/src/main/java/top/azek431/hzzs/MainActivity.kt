@@ -1,59 +1,62 @@
 // 火崽崽助手（HZZS）主 Activity。
 //
 // 这是应用的唯一入口页面，也是整个 UI 层的调度中心。
-// 负责以下核心职责：
-// 1. 初始化 Edge-to-Edge 全屏显示与状态栏/导航栏配色
-// 2. 处理系统栏安全区域（Insets），避免内容被刘海屏/底部横条遮挡
-// 3. 绑定首页按钮点击事件（开发计划弹窗、悬浮窗开关、免责声明入口）
-// 4. 管理悬浮窗权限请求与授权引导
-// 5. 绑定底部社区链接（QQ 群、Telegram 频道）
-// 6. 通过缓存 View 引用避免反复 getIdentifier() 查找
-// 7. 首次启动时检查免责声明是否已同意
-// 8. 显示权限与设备状态卡片
+//
+// 职责（极简）：
+// 1. 页面生命周期管理（onCreate / onResume）
+// 2. 初始化所有 Controller（Insets、按钮、对话框、权限）
+// 3. 调度业务逻辑（悬浮窗显示/隐藏、免责声明检查）
+// 4. 绑定社区链接（QQ 群、Telegram 频道）
+//
+// 不负责：
+// - 不直接处理系统栏安全区域（由 MainInsetsController 处理）
+// - 不直接绑定按钮点击事件（由 MainActionBinder 处理）
+// - 不直接显示对话框（由 MainDialogController 处理）
+// - 不直接检查悬浮窗权限（由 OverlayPermissionController 处理）
+// - 不直接管理悬浮窗生命周期（由 OverlayPreviewManager 处理）
+//
+// 设计原因：
+// - MainActivity 只保留"组装和调度"的职责，每个 Controller 负责自己的领域
+// - 新增功能时，只需添加/修改对应的 Controller，不碰 MainActivity
+// - 符合单一职责原则和依赖倒置原则
 
 package top.azek431.hzzs
 
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.view.View
-import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
-import top.azek431.hzzs.CommunityLinks
+import top.azek431.hzzs.ui.community.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
+import top.azek431.hzzs.ui.main.MainActionBinder
+import top.azek431.hzzs.ui.main.MainActionCallbacks
+import top.azek431.hzzs.ui.main.MainDialogController
+import top.azek431.hzzs.ui.main.MainInsetsController
+import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.util.FeatureFlags
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
-    // ==================== 缓存的 View 引用 ====================
+    // ==================== View 引用缓存 ====================
 
     /** 根容器：CoordinatorLayout，整个页面的最外层布局 */
-    private lateinit var rootContainer: View
+    private lateinit var rootContainer: android.view.View
 
     /** 顶部栏：LinearLayout，包含应用名称和副标题 */
-    private lateinit var topBarContainer: View
+    private lateinit var topBarContainer: android.view.View
 
     /** 滚动区域：NestedScrollView，承载首页所有内容 */
-    private lateinit var homeScrollView: View
+    private lateinit var homeScrollView: android.view.View
 
-    /** 开发计划按钮：MaterialButton */
+    /** 开发计划按钮 */
     private lateinit var btnDevelopmentPlan: MaterialButton
 
-    /** 悬浮窗开关按钮：MaterialButton */
+    /** 悬浮窗开关按钮 */
     private lateinit var btnOverlayExecution: MaterialButton
 
     /** 免责声明与功能设置按钮 */
@@ -77,11 +80,26 @@ class MainActivity : AppCompatActivity() {
     private var scrollPaddingEndInit = 0
     private var scrollPaddingBottomInit = 0
 
+    // ==================== Controller 实例 ====================
+
+    /** 系统栏安全区域控制器 */
+    private lateinit var insetsController: MainInsetsController
+
+    /** 按钮点击事件绑定器 */
+    private lateinit var actionBinder: MainActionBinder
+
+    /** 对话框控制器 */
+    private lateinit var dialogController: MainDialogController
+
+    /** 悬浮窗权限控制器 */
+    private lateinit var permissionController: OverlayPermissionController
+
     // ==================== 生命周期 ====================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 启用 Edge-to-Edge 全屏显示
         WindowCompat.enableEdgeToEdge(window)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
@@ -89,8 +107,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_main)
+
+        // 缓存 View 引用
         cacheViews()
         cacheInitialPadding()
+
+        // 初始化所有 Controller
+        initControllers()
+
+        // 执行页面初始化流程
         applySystemBarInsets()
         bindHomeActions()
         bindCommunityFooterLinks()
@@ -106,11 +131,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 每次回到前台时刷新悬浮窗按钮状态
         refreshOverlayButton()
     }
 
     // ==================== View 缓存 ====================
 
+    /**
+     * 缓存所有需要用到的 View 引用。
+     * 如果任何必需 View 不存在，抛出 IllegalStateException 阻止 Activity 继续运行。
+     */
     private fun cacheViews() {
         rootContainer = findViewById(R.id.rootContainer)
             ?: throw IllegalStateException("rootContainer not found in activity_main.xml")
@@ -130,6 +160,10 @@ class MainActivity : AppCompatActivity() {
             ?: throw IllegalStateException("textCommunityTelegramLink not found in activity_main.xml")
     }
 
+    /**
+     * 缓存所有 View 的初始 padding 值。
+     * 用于系统栏安全区域处理时，在初始 padding 基础上叠加 insets。
+     */
     private fun cacheInitialPadding() {
         topBarPaddingStartInit = topBarContainer.paddingStart
         topBarPaddingTopInit = topBarContainer.paddingTop
@@ -142,22 +176,64 @@ class MainActivity : AppCompatActivity() {
         scrollPaddingBottomInit = homeScrollView.paddingBottom
     }
 
-    // ==================== 事件绑定 ====================
+    // ==================== Controller 初始化 ====================
 
-    private fun bindHomeActions() {
-        btnDevelopmentPlan.setOnClickListener {
-            showDevelopmentPlan()
-        }
+    /**
+     * 初始化所有 Controller。
+     *
+     * 在 View 缓存完成后调用，确保 Controller 能获取到有效的 View 引用。
+     */
+    private fun initControllers() {
+        insetsController = MainInsetsController(
+            rootContainer = rootContainer,
+            topBarContainer = topBarContainer,
+            homeScrollView = homeScrollView,
+            topBarPaddingStartInit = topBarPaddingStartInit,
+            topBarPaddingTopInit = topBarPaddingTopInit,
+            topBarPaddingEndInit = topBarPaddingEndInit,
+            topBarPaddingBottomInit = topBarPaddingBottomInit,
+            scrollPaddingStartInit = scrollPaddingStartInit,
+            scrollPaddingTopInit = scrollPaddingTopInit,
+            scrollPaddingEndInit = scrollPaddingEndInit,
+            scrollPaddingBottomInit = scrollPaddingBottomInit,
+        )
 
-        btnOverlayExecution.setOnClickListener {
-            handleOverlayPreview()
-        }
+        dialogController = MainDialogController(this)
+        permissionController = OverlayPermissionController(this)
 
-        btnDisclaimer.setOnClickListener {
-            startActivity(Intent(this, DisclaimerActivity::class.java))
-        }
+        actionBinder = MainActionBinder(
+            btnDevelopmentPlan = btnDevelopmentPlan,
+            btnOverlayExecution = btnOverlayExecution,
+            btnDisclaimer = btnDisclaimer,
+            callbacks = this,
+        )
     }
 
+    // ==================== 页面初始化流程 ====================
+
+    /**
+     * 应用系统栏安全区域。
+     *
+     * 委托给 MainInsetsController 处理，不直接在 MainActivity 中实现。
+     */
+    private fun applySystemBarInsets() {
+        insetsController.apply()
+    }
+
+    /**
+     * 绑定首页按钮点击事件。
+     *
+     * 委托给 MainActionBinder 处理，不直接在 MainActivity 中实现。
+     */
+    private fun bindHomeActions() {
+        actionBinder.bind()
+    }
+
+    /**
+     * 绑定底部社区链接。
+     *
+     * 社区链接的打开逻辑由 CommunityLinks 处理，这里只负责找到对应的 TextView 并注册点击事件。
+     */
     private fun bindCommunityFooterLinks() {
         val fallbackMsg = getString(R.string.community_open_fallback)
 
@@ -185,9 +261,51 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== 悬浮窗管理 ====================
 
+    /**
+     * 刷新悬浮窗按钮文本。
+     *
+     * 根据悬浮窗当前显示状态切换按钮文字：
+     * - 显示中 → "关闭悬浮窗"
+     * - 未显示 → "打开悬浮窗"
+     */
+    private fun refreshOverlayButton() {
+        actionBinder.updateOverlayButtonText(OverlayPreviewManager.isShowing())
+    }
+
+    // ==================== MainActionCallbacks 实现 ====================
+
+    /** 点击了"查看开发计划"按钮 */
+    override fun onDevelopmentPlanClicked() {
+        dialogController.showDevelopmentPlan()
+    }
+
+    /** 点击了"悬浮窗开关"按钮 */
+    override fun onOverlayToggleClicked() {
+        handleOverlayPreview()
+    }
+
+    /** 点击了"免责声明"按钮 */
+    override fun onDisclaimerClicked() {
+        startActivity(Intent(this, DisclaimerActivity::class.java))
+    }
+
+    /**
+     * 处理悬浮窗开关逻辑。
+     *
+     * 流程：
+     * 1. 检查悬浮窗权限 → 无权限则引导用户授权
+     * 2. 悬浮窗已显示 → 关闭
+     * 3. 悬浮窗未显示 → 打开
+     *
+     * 权限检查和跳转委托给 OverlayPermissionController，
+     * 悬浮窗的显示/隐藏委托给 OverlayPreviewManager。
+     */
     private fun handleOverlayPreview() {
-        if (!hasOverlayPermission()) {
-            showOverlayPermissionDialog()
+        if (!permissionController.hasPermission()) {
+            dialogController.showOverlayPermissionExplanation(
+                onGoToSettings = { permissionController.openSettings() },
+                onCancel = {},
+            )
             return
         }
 
@@ -201,125 +319,16 @@ class MainActivity : AppCompatActivity() {
         refreshOverlayButton()
 
         if (!opened) {
-            Toast.makeText(
+            android.widget.Toast.makeText(
                 this,
                 stringOrFallback(
                     "overlay_preview_open_failed",
                     getString(R.string.overlay_preview_open_failed),
                 ),
-                Toast.LENGTH_SHORT,
+                android.widget.Toast.LENGTH_SHORT,
             ).show()
         }
     }
-
-    private fun hasOverlayPermission(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-            Settings.canDrawOverlays(this)
-    }
-
-    private fun showOverlayPermissionDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(
-                stringOrFallback("overlay_permission_required_title", "需要悬浮窗权限"),
-            )
-            .setMessage(
-                stringOrFallback(
-                    "overlay_permission_required_message",
-                    "火崽崽助手需要「显示在其他应用上层」的权限，才能显示悬浮窗预览。",
-                ),
-            )
-            .setNegativeButton(
-                stringOrFallback("action_close", "关闭"),
-                null,
-            )
-            .setPositiveButton(
-                stringOrFallback("overlay_permission_go_to_settings", "前往授权"),
-            ) { _, _ ->
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName"),
-                )
-                try {
-                    startActivity(intent)
-                } catch (_: Exception) {
-                    Toast.makeText(
-                        this,
-                        getString(R.string.settings_open_failed),
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-            }
-            .show()
-    }
-
-    private fun refreshOverlayButton() {
-        btnOverlayExecution.text = if (OverlayPreviewManager.isShowing()) {
-            stringOrFallback("overlay_preview_close", "关闭悬浮窗")
-        } else {
-            stringOrFallback("overlay_preview_open", "打开悬浮窗")
-        }
-    }
-
-    // ==================== 对话框 ====================
-
-    private fun showDevelopmentPlan() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(
-                stringOrFallback("development_plan_title", "开发计划"),
-            )
-            .setMessage(
-                stringOrFallback(
-                    "development_plan_message",
-                    "1. 界面与导航\n2. 权限与设备检查\n3. 跑酷像素分析\n4. 实时 HUD 与本局战报\n5. 历史数据与校准",
-                ),
-            )
-            .setPositiveButton(
-                stringOrFallback("action_close", "关闭"),
-                null,
-            )
-            .show()
-    }
-
-    // ==================== 系统栏适配 ====================
-
-    /**
-     * 应用系统栏安全区域（状态栏 + 导航栏）。
-     *
-     * 通过 ViewCompat.setOnApplyWindowInsetsListener 监听系统栏 insets，
-     * 自动为顶部栏和滚动区域添加 padding，避免内容被刘海屏/底部横条遮挡。
-     *
-     * 只处理水平方向（left/right）和顶部栏的垂直方向（top），
-     * 滚动区域的 top padding 保持不变（由布局自身控制），
-     * 底部 padding 仅应用于滚动区域（顶部栏不需要底部 padding）。
-     */
-    private fun applySystemBarInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
-            val safeInsets = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or
-                    WindowInsetsCompat.Type.displayCutout(),
-            )
-
-            topBarContainer.updatePadding(
-                left = topBarPaddingStartInit + safeInsets.left,
-                top = topBarPaddingTopInit + safeInsets.top,
-                right = topBarPaddingEndInit + safeInsets.right,
-                bottom = topBarPaddingBottomInit,
-            )
-
-            homeScrollView.updatePadding(
-                left = scrollPaddingStartInit + safeInsets.left,
-                top = scrollPaddingTopInit,
-                right = scrollPaddingEndInit + safeInsets.right,
-                bottom = scrollPaddingBottomInit + safeInsets.bottom,
-            )
-
-            insets
-        }
-
-        ViewCompat.requestApplyInsets(rootContainer)
-    }
-
-    // ==================== 工具方法 ====================
 
     /**
      * 获取资源字符串，如果资源不存在则返回提供的默认值。
