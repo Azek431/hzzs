@@ -223,8 +223,8 @@
       }
     },
     {
-      "label": "🔌 [HZZS] 调试一条龙：安装、启动并转发 JDWP",
-      "detail": "用于 VS Code / Android 调试准备。会安装 Debug APK、启动应用、查找 HZZS 进程 PID，并把本机 tcp:8700 转发到该进程的 JDWP。不会自动附加调试器，需要你在调试面板里连接 localhost:8700。",
+      "label": "🔌 [HZZS] 调试前置：安装+启动+JDWP转发",
+      "detail": "VS Code 调试按钮的 preLaunchTask。自动执行：安装 Debug APK → 启动应用 → 查找进程 PID → adb forward tcp:5005 jdwp:<PID>。完成后 VS Code 自动连接 localhost:5005 建立调试会话。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -234,7 +234,37 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$pkg='top.azek431.hzzs'\n& .\\gradlew.bat --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) {\n    throw '安装 Debug APK 失败'\n}\n\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) {\n    throw '启动应用失败'\n}\n\nStart-Sleep -Seconds 2\n\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) {\n    throw \"找不到应用进程：$pkg\"\n}\n\n$pid = ($pidText -split '\\s+')[0].Trim()\n\nadb forward --remove tcp:8700 2>$null | Out-Null\nadb forward tcp:8700 \"jdwp:$pid\"\n\nif ($LASTEXITCODE -ne 0) {\n    throw 'JDWP 转发失败'\n}\n\nWrite-Host \"JDWP 已转发：localhost:8700 -> $pkg / PID $pid\""
+        "$pkg=\"top.azek431.hzzs\"\n& '.\\gradlew.bat' --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) { throw \"安装 Debug APK 失败\" }\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) { throw \"启动应用失败\" }\nStart-Sleep -Seconds 2\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) { throw \"找不到应用进程：$pkg\" }\n$pid = ($pidText -split \"\\s+\")[0].Trim()\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$pid\"\nif ($LASTEXITCODE -ne 0) { throw \"JDWP 转发失败\" }\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $pid\""
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🔌 [HZZS] 调试一条龙：安装、启动并转发 JDWP",
+      "detail": "用于 VS Code / Android 调试准备。会安装 Debug APK、启动应用、查找 HZZS 进程 PID，并把本机 tcp:5005 转发到该进程的 JDWP。不会自动附加调试器，需要你在调试面板里连接 localhost:5005。",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$pkg='top.azek431.hzzs'\n& .\\gradlew.bat --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) {\n    throw '安装 Debug APK 失败'\n}\n\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) {\n    throw '启动应用失败'\n}\n\nStart-Sleep -Seconds 2\n\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) {\n    throw \"找不到应用进程：$pkg\"\n}\n\n$pid = ($pidText -split '\\s+')[0].Trim()\n\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$pid\"\n\nif ($LASTEXITCODE -ne 0) {\n    throw 'JDWP 转发失败'\n}\n\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $pid\""
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -254,13 +284,13 @@
     },
     {
       "label": "🔌 [HZZS] 移除 JDWP 端口转发",
-      "detail": "移除本机 tcp:8700 到设备 JDWP 的端口转发。适合调试结束后清理环境。实际执行：adb forward --remove tcp:8700",
+      "detail": "移除本机 tcp:5005 到设备 JDWP 的端口转发。适合调试结束后清理环境。实际执行：adb forward --remove tcp:5005",
       "type": "shell",
       "command": "adb",
       "args": [
         "forward",
         "--remove",
-        "tcp:8700"
+        "tcp:5005"
       ],
       "problemMatcher": [],
       "presentation": {
