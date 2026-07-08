@@ -22,7 +22,18 @@ import top.azek431.hzzs.model.RectF
 // 注意：RectF 是 data class（不可变），对象池复用会导致状态污染，
 // 因此改为直接创建新实例。GC 对短生命周期小对象的回收成本很低。
 
-/** 创建一个 RectF 实例 */
+/**
+ * 创建一个新的 RectF 实例。
+ *
+ * 由于 RectF 是不可变 data class，不需要对象池复用，
+ * 此函数仅为提供统一的创建入口，便于将来改为池化。
+ *
+ * @param left 左边界（归一化坐标 0~1）
+ * @param top 上边界（归一化坐标 0~1）
+ * @param right 右边界（归一化坐标 0~1）
+ * @param bottom 下边界（归一化坐标 0~1）
+ * @return 新的 RectF 实例
+ */
 fun newRectF(left: Float, top: Float, right: Float, bottom: Float): RectF {
     return RectF(left, top, right, bottom)
 }
