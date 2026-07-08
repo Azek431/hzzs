@@ -65,7 +65,16 @@ object OverlayPreviewManager {
 
     // ==================== HUD 渲染器 ====================
 
-    /** HUD 渲染器实例 */
+    /**
+     * 悬浮窗根 View（overlayRootPanel）。
+     *
+     * 用于初始化拖动控制器时记录起始位置。
+     * 在 rootPanel 的 onTouchListener 中，ACTION_DOWN 时调用
+     * dragController.recordStartPosition() 保存当前 layoutParams.x/y。
+     */
+    private var rootView: View? = null
+
+    /** HUD 渲染器实例，负责模拟帧生成和 C++ 引擎驱动 */
     private var hudRenderer: OverlayHUDRenderer? = null
 
     // ==================== 悬浮窗会话 ====================
@@ -76,6 +85,13 @@ object OverlayPreviewManager {
         val manager: WindowManager,
     )
 
+    /**
+     * 当前活跃的悬浮窗会话。
+     *
+     * 包含悬浮窗根 View 和 WindowManager 实例。
+     * show() 成功后创建，hide() 时清除。
+     * 为 null 表示当前没有悬浮窗显示。
+     */
     private var activeSession: OverlaySession? = null
 
     // ==================== 数据分析状态 ====================
@@ -212,13 +228,16 @@ object OverlayPreviewManager {
                 }
             }
 
-            // 初始化拖动控制器
+            // 初始化拖动控制器：处理 overlayDragHandle 的拖动事件
+            // 拖动起始位置由 rootPanel 的 onTouchListener 在 ACTION_DOWN 时记录
             val dragController = OverlayDragController(dragHandle, object : OnDragUpdateListener {
-                override fun onDragUpdated(lp: WindowManager.LayoutParams) {
-                    lp.x = (lp.x).coerceIn(0, windowController.calculateMaxX(layoutParams.width))
-                    lp.y = (lp.y).coerceIn(0, windowController.calculateMaxY(view.height))
+                override fun onDragUpdated(x: Int, y: Int) {
+                    // 限制 X 坐标不超出屏幕右边界
+                    layoutParams.x = x.coerceIn(0, windowController.calculateMaxX(layoutParams.width))
+                    // 限制 Y 坐标不超出屏幕下边界
+                    layoutParams.y = y.coerceIn(0, windowController.calculateMaxY(view.height))
                     try {
-                        manager.updateViewLayout(view, lp)
+                        manager.updateViewLayout(view, layoutParams)
                     } catch (e: IllegalArgumentException) {
                         Log.w(TAG, "[Overlay] detached while dragging.", e)
                     }
@@ -226,7 +245,7 @@ object OverlayPreviewManager {
             })
             dragController.attach()
 
-            // 初始化缩放控制器
+            // 初始化缩放控制器：处理 overlayResizeHandle 的缩放事件
             val resizeListener = object : OnResizeUpdateListener {
                 override fun onResized(newWidth: Int, scaleRatio: Float) {
                     layoutParams.width = newWidth
@@ -240,18 +259,20 @@ object OverlayPreviewManager {
             val resizeController = OverlayResizeController(resizeHandle, appContext, resizeListener)
             resizeController.attach()
 
-            // 初始化设置绑定器
+            // 初始化设置绑定器：绑定透明度滑块和自动操作控件
             val settingsBinder = OverlaySettingsBinder(appContext, view)
             settingsBinder.bind()
             settingsBinder.restoreAll(baseWidth = windowController.baseWidthPx())
 
-            // 关闭按钮
+            // 关闭按钮：点击后隐藏悬浮窗
             closeButton.setOnClickListener {
                 Log.i(TAG, "[Overlay] close requested.")
                 hide("close-button")
             }
 
-            // 触摸监听器绑定到根布局：拦截非拖动/非缩放区域的点击，防止穿透到下层
+            // 触摸监听器绑定到根布局：
+            // ACTION_DOWN 时记录拖动起始位置，防止拖动时位置跳变
+            // 其他事件不处理，让子控件自行响应
             rootPanel.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
