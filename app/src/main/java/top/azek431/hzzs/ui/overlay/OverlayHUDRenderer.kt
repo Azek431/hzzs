@@ -97,30 +97,52 @@ class OverlayHUDRenderer(
     /** 危险物数量 TextView */
     private var hazardsText: TextView? = null
 
-    /** 收藏物数量 TextView */
+    /**
+     * 收藏物数量 TextView — 显示检测到的可收集物品数量
+     * 对应布局文件中的 overlayHudCollectiblesText
+     */
     private var collectiblesText: TextView? = null
 
-    /** 动作提示图标 TextView */
+    /**
+     * 动作提示图标 TextView — 显示 Emoji 箭头（⬆ / ⬆⬆ / ⬇）
+     * 对应布局文件中的 overlayHudPromptIcon
+     */
     private var promptIcon: TextView? = null
 
-    /** 动作提示文本 TextView */
+    /**
+     * 动作提示文本 TextView — 显示中文提示（"⬆ 跳跃"等）
+     * 对应布局文件中的 overlayHudPromptText
+     */
     private var promptText: TextView? = null
 
-    /** ETA 文本 TextView */
+    /**
+     * ETA 信息 TextView — 显示时间信息和目标类型
+     * 格式如："500ms | 蛋糕断层"
+     * 对应布局文件中的 overlayHudEtaText
+     */
     private var etaText: TextView? = null
 
     // ==================== 模拟数据状态 ====================
 
-    /** 玩家 X 位置（归一化），用于模拟左右移动 */
+    /**
+     * 玩家 X 位置偏移量（归一化），用于驱动正弦波左右移动动画。
+     * 每帧递增 0.003，通过 sin(playerXOffset) 产生周期性摆动。
+     */
     private var playerXOffset = 0f
 
-    /** 当前危险物位置（归一化 left），null 表示无危险物 */
+    /**
+     * 当前危险物位置（归一化 left 坐标），null 表示当前帧无危险物。
+     * 危险物以 WORLD_SCROLL_SPEED 向左移动，移出屏幕后重置为 null。
+     */
     private var currentHazardLeft: Float? = null
 
-    /** 危险物类型（1=蛋糕断层, 2=毒瓶, 3=裱花袋） */
+    /**
+     * 当前危险物类型（1=蛋糕断层, 2=毒瓶, 3=裱花袋）。
+     * 按 HAZARD_INTERVAL 循环切换，确保三种危险物依次出现。
+     */
     private var currentHazardType = 0
 
-    /** 上次生成危险物的帧计数 */
+    /** 上次生成危险物的帧计数，用于计算距上次生成的间隔 */
     private var lastHazardFrame = -HAZARD_INTERVAL
 
     // === 新增可视化数据状态 ===
@@ -341,7 +363,17 @@ class OverlayHUDRenderer(
 
     // ==================== 可视化数据计算 ====================
 
-    /** 根据当前分析结果更新预测路径 */
+    /**
+     * 根据当前分析结果更新预测路径。
+     *
+     * 预测路径基于跳跃阶段和 ETA 计算：
+     * - 跳跃：抛物线路径 y = playerY - 0.15 * frac * (1 - frac)，最高点在中间
+     * - 滑铲：直线路径，终点为玩家前方 0.2 + 下方 0.05
+     *
+     * @param playerX 玩家当前 X 坐标（归一化）
+     * @param playerY 玩家当前 Y 坐标（归一化）
+     * @param result 当前帧分析结果（包含 ETA 信息）
+     */
     private fun updatePredictedPath(playerX: Float, playerY: Float, result: FrameAnalysisResult?) {
         predictedPathPoints.clear()
         if (result == null) return
@@ -372,7 +404,13 @@ class OverlayHUDRenderer(
         }
     }
 
-    /** 随机生成一个热力图点 */
+    /**
+     * 随机生成一个热力图点。
+     *
+     * 热力图点分布在玩家矩形周围 ±0.1 范围内，强度 0.3~1.0 随机。
+     * 每 10 帧生成一个点，最多保留 MAX_HEATMAP_POINTS 个，超出时移除最旧的。
+     * 用于可视化"检测置信度分布"概念。
+     */
     private fun generateHeatmapPoint() {
         val offsetX = (Math.random() - 0.5) * 0.2
         val offsetY = (Math.random() - 0.5) * 0.2
@@ -390,7 +428,19 @@ class OverlayHUDRenderer(
 
     // ==================== UI 更新 ====================
 
-    /** 将分析结果更新到悬浮窗 UI 组件 */
+    /**
+     * 将分析结果更新到悬浮窗 UI 组件。
+     *
+     * 此方法在主线程执行（通过 mainHandler.post 切换），负责：
+     * 1. 更新 Canvas 视图的玩家/危险物矩形和可视化数据
+     * 2. 更新 TextView 的场景模式、姿态、跳跃阶段等信息
+     * 3. 如果有动作提示，更新提示图标/文本/ETA
+     * 4. 如果自动操作已启用且未暂停，将动作加入队列
+     *
+     * @param result C++ 引擎返回的分析结果（null 表示引擎不可用）
+     * @param hazardBounds 当前危险物边界（用于自动操作目标定位）
+     * @param dynamicConfidence 动态置信度（0.85~0.99 波动，用于可视化指示器）
+     */
     private fun updateUI(
         result: FrameAnalysisResult?,
         hazardBounds: RectF?,
@@ -495,7 +545,12 @@ class OverlayHUDRenderer(
         }
     }
 
-    /** 根据提示动作类型返回对应的 Emoji 图标 */
+    /**
+     * 根据提示动作类型返回对应的 Emoji 图标。
+     *
+     * @param action FrameAnalysisResult.PROMPT_* 常量
+     * @return Emoji 字符串（⬆ / ⬆⬆ / ⬇ / ""）
+     */
     private fun getPromptEmoji(action: Int): String {
         return when (action) {
             FrameAnalysisResult.PROMPT_JUMP -> "⬆"
@@ -505,7 +560,12 @@ class OverlayHUDRenderer(
         }
     }
 
-    /** 简易正弦函数 */
+    /**
+     * 简易正弦函数别名。
+     *
+     * 为避免每次调用 kotlin.math.sin 产生 lambda 开销，
+     * 在此处定义简短别名方便阅读。
+     */
     private fun sin(x: Float): Float {
         return kotlin.math.sin(x)
     }

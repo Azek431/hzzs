@@ -40,10 +40,9 @@
             android:id="@+id/disclaimerText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/disclaimer_content"
             android:textColor="@color/on_surface"
             android:textSize="14sp"
-            android:lineSpacingExtra="4dp" />
+            android:lineSpacingExtra="6dp" />
     </androidx.core.widget.NestedScrollView>
 
     <!-- 底部固定操作栏 -->
@@ -53,7 +52,7 @@
         android:layout_gravity="bottom"
         android:orientation="vertical"
         android:padding="12dp"
-        android:background="@color/surface">
+        android:background="@color/surface_container_low">
 
         <!-- 滚动进度提示 -->
         <TextView

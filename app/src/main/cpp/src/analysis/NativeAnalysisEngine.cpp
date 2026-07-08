@@ -1,3 +1,13 @@
+// 火崽崽助手（HZZS）原生分析引擎 — 实现层。
+//
+// 这是整个分析管线的主协调器，按顺序串联所有子模块：
+//   FrameDetections → [场景] → [姿态] → [跳跃] → [危险ETA] → [提示] → AnalysisResult
+//
+// 设计原则：
+// - 单向数据流：每个子模块只读 frame，写入 result，不互相干扰
+// - 场景门控：非 GroundRun 场景跳过危险检测和提示生成
+// - 线程安全：此方法不修改 frame，所有状态变更仅影响内部子模块
+
 #include "hzzs/analysis/NativeAnalysisEngine.h"
 
 #include <algorithm>

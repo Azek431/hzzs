@@ -1,3 +1,14 @@
+// 火崽崽助手（HZZS）危险物 ETA 估计器 — 实现层。
+//
+// 计算每个危险物到达玩家的预计时间（ETA），单位为毫秒。
+//
+// ETA 计算公式：eta_ms = distance / leftward_speed * 1000.0
+// - distance = danger_bounds.left - player.right - safety_margin（含安全余量）
+// - leftward_speed = max(object.velocity_x, world_scroll_speed)（取较大者更保守）
+//
+// 过滤链：
+// 对象类型 → 边界有效 → 置信度 ≥ 0.62 → 向左速度 ≥ 0.04 → 距离 > 0 → ETA ≤ 2200ms
+
 #include "hzzs/analysis/HazardEtaEstimator.h"
 
 #include <algorithm>

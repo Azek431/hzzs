@@ -1,9 +1,17 @@
 // 火崽崽助手（HZZS）对象池。
 //
 // 减少高频分配导致的 GC 压力。
+//
+// 设计说明：
+// - RectF 是 data class（不可变），对象池复用会导致状态污染，因此改为直接创建新实例。
+//   Kotlin/Java 的 GC 对短生命周期小对象的回收成本很低，不必过度优化。
+// - Paint 对象池是有效的，因为 Paint 有 state（alpha/color/strokeWidth），
+//   模板模式避免每帧重复创建和配置 Paint 对象。获取时返回副本（new Paint(template)），
+//   确保线程安全和状态隔离。
+//
 // 使用场景：
-// - 每帧创建大量 RectF → RectFPool
-// - Canvas 重绘时创建 Paint → PaintPool
+// - HUDCanvasView 每帧绘制时创建临时 Paint 对象 → 使用 PaintPool 复用模板
+// - 未来视觉层大量创建 RectF → 直接 new（GC 成本低）
 
 package top.azek431.hzzs.util
 

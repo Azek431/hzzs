@@ -36,9 +36,13 @@ class AutoOperationService : AccessibilityService() {
         private const val TAG = "HZZS-AutoOp"
 
         // === 操作队列（静态引用，供 HUDRenderer 入队） ===
+        /** 排队中的操作列表，按 FIFO 顺序执行 */
         private val actionQueue = mutableListOf<QueuedAction>()
+        /** 是否暂停（不影响开关状态，暂停时跳过队列处理） */
         @Volatile private var isPaused = false
+        /** 自动操作总开关：false 时所有入队请求被丢弃 */
         @Volatile private var autoOperationEnabled = false
+        /** 操作执行间隔（毫秒），范围 0~500，默认 100ms */
         @Volatile private var operationDelayMs = 100
 
         /** 外部调用：将操作加入队列 */
@@ -92,8 +96,15 @@ class AutoOperationService : AccessibilityService() {
 
     // ==================== 生命周期 ====================
 
-    /** 处理入队操作（在 UI 线程中定时调用） */
+    /**
+     * Handler 运行在主线程，用于定时处理队列中的下一个操作。
+     * processRunnable 每 operationDelayMs 毫秒触发一次，调用 processNextAction()。
+     */
     private val handler = Handler(Looper.getMainLooper())
+    /**
+     * 定时处理任务：每次执行后重新 postDelayed，形成循环调度。
+     * 注意：此 Runnable 在 onUnbind 时必须 remove，防止服务销毁后继续执行。
+     */
     private val processRunnable = object : Runnable {
         override fun run() {
             processNextAction()
@@ -113,7 +124,12 @@ class AutoOperationService : AccessibilityService() {
 
     // ==================== 操作执行 ====================
 
-    /** 处理队列中的下一个操作 */
+    /**
+     * 处理队列中的下一个操作。
+     *
+     * 从 synchronized 保护的 actionQueue 中取出第一个元素并执行。
+     * 如果队列为空或已暂停/禁用，则直接返回不执行任何操作。
+     */
     private fun processNextAction() {
         val action = synchronized(actionQueue) {
             if (actionQueue.isEmpty()) return
@@ -126,7 +142,17 @@ class AutoOperationService : AccessibilityService() {
         Log.d(TAG, "[AutoOp] executed action: ${action.type} at (${action.targetX}, ${action.targetY})")
     }
 
-    /** 执行具体的触摸操作 */
+    /**
+     * 执行具体的触摸操作。
+     *
+     * 将归一化坐标 (targetX, targetY) 转换为屏幕像素坐标，
+     * 然后通过 GestureDescription 注入一次短触摸事件。
+     *
+     * Android 12+ 使用 dispatchGesture API，以下版本也统一使用 dispatchGesture
+     *（因为 minSdk=24，已不需要 deprecated 的 injectEvent）。
+     *
+     * @param action 要执行的排队操作
+     */
     private fun executeAction(action: QueuedAction) {
         val screenW = resources.displayMetrics.widthPixels.toFloat()
         val screenH = resources.displayMetrics.heightPixels.toFloat()
@@ -153,7 +179,15 @@ class AutoOperationService : AccessibilityService() {
         }
     }
 
-    /** 注入按下事件（兼容 Android 12 以下） */
+    /**
+     * 注入按下事件（兼容 Android 12 以下）。
+     *
+     * 由于 minSdk=24，统一使用 dispatchGesture API 而非已废弃的 injectMotionEvent。
+     * 触摸持续 10ms，模拟一次快速点击。
+     *
+     * @param x 屏幕 X 坐标（像素）
+     * @param y 屏幕 Y 坐标（像素）
+     */
     private fun injectDownEvent(x: Float, y: Float) {
         // 由于 minSdk=24，统一使用 dispatchGesture
         val gesture = GestureDescription.Builder()
@@ -168,7 +202,15 @@ class AutoOperationService : AccessibilityService() {
         dispatchGesture(gesture, null, null)
     }
 
-    /** 注入抬起事件（兼容 Android 12 以下） */
+    /**
+     * 注入抬起事件（兼容 Android 12 以下）。
+     *
+     * 与 injectDownEvent 相同——由于 minSdk=24，统一使用 dispatchGesture。
+     * 触摸持续 10ms。
+     *
+     * @param x 屏幕 X 坐标（像素）
+     * @param y 屏幕 Y 坐标（像素）
+     */
     private fun injectUpEvent(x: Float, y: Float) {
         // 由于 minSdk=24，统一使用 dispatchGesture
         val gesture = GestureDescription.Builder()

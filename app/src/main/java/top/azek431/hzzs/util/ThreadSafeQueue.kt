@@ -1,12 +1,12 @@
 // 火崽崽助手（HZZS）线程安全队列。
 //
-// 无锁环形缓冲区，用于 C++ 分析结果 → 主线程 UI 更新。
-// 替代 OverlayHUDRenderer 中的 mainHandler.post {} 模式。
+// 无锁环形缓冲区（lock-free ring buffer），适用于单生产者-单消费者场景。
+// 替代 Handler.post {} 模式，支持批量 drainTo() 减少主线程调度开销。
 //
-// 与 Handler.post 的区别：
-// - Handler.post 是异步回调，无法批量处理
-// - ThreadSafeQueue 支持批量 drainTo()，减少主线程调度开销
-// - 满时可选择丢弃最旧帧或阻塞等待
+// 线程模型：
+// - 生产者（后台线程）和消费者（主线程）通过 volatile head/tail/count 同步
+// - 不使用 synchronized 或 ReentrantLock，减少锁竞争开销
+// - 注意：offer/poll 不是原子操作，多生产者/多消费者场景需要外部加锁
 
 package top.azek431.hzzs.util
 

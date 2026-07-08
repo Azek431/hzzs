@@ -11,6 +11,13 @@
 // - 悬浮窗位置、透明度参数的持久化存储与恢复
 // - 自动操作开关与延迟调节
 //
+// 触摸交互逻辑：
+// - ACTION_DOWN：判断点击位置是否在可点击子控件内（按钮/滑块/链接）
+//   如果是，不启动拖动；否则记录初始位置
+// - ACTION_MOVE：计算 dx/dy，如果超过 5dp 阈值则启动拖动
+//   如果在右下角 48dp 区域内且存在 resizeHandle，切换为缩放模式
+// - ACTION_UP/CANCEL：结束拖动或缩放
+//
 // 预留接口：
 // - MediaProjection（屏幕采集）
 // - 真实帧分析
@@ -79,7 +86,11 @@ object OverlayPreviewManager {
     @Volatile
     private var analysisUiState = AnalysisUiState.IDLE
 
-    /** 检查当前是否有悬浮窗正在显示 */
+    /**
+     * 检查当前是否有悬浮窗正在显示。
+     *
+     * @return true 如果 activeSession 不为 null（即有悬浮窗正在显示）
+     */
     @Synchronized
     fun isShowing(): Boolean = activeSession != null
 
@@ -88,7 +99,18 @@ object OverlayPreviewManager {
     /**
      * 创建并显示悬浮窗预览面板。
      *
-     * @param context 上下文
+     * 完整流程：
+     * 1. 权限检查：SYSTEM_ALERT_WINDOW 权限是否已授予
+     * 2. 去重检查：是否已有活跃会话
+     * 3. 创建 WindowManager.LayoutParams（TYPE_APPLICATION_OVERLAY / TYPE_PHONE）
+     * 4. inflate 布局文件 view_overlay_preview.xml
+     * 5. 绑定所有子控件的点击事件（关闭/开始分析/社区链接/透明度/自动操作）
+     * 6. 设置拖动和缩放逻辑
+     * 7. 从 SharedPreferences 恢复上次保存的参数
+     * 8. 初始化 HUD 渲染器并绑定视图引用
+     * 9. 添加到 WindowManager 并启动前台通知服务
+     *
+     * @param context 上下文（使用 applicationContext 避免内存泄漏）
      * @return true 如果成功显示，false 如果权限不足或发生异常
      */
     @Synchronized
@@ -136,6 +158,8 @@ object OverlayPreviewManager {
             val communityTelegram = view.findViewById<View>(R.id.overlayCommunityTelegram)
                 ?: throw IllegalStateException("overlayCommunityTelegram is missing.")
             val resizeHandle = view.findViewById<View>(R.id.overlayResizeHandle)
+            val rootPanel = view.findViewById<View>(R.id.overlayRootPanel)
+                ?: throw IllegalStateException("overlayRootPanel is missing.")
 
             // 计算悬浮窗尺寸和位置
             val overlayWidth = dp(appContext, 228)
@@ -215,6 +239,7 @@ object OverlayPreviewManager {
             var downWindowX = 0
             var downWindowY = 0
             var initialWidth = overlayWidth
+            var initialHeight = layoutParams.height
             var isScaling = false
 
             closeButton.setOnClickListener {
@@ -222,7 +247,9 @@ object OverlayPreviewManager {
                 hide("close-button")
             }
 
-            contentPanel.setOnTouchListener { v, event ->
+            // 触摸监听器绑定到根布局（overlayRootPanel），确保所有子区域（包括缩放手柄）的事件都能被捕获。
+            // 使用 rawX/rawY（屏幕绝对坐标）计算偏移，避免嵌套 FrameLayout 导致的事件坐标偏差。
+            rootPanel.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         val clickableIds = setOf(
@@ -232,17 +259,21 @@ object OverlayPreviewManager {
                             R.id.overlayCommunityTelegram,
                             R.id.overlayAlphaSlider,
                             R.id.overlayAutoOpSwitch,
+                            R.id.overlayAutoOpDelaySlider,
                         )
 
-                        val x = event.x.toInt()
-                        val y = event.y.toInt()
+                        // 将 rawX/rawY 转换为相对于 contentPanel 的坐标，用于检测可点击子控件
+                        val contentOffsetX = contentPanel.left.toFloat()
+                        val contentOffsetY = contentPanel.top.toFloat()
+                        val localX = (event.rawX - contentOffsetX).toInt()
+                        val localY = (event.rawY - contentOffsetY).toInt()
                         var isClickableChild = false
 
                         for (clickableId in clickableIds) {
-                            val child = v.findViewById<View>(clickableId) ?: continue
+                            val child = contentPanel.findViewById<View>(clickableId) ?: continue
                             if (child.isClickable && child.visibility == View.VISIBLE) {
-                                if (x >= child.left && x <= child.right &&
-                                    y >= child.top && y <= child.bottom) {
+                                if (localX >= child.left && localX <= child.right &&
+                                    localY >= child.top && localY <= child.bottom) {
                                     isClickableChild = true
                                     break
                                 }
@@ -257,6 +288,7 @@ object OverlayPreviewManager {
                             downWindowX = layoutParams.x
                             downWindowY = layoutParams.y
                             initialWidth = layoutParams.width
+                            initialHeight = layoutParams.height
                             isScaling = false
                             true
                         }
@@ -268,8 +300,8 @@ object OverlayPreviewManager {
 
                         val dragThresholdPx = dp(appContext, 5)
                         if (!isScaling && (Math.abs(dx) > dragThresholdPx || Math.abs(dy) > dragThresholdPx)) {
-                            val panelRight = v.width
-                            val panelBottom = v.height
+                            val panelRight = downRawX + initialWidth
+                            val panelBottom = downRawY + initialHeight
                             val isInResizeCorner = (event.rawX > panelRight - dp(appContext, 48)) &&
                                 (event.rawY > panelBottom - dp(appContext, 48))
 
@@ -279,14 +311,22 @@ object OverlayPreviewManager {
                         }
 
                         if (isScaling && resizeHandle != null) {
+                            // 同时调整宽度和高度（保持纵横比）
                             val newWidth = (initialWidth + dx).coerceIn(
                                 (initialWidth * 0.5).toInt(),
                                 (initialWidth * 1.5).toInt()
                             )
+                            val newHeight = (initialHeight + dy).coerceIn(
+                                (initialHeight * 0.5).toInt(),
+                                (initialHeight * 1.5).toInt()
+                            )
                             layoutParams.width = newWidth
+                            layoutParams.height = newHeight
                         } else {
+                            val screenHeight = appContext.resources.displayMetrics.heightPixels
+                            val maxY = (screenHeight - (initialHeight)).coerceAtLeast(0)
                             layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
-                            layoutParams.y = (downWindowY + dy).coerceAtLeast(0)
+                            layoutParams.y = (downWindowY + dy).coerceIn(0, maxY)
                         }
 
                         try {
@@ -344,7 +384,17 @@ object OverlayPreviewManager {
         }
     }
 
-    /** 隐藏（关闭）悬浮窗预览面板 */
+    /**
+     * 隐藏（关闭）悬浮窗预览面板。
+     *
+     * 清理流程：
+     * 1. 从 WindowManager 中移除 View
+     * 2. 停止前台通知服务
+     * 3. 清除 activeSession 和分析状态
+     *
+     * @param reason 调试用原因说明
+     * @return true 如果成功移除，false 如果 session 为空或移除失败
+     */
     @Synchronized
     fun hide(reason: String = "(none)"): Boolean {
         val session = activeSession
@@ -372,7 +422,22 @@ object OverlayPreviewManager {
 
     // ==================== 自动操作控件绑定 ====================
 
-    /** 绑定自动操作开关和延迟滑块 */
+    /**
+     * 绑定自动操作开关和延迟滑块到 UI 组件。
+     *
+     * 控件列表：
+     * - overlayAutoOpSwitch：SwitchCompat，启用/禁用自动操作
+     * - overlayAutoOpStatus：TextView，显示当前状态文本
+     * - overlayAutoOpDelaySlider：SeekBar（0~50），映射到 0~500ms 延迟
+     * - overlayAutoOpDelayValue：TextView，显示当前延迟值
+     *
+     * 数据持久化：
+     * - 从 SharedPreferences 读取上次保存的 auto_op_enabled 和 auto_op_delay
+     * - 用户修改后通过 apply() 异步写入 SharedPreferences
+     *
+     * 注意：SeekBar 的 onProgressChanged 中使用 fromUser 标志，
+     * 避免恢复设置时触发不必要的 UI 更新。
+     */
     private fun bindAutoOperationControls(
         appContext: Context,
         view: View,
@@ -415,7 +480,14 @@ object OverlayPreviewManager {
         })
     }
 
-    /** 更新自动操作状态文本 */
+    /**
+     * 更新自动操作状态文本。
+     *
+     * 根据 enabled 和 paused 状态显示三种文本之一：
+     * - disabled：自动操作未启用
+     * - paused：自动操作已暂停
+     * - enabled：自动操作运行中
+     */
     private fun updateAutoOpStatus(
         textView: TextView?,
         enabled: Boolean,
@@ -431,7 +503,13 @@ object OverlayPreviewManager {
 
     // ==================== 原有辅助方法 ====================
 
-    /** 绑定悬浮窗当前可用的透明度调节控件 */
+    /**
+     * 绑定透明度调节滑块到 UI 组件。
+     *
+     * SeekBar 范围 0~100，映射到 0.0~1.0 的 alpha 值，
+     * 实时应用到整个悬浮窗 View 的 alpha 属性上。
+     * 用户调整后通过 apply() 写入 SharedPreferences。
+     */
     private fun setupAdjustmentSliders(
         context: Context,
         view: View,
@@ -454,7 +532,14 @@ object OverlayPreviewManager {
         })
     }
 
-    /** 将 SharedPreferences 中保存的调节参数应用到悬浮窗 View 上 */
+    /**
+     * 将 SharedPreferences 中保存的调节参数应用到悬浮窗 View 上。
+     *
+     * 恢复内容：
+     * 1. 透明度（alpha）— 直接设置 view.alpha
+     * 2. 圆角半径（radiusDp）— 转换为 px 后通过 GradientDrawable 设置
+     * 3. 透明度滑块的进度值和显示文本
+     */
     private fun restoreAdjustments(
         context: Context,
         view: View,
@@ -474,12 +559,24 @@ object OverlayPreviewManager {
         alphaValue?.text = "${alphaSlider.progress}%"
     }
 
-    /** dp 转 px */
+    /**
+     * dp 转 px 工具方法。
+     *
+     * @param value dp 值
+     * @return 对应的 px 值（四舍五入）
+     */
     private fun dp(context: Context, value: Int): Int {
         return (value * context.resources.displayMetrics.density + 0.5f).toInt()
     }
 
-    /** 将悬浮窗背景的圆角半径设置为指定值 */
+    /**
+     * 将悬浮窗背景的圆角半径设置为指定值。
+     *
+     * 通过 GradientDrawable.mutate() + setCornerRadii 实现。
+     * 如果背景不是 GradientDrawable（如被其他 drawable 替换），则跳过并记录警告。
+     *
+     * @param radiusPx 圆角半径（像素）
+     */
     private fun applyOverlayCornerRadius(view: View, radiusPx: Int) {
         val drawable = view.background as? GradientDrawable
         if (drawable == null) {

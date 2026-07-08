@@ -1,7 +1,19 @@
+// 火崽崽助手（HZZS）JNI 桥接层 — C++ 分析引擎与 Kotlin UI 层的桥梁。
+//
+// 此文件包含三个 JNI 导出函数：
+// 1. nativeAnalyzeFrame — 分析单帧数据，返回 JSON 格式的 AnalysisResult
+// 2. nativeGetEngineInfo — 返回引擎版本和特性描述
+// 3. nativeRunSelfCheck — 执行自检程序，验证引擎核心逻辑正确性
+// 4. nativeResetEngine — 重置引擎状态机（停止分析时调用）
+//
+// 关键设计决策：
+// - 使用 static 引擎实例（nativeAnalyzeFrame 中），确保跨帧状态持久化
+//   这对于 SceneStateMachine 的连续确认机制至关重要
+// - JSON 序列化采用手动拼接而非 nlohmann/json 库，减少 APK 体积
+// - 所有浮点数直接输出为原生精度，Kotlin 端通过正则提取
+
 #include <jni.h>
-
 #include <android/log.h>
-
 #include <sstream>
 #include <string>
 
@@ -11,6 +23,9 @@ namespace {
 
 /** 日志标签，用于 Android logcat 中过滤 HZZS 相关日志 */
 constexpr const char* kLogTag = "HZZS-Native";
+
+/** 参数数量常量：nativeAnalyzeFrame 共 15 个参数（timestamp + 4 player + 6 hazard + 2 scroll） */
+constexpr int kAnalyzeParamCount = 15;
 
 /**
  * 将 C++ std::string 转换为 JNI jstring。

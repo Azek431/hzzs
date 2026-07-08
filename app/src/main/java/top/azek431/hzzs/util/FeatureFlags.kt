@@ -2,6 +2,11 @@
 //
 // 所有持久化的用户偏好设置集中在此管理。
 // 使用 SharedPreferences 存储，Key 集中定义在此类中。
+//
+// 设计原因：
+// - 避免 SharedPreferences 的 key 散落在各个 Activity/Manager 中
+// - 提供统一的 getter/setter，便于未来迁移到其他存储方案
+// - 默认值集中定义，避免魔法数字
 
 package top.azek431.hzzs.util
 
