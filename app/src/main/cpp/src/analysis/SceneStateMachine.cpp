@@ -31,7 +31,6 @@ SceneMode SceneStateMachine::Update(const SceneObservation& observation) {
     // 遮挡阈值达到时，立即切换到遮挡状态。
     // 不破坏 pending 状态，以便遮挡消失后恢复到之前的场景。
     if (observation.occlusion_confidence >= kOcclusionThreshold) {
-        SceneMode previous = current_scene_;
         current_scene_ = SceneMode::kOccluded;
         return current_scene_;
     }
