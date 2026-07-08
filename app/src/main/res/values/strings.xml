@@ -121,4 +121,10 @@
 
     <!-- 透明度滑块默认显示值 -->
     <string name="overlay_alpha_value_default">100%%</string>
+
+    <!-- 自动操作状态文本 -->
+    <string name="overlay_auto_op_status_disabled">自动操作：已关闭</string>
+    <string name="overlay_auto_op_status_enabled">自动操作：已开启</string>
+    <string name="overlay_auto_op_status_paused">自动操作：已暂停</string>
+
 </resources>
