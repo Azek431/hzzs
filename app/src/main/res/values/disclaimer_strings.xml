@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    免责声明相关字符串资源。
+
+    包含：
+    - 免责声明完整文本（中文）
+    - 按钮标签
+    - 无障碍服务描述
+-->
+<resources>
+
+    <!-- 免责声明页面 -->
+    <string name="disclaimer_title">免责声明与功能设置</string>
+    <string name="disclaimer_agree">我已阅读并同意上述声明</string>
+
+    <!-- 免责声明正文 -->
+    <string name="disclaimer_content"><![CDATA[
+<strong>火崽崽助手（HZZS）免责声明</strong>
+
+阅读本声明即表示您同意以下条款。如果您不同意任何条款，请勿使用本软件的自动操作功能。
+
+<strong>一、用途限制</strong>
+1. 本工具仅供个人学习、技术研究和非商业用途使用。
+2. 本工具旨在帮助玩家了解游戏画面分析技术的实现原理，不涉及任何破坏游戏公平性的目的。
+
+<strong>二、风险提示</strong>
+1. 自动操作功能（包括但不限于自动点击、自动跳跃等）可能违反您所使用的游戏的服务条款或使用协议。
+2. 使用自动操作功能可能导致您的游戏账号受到处罚，包括但不限于警告、临时封禁、永久封禁等。
+3. 开发者不对任何因使用本工具而导致的游戏内处罚、账号损失或其他后果承担责任。
+4. 使用者需自行承担使用本工具的全部风险。
+
+<strong>三、数据隐私</strong>
+1. 所有数据处理均在本地设备完成，不上传任何游戏画面、截图、日志或设备信息至远程服务器。
+2. 本工具不会收集任何个人身份信息。
+3. 用户可随时在设备设置中清除本工具的所有本地数据。
+
+<strong>四、合规要求</strong>
+1. 使用者必须遵守当地法律法规。
+2. 禁止将本工具用于商业目的。
+3. 禁止将本工具的源代码、编译产物或相关技术传播给第三方用于违反本声明的目的。
+
+<strong>五、知识产权</strong>
+1. 本工具的源代码遵循 MIT 开源许可证。
+2. 本工具不代表、不隶属于任何第三方游戏平台或服务提供商。
+
+<strong>六、其他</strong>
+1. 本声明可能随时更新，更新后的声明将在应用内公示。
+2. 继续使用本工具即表示您接受更新后的声明。
+
+<strong>更新日期：2025 年</strong>
+]]></string>
+
+    <!-- 无障碍服务描述 -->
+    <string name="accessibility_service_description">火崽崽助手自动操作服务。仅在用户明确授权且主动开启时使用。</string>
+
+    <!-- 自动操作相关 -->
+    <string name="overlay_auto_op_label">自动操作</string>
+    <string name="overlay_auto_op_delay_label">操作延迟</string>
+
+    <!-- 首页新增 -->
+    <string name="action_disclaimer_settings">免责声明与设置</string>
+    <string name="section_permission_status">权限与设备状态</string>
+    <string name="permission_overlay_title">悬浮窗权限</string>
+    <string name="permission_overlay_granted">已授权</string>
+    <string name="permission_overlay_denied">未授权</string>
+    <string name="permission_accessibility_title">无障碍权限</string>
+    <string name="permission_accessibility_granted">已授权</string>
+    <string name="permission_accessibility_denied">未授权</string>
+
+</resources>

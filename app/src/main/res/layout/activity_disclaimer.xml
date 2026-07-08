@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    免责声明页面布局。
+
+    结构：
+    1. AppBarLayout → 标题栏（带返回按钮）
+    2. NestedScrollView → 滚动声明文本
+    3. 底部固定操作栏 → 滚动进度 + 同意按钮
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_background">
+
+    <!-- 顶部标题栏 -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_background"
+        app:elevation="0dp">
+
+        <Toolbar
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:title="@string/disclaimer_title" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- 滚动声明文本 -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/disclaimerScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="?attr/actionBarSize"
+        android:layout_marginBottom="80dp"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/disclaimerText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/disclaimer_content"
+            android:textColor="@color/on_surface"
+            android:textSize="14sp"
+            android:lineSpacingExtra="4dp" />
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- 底部固定操作栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="@color/surface">
+
+        <!-- 滚动进度提示 -->
+        <TextView
+            android:id="@+id/scrollProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:text="0%"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="11sp" />
+
+        <!-- 同意按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAgree"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/disclaimer_agree"
+            android:enabled="false"
+            app:cornerRadius="@dimen/radius_medium" />
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
