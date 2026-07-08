@@ -359,31 +359,6 @@
       }
     },
     {
-      "label": "📦 [HZZS] 构建 Release APK（仅验证，不发布）",
-      "detail": "只验证 Release 构建是否能通过，不代表正式发布包。正式发布仍需要确认签名、混淆、资源压缩和版本号。",
-      "type": "shell",
-      "command": ".\\gradlew.bat",
-      "args": [
-        "--console=plain",
-        ":app:assembleRelease"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": [],
-      "runOptions": {
-        "instanceLimit": 1,
-        "instancePolicy": "warn"
-      },
-      "presentation": {
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "clear": true,
-        "showReuseMessage": false
-      }
-    },
-    {
       "label": "🗑️ [HZZS] 卸载应用（会清除应用数据）",
       "detail": "从连接的 Android 设备卸载 HZZS。注意：会清除该应用在设备上的本地数据、权限状态和缓存。实际执行：adb uninstall top.azek431.hzzs",
       "type": "shell",
