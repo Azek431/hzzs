@@ -154,61 +154,33 @@ class AutoOperationService : AccessibilityService() {
     }
 
     /** 注入按下事件（兼容 Android 12 以下） */
-    @Suppress("DEPRECATION")
     private fun injectDownEvent(x: Float, y: Float) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+：使用 dispatchGesture 替代已废弃的 injectInputEvent
-            val gesture = GestureDescription.Builder()
-                .addStroke(
-                    GestureDescription.StrokeDescription(
-                        Path().apply { moveTo(x, y) },
-                        0L,
-                        10L
-                    )
+        // 由于 minSdk=24，统一使用 dispatchGesture
+        val gesture = GestureDescription.Builder()
+            .addStroke(
+                GestureDescription.StrokeDescription(
+                    Path().apply { moveTo(x, y) },
+                    0L,
+                    10L
                 )
-                .build()
-            dispatchGesture(gesture, null, null)
-            return
-        }
-
-        // Android 12 以下：使用已废弃 API（降级处理）
-        val event = MotionEvent.obtain(
-            SystemClock.uptimeMillis(),
-            SystemClock.uptimeMillis(),
-            MotionEvent.ACTION_DOWN,
-            x.toInt(), y.toInt(), 1f
-        )
-        @Suppress("DEPRECATION")
-        injectInputEvent(event, AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_END)
-        event.recycle()
+            )
+            .build()
+        dispatchGesture(gesture, null, null)
     }
 
     /** 注入抬起事件（兼容 Android 12 以下） */
-    @Suppress("DEPRECATION")
     private fun injectUpEvent(x: Float, y: Float) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val gesture = GestureDescription.Builder()
-                .addStroke(
-                    GestureDescription.StrokeDescription(
-                        Path().apply { moveTo(x, y) },
-                        0L,
-                        10L
-                    )
+        // 由于 minSdk=24，统一使用 dispatchGesture
+        val gesture = GestureDescription.Builder()
+            .addStroke(
+                GestureDescription.StrokeDescription(
+                    Path().apply { moveTo(x, y) },
+                    0L,
+                    10L
                 )
-                .build()
-            dispatchGesture(gesture, null, null)
-            return
-        }
-
-        val event = MotionEvent.obtain(
-            SystemClock.uptimeMillis(),
-            SystemClock.uptimeMillis() + 10,
-            MotionEvent.ACTION_UP,
-            x.toInt(), y.toInt(), 1f
-        )
-        @Suppress("DEPRECATION")
-        injectInputEvent(event, AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_END)
-        event.recycle()
+            )
+            .build()
+        dispatchGesture(gesture, null, null)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
