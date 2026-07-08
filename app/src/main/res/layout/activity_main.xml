@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    首页主布局：深色 Material 3 风格（实际为浅色暖白主题 #FFF8F6）。
+
+    整体结构：
+    1. AppBarLayout → 顶部标题栏（应用名称 + 副标题）
+    2. NestedScrollView → 可滚动内容区
+       ├─ 状态卡片：准备中 Chip + 英雄文案 + 开发计划按钮 + 悬浮窗开关按钮
+       ├─ 功能规划区："功能规划"标题 + 三个功能卡片（实时分析/本局战报/校准设置）
+       ├─ 分隔线
+       ├─ 社区链接页脚（include view_community_footer）
+       └─ 开发者署名 + 版本号
+-->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -7,12 +19,14 @@
     android:layout_height="match_parent"
     android:background="@color/surface_background">
 
+    <!-- 顶部标题栏区域 -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface_background"
         app:elevation="0dp">
 
+        <!-- 标题栏容器：应用名称 + 副标题 -->
         <LinearLayout
             android:id="@+id/topBarContainer"
             android:layout_width="match_parent"
@@ -24,6 +38,7 @@
             android:paddingEnd="@dimen/page_padding_horizontal"
             android:paddingBottom="@dimen/top_bar_padding_bottom">
 
+            <!-- 应用名称："火崽崽助手" -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -32,6 +47,7 @@
                 android:textSize="@dimen/text_app_title"
                 android:textStyle="bold" />
 
+            <!-- 副标题："HZZS · 开发预览" -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -43,6 +59,7 @@
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
+    <!-- 可滚动内容区：承载首页所有内容（状态卡片、功能规划、社区链接等） -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/homeScrollView"
         android:layout_width="match_parent"
@@ -60,6 +77,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- 状态概览卡片：包含准备中 Chip、英雄文案、两个操作按钮 -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -75,6 +93,7 @@
                     android:orientation="vertical"
                     android:padding="@dimen/card_padding">
 
+                    <!-- 状态标识 Chip："准备中"（黄色系） -->
                     <com.google.android.material.chip.Chip
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -87,6 +106,7 @@
                         app:chipStrokeColor="@color/status_preparing_outline"
                         app:chipStrokeWidth="@dimen/stroke_width" />
 
+                    <!-- 英雄标题："跑酷实时分析" -->
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -96,6 +116,7 @@
                         android:textSize="@dimen/text_hero_title"
                         android:textStyle="bold" />
 
+                    <!-- 英雄描述：说明当前处于早期开发阶段 -->
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -105,6 +126,7 @@
                         android:textColor="@color/on_surface_variant"
                         android:textSize="@dimen/text_body" />
 
+                    <!-- 开发计划按钮：点击弹出开发计划对话框 -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnDevelopmentPlan"
                         style="@style/Widget.Material3.Button"
@@ -121,6 +143,7 @@
                         app:iconPadding="@dimen/space_sm"
                         app:iconTint="@color/brand_on_primary" />
 
+                    <!-- 悬浮窗开关按钮：点击打开/关闭悬浮窗面板 -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnOverlayExecution"
                         style="@style/Widget.Material3.Button.OutlinedButton"
@@ -400,6 +423,7 @@
                 android:paddingTop="@dimen/space_xl"
                 android:paddingBottom="@dimen/space_sm">
 
+                <!-- 开发者署名：Azek431 · 独立开发 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -407,6 +431,7 @@
                     android:textColor="@color/on_surface_variant"
                     android:textSize="@dimen/text_footer" />
 
+                <!-- 版本号：当前版本 0.1.0 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

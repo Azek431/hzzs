@@ -9,6 +9,7 @@
     - 悬浮窗面板：悬浮窗内的品牌名、状态、按钮文本
     - 社区链接：QQ 群和 Telegram 频道的标签、复制提示
     - 分析执行：悬浮窗内"开始执行/结束执行"按钮文本
+    - HUD 渲染器：HUD 面板标签和提示文本
     - 调节控件：透明度、尺寸、圆角滑块标签
     - 悬浮窗调整大小：无障碍描述（contentDescription）
 
@@ -56,59 +57,38 @@
     <string name="action_close_overlay">关闭</string>
 
     <!-- Overlay panel text -->
-    <string name="overlay_panel_title">悬浮执行</string>
-    <string name="overlay_panel_status">准备中</string>
-    <string name="overlay_panel_description">执行引擎暂未接入</string>
-    <string name="overlay_panel_note">当前仅验证悬浮控制面板与权限流程。</string>
-
     <string name="overlay_preview_brand">HZZS</string>
     <string name="overlay_preview_status">悬浮窗预览</string>
-    <string name="overlay_preview_description">当前仅验证悬浮球显示、拖动与关闭。</string>
-    <string name="overlay_preview_hint">拖动顶部区域移动，点击右上角关闭。</string>
     <string name="overlay_preview_open">打开悬浮窗</string>
     <string name="overlay_preview_close">关闭悬浮窗</string>
     <string name="overlay_preview_open_failed">悬浮窗未能打开，请检查授权状态。</string>
     <string name="overlay_permission_go_to_settings">前往授权</string>
     <string name="overlay_preview_product_name">火崽崽助手</string>
-    <string name="overlay_preview_drag_hint">拖动顶部区域移动</string>
-    <string name="community_card_eyebrow">交流与开发动态</string>
-    <string name="community_card_title">HZZS 项目交流与 Azek431 动态</string>
-    <string name="community_card_description">QQ群用于 HZZS 的测试交流、使用反馈和问题讨论；Telegram 主频道会同步 HZZS 与更多独立项目的开发动态。</string>
-    <string name="community_qq_label">HZZS QQ 交流群</string>
-    <string name="community_telegram_label">Azek431 主频道</string>
-    <string name="community_qq_button">HZZS QQ 交流群 · 130330601 · 点击复制</string>
-    <string name="community_telegram_button">Azek431 主频道 · @AzekMain · 点击复制</string>
-    <string name="community_card_hint">QQ群聚焦 HZZS；主频道分享更多项目。点击任意入口即可复制。</string>
-    <string name="community_qq_copied">HZZS QQ 群号已复制：130330601</string>
-    <string name="community_telegram_copied">Azek431 主频道已复制：@AzekMain</string>
-    <string name="community_copy_failed">复制失败，请手动记录社区信息。</string>
-    <string name="overlay_community_title">交流与开发动态</string>
-    <string name="overlay_community_qq">HZZS QQ 交流群 · 130330601</string>
-    <string name="overlay_community_telegram">Azek431 主频道 · @AzekMain</string>
-    <string name="overlay_community_hint">QQ群用于 HZZS 交流；主频道分享更多项目动态</string>
-    <string name="overlay_community_qq_copied">HZZS QQ 群号已复制：130330601</string>
-    <string name="overlay_community_telegram_copied">Azek431 主频道已复制：@AzekMain</string>
-    <string name="community_footer_heading">交流与动态</string>
-    <string name="community_footer_qq">HZZS QQ 交流群 · 130330601</string>
-    <string name="community_footer_telegram">Azek431 主频道 · @AzekMain</string>
-    <string name="community_qq_content_description">点击加入火崽崽助手 QQ 交流群，群号 130330601</string>
-    <string name="community_telegram_content_description">点击打开 Azek431 Telegram 主频道</string>
-    <string name="community_open_fallback">无法直接打开，链接已复制到剪贴板。</string>
-    <string name="community_open_failed">链接打开失败，请稍后重试。</string>
+    <string name="overlay_close_button">×</string>
+
+    <!-- 分析执行：悬浮窗内"开始执行/结束执行"按钮文本 -->
     <string name="overlay_analysis_start">开始执行</string>
     <string name="overlay_analysis_running">执行中</string>
     <string name="overlay_analysis_stop">点击结束执行</string>
-    <string name="overlay_analysis_started">已开始执行，等待接入数据源。</string>
+    <string name="overlay_analysis_started">已开始执行，模拟数据驱动分析引擎。</string>
     <string name="overlay_analysis_stopped">已结束执行。</string>
 
-    <!-- Overlay adjustments -->
+    <!-- HUD 渲染器：HUD 面板标签和提示文本 -->
+    <string name="hud_scene_label">场景：</string>
+    <string name="hud_pose_label">姿态：</string>
+    <string name="hud_jump_stage_label">跳段：</string>
+    <string name="hud_hazards_label">危险：</string>
+    <string name="hud_collectibles_label">收藏：</string>
+    <string name="hud_prompt_waiting">等待分析…</string>
+    <string name="hud_no_prompt">无提示</string>
+
+    <!-- 调节控件：透明度、尺寸、圆角滑块标签 -->
     <string name="overlay_adjust_alpha_label">透明度</string>
     <string name="overlay_adjust_scale_label">尺寸</string>
     <string name="overlay_adjust_radius_label">圆角</string>
-
     <string name="overlay_adjust_window_hint">拖动窗口边缘或四角调整大小</string>
 
-    <!-- Overlay resize grips (contentDescription for accessibility) -->
+    <!-- 悬浮窗调整大小：无障碍描述（contentDescription） -->
     <string name="overlay_resize_left">左侧调整大小</string>
     <string name="overlay_resize_top">上侧调整大小</string>
     <string name="overlay_resize_right">右侧调整大小</string>
@@ -117,17 +97,28 @@
     <string name="overlay_resize_top_right">右上角调整大小</string>
     <string name="overlay_resize_bottom_left">左下角调整大小</string>
     <string name="overlay_resize_bottom_right">右下角调整大小</string>
-
-    <!-- Overlay close button label -->
-    <string name="overlay_close_button">×</string>
-
-    <!-- Overlay alpha value initial display -->
-    <string name="overlay_alpha_value_default">100%%</string>
-
-    <!-- Overlay resize handle content description -->
     <string name="overlay_resize_handle_content_description">长按拖动调整悬浮窗大小</string>
 
-    <!-- Settings / fallback messages -->
-    <string name="settings_open_failed">无法打开系统授权页面，请前往系统设置手动授权。</string>
+    <!-- 悬浮窗社区链接按钮文本 -->
+    <string name="overlay_community_qq">加入 QQ 群</string>
+    <string name="overlay_community_telegram">Telegram 频道</string>
+
+    <!-- 社区链接：QQ 群和 Telegram 频道的标签、复制提示 -->
+    <string name="community_qq_label">HZZS QQ 交流群</string>
+    <string name="community_telegram_label">Azek431 主频道</string>
+    <string name="community_open_fallback">无法直接打开，链接已复制到剪贴板。</string>
     <string name="community_copy_link_failed">复制链接失败，请手动复制: %s</string>
+
+    <!-- 页脚社区链接 -->
+    <string name="community_footer_heading">交流与动态</string>
+    <string name="community_footer_qq">HZZS QQ 交流群 · 130330601</string>
+    <string name="community_footer_telegram">Azek431 主频道 · @AzekMain</string>
+    <string name="community_qq_content_description">点击加入火崽崽助手 QQ 交流群，群号 130330601</string>
+    <string name="community_telegram_content_description">点击打开 Azek431 Telegram 主频道</string>
+
+    <!-- 设置 / 回退消息 -->
+    <string name="settings_open_failed">无法打开系统授权页面，请前往系统设置手动授权。</string>
+
+    <!-- 透明度滑块默认显示值 -->
+    <string name="overlay_alpha_value_default">100%%</string>
 </resources>
