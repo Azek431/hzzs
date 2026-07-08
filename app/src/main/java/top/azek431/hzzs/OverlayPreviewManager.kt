@@ -65,19 +65,25 @@ object OverlayPreviewManager {
     /**
      * 悬浮窗内数据分析 UI 的状态枚举。
      *
-     * 当前仅有两个状态，用于控制"开始执行/点击结束执行"按钮的文本和语义：
+     * 当前有两个状态，用于控制"开始执行/点击结束执行"按钮的文本和语义：
      * - IDLE：空闲状态，按钮显示"开始执行"，点击后进入 EXECUTING
      * - EXECUTING：执行中状态，按钮显示"点击结束执行"，点击后回到 IDLE
      *
-     * 注意：当前"执行"仅为 UI 占位，尚未接入真实的屏幕采集和分析引擎。
+     * "执行"的含义：
+     * - 启动模拟帧生成循环
+     * - 驱动 C++ 分析引擎
+     * - 将分析结果渲染到 HUD 面板
      */
     private enum class AnalysisUiState {
         /** 空闲：未在执行任何分析任务 */
         IDLE,
 
-        /** 执行中：已启动分析（当前仅改变 UI 状态） */
+        /** 执行中：已启动 HUD 渲染器 */
         EXECUTING,
     }
+
+    /** HUD 渲染器实例，负责模拟帧生成、JNI 调用和 UI 更新 */
+    private var hudRenderer: OverlayHUDRenderer? = null
 
     /**
      * 悬浮窗会话的数据类。
@@ -261,10 +267,10 @@ object OverlayPreviewManager {
                 y = dp(appContext, 108)
             }
 
-            // 绑定开始/停止分析按钮：切换数据分析状态
+            // 绑定开始/停止分析按钮：切换数据分析状态并驱动 HUD 渲染器
             startAnalysisButton.setOnClickListener {
                 when (analysisUiState) {
-                    // 从空闲 → 执行中：切换按钮文本和状态
+                    // 从空闲 → 执行中：启动 HUD 渲染器
                     AnalysisUiState.IDLE -> {
                         analysisUiState = AnalysisUiState.EXECUTING
 
@@ -289,9 +295,12 @@ object OverlayPreviewManager {
                             R.string.overlay_analysis_started,
                             Toast.LENGTH_SHORT,
                         ).show()
+
+                        // 启动 HUD 渲染器
+                        hudRenderer?.start()
                     }
 
-                    // 从执行中 → 空闲：恢复按钮文本和状态
+                    // 从执行中 → 空闲：停止 HUD 渲染器
                     AnalysisUiState.EXECUTING -> {
                         analysisUiState = AnalysisUiState.IDLE
 
@@ -316,6 +325,9 @@ object OverlayPreviewManager {
                             R.string.overlay_analysis_stopped,
                             Toast.LENGTH_SHORT,
                         ).show()
+
+                        // 停止 HUD 渲染器
+                        hudRenderer?.stop()
                     }
                 }
             }
@@ -391,9 +403,21 @@ object OverlayPreviewManager {
                             R.id.overlayAlphaSlider,
                         )
 
-                        val touchedView = event.targetView
-                        val isClickableChild = touchedView != null &&
-                            clickableIds.contains(touchedView.id)
+                        // 通过坐标判断触摸到了哪个子 View（MotionEvent 没有 targetView）
+                        val x = event.x.toInt()
+                        val y = event.y.toInt()
+                        var isClickableChild = false
+
+                        for (clickableId in clickableIds) {
+                            val child = v.findViewById<View>(clickableId) ?: continue
+                            if (child.isClickable && child.visibility == View.VISIBLE) {
+                                if (x >= child.left && x <= child.right &&
+                                    y >= child.top && y <= child.bottom) {
+                                    isClickableChild = true
+                                    break
+                                }
+                            }
+                        }
 
                         if (isClickableChild) {
                             // 触摸的是可点击控件，不拦截，让 onClick 正常触发
@@ -472,6 +496,11 @@ object OverlayPreviewManager {
 
             // 恢复上次保存的调节参数（透明度、圆角等）
             restoreAdjustments(appContext, view)
+
+            // 初始化 HUD 渲染器并绑定视图引用
+            hudRenderer = OverlayHUDRenderer(appContext).apply {
+                bindViews(view)
+            }
 
             // 将悬浮窗添加到 WindowManager，此时窗口在屏幕上可见
             try {

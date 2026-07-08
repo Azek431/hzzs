@@ -31,7 +31,10 @@ jstring ToJString(JNIEnv* env, const std::string& value) {
 /**
  * JNI 导出方法：分析单帧模拟数据并返回结构化结果。
  *
- * 由 Kotlin 端 NativeAnalysisBridge.analyzeFrame() 调用。
+ * 预留接口：当前 Kotlin 端尚未调用此方法。接入屏幕采集后，Kotlin 端需
+ * 添加对应的 external fun analyzeFrame(...) 并通过 NativeAnalysisBridge
+ * 暴露给上层 UI 调用。
+ *
  * 使用静态持久化引擎实例，确保多帧确认机制正常工作（场景切换、动作提示稳定）。
  *
  * 参数说明：
@@ -283,4 +286,20 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
     );
 
     return ToJString(env, message);
+}
+
+/**
+ * JNI 导出方法：重置分析引擎状态。
+ *
+ * 在"结束执行"时调用，清除所有子模块的状态机。
+ */
+extern "C"
+JNIEXPORT void JNICALL
+Java_top_azek431_hzzs_NativeAnalysisBridge_nativeResetEngine(
+    JNIEnv*,
+    jobject
+) {
+    static hzzs::analysis::NativeAnalysisEngine engine{};
+    engine.Reset();
+    __android_log_print(ANDROID_LOG_DEBUG, kLogTag, "[JNI] engine reset.");
 }
