@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
   "type": "shell",
-  "command": ".\\gradlew.bat",
+  "command": ".\gradlew.bat",
   "options": {
     "cwd": "${workspaceFolder}"
   },
@@ -43,17 +43,14 @@
     },
     {
       "label": "▶️ [HZZS] 启动已安装应用",
-      "type": "process",
-      "command": "pwsh.exe",
+      "type": "shell",
+      "command": "adb",
       "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "Launch"
+        "shell",
+        "am",
+        "start",
+        "-n",
+        "com.hzzs.app/.MainActivity"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -66,23 +63,11 @@
     },
     {
       "label": "🚀 [HZZS] 构建、安装并启动 Debug",
-      "type": "process",
-      "command": "pwsh.exe",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "BuildInstallLaunch"
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "📲 [HZZS] 构建并安装 Debug APK",
+        "▶️ [HZZS] 启动已安装应用"
       ],
-      "problemMatcher": [],
-      "runOptions": {
-        "instanceLimit": 1,
-        "instancePolicy": "warn"
-      },
       "presentation": {
         "reveal": "always",
         "focus": false,
@@ -93,17 +78,11 @@
     },
     {
       "label": "🩺 [HZZS] 检查 Android 设备与应用状态",
-      "type": "process",
-      "command": "pwsh.exe",
+      "type": "shell",
+      "command": "adb",
       "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "Health"
+        "devices",
+        "-l"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -116,17 +95,11 @@
     },
     {
       "label": "🧽 [HZZS] 清空设备运行日志",
-      "type": "process",
-      "command": "pwsh.exe",
+      "type": "shell",
+      "command": "adb",
       "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "ClearLogs"
+        "logcat",
+        "-c"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -139,17 +112,12 @@
     },
     {
       "label": "🐞 [HZZS] 监听应用运行日志",
-      "type": "process",
-      "command": "pwsh.exe",
+      "type": "shell",
+      "command": "adb",
       "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "Watch"
+        "logcat",
+        "-v",
+        "time"
       ],
       "problemMatcher": [],
       "runOptions": {
@@ -166,23 +134,12 @@
     },
     {
       "label": "🧪 [HZZS] 真机诊断（构建、安装、启动并持续记录）",
-      "type": "process",
-      "command": "pwsh.exe",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "Diagnose"
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "📲 [HZZS] 构建并安装 Debug APK",
+        "▶️ [HZZS] 启动已安装应用",
+        "🐞 [HZZS] 监听应用运行日志"
       ],
-      "problemMatcher": [],
-      "runOptions": {
-        "instanceLimit": 1,
-        "instancePolicy": "warn"
-      },
       "presentation": {
         "reveal": "always",
         "focus": true,
@@ -193,17 +150,11 @@
     },
     {
       "label": "📤 [HZZS] 导出当前诊断快照",
-      "type": "process",
-      "command": "pwsh.exe",
+      "type": "shell",
+      "command": "adb",
       "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\HzzsAndroidTools.ps1",
-        "-Mode",
-        "ExportSnapshot"
+        "logcat",
+        "-d"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -313,17 +264,11 @@
     },
     {
       "label": "🔌 [HZZS] 一键调试准备（构建+安装+启动+转发JDWP）",
-      "type": "process",
-      "command": "pwsh.exe",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\.vscode\\scripts\\DebugSetup.ps1"
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "📲 [HZZS] 构建并安装 Debug APK",
+        "▶️ [HZZS] 启动已安装应用"
       ],
-      "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "focus": true,
@@ -337,7 +282,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "📲 [HZZS] 构建并安装 Debug APK",
-        "🚀 [HZZS] 构建、安装并启动 Debug"
+        "▶️ [HZZS] 启动已安装应用"
       ],
       "presentation": {
         "reveal": "always",
