@@ -165,10 +165,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 每次活动回到前台时调用（例如从设置页面返回）。
+     * 每次活动回到前台时调用（例如从系统设置页面返回）。
      *
      * 为什么需要在 onResume 中刷新按钮文本？
-     * - 用户可能从系统设置页面手动开启了悬浮窗
+     * - 用户可能从系统设置页面手动开启了悬浮窗权限
      * - 回到主页后，按钮应显示"关闭悬浮窗"而非"打开悬浮窗"
      * - 如果不调用 refreshOverlayButton()，按钮文本会与实际情况不一致
      *
@@ -176,6 +176,7 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
+        // 从后台/设置页返回时，刷新悬浮窗按钮文本以反映最新状态
         refreshOverlayButton()
     }
 
