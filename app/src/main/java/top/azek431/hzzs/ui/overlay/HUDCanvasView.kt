@@ -374,10 +374,10 @@ class HUDCanvasView @JvmOverloads constructor(
         )
 
         // 中心文字
-        var textP = Paint(textPaint).apply {
-            textSize = 8f
-            color = Color.WHITE
-            textAlign = Paint.Align.CENTER
+        val textP = Paint(textPaint).apply {
+            this.textSize = 8f
+            this.color = Color.WHITE
+            this.textAlign = Paint.Align.CENTER
         }
         c.drawText("${(confidenceLevel * 100).toInt()}%", cx, cy + 3f, textP)
     }
