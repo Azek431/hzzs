@@ -8,40 +8,15 @@
 package top.azek431.hzzs.util
 
 import android.graphics.Paint
+import top.azek431.hzzs.model.RectF
 
 // ==================== RectF 对象池 ====================
+// 注意：RectF 是 data class（不可变），对象池复用会导致状态污染，
+// 因此改为直接创建新实例。GC 对短生命周期小对象的回收成本很低。
 
-/**
- * RectF 对象池。
- *
- * 避免每帧创建新 RectF 导致 GC 压力。
- * 池大小限制为 32，超出时释放回池。
- */
-object RectFPool {
-    private val pool = ArrayDeque<top.azek431.hzzs.RectF>()
-    private const val MAX_SIZE = 32
-
-    /** 从池中获取或创建新的 RectF */
-    fun acquire(left: Float, top: Float, right: Float, bottom: Float): top.azek431.hzzs.RectF {
-        return pool.poll()?.apply {
-            this.left = left
-            this.top = top
-            this.right = right
-            this.bottom = bottom
-        } ?: top.azek431.hzzs.RectF(left, top, right, bottom)
-    }
-
-    /** 归还 RectF 到池中 */
-    fun release(rect: top.azek431.hzzs.RectF) {
-        if (pool.size < MAX_SIZE) {
-            pool.add(rect)
-        }
-    }
-
-    /** 清空池 */
-    fun clear() {
-        pool.clear()
-    }
+/** 创建一个 RectF 实例 */
+fun newRectF(left: Float, top: Float, right: Float, bottom: Float): RectF {
+    return RectF(left, top, right, bottom)
 }
 
 // ==================== Paint 对象池 ====================

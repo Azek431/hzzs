@@ -25,7 +25,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.MotionEvent
-import android.view.MotionEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlin.math.cos
@@ -177,10 +176,10 @@ class AutoOperationService : AccessibilityService() {
             SystemClock.uptimeMillis(),
             SystemClock.uptimeMillis(),
             MotionEvent.ACTION_DOWN,
-            x, y, 1f
+            x.toInt(), y.toInt(), 1f
         )
         @Suppress("DEPRECATION")
-        injectInputEvent(event, ACCESSIBILITY_EVENT_MODE_SYNCHRONOUS)
+        injectInputEvent(event, AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_END)
         event.recycle()
     }
 
@@ -205,10 +204,10 @@ class AutoOperationService : AccessibilityService() {
             SystemClock.uptimeMillis(),
             SystemClock.uptimeMillis() + 10,
             MotionEvent.ACTION_UP,
-            x, y, 1f
+            x.toInt(), y.toInt(), 1f
         )
         @Suppress("DEPRECATION")
-        injectInputEvent(event, ACCESSIBILITY_EVENT_MODE_SYNCHRONOUS)
+        injectInputEvent(event, AccessibilityEvent.TYPE_TOUCH_EXPLORATION_GESTURE_END)
         event.recycle()
     }
 
