@@ -126,4 +126,8 @@
 
     <!-- Overlay resize handle content description -->
     <string name="overlay_resize_handle_content_description">长按拖动调整悬浮窗大小</string>
+
+    <!-- Settings / fallback messages -->
+    <string name="settings_open_failed">无法打开系统授权页面，请前往系统设置手动授权。</string>
+    <string name="community_copy_link_failed">复制链接失败，请手动复制: %s</string>
 </resources>
