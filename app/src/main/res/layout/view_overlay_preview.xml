@@ -271,7 +271,6 @@
                 </LinearLayout>
 
                 <!-- 分析执行按钮：切换"开始执行"/"点击结束执行"状态 -->
-                <!-- 当前为占位按钮，点击仅切换 UI 状态，不接入实际分析引擎 -->
                 <TextView
                     android:id="@+id/overlayStartAnalysis"
                     android:layout_width="match_parent"
@@ -286,6 +285,182 @@
                     android:textColor="#FF30151E"
                     android:textSize="13sp"
                     android:textStyle="bold" />
+
+                <!-- HUD 信息区域（执行中可见） -->
+                <LinearLayout
+                    android:id="@+id/overlayHudContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- Canvas 绘制区：模拟游戏画面，标注玩家和危险物 -->
+                    <top.azek431.hzzs.HUDCanvasView
+                        android:id="@+id/overlayHudCanvas"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:background="#1AFFFFFF" />
+
+                    <!-- 场景模式 + 角色姿态行 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="@string/hud_scene_label"
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudSceneText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:includeFontPadding="false"
+                            android:text="--"
+                            android:textColor="#FFFFC8D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="@string/hud_pose_label"
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudPoseText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:includeFontPadding="false"
+                            android:text="--"
+                            android:textColor="#FFFFC8D7"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- 跳跃阶段 + 危险物数量行 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="跳段："
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudJumpStageText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:includeFontPadding="false"
+                            android:text="0"
+                            android:textColor="#FFFFC8D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="危险："
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudHazardsText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:includeFontPadding="false"
+                            android:text="0"
+                            android:textColor="#FFFFC8D7"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- 收藏物数量行 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text="收藏："
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="9sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudCollectiblesText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:includeFontPadding="false"
+                            android:text="0"
+                            android:textColor="#FFFFC8D7"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- HUD 动作提示行（高亮显示） -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_overlay_analysis_button"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp">
+
+                        <TextView
+                            android:id="@+id/overlayHudPromptIcon"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:includeFontPadding="false"
+                            android:text=""
+                            android:textColor="#FFFFD9E3"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/overlayHudPromptText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:includeFontPadding="false"
+                            android:text="--"
+                            android:textColor="#FF30151E"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/overlayHudEtaText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:includeFontPadding="false"
+                            android:text=""
+                            android:textColor="#FFB1C4D7"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <!-- 分隔线 -->
                 <View
