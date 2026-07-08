@@ -347,7 +347,7 @@ class MainActivity : AppCompatActivity() {
                 this,
                 stringOrFallback(
                     "overlay_preview_open_failed",
-                    "悬浮窗未能打开，请检查授权状态。",
+                    getString(R.string.overlay_preview_open_failed),
                 ),
                 Toast.LENGTH_SHORT,
             ).show()
@@ -424,7 +424,7 @@ class MainActivity : AppCompatActivity() {
                     // 某些设备可能不支持此 Intent action，给出降级提示
                     Toast.makeText(
                         this,
-                        "无法打开系统授权页面，请前往系统设置手动授权。",
+                        getString(R.string.settings_open_failed),
                         Toast.LENGTH_LONG,
                     ).show()
                 }
@@ -485,7 +485,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage(
                 stringOrFallback(
                     "development_plan_message",
-                    "1）界面与导航\n\n2）权限与设备检查\n\n3）跑酷像素分析\n\n4）实时 HUD 与本局战报\n\n5）历史数据与校准",
+                    "1. 界面与导航\n2. 权限与设备检查\n3. 跑酷像素分析\n4. 实时 HUD 与本局战报\n5. 历史数据与校准",
                 ),
             )
             .setPositiveButton(

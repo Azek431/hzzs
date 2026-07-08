@@ -28,6 +28,9 @@ object NativeAnalysisBridge {
     /** C++ 共享库名称（不含 lib 前缀和 .so 后缀） */
     private const val LIBRARY_NAME = "hzzs_native"
 
+    /** 库不可用时的统一错误消息模板 */
+    private const val UNAVAILABLE_TEMPLATE = "Native library unavailable: %s"
+
     /**
      * 尝试加载 C++ 共享库，捕获任何加载异常。
      *
@@ -71,7 +74,7 @@ object NativeAnalysisBridge {
             nativeGetEngineInfo()
         } else {
             // 库加载失败，返回错误描述
-            "Native library unavailable: ${error.javaClass.simpleName}"
+            String.format(UNAVAILABLE_TEMPLATE, error.javaClass.simpleName)
         }
     }
 
@@ -95,7 +98,7 @@ object NativeAnalysisBridge {
             nativeRunSelfCheck()
         } else {
             // 库加载失败，返回错误描述
-            "Native library unavailable: ${error.javaClass.simpleName}"
+            String.format(UNAVAILABLE_TEMPLATE, error.javaClass.simpleName)
         }
     }
 
