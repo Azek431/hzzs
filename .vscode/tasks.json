@@ -1,24 +1,17 @@
 {
   "version": "2.0.0",
-  "type": "shell",
-  "command": ".\gradlew.bat",
-  "options": {
-    "cwd": "${workspaceFolder}"
-  },
-  "presentation": {
-    "reveal": "always",
-    "focus": false,
-    "panel": "shared",
-    "clear": true,
-    "showReuseMessage": false
-  },
   "tasks": [
     {
       "label": "🔨 [HZZS] 构建 Debug APK",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         ":app:assembleDebug"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "group": {
         "kind": "build",
         "isDefault": true
@@ -27,18 +20,37 @@
       "runOptions": {
         "instanceLimit": 1,
         "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
       }
     },
     {
-      "label": "📲 [HZZS] 构建并安装 Debug APK",
+      "label": "📲 [HZZS] 安装 Debug APK",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         ":app:installDebug"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "runOptions": {
         "instanceLimit": 1,
         "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
       }
     },
     {
@@ -47,10 +59,12 @@
       "command": "adb",
       "args": [
         "shell",
-        "am",
-        "start",
-        "-n",
-        "com.hzzs.app/.MainActivity"
+        "monkey",
+        "-p",
+        "top.azek431.hzzs",
+        "-c",
+        "android.intent.category.LAUNCHER",
+        "1"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -65,13 +79,18 @@
       "label": "🚀 [HZZS] 构建、安装并启动 Debug",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "📲 [HZZS] 构建并安装 Debug APK",
+        "📲 [HZZS] 安装 Debug APK",
         "▶️ [HZZS] 启动已安装应用"
       ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
       "presentation": {
         "reveal": "always",
-        "focus": false,
-        "panel": "shared",
+        "focus": true,
+        "panel": "dedicated",
         "clear": true,
         "showReuseMessage": false
       }
@@ -79,10 +98,14 @@
     {
       "label": "🩺 [HZZS] 检查 Android 设备与应用状态",
       "type": "shell",
-      "command": "adb",
+      "command": "powershell.exe",
       "args": [
-        "devices",
-        "-l"
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$pkg='top.azek431.hzzs'; Write-Host '========== ADB 设备 =========='; adb devices -l; Write-Host ''; Write-Host '========== 应用安装状态 =========='; adb shell pm path $pkg; if ($LASTEXITCODE -ne 0) { Write-Host \"未检测到已安装应用：$pkg\" }; Write-Host ''; Write-Host '========== 应用进程 =========='; adb shell pidof $pkg; if ($LASTEXITCODE -ne 0) { Write-Host \"应用当前未运行：$pkg\" }"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -111,13 +134,20 @@
       }
     },
     {
-      "label": "🐞 [HZZS] 监听应用运行日志",
+      "label": "🐞 [HZZS] 监听核心运行日志",
       "type": "shell",
       "command": "adb",
       "args": [
         "logcat",
         "-v",
-        "time"
+        "time",
+        "HZZS:D",
+        "AndroidRuntime:E",
+        "System.err:E",
+        "ActivityManager:I",
+        "ActivityTaskManager:I",
+        "WindowManager:I",
+        "*:S"
       ],
       "problemMatcher": [],
       "runOptions": {
@@ -133,13 +163,19 @@
       }
     },
     {
-      "label": "🧪 [HZZS] 真机诊断（构建、安装、启动并持续记录）",
+      "label": "🧪 [HZZS] 真机诊断一条龙",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "📲 [HZZS] 构建并安装 Debug APK",
+        "🧽 [HZZS] 清空设备运行日志",
+        "📲 [HZZS] 安装 Debug APK",
         "▶️ [HZZS] 启动已安装应用",
-        "🐞 [HZZS] 监听应用运行日志"
+        "🐞 [HZZS] 监听核心运行日志"
       ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
       "presentation": {
         "reveal": "always",
         "focus": true,
@@ -149,12 +185,16 @@
       }
     },
     {
-      "label": "📤 [HZZS] 导出当前诊断快照",
+      "label": "📤 [HZZS] 导出诊断快照",
       "type": "shell",
-      "command": "adb",
+      "command": "powershell.exe",
       "args": [
-        "logcat",
-        "-d"
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$root='D:\\Azek431-Archives\\hzzs-device-diagnostics'; $dir=Join-Path $root (Get-Date -Format 'yyyyMMdd-HHmmss'); New-Item -ItemType Directory -Force -Path $dir | Out-Null; $log=Join-Path $dir 'logcat.txt'; $png=Join-Path $dir 'screen.png'; adb logcat -d -v time | Out-File -LiteralPath $log -Encoding utf8; adb shell screencap -p /sdcard/hzzs_screen.png | Out-Null; adb pull /sdcard/hzzs_screen.png $png | Out-Null; adb shell rm /sdcard/hzzs_screen.png | Out-Null; Write-Host \"诊断快照已导出：$dir\""
       ],
       "problemMatcher": [],
       "presentation": {
@@ -166,12 +206,63 @@
       }
     },
     {
+      "label": "🔌 [HZZS] 调试一条龙：安装、启动并转发 JDWP",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$pkg='top.azek431.hzzs'; .\\gradlew.bat --console=plain :app:installDebug; if ($LASTEXITCODE -ne 0) { throw '安装 Debug APK 失败' }; adb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1; if ($LASTEXITCODE -ne 0) { throw '启动应用失败' }; Start-Sleep -Seconds 2; $pidText = adb shell pidof $pkg; if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) { throw \"找不到应用进程：$pkg\" }; $pid = ($pidText -split '\\s+')[0].Trim(); adb forward tcp:8700 \"jdwp:$pid\"; if ($LASTEXITCODE -ne 0) { throw 'JDWP 转发失败' }; Write-Host \"JDWP 已转发：localhost:8700 -> $pkg / PID $pid\""
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🔌 [HZZS] 移除 JDWP 端口转发",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "forward",
+        "--remove",
+        "tcp:8700"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
       "label": "✅ [HZZS] 验证 Debug（构建 + 单元测试）",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         ":app:assembleDebug",
         ":app:testDebugUnitTest"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "group": {
         "kind": "test",
         "isDefault": true
@@ -180,67 +271,93 @@
       "runOptions": {
         "instanceLimit": 1,
         "instancePolicy": "warn"
-      }
-    },
-    {
-      "label": "🔎 [HZZS] 运行 Debug Lint（提交前）",
-      "args": [
-        "--console=plain",
-        ":app:lintDebug"
-      ],
-      "problemMatcher": [],
-      "runOptions": {
-        "instanceLimit": 1,
-        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
       }
     },
     {
       "label": "🛡️ [HZZS] 提交前完整验证（构建 + 测试 + Lint）",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         ":app:assembleDebug",
         ":app:testDebugUnitTest",
         ":app:lintDebug"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "runOptions": {
         "instanceLimit": 1,
         "instancePolicy": "warn"
-      }
-    },
-    {
-      "label": "📦 [HZZS] 构建 Release APK",
-      "args": [
-        "--console=plain",
-        ":app:assembleRelease"
-      ],
-      "problemMatcher": [],
-      "runOptions": {
-        "instanceLimit": 1,
-        "instancePolicy": "warn"
-      }
-    },
-    {
-      "label": "📊 [HZZS] 查看 Gradle Daemon 状态",
-      "args": [
-        "--console=plain",
-        "--status"
-      ],
-      "problemMatcher": [],
+      },
       "presentation": {
         "reveal": "always",
         "focus": false,
         "panel": "shared",
-        "clear": false,
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "📦 [HZZS] 构建 Release APK（仅验证，不发布）",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
+      "args": [
+        "--console=plain",
+        ":app:assembleRelease"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "instancePolicy": "warn"
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "🗑️ [HZZS] 卸载应用（会清除应用数据）",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "uninstall",
+        "top.azek431.hzzs"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
         "showReuseMessage": false
       }
     },
     {
       "label": "🛑 [HZZS] 停止 Gradle Daemon，释放内存",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         "--stop"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -252,38 +369,44 @@
     },
     {
       "label": "🧹 [HZZS] 清理构建产物（仅故障时）",
+      "type": "shell",
+      "command": ".\\gradlew.bat",
       "args": [
         "--console=plain",
         "clean"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "runOptions": {
         "instanceLimit": 1,
         "instancePolicy": "warn"
-      }
-    },
-    {
-      "label": "🔌 [HZZS] 一键调试准备（构建+安装+启动+转发JDWP）",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "📲 [HZZS] 构建并安装 Debug APK",
-        "▶️ [HZZS] 启动已安装应用"
-      ],
+      },
       "presentation": {
         "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
+        "focus": false,
+        "panel": "shared",
         "clear": true,
         "showReuseMessage": false
       }
     },
     {
-      "label": "🐛 [HZZS] 一键调试（构建→安装→启动→附加调试器）",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "📲 [HZZS] 构建并安装 Debug APK",
-        "▶️ [HZZS] 启动已安装应用"
+      "label": "🔎 [HZZS] 查看 Git 状态与最近提交",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Write-Host '========== git status --short =========='; git status --short --untracked-files=all; Write-Host ''; Write-Host '========== git log --oneline -10 =========='; git log --oneline -10"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "focus": true,

@@ -76,12 +76,6 @@ class MainActivity : AppCompatActivity() {
     /** 社区 Telegram 链接 TextView：位于 view_community_footer.xml 中，点击后打开 Telegram 频道 */
     private lateinit var textCommunityTelegramLink: TextView
 
-    /** 悬浮窗面板根容器（在悬浮窗布局中，由 OverlayPreviewManager 管理） */
-    // 注意：此 View 不属于 activity_main.xml，而是在悬浮窗布局 view_overlay_preview.xml 中。
-    // 它不由 MainActivity 缓存，而是由 OverlayPreviewManager 自行管理生命周期。
-    // 此处声明仅为方便 MainActivity 在需要时引用（如调整 padding），实际赋值由 showOverlayPreview() 完成。
-    private var overlayContentPanel: View? = null
-
     // ==================== Padding 初始值缓存 ====================
     // 用于防止 applySystemBarInsets 在折叠屏等设备上重复叠加 padding。
     //

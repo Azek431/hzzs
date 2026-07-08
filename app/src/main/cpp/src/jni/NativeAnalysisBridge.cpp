@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 
+#include <sstream>
 #include <string>
 
 #include "hzzs/analysis/NativeAnalysisEngine.h"
@@ -25,6 +26,127 @@ constexpr const char* kLogTag = "HZZS-Native";
  */
 jstring ToJString(JNIEnv* env, const std::string& value) {
     return env->NewStringUTF(value.c_str());
+}
+
+/**
+ * JNI 导出方法：分析单帧模拟数据并返回结构化结果。
+ *
+ * 由 Kotlin 端 NativeAnalysisBridge.analyzeFrame() 调用。
+ * 每次调用创建一个全新的 NativeAnalysisEngine（无状态），
+ * 注入一帧模拟地面跑酷数据，输出 AnalysisResult 的 JSON 序列化字符串。
+ *
+ * 参数说明：
+ * - timestamp_ms：帧时间戳（毫秒）
+ * - player_left/top/right/bottom：玩家矩形归一化坐标
+ * - player_confidence：玩家检测可信度
+ * - hazard_type：危险物类型（0=无，1=蛋糕断层，2=毒瓶，3=裱花袋）
+ * - hazard_left/top/right/bottom：危险物归一化坐标
+ * - hazard_confidence：危险物检测可信度
+ * - hazard_velocity_x：危险物 X 方向速度
+ * - world_scroll_speed：背景滚动速度
+ *
+ * @param env JNI 环境指针
+ * @param obj JNI 对象（此方法不需要，保留占位）
+ * @param args 可变参数列表，包含上述所有字段
+ * @return JSON 格式的 AnalysisResult 字符串
+ */
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_top_azek431_hzzs_NativeAnalysisBridge_nativeAnalyzeFrame(
+    JNIEnv* env,
+    jobject,
+    jlong timestamp_ms,
+    jfloat player_left,
+    jfloat player_top,
+    jfloat player_right,
+    jfloat player_bottom,
+    jfloat player_confidence,
+    jint hazard_type,
+    jfloat hazard_left,
+    jfloat hazard_top,
+    jfloat hazard_right,
+    jfloat hazard_bottom,
+    jfloat hazard_confidence,
+    jfloat hazard_velocity_x,
+    jfloat world_scroll_speed
+) {
+    hzzs::analysis::NativeAnalysisEngine engine{};
+
+    // 构造帧数据
+    hzzs::analysis::FrameDetections frame{};
+    frame.timestamp_ms = static_cast<std::int64_t>(timestamp_ms);
+
+    // 场景模式：固定为地面跑酷
+    frame.scene.hint = hzzs::analysis::SceneMode::kGroundRun;
+    frame.scene.hint_confidence = 0.98F;
+
+    // 玩家边界
+    if (player_right > player_left && player_bottom > player_top) {
+        frame.player_bounds = hzzs::analysis::RectF{
+            player_left, player_top, player_right, player_bottom
+        };
+    }
+    frame.player_confidence = player_confidence;
+    frame.world_scroll_speed_x_per_second = world_scroll_speed;
+
+    // 危险物
+    if (hazard_type > 0 && hazard_right > hazard_left && hazard_bottom > hazard_top) {
+        hzzs::analysis::DetectedObject hazard{};
+        hazard.type = static_cast<hzzs::analysis::GameObjectType>(hazard_type);
+        hazard.bounds = hzzs::analysis::RectF{
+            hazard_left, hazard_top, hazard_right, hazard_bottom
+        };
+        hazard.danger_bounds = hazard.bounds;
+        hazard.confidence = hazard_confidence;
+        hazard.track_id = 1;
+        hazard.velocity_x_per_second = hazard_velocity_x;
+        frame.objects.push_back(hazard);
+    }
+
+    // 执行分析
+    const hzzs::analysis::AnalysisResult result = engine.Analyze(frame);
+
+    // 序列化结果为 JSON 字符串
+    std::ostringstream json;
+    json << "{\"scene_mode\":" << static_cast<int>(result.scene_mode)
+         << ",\"scene_confidence\":" << result.scene_confidence
+         << ",\"runner_pose\":" << static_cast<int>(result.runner.pose)
+         << ",\"runner_grounded\":" << (result.runner.grounded ? "true" : "false")
+         << ",\"jump_stage\":" << static_cast<int>(result.jump_stage)
+         << ",\"prompt_action\":" << static_cast<int>(result.prompt.action)
+         << ",\"prompt_target\":" << static_cast<int>(result.prompt.target)
+         << ",\"prompt_eta_ms\":" << result.prompt.eta_ms
+         << ",\"prompt_confidence\":" << result.prompt.confidence
+         << ",\"hazards_count\":" << result.hazards.size();
+
+    // 添加每个危险物的 ETA
+    json << ",\"hazards\":[";
+    for (size_t i = 0; i < result.hazards.size(); ++i) {
+        if (i > 0) json << ",";
+        json << "{\"type\":" << static_cast<int>(result.hazards[i].type)
+             << ",\"eta_ms\":" << result.hazards[i].eta_ms
+             << ",\"confidence\":" << result.hazards[i].confidence
+             << ",\"action\":" << static_cast<int>(result.hazards[i].preferred_action)
+             << ",\"jump_stage\":" << static_cast<int>(result.hazards[i].required_jump_stage)
+             << "}";
+    }
+    json << "]";
+
+    // 添加收藏物数量
+    json << ",\"collectibles_count\":" << result.collectibles.size()
+         << "}";
+
+    std::string output = json.str();
+
+    __android_log_print(
+        ANDROID_LOG_DEBUG,
+        kLogTag,
+        "[JNI] analyzed frame ts=%lld -> %s",
+        static_cast<long long>(timestamp_ms),
+        output.c_str()
+    );
+
+    return ToJString(env, output);
 }
 
 /**
