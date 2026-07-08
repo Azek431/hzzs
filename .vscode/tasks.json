@@ -97,7 +97,7 @@
     },
     {
       "label": "🩺 [HZZS] 检查 Android 设备与应用状态",
-      "type": "shell",
+      "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
@@ -186,7 +186,7 @@
     },
     {
       "label": "📤 [HZZS] 导出诊断快照",
-      "type": "shell",
+      "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
@@ -207,7 +207,7 @@
     },
     {
       "label": "🔌 [HZZS] 调试一条龙：安装、启动并转发 JDWP",
-      "type": "shell",
+      "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
@@ -215,7 +215,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$pkg='top.azek431.hzzs'; .\\gradlew.bat --console=plain :app:installDebug; if ($LASTEXITCODE -ne 0) { throw '安装 Debug APK 失败' }; adb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1; if ($LASTEXITCODE -ne 0) { throw '启动应用失败' }; Start-Sleep -Seconds 2; $pidText = adb shell pidof $pkg; if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) { throw \"找不到应用进程：$pkg\" }; $pid = ($pidText -split '\\s+')[0].Trim(); adb forward tcp:8700 \"jdwp:$pid\"; if ($LASTEXITCODE -ne 0) { throw 'JDWP 转发失败' }; Write-Host \"JDWP 已转发：localhost:8700 -> $pkg / PID $pid\""
+        "$pkg='top.azek431.hzzs'\n& .\\gradlew.bat --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) {\n    throw '安装 Debug APK 失败'\n}\n\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) {\n    throw '启动应用失败'\n}\n\nStart-Sleep -Seconds 2\n\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) {\n    throw \"找不到应用进程：$pkg\"\n}\n\n$pid = ($pidText -split '\\s+')[0].Trim()\n\nadb forward --remove tcp:8700 2>$null | Out-Null\nadb forward tcp:8700 \"jdwp:$pid\"\n\nif ($LASTEXITCODE -ne 0) {\n    throw 'JDWP 转发失败'\n}\n\nWrite-Host \"JDWP 已转发：localhost:8700 -> $pkg / PID $pid\""
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -393,7 +393,7 @@
     },
     {
       "label": "🔎 [HZZS] 查看 Git 状态与最近提交",
-      "type": "shell",
+      "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",

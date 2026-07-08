@@ -103,6 +103,127 @@ object NativeAnalysisBridge {
     }
 
     /**
+     * 分析单帧模拟数据并返回结构化结果。
+     *
+     * 调用 C++ 引擎分析一帧模拟跑酷画面，解析 JSON 返回 [FrameAnalysisResult]。
+     * 如果 C++ 库加载失败，返回 null。
+     *
+     * @param timestampMs 帧时间戳（毫秒）
+     * @param playerBounds 玩家矩形归一化坐标
+     * @param playerConfidence 玩家检测可信度（0.0 ~ 1.0）
+     * @param hazardType 危险物类型（1=蛋糕断层, 2=毒瓶, 3=裱花袋, 0=无）
+     * @param hazardBounds 危险物矩形归一化坐标
+     * @param hazardConfidence 危险物检测可信度
+     * @param hazardVelocityX 危险物 X 方向速度
+     * @param worldScrollSpeed 背景滚动速度
+     * @return 结构化分析结果，或 null（库不可用时）
+     */
+    fun analyzeFrame(
+        timestampMs: Long,
+        playerBounds: RectF,
+        playerConfidence: Float,
+        hazardType: Int = 0,
+        hazardBounds: RectF? = null,
+        hazardConfidence: Float = 0f,
+        hazardVelocityX: Float = -0.45f,
+        worldScrollSpeed: Float = -0.45f,
+    ): FrameAnalysisResult? {
+        val error = libraryLoadError
+        if (error != null) return null
+
+        val json = nativeAnalyzeFrame(
+            timestampMs,
+            playerBounds.left, playerBounds.top,
+            playerBounds.right, playerBounds.bottom,
+            playerConfidence,
+            hazardType,
+            hazardBounds?.let { it.left to it.top to it.right to it.bottom }?.let {
+                it.first to it.second to it.third to it.fourth
+            }?.let {
+                // 展开为四个参数
+                val (hl, ht, hr, hb) = it
+                Triple(hl, ht, hr to hb)
+            }?.let { _ ->
+                // 简化：直接传默认值
+                nativeAnalyzeFrameDirect(
+                    timestampMs,
+                    playerBounds.left, playerBounds.top,
+                    playerBounds.right, playerBounds.bottom,
+                    playerConfidence,
+                    hazardType,
+                    hazardBounds?.left ?: 0f,
+                    hazardBounds?.top ?: 0f,
+                    hazardBounds?.right ?: 0f,
+                    hazardBounds?.bottom ?: 0f,
+                    hazardConfidence,
+                    hazardVelocityX,
+                    worldScrollSpeed,
+                )
+            },
+        )
+
+        return json?.let { parseFrameResult(it) }
+    }
+
+    /**
+     * 直接调用 native 方法（用于 hazardBounds 为空时的分支）。
+     */
+    private external fun nativeAnalyzeFrameDirect(
+        timestampMs: Long,
+        playerLeft: Float,
+        playerTop: Float,
+        playerRight: Float,
+        playerBottom: Float,
+        playerConfidence: Float,
+        hazardType: Int,
+        hazardLeft: Float,
+        hazardTop: Float,
+        hazardRight: Float,
+        hazardBottom: Float,
+        hazardConfidence: Float,
+        hazardVelocityX: Float,
+        worldScrollSpeed: Float,
+    ): String
+
+    /**
+     * 将 JSON 字符串解析为 [FrameAnalysisResult]。
+     */
+    private fun parseFrameResult(json: String): FrameAnalysisResult {
+        // 极简 JSON 解析（不依赖第三方库）
+        fun extractString(key: String): String? {
+            val pattern = "\"$key\":\"([^\"]*)\""
+            val match = pattern.toRegex().find(json)
+            return match?.groups?.get(1)?.value
+        }
+
+        fun extractFloat(key: String): Float {
+            val pattern = "\"$key\":([-0-9.]+)"
+            val match = pattern.toRegex().find(json)
+            return match?.groups?.get(1)?.value?.toFloatOrNull() ?: 0f
+        }
+
+        fun extractInt(key: String): Int {
+            val pattern = "\"$key\":(-?[0-9]+)"
+            val match = pattern.toRegex().find(json)
+            return match?.groups?.get(1)?.value?.toIntOrNull() ?: 0
+        }
+
+        return FrameAnalysisResult(
+            sceneMode = extractInt("scene_mode"),
+            sceneConfidence = extractFloat("scene_confidence"),
+            runnerPose = extractInt("runner_pose"),
+            runnerGrounded = extractString("runner_grounded") == "true",
+            jumpStage = extractInt("jump_stage"),
+            promptAction = extractInt("prompt_action"),
+            promptTarget = extractInt("prompt_target"),
+            promptEtaMs = extractFloat("prompt_eta_ms"),
+            promptConfidence = extractFloat("prompt_confidence"),
+            hazardsCount = extractInt("hazards_count"),
+            collectiblesCount = extractInt("collectibles_count"),
+        )
+    }
+
+    /**
      * C++ 原生方法声明：获取引擎信息。
      *
      * 对应 C++ 实现：
@@ -121,4 +242,37 @@ object NativeAnalysisBridge {
      * 返回值是一个描述字符串，包含自检通过/失败的信息。
      */
     private external fun nativeRunSelfCheck(): String
+
+    /**
+     * C++ 原生方法声明：分析单帧模拟数据并返回结构化 JSON 结果。
+     *
+     * 对应 C++ 实现：
+     * Java_top_azek431_hzzs_NativeAnalysisBridge_nativeAnalyzeFrame()
+     *
+     * @param timestampMs 帧时间戳（毫秒）
+     * @param playerBounds 玩家矩形归一化坐标（left,top,right,bottom）
+     * @param playerConfidence 玩家检测可信度（0.0 ~ 1.0）
+     * @param hazardType 危险物类型（1=蛋糕断层, 2=毒瓶, 3=裱花袋）
+     * @param hazardBounds 危险物矩形归一化坐标
+     * @param hazardConfidence 危险物检测可信度
+     * @param hazardVelocityX 危险物 X 方向速度
+     * @param worldScrollSpeed 背景滚动速度
+     * @return JSON 格式的 AnalysisResult 字符串
+     */
+    private external fun nativeAnalyzeFrame(
+        timestampMs: Long,
+        playerLeft: Float,
+        playerTop: Float,
+        playerRight: Float,
+        playerBottom: Float,
+        playerConfidence: Float,
+        hazardType: Int,
+        hazardLeft: Float,
+        hazardTop: Float,
+        hazardRight: Float,
+        hazardBottom: Float,
+        hazardConfidence: Float,
+        hazardVelocityX: Float,
+        worldScrollSpeed: Float,
+    ): String
 }
