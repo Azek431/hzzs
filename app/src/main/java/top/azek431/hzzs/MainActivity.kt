@@ -4,7 +4,7 @@
 //
 // 职责（极简）：
 // 1. 页面生命周期管理（onCreate / onResume）
-// 2. 初始化所有 Controller（Insets、按钮、对话框、权限）
+// 2. 初始化所有 Controller（Insets、按钮、对话框、权限、View 缓存）
 // 3. 调度业务逻辑（悬浮窗显示/隐藏、免责声明检查）
 // 4. 绑定社区链接（QQ 群、Telegram 频道）
 //
@@ -14,6 +14,8 @@
 // - 不直接显示对话框（由 MainDialogController 处理）
 // - 不直接检查悬浮窗权限（由 OverlayPermissionController 处理）
 // - 不直接管理悬浮窗生命周期（由 OverlayPreviewManager 处理）
+// - 不缓存 View 引用（由 MainViewCache 处理）
+// - 不缓存 Padding 初始值（由 MainInsetCache 处理）
 //
 // 设计原因：
 // - MainActivity 只保留"组装和调度"的职责，每个 Controller 负责自己的领域
@@ -35,50 +37,25 @@ import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
 import top.azek431.hzzs.ui.main.MainActionBinder
 import top.azek431.hzzs.ui.main.MainActionCallbacks
 import top.azek431.hzzs.ui.main.MainDialogController
+import top.azek431.hzzs.ui.main.MainInsetCache
 import top.azek431.hzzs.ui.main.MainInsetsController
+import top.azek431.hzzs.ui.main.MainViewCache
+import top.azek431.hzzs.ui.main.MainViewCacheResult
 import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.util.FeatureFlags
 
 class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
-    // ==================== View 引用缓存 ====================
+    // ==================== View 引用缓存结果 ====================
 
-    /** 根容器：CoordinatorLayout，整个页面的最外层布局 */
-    private lateinit var rootContainer: android.view.View
-
-    /** 顶部栏：LinearLayout，包含应用名称和副标题 */
-    private lateinit var topBarContainer: android.view.View
-
-    /** 滚动区域：NestedScrollView，承载首页所有内容 */
-    private lateinit var homeScrollView: android.view.View
-
-    /** 开发计划按钮 */
-    private lateinit var btnDevelopmentPlan: MaterialButton
-
-    /** 悬浮窗开关按钮 */
-    private lateinit var btnOverlayExecution: MaterialButton
-
-    /** 免责声明与功能设置按钮 */
-    private lateinit var btnDisclaimer: MaterialButton
-
-    /** 社区 QQ 群链接 TextView */
-    private lateinit var textCommunityQqLink: TextView
-
-    /** 社区 Telegram 链接 TextView */
-    private lateinit var textCommunityTelegramLink: TextView
+    /** 所有缓存 View 引用的集合（不可变） */
+    private lateinit var views: MainViewCacheResult
 
     // ==================== Padding 初始值缓存 ====================
 
-    private var topBarPaddingStartInit = 0
-    private var topBarPaddingTopInit = 0
-    private var topBarPaddingEndInit = 0
-    private var topBarPaddingBottomInit = 0
-
-    private var scrollPaddingStartInit = 0
-    private var scrollPaddingTopInit = 0
-    private var scrollPaddingEndInit = 0
-    private var scrollPaddingBottomInit = 0
+    /** Padding 初始值缓存器 */
+    private val insetCache = MainInsetCache()
 
     // ==================== Controller 实例 ====================
 
@@ -108,9 +85,11 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
         setContentView(R.layout.activity_main)
 
-        // 缓存 View 引用
-        cacheViews()
-        cacheInitialPadding()
+        // 缓存所有 View 引用
+        views = MainViewCache(this).retrieve()
+
+        // 缓存 Padding 初始值
+        insetCache.capture(views)
 
         // 初始化所有 Controller
         initControllers()
@@ -135,47 +114,6 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         refreshOverlayButton()
     }
 
-    // ==================== View 缓存 ====================
-
-    /**
-     * 缓存所有需要用到的 View 引用。
-     * 如果任何必需 View 不存在，抛出 IllegalStateException 阻止 Activity 继续运行。
-     */
-    private fun cacheViews() {
-        rootContainer = findViewById(R.id.rootContainer)
-            ?: throw IllegalStateException("rootContainer not found in activity_main.xml")
-        topBarContainer = findViewById(R.id.topBarContainer)
-            ?: throw IllegalStateException("topBarContainer not found in activity_main.xml")
-        homeScrollView = findViewById(R.id.homeScrollView)
-            ?: throw IllegalStateException("homeScrollView not found in activity_main.xml")
-        btnDevelopmentPlan = findViewById(R.id.btnDevelopmentPlan)
-            ?: throw IllegalStateException("btnDevelopmentPlan not found in activity_main.xml")
-        btnOverlayExecution = findViewById(R.id.btnOverlayExecution)
-            ?: throw IllegalStateException("btnOverlayExecution not found in activity_main.xml")
-        btnDisclaimer = findViewById(R.id.btnDisclaimer)
-            ?: throw IllegalStateException("btnDisclaimer not found in activity_main.xml")
-        textCommunityQqLink = findViewById(R.id.textCommunityQqLink)
-            ?: throw IllegalStateException("textCommunityQqLink not found in activity_main.xml")
-        textCommunityTelegramLink = findViewById(R.id.textCommunityTelegramLink)
-            ?: throw IllegalStateException("textCommunityTelegramLink not found in activity_main.xml")
-    }
-
-    /**
-     * 缓存所有 View 的初始 padding 值。
-     * 用于系统栏安全区域处理时，在初始 padding 基础上叠加 insets。
-     */
-    private fun cacheInitialPadding() {
-        topBarPaddingStartInit = topBarContainer.paddingStart
-        topBarPaddingTopInit = topBarContainer.paddingTop
-        topBarPaddingEndInit = topBarContainer.paddingEnd
-        topBarPaddingBottomInit = topBarContainer.paddingBottom
-
-        scrollPaddingStartInit = homeScrollView.paddingStart
-        scrollPaddingTopInit = homeScrollView.paddingTop
-        scrollPaddingEndInit = homeScrollView.paddingEnd
-        scrollPaddingBottomInit = homeScrollView.paddingBottom
-    }
-
     // ==================== Controller 初始化 ====================
 
     /**
@@ -185,26 +123,26 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
      */
     private fun initControllers() {
         insetsController = MainInsetsController(
-            rootContainer = rootContainer,
-            topBarContainer = topBarContainer,
-            homeScrollView = homeScrollView,
-            topBarPaddingStartInit = topBarPaddingStartInit,
-            topBarPaddingTopInit = topBarPaddingTopInit,
-            topBarPaddingEndInit = topBarPaddingEndInit,
-            topBarPaddingBottomInit = topBarPaddingBottomInit,
-            scrollPaddingStartInit = scrollPaddingStartInit,
-            scrollPaddingTopInit = scrollPaddingTopInit,
-            scrollPaddingEndInit = scrollPaddingEndInit,
-            scrollPaddingBottomInit = scrollPaddingBottomInit,
+            rootContainer = views.rootContainer,
+            topBarContainer = views.topBarContainer,
+            homeScrollView = views.homeScrollView,
+            topBarPaddingStartInit = insetCache.topBarPaddingStartInit,
+            topBarPaddingTopInit = insetCache.topBarPaddingTopInit,
+            topBarPaddingEndInit = insetCache.topBarPaddingEndInit,
+            topBarPaddingBottomInit = insetCache.topBarPaddingBottomInit,
+            scrollPaddingStartInit = insetCache.scrollPaddingStartInit,
+            scrollPaddingTopInit = insetCache.scrollPaddingTopInit,
+            scrollPaddingEndInit = insetCache.scrollPaddingEndInit,
+            scrollPaddingBottomInit = insetCache.scrollPaddingBottomInit,
         )
 
         dialogController = MainDialogController(this)
         permissionController = OverlayPermissionController(this)
 
         actionBinder = MainActionBinder(
-            btnDevelopmentPlan = btnDevelopmentPlan,
-            btnOverlayExecution = btnOverlayExecution,
-            btnDisclaimer = btnDisclaimer,
+            btnDevelopmentPlan = views.btnDevelopmentPlan,
+            btnOverlayExecution = views.btnOverlayExecution,
+            btnDisclaimer = views.btnDisclaimer,
             callbacks = this,
         )
     }
@@ -237,18 +175,18 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
     private fun bindCommunityFooterLinks() {
         val fallbackMsg = getString(R.string.community_open_fallback)
 
-        val linkBindings = mapOf(
-            R.id.textCommunityQqLink to (textCommunityQqLink to R.string.community_qq_label),
-            R.id.textCommunityTelegramLink to (textCommunityTelegramLink to R.string.community_telegram_label),
+        // 构建链接绑定映射：View ID → (TextView, 标签资源 ID)
+        val linkBindings: Map<Int, Pair<TextView, Int>> = mapOf(
+            R.id.textCommunityQqLink to Pair(views.textCommunityQqLink, R.string.community_qq_label),
+            R.id.textCommunityTelegramLink to Pair(views.textCommunityTelegramLink, R.string.community_telegram_label),
         )
 
         for ((resId, binding) in linkBindings) {
-            val textView = findViewById<TextView>(resId) ?: continue
             val (_, labelRes) = binding
             val communityEntry = CommunityLinks.entries.find { it.labelRes == labelRes }
                 ?: continue
 
-            textView.setOnClickListener {
+            binding.first.setOnClickListener {
                 CommunityLinks.openLink(
                     context = applicationContext,
                     label = getString(communityEntry.labelRes),
