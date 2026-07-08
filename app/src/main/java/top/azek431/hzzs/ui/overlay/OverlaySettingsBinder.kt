@@ -4,24 +4,24 @@
 // - 绑定透明度滑块到 UI 组件，实时更新 view.alpha 并持久化
 // - 绑定自动操作开关/延迟滑块，控制 AutoOperationService 的行为
 // - 从 SharedPreferences 恢复上次保存的参数（透明度/圆角/缩放系数）
-// - 将用户调整写入 SharedPreferences
+// - 将用户调整写入 FeatureFlags（统一管理，避免 SharedPreferences 键不一致）
 //
 // 不负责：
 // - 不处理拖动逻辑（由 OverlayDragController 处理）
 // - 不处理缩放逻辑（由 OverlayResizeController 处理）
 // - 不处理社区链接绑定（由 CommunityLinks 处理）
+// - 不直接读写 SharedPreferences（自动操作设置委托给 FeatureFlags）
 //
 // 设计原因：
 // - 设置绑定逻辑独立封装，便于将来添加更多设置项（如尺寸、圆角等）
-// - SharedPreferences 读写集中在一个类中，避免多处散乱访问
+// - 自动操作设置统一委托给 FeatureFlags，避免 SharedPreferences 键不一致
 // - 使用 lazy 委托延迟初始化 SharedPreferences，避免不必要的 IO
 //
 // 参数持久化键列表：
 // - overlay_alpha：悬浮窗透明度（0.0 ~ 1.0）
 // - overlay_radius：圆角半径（dp）
 // - overlay_scale_ratio：缩放系数
-// - auto_op_enabled：自动操作开关
-// - auto_op_delay：自动操作延迟（SeekBar progress 0~50 → 0~500ms）
+// - 自动操作相关设置委托给 FeatureFlags（KEY_AUTO_OPERATION_ENABLED / KEY_AUTO_OPERATION_DELAY_MS）
 
 package top.azek431.hzzs.ui.overlay
 
@@ -34,6 +34,8 @@ import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import kotlin.math.roundToInt
 import top.azek431.hzzs.R
+import top.azek431.hzzs.service.AutoActionQueue
+import top.azek431.hzzs.util.FeatureFlags
 
 /**
  * 悬浮窗设置绑定器。
@@ -68,12 +70,6 @@ class OverlaySettingsBinder(
 
         /** 缩放系数参数键，与 OverlayResizeController.KEY_SCALE_RATIO 共用 */
         private const val KEY_SCALE_RATIO = "overlay_scale_ratio"
-
-        /** 自动操作开关参数键 */
-        private const val KEY_AUTO_OP_ENABLED = "auto_op_enabled"
-
-        /** 自动操作延迟参数键（SeekBar progress 0~50，映射到 0~500ms） */
-        private const val KEY_AUTO_OP_DELAY = "auto_op_delay"
     }
 
     /** 应用上下文，用于避免内存泄漏 */
@@ -119,8 +115,8 @@ class OverlaySettingsBinder(
      *
      * 绑定内容：
      * 1. 透明度滑块：实时调整 view.alpha + 持久化到 SharedPreferences
-     * 2. 自动操作开关：切换自动操作的启用/禁用状态
-     * 3. 自动操作延迟滑块：调节操作注入延迟（0~500ms）
+     * 2. 自动操作开关：切换自动操作的启用/禁用状态（委托给 FeatureFlags）
+     * 3. 自动操作延迟滑块：调节操作注入延迟（0~500ms，委托给 FeatureFlags）
      */
     fun bind() {
         bindAlphaSlider()
@@ -169,14 +165,16 @@ class OverlaySettingsBinder(
      * - overlayAutoOpDelayValue：TextView，显示当前延迟值
      *
      * 绑定逻辑：
-     * 1. 从 SharedPreferences 恢复开关状态和延迟进度
-     * 2. 开关切换时写入 SharedPreferences
-     * 3. 延迟滑块拖动时实时更新显示文本和 SharedPreferences
+     * 1. 从 FeatureFlags 恢复开关状态和延迟进度
+     * 2. 开关切换时写入 FeatureFlags 并通知 AutoActionQueue
+     * 3. 延迟滑块拖动时实时更新显示文本和 FeatureFlags
      */
     private fun bindAutoOpControls() {
-        // 从 SharedPreferences 恢复设置
-        val autoOpEnabled = prefs.getBoolean(KEY_AUTO_OP_ENABLED, false)
-        val autoOpDelayProgress = prefs.getInt(KEY_AUTO_OP_DELAY, 10) // 默认 10 → 100ms
+        // 从 FeatureFlags 恢复设置（统一来源，避免 SharedPreferences 键不一致）
+        val autoOpEnabled = FeatureFlags.isAutoOperationEnabled(appContext)
+        val autoOpDelayMs = FeatureFlags.getAutoOperationDelayMs(appContext)
+        // 将毫秒数映射到 SeekBar progress（0~50 → 0~500ms）
+        val autoOpDelayProgress = (autoOpDelayMs / 10).coerceIn(0, 50)
 
         // 恢复 UI 状态
         autoOpSwitch?.isChecked = autoOpEnabled
@@ -186,20 +184,22 @@ class OverlaySettingsBinder(
         // 更新延迟显示文本（progress * 10 = 毫秒数）
         autoOpDelayValue?.text = "${autoOpDelayProgress * 10} ms"
 
-        // 绑定自动操作开关：切换时写入 SharedPreferences
+        // 绑定自动操作开关：切换时写入 FeatureFlags 并通知 AutoActionQueue
         autoOpSwitch?.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean(KEY_AUTO_OP_ENABLED, isChecked).apply()
+            FeatureFlags.setAutoOperationEnabled(appContext, isChecked)
+            AutoActionQueue.setEnabled(isChecked)
             updateAutoOpStatus(isChecked)
         }
 
-        // 绑定延迟滑块：拖动时实时更新显示文本和 SharedPreferences
+        // 绑定延迟滑块：拖动时实时更新显示文本和 FeatureFlags
         autoOpDelaySlider?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 // progress 范围 0~50，乘以 10 得到毫秒数（0~500ms）
                 val ms = progress * 10
                 autoOpDelayValue?.text = "$ms ms"
-                prefs.edit().putInt(KEY_AUTO_OP_DELAY, progress).apply()
+                FeatureFlags.setAutoOperationDelayMs(appContext, ms)
+                AutoActionQueue.setDelay(ms)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
