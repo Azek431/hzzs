@@ -1,4 +1,4 @@
-{
+﻿{
   "files.encoding": "utf8",
   "files.eol": "\n",
   "files.insertFinalNewline": true,
@@ -11,9 +11,18 @@
   "editor.codeLens": false,
   "editor.stickyScroll.enabled": false,
   "editor.smoothScrolling": false,
+  "editor.hover.delay": 800,
+  "editor.inlayHints.enabled": "off",
+  "editor.lightbulb.enabled": "off",
 
+  "breadcrumbs.enabled": false,
   "workbench.list.smoothScrolling": false,
   "workbench.editor.enablePreview": true,
+  "workbench.editor.restoreViewState": false,
+  "workbench.startupEditor": "none",
+
+  "extensions.ignoreRecommendations": true,
+  "extensions.autoCheckUpdates": false,
 
   "files.exclude": {
     "**/.git": true,
@@ -21,13 +30,25 @@
     "**/.idea": true,
     "**/.kotlin": true,
     "**/build": true,
+    "**/app/build": true,
     "**/.cxx": true,
     "**/.externalNativeBuild": true,
     "**/captures": true,
     "**/node_modules": true,
     "**/.stfolder": true,
+    "**/dist": true,
+    "**/out": true,
+    "**/.cache": true,
+    "**/.vite": true,
+    "**/.astro": true,
     "**/*.log": true,
     "**/*.tmp": true,
+    "**/*.apk": true,
+    "**/*.aab": true,
+    "**/*.dex": true,
+    "**/*.class": true,
+    "**/*.o": true,
+    "**/*.so": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true
   },
@@ -38,75 +59,99 @@
     "**/.idea": true,
     "**/.kotlin": true,
     "**/build": true,
+    "**/app/build": true,
     "**/.cxx": true,
     "**/.externalNativeBuild": true,
     "**/captures": true,
     "**/node_modules": true,
     "**/.stfolder": true,
+    "**/dist": true,
+    "**/out": true,
+    "**/.cache": true,
+    "**/.vite": true,
+    "**/.astro": true,
     "**/*.log": true,
     "**/*.tmp": true,
+    "**/*.apk": true,
+    "**/*.aab": true,
+    "**/*.dex": true,
+    "**/*.class": true,
+    "**/*.o": true,
+    "**/*.so": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true
   },
 
   "files.watcherExclude": {
-    "**/.git/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
     "**/.gradle/**": true,
     "**/.idea/**": true,
     "**/.kotlin/**": true,
     "**/build/**": true,
+    "**/app/build/**": true,
     "**/.cxx/**": true,
     "**/.externalNativeBuild/**": true,
     "**/captures/**": true,
     "**/node_modules/**": true,
     "**/.stfolder/**": true,
+    "**/dist/**": true,
+    "**/out/**": true,
+    "**/.cache/**": true,
+    "**/.vite/**": true,
+    "**/.astro/**": true,
     "**/*.log": true,
     "**/*.tmp": true,
+    "**/*.apk": true,
+    "**/*.aab": true,
+    "**/*.dex": true,
+    "**/*.class": true,
+    "**/*.o": true,
+    "**/*.so": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true
   },
 
   "search.followSymlinks": false,
+
   "git.openRepositoryInParentFolders": "never",
   "git.autofetch": false,
+  "git.autorefresh": false,
+  "git.decorations.enabled": false,
   "git.confirmBeforeClose": false,
 
   "terminal.integrated.cwd": "${workspaceFolder}",
   "terminal.integrated.defaultProfile.windows": "PowerShell",
 
-  // Android APK 构建统一交给 Gradle Wrapper 与 tasks.json，
-  // 避免 VS Code Java 扩展额外启动 Gradle Build Server。
   "java.import.gradle.enabled": false,
   "java.gradle.buildServer.enabled": "off",
   "java.autobuild.enabled": false,
   "java.maxConcurrentBuilds": 1,
-
-  // 保留 Java 补全，但将语言服务器最大堆收紧为 768MB。
-  // -Xmx 是上限，不代表启动后立即占满。
-  // 启用 G1GC 垃圾回收器优化内存管理，字符串去重减少堆占用。
-  "java.jdt.ls.vmargs": "-Xmx768m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UnlockExperimentalVMOptions -XX:+UseStringDeduplication",
-  "java.server.launchMode": "StandardIO",
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.referencesCodeLens.enabled": false,
+  "java.implementationsCodeLens.enabled": false,
   "java.signatureHelp.enabled": false,
   "java.completion.importOrder": [],
-  "java.implementationsCodeLens.enabled": false,
-  "java.referencesCodeLens.enabled": false,
+  "java.jdt.ls.vmargs": "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication",
+  "java.server.launchMode": "StandardIO",
+
+  "eslint.enable": false,
+  "cSpell.enabled": false,
+  "auto-rename-tag.activationOnLanguage": [],
 
   "[kotlin]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 4
   },
-
   "[xml]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 4
   },
-
   "[json]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 2
   },
 
-  "java.configuration.updateBuildConfiguration": "interactive",
   "cSpell.words": [
     "androidx",
     "appcompat",

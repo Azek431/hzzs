@@ -241,6 +241,13 @@ object OverlayPreviewManager {
             var initialWidth = overlayWidth
             var initialHeight = layoutParams.height
             var isScaling = false
+            /** 是否已确认启动拖动（超过阈值后才为 true） */
+            var isDragging = false
+            /** 点击计数器：快速连续两次点击视为双击，不触发拖动 */
+            private var lastTapTime = 0L
+            private val DOUBLE_TAP_TIMEOUT_MS = 300L
+            /** 最小拖动距离（像素），约 10dp，避免手指抖动误触拖动 */
+            private val MIN_DRAG_DISTANCE_PX = 10
 
             closeButton.setOnClickListener {
                 Log.i(TAG, "[Overlay] close requested.")
@@ -249,6 +256,11 @@ object OverlayPreviewManager {
 
             // 触摸监听器绑定到根布局（overlayRootPanel），确保所有子区域（包括缩放手柄）的事件都能被捕获。
             // 使用 rawX/rawY（屏幕绝对坐标）计算偏移，避免嵌套 FrameLayout 导致的事件坐标偏差。
+            // 拖动逻辑：
+            // - ACTION_DOWN：记录初始位置，跳过可点击子控件
+            // - ACTION_MOVE：先判断位移是否超过 MIN_DRAG_DISTANCE_PX（10px），未超过则返回 false
+            //   让系统正常处理点击事件；超过后才启动拖动/缩放
+            // - 右下角 48dp 区域内切换为缩放模式
             rootPanel.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
@@ -290,6 +302,7 @@ object OverlayPreviewManager {
                             initialWidth = layoutParams.width
                             initialHeight = layoutParams.height
                             isScaling = false
+                            isDragging = false
                             true
                         }
                     }
@@ -297,9 +310,19 @@ object OverlayPreviewManager {
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - downRawX).toInt()
                         val dy = (event.rawY - downRawY).toInt()
+                        val distance = Math.sqrt((dx * dx + dy * dy).toDouble()).toInt()
 
-                        val dragThresholdPx = dp(appContext, 5)
-                        if (!isScaling && (Math.abs(dx) > dragThresholdPx || Math.abs(dy) > dragThresholdPx)) {
+                        // 位移未达到最小阈值前，不启动拖动——让点击事件正常传递
+                        if (!isDragging && distance < MIN_DRAG_DISTANCE_PX) {
+                            return@setOnTouchListener false
+                        }
+
+                        // 首次超过阈值：确认启动拖动
+                        if (!isDragging) {
+                            isDragging = true
+                        }
+
+                        if (!isScaling && isDragging && distance >= MIN_DRAG_DISTANCE_PX) {
                             val panelRight = downRawX + initialWidth
                             val panelBottom = downRawY + initialHeight
                             val isInResizeCorner = (event.rawX > panelRight - dp(appContext, 48)) &&
@@ -322,7 +345,7 @@ object OverlayPreviewManager {
                             )
                             layoutParams.width = newWidth
                             layoutParams.height = newHeight
-                        } else {
+                        } else if (isDragging) {
                             val screenHeight = appContext.resources.displayMetrics.heightPixels
                             val maxY = (screenHeight - (initialHeight)).coerceAtLeast(0)
                             layoutParams.x = (downWindowX + dx).coerceIn(0, maxX)
@@ -340,6 +363,7 @@ object OverlayPreviewManager {
 
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         isScaling = false
+                        isDragging = false
                         true
                     }
 
