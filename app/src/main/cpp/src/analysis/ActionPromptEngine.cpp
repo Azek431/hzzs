@@ -1,3 +1,16 @@
+// 火崽崽助手（HZZS）动作提示引擎 — 实现层。
+//
+// 综合危险物 ETA、玩家姿态和跳跃阶段，输出最终 HUD 动作提示。
+//
+// 核心机制：
+// 1. FindCandidate：从按 ETA 排序的 hazards 列表中选出最紧急的候选提示
+//    - 滑铲提示仅在着地时输出（空中无法滑铲）
+//    - 跳跃提示根据 jump_stage 决定单次跳还是二连跳
+//    - 飞行模式下抑制所有提示
+// 2. 稳定验证：候选提示需连续 2 帧相同才激活，避免 HUD 闪烁
+// 3. 置信度衰减：最终 confidence = min(hazard.confidence, runner.confidence)
+// 4. 遮挡增强：遮挡状态下将置信度阈值从 0.72 提升到 0.85
+
 #include "hzzs/analysis/ActionPromptEngine.h"
 
 #include <algorithm>

@@ -482,6 +482,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:checked="false"
+                        android:text=""
                         android:thumbTint="#FFB1C4D7"
                         android:trackTint="#FFB1C4D7" />
 

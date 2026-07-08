@@ -6,6 +6,9 @@
 // - HazardDetail：危险物详细信息
 // - DetectedObject：检测到的游戏对象（玩家、危险物、收藏物统一表示）
 // - ActionPrompt：结构化动作提示
+//
+// 注意：所有枚举常量和便捷属性定义在 FrameAnalysisResult 内部 companion object 中，
+// 方便从单一位置维护常量值，避免魔法数字散落各处。
 
 package top.azek431.hzzs.model
 
@@ -38,13 +41,29 @@ data class RectF(
     /** 是否有效（right > left 且 bottom > top） */
     fun isValid(): Boolean = right > left && bottom > top
 
-    /** 膨胀矩形（向四周扩展指定比例） */
+    /**
+     * 膨胀矩形（向四周扩展指定比例）。
+     *
+     * 用于碰撞检测时的安全余量扩展——将矩形向外扩展 factor 比例，
+     * 使碰撞检测更宽容，避免因像素级精度问题导致的漏检。
+     *
+     * @param factor 扩展比例（如 0.1 表示向外扩展 10%）
+     * @return 膨胀后的新 RectF 实例
+     */
     fun expand(factor: Float): RectF = RectF(
         left - left * factor, top - top * factor,
         right + (1f - right) * factor, bottom + (1f - bottom) * factor
     )
 
-    /** 与另一个矩形的交集，无交集时返回 null */
+    /**
+     * 与另一个矩形的交集，无交集时返回 null。
+     *
+     * 用于计算两个矩形重叠区域的精确边界。
+     * 例如：判断玩家是否已经进入危险物的碰撞区域。
+     *
+     * @param other 待求交集的另一个矩形
+     * @return 交集矩形，或 null（无重叠）
+     */
     fun intersection(other: RectF): RectF? {
         val l = maxOf(left, other.left)
         val t = maxOf(top, other.top)

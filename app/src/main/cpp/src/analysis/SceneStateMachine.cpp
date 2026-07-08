@@ -1,3 +1,11 @@
+// 火崽崽助手（HZZS）场景状态机 — 实现层。
+//
+// 负责将视觉层每帧输出的场景 hint 稳定化为最终场景模式。
+// 核心机制：连续两帧确认（debounce），避免单帧噪声导致场景跳变。
+//
+// 遮挡处理是此状态机的唯一"特权"——它不需要连续确认，因为遮挡是瞬时事件。
+// 遮挡消失后，从 pending_scene_ 恢复之前的场景，确保分析连续性。
+
 #include "hzzs/analysis/SceneStateMachine.h"
 
 namespace hzzs::analysis {

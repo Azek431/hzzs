@@ -282,6 +282,16 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== 系统栏适配 ====================
 
+    /**
+     * 应用系统栏安全区域（状态栏 + 导航栏）。
+     *
+     * 通过 ViewCompat.setOnApplyWindowInsetsListener 监听系统栏 insets，
+     * 自动为顶部栏和滚动区域添加 padding，避免内容被刘海屏/底部横条遮挡。
+     *
+     * 只处理水平方向（left/right）和顶部栏的垂直方向（top），
+     * 滚动区域的 top padding 保持不变（由布局自身控制），
+     * 底部 padding 仅应用于滚动区域（顶部栏不需要底部 padding）。
+     */
     private fun applySystemBarInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
             val safeInsets = insets.getInsets(
@@ -311,6 +321,16 @@ class MainActivity : AppCompatActivity() {
 
     // ==================== 工具方法 ====================
 
+    /**
+     * 获取资源字符串，如果资源不存在则返回提供的默认值。
+     *
+     * 用于未来功能预留：当新字符串资源尚未加入 strings.xml 时，
+     * 不会导致 getString(id) 抛出 NotFoundException，而是优雅降级到 fallback。
+     *
+     * @param name 字符串资源名称（如 "overlay_preview_open"）
+     * @param fallback 资源不存在时的回退文本
+     * @return 实际字符串或 fallback
+     */
     private fun stringOrFallback(name: String, fallback: String): String {
         val id = resources.getIdentifier(name, "string", packageName)
         return if (id == 0) fallback else getString(id)
