@@ -7,6 +7,7 @@
       "request": "attach",
       "hostName": "localhost",
       "port": 5005,
+      "preLaunchTask": "🔌 [HZZS] 调试前置：安装+启动+JDWP转发",
       "stopOnEntry": false,
       "sourceFileEncoding": "UTF-8",
       "skipClasses": [

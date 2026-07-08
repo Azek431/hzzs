@@ -32,8 +32,7 @@ jstring ToJString(JNIEnv* env, const std::string& value) {
  * JNI 导出方法：分析单帧模拟数据并返回结构化结果。
  *
  * 由 Kotlin 端 NativeAnalysisBridge.analyzeFrame() 调用。
- * 每次调用创建一个全新的 NativeAnalysisEngine（无状态），
- * 注入一帧模拟地面跑酷数据，输出 AnalysisResult 的 JSON 序列化字符串。
+ * 使用静态持久化引擎实例，确保多帧确认机制正常工作（场景切换、动作提示稳定）。
  *
  * 参数说明：
  * - timestamp_ms：帧时间戳（毫秒）
@@ -47,7 +46,6 @@ jstring ToJString(JNIEnv* env, const std::string& value) {
  *
  * @param env JNI 环境指针
  * @param obj JNI 对象（此方法不需要，保留占位）
- * @param args 可变参数列表，包含上述所有字段
  * @return JSON 格式的 AnalysisResult 字符串
  */
 extern "C"
@@ -70,7 +68,8 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeAnalyzeFrame(
     jfloat hazard_velocity_x,
     jfloat world_scroll_speed
 ) {
-    hzzs::analysis::NativeAnalysisEngine engine{};
+    // 使用静态引擎实例，跨帧保持状态（场景确认、姿态基线、跳跃阶段等）
+    static hzzs::analysis::NativeAnalysisEngine engine{};
 
     // 构造帧数据
     hzzs::analysis::FrameDetections frame{};
