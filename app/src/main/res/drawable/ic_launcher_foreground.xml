@@ -1,3 +1,5 @@
+<!-- 应用图标前景层：白色卡通火崽崽形象（简化版）。
+     与 ic_launcher_background.xml 组合成自适应图标。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"

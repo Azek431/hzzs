@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    悬浮窗面板文本链接背景：两态 selector（QQ/Telegram 链接行）。
+
+    状态：
+    - pressed（按下时）：半透明白色 #35FFFFFF，提供按压反馈
+    - default（默认）：完全透明 #00000000，不抢文字焦点
+
+    圆角 10dp。
+    使用场景：view_overlay_preview.xml 中的 overlayCommunityQq / overlayCommunityTelegram
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape>

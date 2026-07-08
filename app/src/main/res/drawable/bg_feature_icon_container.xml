@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    功能卡片图标容器背景：浅粉色圆角矩形。
+
+    用途：activity_main.xml 中三个功能卡片（实时分析、本局战报、校准设置）
+    的图标圆形容器（FrameLayout 背景），与 feature_icon_container 颜色对应。
+    圆角 radius_small = 12dp。
+-->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
 
