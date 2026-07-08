@@ -59,16 +59,16 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     // ==================== Controller 实例 ====================
 
-    /** 系统栏安全区域控制器 */
+    /** 系统栏安全区域控制器，处理 Edge-to-Edge 全屏后的 padding 叠加 */
     private lateinit var insetsController: MainInsetsController
 
-    /** 按钮点击事件绑定器 */
+    /** 按钮点击事件绑定器，负责绑定三个按钮的 onClickListener */
     private lateinit var actionBinder: MainActionBinder
 
-    /** 对话框控制器 */
+    /** 对话框控制器，负责所有 MaterialAlertDialog 的显示 */
     private lateinit var dialogController: MainDialogController
 
-    /** 悬浮窗权限控制器 */
+    /** 悬浮窗权限控制器，负责权限检查和跳转系统设置页面 */
     private lateinit var permissionController: OverlayPermissionController
 
     // ==================== 生命周期 ====================
@@ -76,22 +76,24 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 启用 Edge-to-Edge 全屏显示
+        // 启用 Edge-to-Edge 全屏显示，隐藏状态栏和导航栏
         WindowCompat.enableEdgeToEdge(window)
         WindowCompat.getInsetsController(window, window.decorView).apply {
+            // 设置状态栏图标为深色（适配浅色背景）
             isAppearanceLightStatusBars = false
+            // 设置导航栏图标为深色
             isAppearanceLightNavigationBars = false
         }
 
         setContentView(R.layout.activity_main)
 
-        // 缓存所有 View 引用
+        // 缓存所有 View 引用（从 MainViewCache 获取不可变的缓存结果）
         views = MainViewCache(this).retrieve()
 
-        // 缓存 Padding 初始值
+        // 缓存 Padding 初始值（用于系统栏安全区域处理时叠加 insets）
         insetCache.capture(views)
 
-        // 初始化所有 Controller
+        // 初始化所有 Controller（依赖 views 和 insetCache）
         initControllers()
 
         // 执行页面初始化流程
@@ -100,7 +102,7 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         bindCommunityFooterLinks()
         refreshOverlayButton()
 
-        // 检查免责声明是否已同意
+        // 检查免责声明是否已同意，未同意则跳转到免责声明页面
         if (!FeatureFlags.isDisclaimerAccepted(this)) {
             startActivity(Intent(this, DisclaimerActivity::class.java).apply {
                 putExtra(DisclaimerActivity.EXTRA_RETURN_TO_MAIN, true)
@@ -108,9 +110,14 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         }
     }
 
+    /**
+     * 每次回到前台时刷新悬浮窗按钮状态。
+     *
+     * 因为悬浮窗可能在后台被其他方式关闭，
+     * 需要在 onResume 时重新同步按钮文本。
+     */
     override fun onResume() {
         super.onResume()
-        // 每次回到前台时刷新悬浮窗按钮状态
         refreshOverlayButton()
     }
 
