@@ -3,6 +3,7 @@
   "tasks": [
     {
       "label": "🔨 [HZZS] 构建 Debug APK",
+      "detail": "只执行 Gradle Debug 构建，不安装、不启动应用。用于日常确认项目能否正常编译。实际执行：.\\gradlew.bat --console=plain :app:assembleDebug",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -31,6 +32,7 @@
     },
     {
       "label": "📲 [HZZS] 安装 Debug APK",
+      "detail": "构建并安装 Debug APK 到已连接的 Android 设备。Gradle 的 installDebug 会自动触发必要构建。实际执行：.\\gradlew.bat --console=plain :app:installDebug",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -55,6 +57,7 @@
     },
     {
       "label": "▶️ [HZZS] 启动已安装应用",
+      "detail": "通过 adb monkey 启动已安装的 HZZS 应用。使用 applicationId：top.azek431.hzzs，不硬编码 MainActivity，避免 Activity 路径变化导致启动失败。",
       "type": "shell",
       "command": "adb",
       "args": [
@@ -77,6 +80,7 @@
     },
     {
       "label": "🚀 [HZZS] 构建、安装并启动 Debug",
+      "detail": "日常真机运行的一条龙任务。先执行 Debug 安装，再启动应用。适合每次改完代码后快速上机验证。",
       "dependsOrder": "sequence",
       "dependsOn": [
         "📲 [HZZS] 安装 Debug APK",
@@ -97,16 +101,21 @@
     },
     {
       "label": "🩺 [HZZS] 检查 Android 设备与应用状态",
+      "detail": "只读诊断任务。检查 ADB 设备列表、HZZS 是否已安装、HZZS 当前是否正在运行。不会构建、不会安装、不会修改设备数据。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
         "$pkg='top.azek431.hzzs'; Write-Host '========== ADB 设备 =========='; adb devices -l; Write-Host ''; Write-Host '========== 应用安装状态 =========='; adb shell pm path $pkg; if ($LASTEXITCODE -ne 0) { Write-Host \"未检测到已安装应用：$pkg\" }; Write-Host ''; Write-Host '========== 应用进程 =========='; adb shell pidof $pkg; if ($LASTEXITCODE -ne 0) { Write-Host \"应用当前未运行：$pkg\" }"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -118,6 +127,7 @@
     },
     {
       "label": "🧽 [HZZS] 清空设备运行日志",
+      "detail": "清空当前设备的 logcat 缓冲区。适合在真机诊断前执行，避免旧日志干扰判断。实际执行：adb logcat -c",
       "type": "shell",
       "command": "adb",
       "args": [
@@ -135,6 +145,7 @@
     },
     {
       "label": "🐞 [HZZS] 监听核心运行日志",
+      "detail": "持续监听核心日志，需要手动停止。主要显示 HZZS、崩溃、Activity、窗口相关日志。适合查看启动、悬浮窗、权限、JNI 崩溃等运行问题。",
       "type": "shell",
       "command": "adb",
       "args": [
@@ -164,6 +175,7 @@
     },
     {
       "label": "🧪 [HZZS] 真机诊断一条龙",
+      "detail": "完整真机诊断流程：先清空 logcat，再构建并安装 Debug APK，然后启动应用，最后持续监听核心日志。最后一步是长任务，需要手动停止。",
       "dependsOrder": "sequence",
       "dependsOn": [
         "🧽 [HZZS] 清空设备运行日志",
@@ -186,16 +198,21 @@
     },
     {
       "label": "📤 [HZZS] 导出诊断快照",
+      "detail": "把当前设备诊断信息导出到 D:\\Azek431-Archives\\hzzs-device-diagnostics。内容包括设备列表、应用安装状态、应用进程、logcat 快照和当前手机截图。不会写入项目目录。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$root='D:\\Azek431-Archives\\hzzs-device-diagnostics'; $dir=Join-Path $root (Get-Date -Format 'yyyyMMdd-HHmmss'); New-Item -ItemType Directory -Force -Path $dir | Out-Null; $log=Join-Path $dir 'logcat.txt'; $png=Join-Path $dir 'screen.png'; adb logcat -d -v time | Out-File -LiteralPath $log -Encoding utf8; adb shell screencap -p /sdcard/hzzs_screen.png | Out-Null; adb pull /sdcard/hzzs_screen.png $png | Out-Null; adb shell rm /sdcard/hzzs_screen.png | Out-Null; Write-Host \"诊断快照已导出：$dir\""
+        "$pkg='top.azek431.hzzs'\n$root='D:\\Azek431-Archives\\hzzs-device-diagnostics'\n$dir=Join-Path $root (Get-Date -Format 'yyyyMMdd-HHmmss')\nNew-Item -ItemType Directory -Force -Path $dir | Out-Null\n$deviceInfo=Join-Path $dir 'device-info.txt'\n$log=Join-Path $dir 'logcat.txt'\n$png=Join-Path $dir 'screen.png'\n\n'========== ADB 设备 ==========' | Out-File -LiteralPath $deviceInfo -Encoding utf8\nadb devices -l | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\n'' | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\n'========== 应用安装状态 ==========' | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\nadb shell pm path $pkg | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\n'' | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\n'========== 应用进程 ==========' | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\nadb shell pidof $pkg | Out-File -LiteralPath $deviceInfo -Encoding utf8 -Append\n\nadb logcat -d -v time | Out-File -LiteralPath $log -Encoding utf8\n\nadb shell screencap -p /sdcard/hzzs_screen.png\nif ($LASTEXITCODE -eq 0) {\n    adb pull /sdcard/hzzs_screen.png $png | Out-Null\n    adb shell rm /sdcard/hzzs_screen.png | Out-Null\n}\n\nWrite-Host \"诊断快照已导出：$dir\""
       ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -207,11 +224,13 @@
     },
     {
       "label": "🔌 [HZZS] 调试一条龙：安装、启动并转发 JDWP",
+      "detail": "用于 VS Code / Android 调试准备。会安装 Debug APK、启动应用、查找 HZZS 进程 PID，并把本机 tcp:8700 转发到该进程的 JDWP。不会自动附加调试器，需要你在调试面板里连接 localhost:8700。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
@@ -235,6 +254,7 @@
     },
     {
       "label": "🔌 [HZZS] 移除 JDWP 端口转发",
+      "detail": "移除本机 tcp:8700 到设备 JDWP 的端口转发。适合调试结束后清理环境。实际执行：adb forward --remove tcp:8700",
       "type": "shell",
       "command": "adb",
       "args": [
@@ -253,6 +273,7 @@
     },
     {
       "label": "✅ [HZZS] 验证 Debug（构建 + 单元测试）",
+      "detail": "比普通构建更严格。执行 Debug 构建和 Debug 单元测试，适合提交前快速验证。实际执行：:app:assembleDebug + :app:testDebugUnitTest",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -282,6 +303,7 @@
     },
     {
       "label": "🛡️ [HZZS] 提交前完整验证（构建 + 测试 + Lint）",
+      "detail": "最完整的提交前检查。执行 Debug 构建、Debug 单元测试和 lintDebug。耗时比普通构建更长，适合真正提交前运行。",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -308,6 +330,7 @@
     },
     {
       "label": "📦 [HZZS] 构建 Release APK（仅验证，不发布）",
+      "detail": "只验证 Release 构建是否能通过，不代表正式发布包。正式发布仍需要确认签名、混淆、资源压缩和版本号。",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -332,6 +355,7 @@
     },
     {
       "label": "🗑️ [HZZS] 卸载应用（会清除应用数据）",
+      "detail": "从连接的 Android 设备卸载 HZZS。注意：会清除该应用在设备上的本地数据、权限状态和缓存。实际执行：adb uninstall top.azek431.hzzs",
       "type": "shell",
       "command": "adb",
       "args": [
@@ -349,6 +373,7 @@
     },
     {
       "label": "🛑 [HZZS] 停止 Gradle Daemon，释放内存",
+      "detail": "停止 Gradle 后台进程，释放内存。适合低内存电脑、构建卡住、切换项目或长时间开发后使用。实际执行：.\\gradlew.bat --console=plain --stop",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -369,6 +394,7 @@
     },
     {
       "label": "🧹 [HZZS] 清理构建产物（仅故障时）",
+      "detail": "执行 Gradle clean，删除构建产物。仅在构建缓存异常、资源生成异常、IDE 状态混乱时使用；日常不要频繁执行，因为会让下次构建更慢。",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -393,11 +419,13 @@
     },
     {
       "label": "🔎 [HZZS] 查看 Git 状态与最近提交",
+      "detail": "只读 Git 检查任务。显示当前未提交改动和最近 10 条提交。不会暂存、提交、重置、推送或修改 Git 历史。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
         "-NoLogo",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
