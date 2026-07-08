@@ -5,11 +5,10 @@
 # ---------------------------------------------------------------------------
 # JNI / Native 方法 Keep Rules
 # ---------------------------------------------------------------------------
-# NativeAnalysisBridge.kt 声明了 private external fun，R8 会将其重命名
-# 导致 C++ 端导出的 Java_top_azek431_hzzs_NativeAnalysisBridge_* 符号
-# 与 Kotlin 运行时查找的符号不匹配，引发 UnsatisfiedLinkError。
-#
-# 保留整个 NativeAnalysisBridge object 不被混淆，包括其 native 方法名。
+# NativeAnalysisBridge.kt 声明了 private external fun，R8 可能混淆类名。
+# 保留整个 NativeAnalysisBridge object 不被混淆，确保 JNI 符号名匹配：
+# C++ 端导出 Java_top_azek431_hzzs_NativeAnalysisBridge_*，
+# Kotlin 端需要类名 top.azek431.hzzs.NativeAnalysisBridge 保持不变。
 -keep class top.azek431.hzzs.NativeAnalysisBridge {
     private native java.lang.String nativeGetEngineInfo();
     private native java.lang.String nativeRunSelfCheck();
