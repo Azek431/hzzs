@@ -141,7 +141,7 @@ class OverlayResizeController(
                 downRawY = event.rawY
                 // 初始宽度：优先使用缩放手柄的实际测量宽度，
                 // 如果尚未测量（measuredWidth == 0），fallback 到 BASE_WIDTH_DP 转换后的 px 值
-                initialWidth = resizeHandle.measuredWidth.takeIf { it > 0 }
+                initialWidth = resizeHandle?.measuredWidth.takeIf { it != null && it > 0 }
                     ?: dp(BASE_WIDTH_DP)
                 return false  // 不拦截，让其他 onClick 等事件正常处理
             }
