@@ -86,7 +86,7 @@
     <string name="overlay_adjust_alpha_label">透明度</string>
     <string name="overlay_adjust_scale_label">尺寸</string>
     <string name="overlay_adjust_radius_label">圆角</string>
-    <string name="overlay_adjust_window_hint">拖动窗口边缘或四角调整大小</string>
+    <string name="overlay_adjust_window_hint">拖动顶部标题栏移动，拖动右下角调整大小</string>
 
     <!-- 悬浮窗调整大小：无障碍描述（contentDescription） -->
     <string name="overlay_resize_left">左侧调整大小</string>
@@ -97,15 +97,15 @@
     <string name="overlay_resize_top_right">右上角调整大小</string>
     <string name="overlay_resize_bottom_left">左下角调整大小</string>
     <string name="overlay_resize_bottom_right">右下角调整大小</string>
-    <string name="overlay_resize_handle_content_description">长按拖动调整悬浮窗大小</string>
+    <string name="overlay_resize_handle_content_description">拖动右下角调整悬浮窗大小</string>
 
     <!-- 悬浮窗社区链接按钮文本 -->
-    <string name="overlay_community_qq">加入 QQ 群</string>
-    <string name="overlay_community_telegram">Telegram 频道</string>
+    <string name="overlay_community_qq">QQ 群：130330601</string>
+    <string name="overlay_community_telegram">TG：@AzekMain</string>
 
     <!-- 社区链接：QQ 群和 Telegram 频道的标签、复制提示 -->
-    <string name="community_qq_label">HZZS QQ 交流群</string>
-    <string name="community_telegram_label">Azek431 主频道</string>
+    <string name="community_qq_label">QQ 群</string>
+    <string name="community_telegram_label">TG 频道</string>
     <string name="community_open_fallback">无法直接打开，链接已复制到剪贴板。</string>
     <string name="community_copy_link_failed">复制链接失败，请手动复制: %s</string>
 
@@ -113,8 +113,8 @@
     <string name="community_footer_heading">交流与动态</string>
     <string name="community_footer_qq">HZZS QQ 交流群 · 130330601</string>
     <string name="community_footer_telegram">Azek431 主频道 · @AzekMain</string>
-    <string name="community_qq_content_description">点击加入火崽崽助手 QQ 交流群，群号 130330601</string>
-    <string name="community_telegram_content_description">点击打开 Azek431 Telegram 主频道</string>
+    <string name="community_qq_content_description">点击加入 HZZS QQ 群，群号 130330601</string>
+    <string name="community_telegram_content_description">点击打开 Azek431 TG 频道 @AzekMain</string>
 
     <!-- 设置 / 回退消息 -->
     <string name="settings_open_failed">无法打开系统授权页面，请前往系统设置手动授权。</string>
@@ -126,5 +126,4 @@
     <string name="overlay_auto_op_status_disabled">自动操作：已关闭</string>
     <string name="overlay_auto_op_status_enabled">自动操作：已开启</string>
     <string name="overlay_auto_op_status_paused">自动操作：已暂停</string>
-
 </resources>
