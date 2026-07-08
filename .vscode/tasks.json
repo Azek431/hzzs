@@ -234,7 +234,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$pkg=\"top.azek431.hzzs\"\n& '.\\gradlew.bat' --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) { throw \"安装 Debug APK 失败\" }\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) { throw \"启动应用失败\" }\nStart-Sleep -Seconds 2\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) { throw \"找不到应用进程：$pkg\" }\n$pid = ($pidText -split \"\\s+\")[0].Trim()\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$pid\"\nif ($LASTEXITCODE -ne 0) { throw \"JDWP 转发失败\" }\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $pid\""
+        "$pkg=\"top.azek431.hzzs\"\n& '.\\gradlew.bat' --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) { throw \"安装 Debug APK 失败\" }\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) { throw \"启动应用失败\" }\nStart-Sleep -Seconds 2\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) { throw \"找不到应用进程：$pkg\" }\n$appPid = ($pidText -split \"\\s+\")[0].Trim()\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$appPid\"\nif ($LASTEXITCODE -ne 0) { throw \"JDWP 转发失败\" }\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $appPid\""
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -264,7 +264,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$pkg='top.azek431.hzzs'\n& .\\gradlew.bat --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) {\n    throw '安装 Debug APK 失败'\n}\n\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) {\n    throw '启动应用失败'\n}\n\nStart-Sleep -Seconds 2\n\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) {\n    throw \"找不到应用进程：$pkg\"\n}\n\n$pid = ($pidText -split '\\s+')[0].Trim()\n\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$pid\"\n\nif ($LASTEXITCODE -ne 0) {\n    throw 'JDWP 转发失败'\n}\n\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $pid\""
+        "$pkg='top.azek431.hzzs'\n& .\\gradlew.bat --console=plain :app:installDebug\nif ($LASTEXITCODE -ne 0) {\n    throw '安装 Debug APK 失败'\n}\n\nadb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1\nif ($LASTEXITCODE -ne 0) {\n    throw '启动应用失败'\n}\n\nStart-Sleep -Seconds 2\n\n$pidText = adb shell pidof $pkg\nif ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pidText)) {\n    throw \"找不到应用进程：$pkg\"\n}\n\n$appPid = ($pidText -split '\\s+')[0].Trim()\n\nadb forward --remove tcp:5005 2>$null | Out-Null\nadb forward tcp:5005 \"jdwp:$appPid\"\n\nif ($LASTEXITCODE -ne 0) {\n    throw 'JDWP 转发失败'\n}\n\nWrite-Host \"JDWP 已转发：localhost:5005 -> $pkg / PID $appPid\""
       ],
       "options": {
         "cwd": "${workspaceFolder}"
