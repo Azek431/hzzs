@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    应用图标背景：品牌珊瑚红 (#C73650) 底色 + 网格线装饰。
+
+    用途：mipmap/ic_launcher 和 mipmap/ic_launcher_round 的背景层。
+    108x108dp 视口，按 9dp 间距绘制浅色网格线 (#33FFFFFF)，
+    形成科技感的背景纹理。
+    注意：此为自适应图标背景，实际图标前景在 ic_launcher_foreground.xml 中。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

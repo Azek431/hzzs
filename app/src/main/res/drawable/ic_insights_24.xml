@@ -1,3 +1,5 @@
+<!-- 洞察/分析图标（24x24 dp）：Material Design "insights" 标准路径（眼睛形状）。
+     用途：首页"实时分析"功能卡片图标，颜色固定为 brand_primary (#C73650)。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -5,7 +7,7 @@
     android:viewportHeight="24">
 
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M3,3v18h18V3H3zM19,19H5V5h14V19zM7,17h2v-5H7V17zM11,17h2V7h-2V17zM15,17h2v-7h-2V17z" />
+        android:fillColor="#C73650"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM13,17h-2v-6h2v6zM13,9h-2L11,7h2v2z" />
 
 </vector>

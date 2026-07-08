@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    悬浮窗面板"开始执行/结束执行"按钮背景：三态 selector。
+
+    状态：
+    - disabled（不可用时）：半透明粉色 #66FFB1C4，表示按钮当前不可操作
+    - pressed（按下时）：亮粉色 #FFFF8EAE，提供按压反馈
+    - default（默认）：柔和粉色 #FFFFB1C4，与悬浮窗整体配色一致
+
+    圆角 13dp（约按钮高度 44dp 的近三分之一）。
+    使用场景：view_overlay_preview.xml 中的 overlayStartAnalysis TextView
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_enabled="false">
         <shape>
