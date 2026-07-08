@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    无障碍服务配置。
+
+    配置 AutoOperationService 的行为：
+    - typeAllMask：接收所有类型的无障碍事件
+    - feedbackGeneric：通用反馈类型（本服务不需要向用户发声/震动）
+    - canRetrieveWindowContent=false：不读取窗口内容（安全考虑，减少权限范围）
+    - settingsActivity：用户可从此 Activity 跳转到无障碍服务设置页面
+-->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="false"
+    android:settingsActivity="top.azek431.hzzs.MainActivity"
+    android:description="@string/accessibility_service_description" />
