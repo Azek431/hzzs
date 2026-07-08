@@ -60,8 +60,8 @@ data class FrameAnalysisResult(
     // 收藏物信息
     val collectiblesCount: Int,        // 检测到可收集物品数量
 ) {
-    // ==================== 场景模式常量 ====================
     companion object {
+        // ==================== 场景模式常量 ====================
         const val SCENE_UNKNOWN = 0
         const val SCENE_MENU = 1
         const val SCENE_COUNTDOWN = 2
@@ -69,10 +69,8 @@ data class FrameAnalysisResult(
         const val SCENE_FLIGHT_RUN = 4
         const val SCENE_RESULT = 5
         const val SCENE_OCCLUDED = 6
-    }
 
-    // ==================== 角色姿态常量 ====================
-    companion object {
+        // ==================== 角色姿态常量 ====================
         const val POSE_UNKNOWN = 0
         const val POSE_RUN = 1
         const val POSE_JUMP_UP = 2
@@ -80,10 +78,8 @@ data class FrameAnalysisResult(
         const val POSE_JUMP_DOWN = 4
         const val POSE_SLIDE = 5
         const val POSE_FLIGHT = 6
-    }
 
-    // ==================== 提示动作常量 ====================
-    companion object {
+        // ==================== 提示动作常量 ====================
         const val PROMPT_NONE = 0
         const val PROMPT_JUMP = 1
         const val PROMPT_JUMP_AGAIN = 2
