@@ -29,7 +29,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.HtmlCompat
+import androidx.core.text.HtmlCompat
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
