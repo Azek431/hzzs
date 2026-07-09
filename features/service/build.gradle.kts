@@ -4,12 +4,11 @@
 // - AutoOperationService（无障碍服务入口）
 // - AutoActionQueue（操作队列管理）
 // - GestureInjector（手势注入）
-// - OverlayNotificationService（前台通知服务）
 //
 // 特点：
 // - 包含 Android Service 代码
 // - 依赖 core 模块（model + util）
-// - 被 feat-overlay 模块依赖
+// - 被 app 模块依赖
 
 plugins {
     alias(libs.plugins.android.library)

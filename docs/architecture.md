@@ -194,6 +194,7 @@ hzzs/                          ← 根项目
 ```
 
 **设计原则：**
+
 - `:app` 模块独占所有 `res/` 资源（布局、字符串、drawable）
 - `:core` 模块为纯 Kotlin，可独立做单元测试
 - `:features/overlay` 和 `:features/service` 不含 R 引用
