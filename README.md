@@ -1,8 +1,9 @@
 # 火崽崽助手（HZZS）
 
 <p align="center">
-  <strong>面向跑酷画面分析的 Android 本地辅助工具。</strong><br>
-  使用 Kotlin 与 Android 原生技术开发，优先追求清晰、稳定、可维护的本地工具体验。
+  <strong>面向跑酷画面分析的 Android 本地图像识别与悬浮窗 HUD 工具。</strong><br>
+  使用 Kotlin 与 C++/JNI 技术开发，优先追求清晰、稳定、可维护的本地工具体验。<br>
+  支持绿瓶识别、坑位检测、自动跳跃/点击/滑动等基础辅助能力。
 </p>
 
 <p align="center">
@@ -20,15 +21,26 @@
 
 ## 项目简介
 
-火崽崽助手（HZZS）是一个独立开发的 Android 工具项目，目标是为跑酷类游戏提供更清晰的本地状态查看、画面分析、数据记录、参数校准和异常诊断体验。
+火崽崽助手（HZZS）是一个独立开发的 Android 工具项目，目标是为跑酷类游戏提供**本地画面分析、悬浮窗 HUD 展示、图像识别辅助**和**参数校准**能力。
 
-后续版本计划在用户主动授权的前提下，对屏幕画面进行本地采样与分析，并逐步提供：
+### 核心技术栈
 
-- 跑酷状态、分数、生命和关键事件提示
-- 地面障碍、顶部障碍、糖果等画面元素识别
-- 悬浮窗 HUD 信息展示
-- 本局事件记录、战报和历史趋势分析
-- 参数校准、设备适配和异常诊断能力
+- **Kotlin + Android Views** — 原生 UI 层
+- **C++17 + JNI** — 高性能分析引擎（场景状态机、跳跃阶段估算、障碍物 ETA 计算）
+- **本地图像识别** — 绿瓶 RGB 检测、坑位地面断裂检测
+- **悬浮窗 HUD** — 实时画面分析可视化展示
+- **无障碍服务** — 自动操作注入（跳跃/点击/滑动）
+- **MediaProjection / takeScreenshot** — 本地屏幕采集
+
+### 开源目的
+
+本项目作为开源学习参考作品发布，欢迎开发者：
+
+- 研究 Android 无障碍服务截图技术
+- 学习本地图像识别与颜色检测算法
+- 了解 C++/JNI 在 Android 中的性能优化
+- 参考悬浮窗 HUD 设计与绘制技术
+- 探索基于图像识别的辅助操作方案
 
 HZZS 不隶属于、不代表、也未获得任何第三方平台、品牌、游戏或服务的官方授权。
 
@@ -40,22 +52,27 @@ HZZS 不隶属于、不代表、也未获得任何第三方平台、品牌、游
 0.1.0
 ```
 
-当前版本的重点是建立稳定的 Android 工程基础、统一的界面体验，以及后续分析能力所需的交互入口。
+当前版本的重点是建立稳定的 Android 工程基础、视觉识别原型、悬浮窗 HUD 和自动操作能力。
 
 | 模块 | 当前状态 | 说明 |
 | --- | --- | --- |
 | Android 原生工程基础 | 已完成 | Kotlin、Gradle、Android Views 与 Material Components 基础已建立。 |
 | 浅色首页界面 | 已完成 | 已具备状态卡片、功能入口、开发信息与社区入口。 |
-| 悬浮窗权限与预览 | 已完成 | 支持显示、拖动、关闭和重新打开。 |
-| 悬浮窗执行状态 | 已完成 | 支持“开始执行”与“结束执行”的交互状态切换。 |
+| 悬浮窗权限与预览 | 已完成 | 支持显示、拖动、缩放、关闭和重新打开。 |
+| 悬浮窗执行状态 | 已完成 | 支持”循环执行”、”单次执行”与”停止运行”交互。 |
 | QQ 群与 Telegram 入口 | 已完成 | 首页和悬浮窗都可打开对应社区链接。 |
-| 屏幕采集授权 | 计划中 | 后续将通过系统授权流程接入。 |
-| 实时帧分析 | 计划中 | 尚未接入玩家、障碍、糖果、分数或生命识别。 |
-| HUD 实时提示 | 计划中 | 当前悬浮窗仅承担界面与交互预览。 |
+| C++ 分析引擎 | 已完成 | 场景状态机、跳跃阶段估算、障碍物 ETA 计算。 |
+| JNI 桥接层 | 已完成 | NativeLibraryLoader / NativeEngineFacade / VisionAnalysisBridge。 |
+| HUD 模拟渲染 | 已完成 | 20fps 模拟帧驱动 C++ 引擎，结果输出到悬浮窗 Canvas。 |
+| 无障碍自动操作 | 已完成 | AutoOperationService + AutoActionQueue + GestureInjector。 |
+| 截图采集原型 | 已完成 | AccessibilityService.takeScreenshot() 截图 + 绿瓶检测。 |
+| 视觉识别设置 | 已完成 | 5 个分区 Tab 设置页面，支持参数实时调节。 |
+| 屏幕采集授权 | 计划中 | 后续将通过 MediaProjection 系统授权流程接入。 |
+| 实时帧分析 | 计划中 | 尚未接入真实游戏画面采集与实时识别。 |
 | 本局战报与历史记录 | 计划中 | 尚未建立正式数据模型与本地数据库。 |
 | 参数校准与异常诊断 | 计划中 | 后续将作为独立能力逐步实现。 |
 
-> 当前“开始执行”只表示分析流程的交互入口已经建立，不代表已经开始采集屏幕、识别障碍、读取分数或操作游戏。
+> 当前”循环执行”驱动的是 C++ 分析引擎的模拟帧数据，不代表真实采集屏幕或识别游戏画面。
 
 ## 当前界面与交互
 
@@ -73,48 +90,72 @@ HZZS 不隶属于、不代表、也未获得任何第三方平台、品牌、游
 
 ### 悬浮窗
 
-当前悬浮窗已经具备基础交互能力：
+当前悬浮窗采用深色科技风设计，已具备完整交互能力：
 
 - 用户授权后显示悬浮窗
-- 拖动到合适位置
+- 拖动顶部标题栏移动位置
+- 拖动右下角缩放手柄调整大小
 - 点击右上角 `×` 关闭
-- 点击“开始执行”进入执行中状态
-- 点击“结束执行”回到初始状态，悬浮窗继续保留
+- 点击”循环执行”启动模拟帧循环，按钮变为”停止运行”
+- 点击”停止运行”停止循环，按钮恢复”循环执行”
+- 点击”单次执行”执行一次分析，结果停留 400ms 后自动清空
+- 调节透明度滑块实时改变悬浮窗透明度
+- 切换自动操作开关控制自动操作启用/禁用
+- 调节自动操作延迟滑块（0~500ms）
 - 打开 HZZS QQ 交流群和 Azek431 主频道
-- 打开外部链接后保持悬浮窗显示
 - 关闭后可从首页再次打开
 
 ## 功能边界
 
-HZZS 的设计方向是**只读分析与信息提示**。
+HZZS 的核心定位是**本地画面分析与辅助提示**，同时提供可选的自动操作能力。
 
 | 范围 | 说明 |
 | --- | --- |
-| 允许方向 | 本地屏幕画面分析、状态识别、数据记录、HUD 提示、战报统计、校准与诊断。 |
-| 不做自动操作 | 不自动点击、不自动跳跃、不自动滑动、不自动复活，也不代替用户控制游戏。 |
-| 不静默采集 | 未来涉及屏幕采集时，会要求用户明确授权。 |
-| 不默认上传 | 不主动上传截图、日志、运行记录、设备信息或本地分析数据。 |
+| 允许方向 | 本地屏幕画面分析、状态识别、悬浮窗 HUD 提示、参数校准与异常诊断。 |
+| 自动操作 | 已实现自动跳跃、自动点击、自动滑动（基于图像识别结果），可通过设置界面开关。 |
+| 截图采集 | 已实现 AccessibilityService.takeScreenshot() 截图原型，MediaProjection 计划中。 |
+| 不上传数据 | 默认不上传截图、日志、运行记录、设备信息或本地分析数据。 |
 | 不伪装官方 | 不宣称为任何游戏、平台、品牌或服务的官方工具。 |
 
-## 计划中的分析流程
+## 当前分析流程
 
-后续核心能力会围绕以下本地处理流程展开：
+当前已实现两条分析链路：
+
+### 模拟帧分析（已完成）
 
 ```text
-用户主动授权屏幕采集
+OverlayHUDRenderer 生成模拟帧（正弦波玩家 + 周期危险物）
         ↓
-画面帧采样与预处理
+NativeEngineFacade → JNI → C++ 分析引擎
         ↓
-玩家、障碍、糖果、分数等信息识别
+JSON 序列化 → NativeJsonParser → FrameAnalysisResult
         ↓
-跑酷状态机与事件判断
-        ↓
-悬浮窗 HUD 提示 / 本局事件记录
-        ↓
-本局战报、历史统计、校准与异常诊断
+HUDCanvasView（Canvas 绘制可视化）
 ```
 
-为提高稳定性，后续不会只依赖单帧结果做判断，而会逐步引入：
+### 截图识别分析（原型已搭建）
+
+```text
+ScreenshotCapture.takeScreenshot() → CaptureResult(pixels, w, h)
+        ↓
+VisionAnalysisBridge.scanGreenBottle() → VisionGreenBottleResult
+        ↓
+VisionDebugOverlayView（调试可视化，计划中）
+```
+
+### 自动操作链路（已完成）
+
+```text
+识别结果（绿瓶/坑位/障碍）
+        ↓
+AutoActionQueue.enqueue(action)
+        ↓
+AutoOperationService 定时调度
+        ↓
+GestureInjector.dispatchGesture() 注入触摸事件
+```
+
+为提高稳定性，分析流程不会只依赖单帧结果做判断，而是逐步引入：
 
 - 多帧确认与置信度判断
 - 逻辑坐标与不同屏幕比例适配
@@ -181,10 +222,10 @@ HZZS 的设计方向是**只读分析与信息提示**。
 
 - [x] 建立浅色首页基础界面
 - [x] 建立悬浮窗权限入口
-- [x] 实现悬浮窗显示、拖动、关闭和重新打开
-- [x] 建立开始执行与结束执行的状态切换
+- [x] 实现悬浮窗显示、拖动、缩放、关闭和重新打开
+- [x] 建立循环执行 / 单次执行 / 停止运行 的状态切换
 - [x] 接入 QQ 群与 Telegram 社区入口
-- [ ] 建立完整底部导航与页面切换
+- [x] 建立底部导航栏（首页 / 设置）
 - [ ] 完善空状态、加载状态、错误状态与无障碍标签
 - [ ] 完善应用图标、启动页与关于页面
 
@@ -192,6 +233,12 @@ HZZS 的设计方向是**只读分析与信息提示**。
 
 **目标：在明确授权的前提下，建立稳定的本地帧分析能力。**
 
+- [x] 搭建 C++ 分析引擎（场景/姿态/跳跃/ETA/提示）
+- [x] 搭建 JNI 桥接层（NativeLibraryLoader / NativeEngineFacade / VisionAnalysisBridge）
+- [x] 实现 HUD 模拟帧渲染循环（20fps，正弦波驱动）
+- [x] 实现 AccessibilityService.takeScreenshot() 截图原型
+- [x] 实现绿瓶 RGB 单行扫描检测
+- [x] 实现无障碍自动操作服务（AutoOperationService + GestureInjector）
 - [ ] 接入 MediaProjection 屏幕采集授权流程
 - [ ] 建立帧采样与图像预处理模块
 - [ ] 建立逻辑坐标与游戏画面区域适配
@@ -245,9 +292,9 @@ HZZS 的设计方向是**只读分析与信息提示**。
 | 项目代号 | HZZS |
 | 当前版本 | `0.1.0` |
 | Package / Namespace | `top.azek431.hzzs` |
-| 开发语言 | Kotlin |
+| 开发语言 | Kotlin + C++17 (JNI) |
 | 当前 UI 基础 | Android Views + Material Components |
-| UI 方向 | 浅色 Material Design 3 风格（暖白背景 #FFF8F6） |
+| UI 方向 | 浅色 Material Design 3 风格（暖白背景 #FFF8F6）+ 深色悬浮窗科技风 |
 | 最低 Android 版本 | API 24（Android 7.0） |
 | 编译 SDK | API 37 |
 | 目标 SDK | API 37 |
@@ -261,40 +308,37 @@ HZZS 的设计方向是**只读分析与信息提示**。
 
 ```text
 hzzs/
-├─ app/
-│  ├─ src/
-│  │  ├─ main/
-│  │  │  ├─ java/top/azek431/hzzs/
-│  │  │  │  ├─ MainActivity.kt
-│  │  │  │  ├─ OverlayPreviewManager.kt
-│  │  │  │  ├─ CommunityLinks.kt
-│  │  │  │  └─ NativeAnalysisBridge.kt
-│  │  │  ├─ cpp/
-│  │  │  │  ├─ include/hzzs/analysis/
-│  │  │  │  ├─ src/analysis/
-│  │  │  │  ├─ src/jni/
-│  │  │  │  └─ CMakeLists.txt
-│  │  │  ├─ res/
-│  │  │  │  ├─ layout/
-│  │  │  │  │  ├─ activity_main.xml
-│  │  │  │  │  └─ view_overlay_preview.xml
-│  │  │  │  ├─ drawable/
-│  │  │  │  └─ values/
-│  │  │  └─ AndroidManifest.xml
-│  │  ├─ build.gradle.kts
-│  │  └─ proguard-rules.pro
-├─ docs/
-│  ├─ architecture.md
-│  ├─ analysis-algorithm.md
-│  ├─ testing.md
-│  └─ privacy-and-boundaries.md
+├─ app/                          ← APK 模块（含 res/ 资源）
+│  ├─ src/main/java/top/azek431/hzzs/
+│  │  ├─ MainActivity.kt         ← 入口 Activity（底部导航调度）
+│  │  ├─ ui/home/               ← 首页 Fragment + 回调接口
+│  │  ├─ ui/main/               ← 首页 Controller（对话框/权限等）
+│  │  ├─ ui/overlay/            ← 悬浮窗管理器、按钮绑定、设置绑定
+│  │  ├─ ui/settings/           ← 视觉识别设置页面（5 个分区 Tab）
+│  │  ├─ ui/disclaimer/         ← 免责声明
+│  │  ├─ ui/community/          ← 社区链接
+│  │  ├─ service/               ← 前台通知服务、无障碍自动操作
+│  │  ├─ data/vision/           ← 截图采集 + 视觉识别 JNI 桥接
+│  │  └─ NativeAnalysisBridge.kt ← JNI 兼容门面
+│  ├─ cpp/                       ← C++ 原生分析核心（8 个类）
+│  └─ res/                       ← 布局、样式、字符串资源
+├─ core/                         ← 纯 Kotlin 库（无 UI 依赖）
+│  ├─ model/                     ← FrameData.kt（数据模型）
+│  ├─ util/                      ← FeatureFlags / ThreadSafeQueue / ObjectPool
+│  └─ data/native/               ← NativeLibraryLoader / NativeEngineFacade
+├─ features/
+│  ├─ overlay/                   ← 悬浮窗 UI 组件（HUD 渲染/绘制/缩放）
+│  └─ service/                   ← 自动操作服务（队列/手势注入）
+├─ docs/                         ← 项目文档
 ├─ gradle/
 ├─ .vscode/
 ├─ build.gradle.kts
-├─ gradle.properties
 ├─ settings.gradle.kts
-├─ gradlew
-├─ gradlew.bat
+├─ gradlew / gradlew.bat
+├─ LICENSE
+├─ README.md
+├─ CONTRIBUTING.md
+└─ CHANGELOG.md
 ├─ LICENSE
 ├─ README.md
 ├─ CONTRIBUTING.md
@@ -448,6 +492,14 @@ Android 版本
 - 不把规划中的功能描述成已经实现。
 - 提交说明能够准确描述改动目的。
 - 新增能力应保留清晰的边界，避免把页面、分析、存储和系统服务逻辑堆进单一文件。
+
+## 关键词
+
+Android · Kotlin · C++ · JNI · Computer Vision · Image Processing · Screen Capture ·
+Accessibility Screenshot · MediaProjection · HUD Overlay · Game Analysis · Local First ·
+Native Android · Vision Algorithm · 跑酷画面分析 · 安卓悬浮窗 · 本地图像识别 ·
+障碍检测 · 绿瓶识别 · 坑位识别 · 参数校准 · 火崽崽助手 · HZZS ·
+火崽崽基础辅助 · 基础助手 · 数据分析 · 开源学习 · Azek431
 
 ## 开源许可证
 
