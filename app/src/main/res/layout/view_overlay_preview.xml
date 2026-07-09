@@ -340,6 +340,24 @@
                     android:textSize="9sp" />
             </LinearLayout>
 
+            <!-- ===== 配置入口 ===== -->
+            <TextView
+                android:id="@+id/overlaySettingsEntry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_overlay_text_link"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:includeFontPadding="false"
+                android:minHeight="28dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:text="⚙ 视觉识别设置"
+                android:textColor="#FF5CB8FF"
+                android:textSize="11sp" />
+
         </LinearLayout>
     </FrameLayout>
 

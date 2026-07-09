@@ -114,6 +114,7 @@ object OverlayPreviewManager {
     private var analysisUiState = AnalysisUiState.IDLE
 
     /** 单次执行的 Handler，用于 400ms 后自动清空状态 */
+    @Suppress("DEPRECATION")
     private val singleHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -217,6 +218,13 @@ object OverlayPreviewManager {
                         CommunityLinks.openLink(appContext, appContext.getString(entry.labelRes), entry.url, fallbackMsg)
                     }
                 }
+            }
+
+            // 绑定配置入口 → 打开 VisionSettingsActivity
+            finder.settingsEntry.setOnClickListener {
+                val intent = android.content.Intent(appContext, top.azek431.hzzs.ui.settings.VisionSettingsActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                appContext.startActivity(intent)
             }
 
             // 初始化拖动控制器

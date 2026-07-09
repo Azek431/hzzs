@@ -52,6 +52,7 @@ class OverlayButtonBinder(
     private var state: AnalysisUiState = AnalysisUiState.IDLE
 
     /** Handler 用于单次执行后的状态恢复 */
+    @Suppress("DEPRECATION")
     private val handler = Handler(Looper.getMainLooper())
 
     // ==================== 状态枚举 ====================

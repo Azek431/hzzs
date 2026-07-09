@@ -62,6 +62,9 @@ class OverlayViewFinder(
     /** 根面板 */
     val rootPanel: View
 
+    /** 视觉识别设置入口 */
+    val settingsEntry: View
+
     // ==================== 查找逻辑 ====================
 
     init {
@@ -76,6 +79,7 @@ class OverlayViewFinder(
         communityTelegram = findRequired(R.id.overlayCommunityTelegram, "overlayCommunityTelegram")
         resizeHandle = root.findViewById(R.id.overlayResizeHandle)
         rootPanel = findRequired(R.id.overlayRootPanel, "overlayRootPanel")
+        settingsEntry = findRequired(R.id.overlaySettingsEntry, "overlaySettingsEntry")
     }
 
     /**
