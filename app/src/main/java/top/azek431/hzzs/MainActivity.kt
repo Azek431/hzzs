@@ -29,7 +29,7 @@ import top.azek431.hzzs.ui.main.MainDialogController
 import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.ui.settings.SettingsFragmentPage
-import top.azek431.hzzs.util.FeatureFlags
+import top.azek431.hzzs.core.util.FeatureFlags
 
 /**
  * 主 Activity，同时也是 HomeActionCallbacks 的实现者。
@@ -69,6 +69,17 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
 
         setContentView(R.layout.activity_main)
 
+        // 检查免责声明（首次启动阻塞模式）：
+        // 如果用户未同意声明，直接进入 DisclaimerActivity 并 finish() 自身，
+        // 用户必须阅读并同意后才能进入应用。
+        if (!FeatureFlags.isDisclaimerAccepted(this)) {
+            startActivity(Intent(this, DisclaimerActivity::class.java).apply {
+                putExtra(DisclaimerActivity.EXTRA_RETURN_TO_MAIN, false)
+            })
+            finish()
+            return
+        }
+
         // 初始化 Controller
         dialogController = MainDialogController(this)
         permissionController = OverlayPermissionController(this)
@@ -76,13 +87,6 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
         // 执行页面初始化流程
         refreshOverlayButton()
         setupBottomNavigation()
-
-        // 检查免责声明
-        if (!FeatureFlags.isDisclaimerAccepted(this)) {
-            startActivity(Intent(this, DisclaimerActivity::class.java).apply {
-                putExtra(DisclaimerActivity.EXTRA_RETURN_TO_MAIN, true)
-            })
-        }
     }
 
     /**

@@ -24,9 +24,9 @@ package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
 import android.util.Log
-import top.azek431.hzzs.data.native.NativeEngineFacade
-import top.azek431.hzzs.data.native.NativeLibraryLoader
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.data.native.NativeEngineFacade
+import top.azek431.hzzs.core.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.model.RectF
 
 /**
  * HUD 渲染器。

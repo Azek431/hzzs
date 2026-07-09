@@ -36,10 +36,9 @@ import android.widget.TextView
 import android.widget.Toast
 import top.azek431.hzzs.NativeAnalysisBridge
 import top.azek431.hzzs.R
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
-import top.azek431.hzzs.ui.overlay.VisionDebugOverlayView
 
 /**
  * 悬浮窗管理器单例。
@@ -80,9 +79,6 @@ object OverlayPreviewManager {
 
     /** HUD 渲染器实例，负责模拟帧生成和 C++ 引擎驱动 */
     private var hudRenderer: OverlayHUDRenderer? = null
-
-    /** 视觉调试叠加层，用于可视化识别框和扫描线 */
-    private var visionDebugOverlay: VisionDebugOverlayView? = null
 
     // ==================== 悬浮窗会话 ====================
 
@@ -246,7 +242,6 @@ object OverlayPreviewManager {
                         Toast.makeText(appContext, R.string.overlay_analysis_stopped, Toast.LENGTH_SHORT).show()
                         hudRenderer?.stop()
                         NativeAnalysisBridge.resetEngine()
-                        visionDebugOverlay?.stopAnimation()
                     }
                     AnalysisUiState.SINGLE_PENDING -> {
                         // 用户在单次执行等待中点击循环按钮，取消单次并启动循环
@@ -266,7 +261,6 @@ object OverlayPreviewManager {
                     singleHandler.removeCallbacksAndMessages(null)
                     analysisUiState = AnalysisUiState.IDLE
                     hudRenderer?.stop()
-                    visionDebugOverlay?.stopAnimation()
                     updateStatusUI(false)
                 }
 
@@ -325,23 +319,21 @@ object OverlayPreviewManager {
             })
             dragController.attach(layoutParams.x, layoutParams.y)
 
-            // 初始化缩放控制器：处理 overlayResizeHandle 的缩放事件
-            // 记录初始高度（WRAP_CONTENT 时取测量值，若为 0 则用基础高度）
-            val baseHeightPx = view.measuredHeight.takeIf { it > 0 }
-                ?: windowController.dp(300) // 默认高度 fallback
-            val resizeListener = object : OnResizeUpdateListener {
-                override fun onResized(newWidth: Int, scaleRatio: Float) {
+            // 初始化缩放控制器：处理 overlayResizeHandle 的自由宽高缩放事件
+            // 在 attach 之前先初始化基准尺寸，确保 measuredWidth 已就绪
+            val resizeController = OverlayResizeController(resizeHandle, appContext, object : OnResizeUpdateListener {
+                override fun onResized(newWidth: Int, newHeight: Int) {
                     layoutParams.width = newWidth
-                    // 高度跟随宽度同比例缩放，避免缩得太小内容无法辨认
-                    layoutParams.height = (baseHeightPx * scaleRatio).toInt()
+                    layoutParams.height = newHeight
                     try {
                         manager.updateViewLayout(view, layoutParams)
                     } catch (e: IllegalArgumentException) {
                         Log.w(TAG, "[Overlay] detached while resizing.", e)
                     }
                 }
-            }
-            val resizeController = OverlayResizeController(resizeHandle, appContext, resizeListener)
+            })
+            // 初始化基准尺寸：优先使用实际测量值，fallback 到基础尺寸
+            resizeController.initializeDimensions(view)
             resizeController.attach()
 
             // 初始化设置绑定器：绑定透明度滑块和自动操作控件
@@ -357,10 +349,6 @@ object OverlayPreviewManager {
 
             // 初始化 HUD 渲染器（仅驱动模拟帧生成 + C++ 引擎，不再绑定 UI 视图）
             hudRenderer = OverlayHUDRenderer(appContext)
-
-            // 查找并绑定视觉调试叠加层
-            visionDebugOverlay = view.findViewById(R.id.visionDebugOverlay)
-            visionDebugOverlay?.startAnimation()
 
             // 添加到 WindowManager
             try {
@@ -414,7 +402,6 @@ object OverlayPreviewManager {
         activeSession = null
         analysisUiState = AnalysisUiState.IDLE
         singleHandler.removeCallbacksAndMessages(null)
-        visionDebugOverlay?.stopAnimation()
 
         return try {
             session.manager.removeView(session.rootView)

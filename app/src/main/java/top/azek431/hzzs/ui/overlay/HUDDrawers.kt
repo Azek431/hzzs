@@ -20,8 +20,8 @@ import android.graphics.Shader
 import android.graphics.PointF
 import kotlin.math.cos
 import kotlin.math.sin
-import top.azek431.hzzs.model.FrameAnalysisResult
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.model.FrameAnalysisResult
+import top.azek431.hzzs.core.model.RectF
 
 // ==================== 网格绘制 ====================
 

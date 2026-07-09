@@ -17,10 +17,10 @@
 
 package top.azek431.hzzs
 
-import top.azek431.hzzs.data.native.NativeEngineFacade
-import top.azek431.hzzs.data.native.NativeLibraryLoader
-import top.azek431.hzzs.model.FrameAnalysisResult
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.data.native.NativeEngineFacade
+import top.azek431.hzzs.core.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.model.FrameAnalysisResult
+import top.azek431.hzzs.core.model.RectF
 
 /**
  * JNI 桥接层（兼容门面）。
