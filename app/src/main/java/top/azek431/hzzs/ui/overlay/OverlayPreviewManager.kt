@@ -188,11 +188,11 @@ object OverlayPreviewManager {
                 finder.statusText, finder.statusDot, finder.btnCycle, finder.btnSingle, appContext
             )
             buttonBinder.bind(
-                start = {
+                startCycle = {
                     analysisUiState = AnalysisUiState.CYCLE_RUNNING
                     hudRenderer?.start()
                 },
-                stop = {
+                stopCycle = {
                     analysisUiState = AnalysisUiState.IDLE
                     hudRenderer?.stop()
                     NativeAnalysisBridge.resetEngine()
@@ -200,6 +200,9 @@ object OverlayPreviewManager {
                 reset = {
                     singleHandler.removeCallbacksAndMessages(null)
                     analysisUiState = AnalysisUiState.IDLE
+                },
+                startSingle = {
+                    hudRenderer?.startSingle()
                 },
             )
 

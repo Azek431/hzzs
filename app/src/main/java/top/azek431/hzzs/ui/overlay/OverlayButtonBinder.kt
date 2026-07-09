@@ -72,8 +72,18 @@ class OverlayButtonBinder(
      * 绑定内容：
      * 1. 循环执行按钮：点击切换 循环执行 <-> 停止运行
      * 2. 单次执行按钮：点击执行一次分析，SINGLE_DELAY_MS 后自动恢复空闲
+     *
+     * @param startCycle 启动循环执行的回调
+     * @param stopCycle 停止循环执行的回调
+     * @param reset 重置状态的回调
+     * @param startSingle 单次执行的回调（可选，默认调用 startCycle）
      */
-    fun bind(start: () -> Unit, stop: () -> Unit, reset: () -> Unit) {
+    fun bind(
+        startCycle: () -> Unit,
+        stopCycle: () -> Unit,
+        reset: () -> Unit,
+        startSingle: () -> Unit = { startCycle() },
+    ) {
         // 循环执行按钮：点击切换 循环执行 <-> 停止运行
         btnCycle.setOnClickListener {
             when (state) {
@@ -82,14 +92,14 @@ class OverlayButtonBinder(
                     updateStatusUI(true)
                     Log.i(TAG, "[Btn] cycle execution started.")
                     Toast.makeText(context, R.string.overlay_analysis_started, Toast.LENGTH_SHORT).show()
-                    start()
+                    startCycle()
                 }
                 AnalysisUiState.CYCLE_RUNNING -> {
                     state = AnalysisUiState.IDLE
                     updateStatusUI(false)
                     Log.i(TAG, "[Btn] cycle execution stopped.")
                     Toast.makeText(context, R.string.overlay_analysis_stopped, Toast.LENGTH_SHORT).show()
-                    stop()
+                    stopCycle()
                     reset()
                 }
                 AnalysisUiState.SINGLE_PENDING -> {
@@ -98,7 +108,7 @@ class OverlayButtonBinder(
                     state = AnalysisUiState.CYCLE_RUNNING
                     updateStatusUI(true)
                     Log.i(TAG, "[Btn] switched from single to cycle execution.")
-                    start()
+                    startCycle()
                 }
             }
         }
@@ -109,7 +119,7 @@ class OverlayButtonBinder(
             if (state == AnalysisUiState.CYCLE_RUNNING) {
                 handler.removeCallbacksAndMessages(null)
                 state = AnalysisUiState.IDLE
-                stop()
+                stopCycle()
                 updateStatusUI(false)
             }
 
@@ -122,7 +132,7 @@ class OverlayButtonBinder(
             Toast.makeText(context, R.string.overlay_single_started, Toast.LENGTH_SHORT).show()
 
             // 执行单次分析
-            start()
+            startSingle()
 
             // 确认单次执行完成后恢复空闲状态
             if (state == AnalysisUiState.SINGLE_PENDING) {
