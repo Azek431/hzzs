@@ -66,7 +66,7 @@ class MainInsetCache {
      */
     fun capture(views: MainViewCacheResult) {
         val topBar = views.topBarContainer
-        val scroll = views.homeScrollView
+        val scroll = views.rootContainer
 
         topBarPaddingStartInit = topBar.paddingStart
         topBarPaddingTopInit = topBar.paddingTop

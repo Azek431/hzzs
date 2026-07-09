@@ -254,14 +254,20 @@ class OverlaySettingsBinder(
         // 3. 恢复缩放系数
         val savedScale = prefs.getFloat(KEY_SCALE_RATIO, 1f)
         if (savedScale != 1f) {
-            // 计算缩放后的宽度，限制在 [0.5x, 2.0x] 范围内
+            // 计算缩放后的宽度，限制在 [0.7x, 2.0x] 范围内
             val scaledWidth = (baseWidth * savedScale).toInt().coerceIn(
-                (baseWidth * 0.5f).roundToInt(),
+                (baseWidth * 0.7f).roundToInt(),
                 (baseWidth * 2.0f).roundToInt()
+            )
+            // 高度也跟随同比例缩放
+            val scaledHeight = (view.measuredHeight * savedScale).toInt().coerceIn(
+                (baseWidth * 0.7f).roundToInt(),
+                (baseWidth * 3.0f).roundToInt()
             )
             val lp = view.layoutParams
             if (lp != null) {
                 lp.width = scaledWidth
+                lp.height = scaledHeight
                 view.layoutParams = lp
             }
         }

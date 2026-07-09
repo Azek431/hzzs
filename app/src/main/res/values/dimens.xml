@@ -68,4 +68,7 @@
     <dimen name="overlay_text_desc">11sp</dimen>
     <dimen name="overlay_text_note">10sp</dimen>
 
+    <!-- 底部导航栏 -->
+    <dimen name="bottom_nav_height">56dp</dimen>
+
 </resources>
