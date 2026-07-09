@@ -174,14 +174,6 @@
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <!-- ===== 视觉调试叠加层 ===== -->
-            <top.azek431.hzzs.ui.overlay.VisionDebugOverlayView
-                android:id="@+id/visionDebugOverlay"
-                android:layout_width="match_parent"
-                android:layout_height="120dp"
-                android:layout_marginTop="8dp"
-                android:background="#1A1A2E" />
-
             <!-- ===== 分割线 ===== -->
             <View
                 android:layout_width="match_parent"
