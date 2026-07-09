@@ -20,13 +20,13 @@
 │  └── OverlayPermissionController (权限检查)                     │
 │                                                               │
 │  OverlayPreviewManager (悬浮窗生命周期)                         │
-│  ├── OverlayDragController (拖动)                              │
-│  ├── OverlayResizeController (缩放)                             │
-│  ├── OverlaySettingsBinder (设置绑定)                           │
-│  └── OverlayWindowController (LayoutParams 创建)               │
-│                                                               │
-│  OverlayHUDRenderer (模拟帧生成)                                │
-│  └── NativeEngineFacade (JNI 调用门面)                          │
+│  ├── OverlayViewFinder (视图查找)                                │
+│  ├── OverlayButtonBinder (按钮绑定+状态机)                       │
+│  ├── OverlayDragController (拖动)                                │
+│  ├── OverlayResizeController (缩放)                               │
+│  ├── OverlaySettingsBinder (设置绑定)                             │
+│  └── OverlayWindowController (LayoutParams 创建)                 │
+│  └── OverlayHUDRenderer (模拟帧生成)                              │
 │                                                               │
 │  AutoOperationService (无障碍自动操作)                           │
 │  ├── AutoActionQueue (操作队列管理)                             │
@@ -156,7 +156,7 @@
 
 ### Gradle 模块结构
 
-```
+```text
 hzzs/                          ← 根项目
 ├── :app                       ← APK 模块（唯一含 res/ 的模块）
 │   ├── MainActivity.kt        ← 入口 Activity
