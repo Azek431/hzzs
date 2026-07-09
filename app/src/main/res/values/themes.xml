@@ -41,4 +41,9 @@
         <item name="android:windowActionModeOverlay">true</item>
     </style>
 
+    <!-- 设置页面 TabLayout 文字样式 -->
+    <style name="SettingsTabTextAppearance" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13sp</item>
+    </style>
+
 </resources>

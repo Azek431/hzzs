@@ -8,6 +8,7 @@
 // 关键设计：
 // - AutoActionQueue — 队列管理（入队/出队/清空/暂停/开关/延迟）
 // - GestureInjector — 手势注入（坐标转换 + dispatchGesture）
+// - ScreenshotProxy — 截图代理（通过 AccessibilityService.takeScreenshot 获取屏幕像素）
 // - 本类只负责生命周期管理和调度
 //
 // 注意：
@@ -27,11 +28,53 @@ import android.util.Log
  *
  * 负责生命周期管理和操作调度。
  * 队列管理委托给 AutoActionQueue，手势注入委托给 GestureInjector。
+ * 截图能力通过 companion object 静态代理暴露给其他模块。
  */
 class AutoOperationService : AccessibilityService() {
 
     companion object {
         private const val TAG = "HZZS-AutoOp"
+
+        /** 当前活跃的 AutoOperationService 实例（由 onServiceConnected/onUnbind 维护） */
+        @Volatile
+        private var instance: AutoOperationService? = null
+
+        /**
+         * 获取当前活跃的无障碍服务实例。
+         *
+         * 由 onServiceConnected 设置，onUnbind 清除。
+         * 用于 ScreenshotCapture 代理调用 takeScreenshot()。
+         */
+        internal fun getInstance(): AutoOperationService? = instance
+
+        /**
+         * 请求截屏（静态代理）。
+         *
+         * 通过无障碍服务实例调用 takeScreenshot() API。
+         * 如果服务未连接或 API < 31，直接返回 false。
+         *
+         * @param displayId 显示器 ID（0 = 主显示器）
+         * @param executor 回调执行器（通常用主线程 executor）
+         * @param callback 截图结果回调
+         * @return true 如果截图请求已发出，false 如果服务不可用
+         */
+        fun proxyTakeScreenshot(
+            displayId: Int,
+            executor: java.util.concurrent.Executor,
+            callback: AccessibilityService.TakeScreenshotCallback,
+        ): Boolean {
+            val svc = instance ?: run {
+                Log.w(TAG, "[Screenshot] proxy failed: service instance not available")
+                return false
+            }
+            return try {
+                svc.takeScreenshot(displayId, executor, callback)
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "[Screenshot] proxy takeScreenshot threw: ${e.message}")
+                false
+            }
+        }
     }
 
     // ==================== 生命周期 ====================
@@ -60,6 +103,7 @@ class AutoOperationService : AccessibilityService() {
      * 立即启动 processRunnable，开始处理队列中的操作。
      */
     override fun onServiceConnected() {
+        instance = this
         Log.i(TAG, "[Service] connected, starting processing loop.")
         handler.post(processRunnable)
     }
@@ -68,11 +112,13 @@ class AutoOperationService : AccessibilityService() {
      * 服务取消绑定时清理资源。
      *
      * 移除所有 pending 的 Runnable，防止服务销毁后继续执行导致崩溃。
+     * 同时清除静态实例引用，防止 ScreenshotCapture 调用已失效的服务。
      *
      * @return true 表示允许重新绑定
      */
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         handler.removeCallbacks(processRunnable)
+        instance = null
         Log.d(TAG, "[Service] disconnected, processing loop stopped.")
         return super.onUnbind(intent)
     }

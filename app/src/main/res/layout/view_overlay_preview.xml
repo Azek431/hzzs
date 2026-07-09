@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    火崽崽助手（HZZS）悬浮窗 HUD 面板 — 现代科技风布局。
+
+    风格：深色背景 (#0D1117) + 霓虹蓝/青色调
+    尺寸：小巧紧凑，适合录屏可见
+
+    结构：
+    1. 顶部标题栏（拖动区域 + 关闭按钮）
+    2. 状态指示胶囊
+    3. 双按钮区（循环执行 / 单次执行）
+    4. 分割线
+    5. 透明度滑块
+    6. 分割线
+    7. 社区链接（QQ / Telegram）
+    8. 自动操作控件区（开关 + 延迟滑块）
+
+    触摸交互：
+    - 拖动：仅在顶部标题栏（overlayDragHandle）区域响应
+    - 缩放：仅在右下角缩放手柄（overlayResizeHandle）区域响应
+    - × 按钮不受拖动影响
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlayRootPanel"
     android:layout_width="match_parent"
@@ -6,86 +27,185 @@
     android:clipChildren="false"
     android:clipToPadding="false">
 
+    <!-- 主面板 -->
     <FrameLayout
         android:id="@+id/overlayContentPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_overlay_preview_panel"
         android:clipToOutline="true"
-        android:padding="12dp">
+        android:padding="10dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- ===== 顶部标题栏（拖动区域 + 关闭按钮） ===== -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp">
+                android:layout_height="36dp">
 
                 <LinearLayout
                     android:id="@+id/overlayDragHandle"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="52dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="44dp"
                     android:background="?android:attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
                     android:gravity="center_vertical"
-                    android:orientation="vertical">
+                    android:orientation="horizontal"
+                    android:paddingStart="4dp">
+
+                    <!-- 品牌标识 + 小圆点装饰 -->
+                    <View
+                        android:layout_width="6dp"
+                        android:layout_height="6dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="#FF3A7DDC" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:includeFontPadding="false"
                         android:text="@string/overlay_preview_brand"
-                        android:textColor="#FFF8EEF2"
-                        android:textSize="15sp"
+                        android:textColor="#FF5CB8FF"
+                        android:textSize="13sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginStart="4dp"
                         android:includeFontPadding="false"
                         android:text="@string/overlay_preview_product_name"
-                        android:textColor="#FFCFC4CA"
-                        android:textSize="11sp" />
+                        android:textColor="#8B9DC3"
+                        android:textSize="9sp" />
                 </LinearLayout>
 
+                <!-- 关闭按钮 -->
                 <TextView
                     android:id="@+id/overlayCloseButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="44dp"
+                    android:layout_height="36dp"
                     android:layout_gravity="top|end"
-                    android:background="@drawable/bg_overlay_preview_close"
+                    android:background="?android:attr/selectableItemBackground"
                     android:clickable="true"
                     android:contentDescription="@string/overlay_preview_close"
                     android:focusable="true"
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:text="×"
-                    android:textColor="#FFFFD9E3"
-                    android:textSize="23sp"
+                    android:textColor="#8B9DC3"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
             </FrameLayout>
 
+            <!-- ===== 状态指示胶囊 ===== -->
+            <LinearLayout
+                android:id="@+id/overlayStatusContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_overlay_status_capsule"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp">
+
+                <View
+                    android:id="@+id/overlayStatusDot"
+                    android:layout_width="5dp"
+                    android:layout_height="5dp"
+                    android:background="#FF3A7DDC" />
+
+                <TextView
+                    android:id="@+id/overlayStatusText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:includeFontPadding="false"
+                    android:text="@string/overlay_preview_status"
+                    android:textColor="#8B9DC3"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- ===== 双按钮区：循环执行 / 单次执行 ===== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:divider="@drawable/divider_neon"
+                android:orientation="horizontal"
+                android:showDividers="middle">
+
+                <TextView
+                    android:id="@+id/overlayBtnCycle"
+                    android:layout_width="0dp"
+                    android:layout_height="34dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_overlay_btn_cycle"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:text="@string/overlay_btn_cycle_start"
+                    android:textColor="#FF0D1117"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/overlayBtnSingle"
+                    android:layout_width="0dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_overlay_btn_single"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:text="@string/overlay_btn_single"
+                    android:textColor="#FF0D1117"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- ===== 视觉调试叠加层 ===== -->
+            <top.azek431.hzzs.ui.overlay.VisionDebugOverlayView
+                android:id="@+id/visionDebugOverlay"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                android:background="#1A1A2E" />
+
+            <!-- ===== 分割线 ===== -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginTop="10dp"
+                android:background="#223A7DDC" />
+
+            <!-- ===== 透明度滑块 ===== -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp">
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
                     android:text="@string/overlay_adjust_alpha_label"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="10sp" />
+                    android:textColor="#8B9DC3"
+                    android:textSize="9sp" />
 
                 <SeekBar
                     android:id="@+id/overlayAlphaSlider"
@@ -96,8 +216,8 @@
                     android:max="100"
                     android:min="30"
                     android:progress="100"
-                    android:progressTint="#FFB1C4D7"
-                    android:thumbTint="#FFB1C4D7" />
+                    android:progressTint="#FF3A7DDC"
+                    android:thumbTint="#FF5CB8FF" />
 
                 <TextView
                     android:id="@+id/overlayAlphaValue"
@@ -106,65 +226,23 @@
                     android:layout_marginStart="4dp"
                     android:includeFontPadding="false"
                     android:text="100%"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="10sp" />
+                    android:textColor="#8B9DC3"
+                    android:textSize="9sp" />
             </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_overlay_preview_status"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="8dp"
-                android:paddingTop="4dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="4dp">
-
-                <View
-                    android:layout_width="7dp"
-                    android:layout_height="7dp"
-                    android:background="#FFFFA9C0" />
-
-                <TextView
-                    android:id="@+id/overlayStatusText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:includeFontPadding="false"
-                    android:text="@string/overlay_preview_status"
-                    android:textColor="#FFFFC8D7"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/overlayStartAnalysis"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="11dp"
-                android:background="@drawable/bg_overlay_analysis_button"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:text="@string/overlay_analysis_start"
-                android:textColor="#FF30151E"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
+            <!-- ===== 分割线 ===== -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="11dp"
-                android:background="#24FFFFFF" />
+                android:layout_height="0.5dp"
+                android:layout_marginTop="8dp"
+                android:background="#223A7DDC" />
 
+            <!-- ===== 社区链接 ===== -->
             <TextView
                 android:id="@+id/overlayCommunityQq"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="6dp"
                 android:background="@drawable/bg_overlay_text_link"
                 android:clickable="true"
                 android:contentDescription="@string/community_qq_content_description"
@@ -172,22 +250,19 @@
                 android:focusable="true"
                 android:gravity="center_vertical"
                 android:includeFontPadding="false"
-                android:maxLines="2"
-                android:minHeight="42dp"
-                android:paddingStart="9dp"
-                android:paddingTop="5dp"
-                android:paddingEnd="9dp"
-                android:paddingBottom="5dp"
+                android:maxLines="1"
+                android:minHeight="32dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
                 android:text="@string/overlay_community_qq"
-                android:textColor="#FFFFB1C4"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textColor="#FF5CB8FF"
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/overlayCommunityTelegram"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:background="@drawable/bg_overlay_text_link"
                 android:clickable="true"
                 android:contentDescription="@string/community_telegram_content_description"
@@ -195,15 +270,13 @@
                 android:focusable="true"
                 android:gravity="center_vertical"
                 android:includeFontPadding="false"
-                android:maxLines="2"
-                android:minHeight="40dp"
-                android:paddingStart="9dp"
-                android:paddingTop="5dp"
-                android:paddingEnd="9dp"
-                android:paddingBottom="5dp"
+                android:maxLines="1"
+                android:minHeight="30dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
                 android:text="@string/overlay_community_telegram"
-                android:textColor="#FFCFC4CA"
-                android:textSize="12sp" />
+                android:textColor="#8B9DC3"
+                android:textSize="11sp" />
 
             <!-- ===== 自动操作控件区 ===== -->
             <LinearLayout
@@ -212,8 +285,8 @@
                 android:layout_marginTop="8dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp">
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp">
 
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/overlayAutoOpSwitch"
@@ -221,8 +294,8 @@
                     android:layout_height="wrap_content"
                     android:textOn="自动操作"
                     android:textOff="自动操作"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="11sp" />
+                    android:textColor="#8B9DC3"
+                    android:textSize="10sp" />
 
                 <TextView
                     android:id="@+id/overlayAutoOpStatus"
@@ -232,26 +305,26 @@
                     android:layout_weight="1"
                     android:includeFontPadding="false"
                     android:text="@string/overlay_auto_op_status_disabled"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="10sp" />
+                    android:textColor="#6E7A8B"
+                    android:textSize="9sp" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp">
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
                     android:text="@string/overlay_auto_op_delay_label"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="10sp" />
+                    android:textColor="#8B9DC3"
+                    android:textSize="9sp" />
 
                 <SeekBar
                     android:id="@+id/overlayAutoOpDelaySlider"
@@ -261,8 +334,8 @@
                     android:layout_weight="1"
                     android:max="50"
                     android:progress="10"
-                    android:progressTint="#FFB1C4D7"
-                    android:thumbTint="#FFB1C4D7" />
+                    android:progressTint="#FF3A7DDC"
+                    android:thumbTint="#FF5CB8FF" />
 
                 <TextView
                     android:id="@+id/overlayAutoOpDelayValue"
@@ -271,123 +344,29 @@
                     android:layout_marginStart="4dp"
                     android:includeFontPadding="false"
                     android:text="100 ms"
-                    android:textColor="#FFCFC4CA"
-                    android:textSize="10sp" />
+                    android:textColor="#8B9DC3"
+                    android:textSize="9sp" />
             </LinearLayout>
 
-            <!-- ===== HUD 显示区（默认隐藏，开始执行后显示） ===== -->
-            <FrameLayout
-                android:id="@+id/overlayHudContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:visibility="gone">
-
-                <top.azek431.hzzs.ui.overlay.HUDCanvasView
-                    android:id="@+id/overlayHudCanvas"
-                    android:layout_width="match_parent"
-                    android:layout_height="120dp"
-                    android:background="#1A1A2E" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:orientation="vertical"
-                    android:padding="4dp">
-
-                    <TextView
-                        android:id="@+id/overlayHudSceneText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="--"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudPoseText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="--"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudJumpStageText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="--"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudHazardsText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="--"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudCollectiblesText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="--"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudPromptIcon"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text=""
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/overlayHudPromptText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="等待分析..."
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/overlayHudEtaText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text=""
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="10sp" />
-                </LinearLayout>
-            </FrameLayout>
         </LinearLayout>
     </FrameLayout>
 
+    <!-- 缩放手柄：右下角 -->
     <TextView
         android:id="@+id/overlayResizeHandle"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="4dp"
-        android:background="@drawable/bg_overlay_preview_close"
+        android:layout_margin="3dp"
+        android:background="@drawable/bg_overlay_resize_handle"
         android:clickable="true"
         android:contentDescription="@string/overlay_resize_handle_content_description"
         android:focusable="true"
         android:gravity="center"
         android:includeFontPadding="false"
         android:text="↘"
-        android:textColor="#FFFFD9E3"
-        android:textSize="15sp"
+        android:textColor="#8B9DC3"
+        android:textSize="13sp"
         android:textStyle="bold" />
 
 </FrameLayout>
