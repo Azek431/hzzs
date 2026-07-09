@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    免责声明页面布局。
+    免责声明页面布局（优化版）。
 
     结构：
-    1. AppBarLayout → 标题栏（带返回按钮）
-    2. NestedScrollView → 滚动声明文本
-    3. 底部固定操作栏 → 滚动进度 + 同意按钮
+    1. AppBarLayout（品牌珊瑚红背景）→ 标题栏（带返回按钮）
+    2. NestedScrollView → 滚动声明文本（卡片化展示）
+    3. 底部固定操作栏 → 进度条 + 百分比 + 双按钮（不同意/同意）
 -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -14,35 +14,78 @@
     android:layout_height="match_parent"
     android:background="@color/surface_background">
 
-    <!-- 顶部标题栏 -->
+    <!-- 顶部标题栏（品牌色） -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface_background"
+        android:background="@color/brand_primary"
+        android:theme="@style/ThemeOverlay.Material3.Dark"
         app:elevation="0dp">
 
         <Toolbar
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:title="@string/disclaimer_title" />
+            app:navigationIcon="@drawable/ic_overlay_preview_close"
+            app:title="@string/disclaimer_title"
+            app:titleTextColor="@android:color/white" />
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- 滚动声明文本 -->
+    <!-- 滚动声明文本区域 -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/disclaimerScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="?attr/actionBarSize"
         android:layout_marginBottom="80dp"
-        android:padding="16dp">
+        android:clipToPadding="false"
+        android:padding="20dp">
 
-        <TextView
-            android:id="@+id/disclaimerText"
+        <!-- 声明卡片 -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/on_surface"
-            android:textSize="14sp"
-            android:lineSpacingExtra="6dp" />
+            app:cardBackgroundColor="@color/surface_container"
+            app:cardCornerRadius="@dimen/radius_medium"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/outline_variant"
+            app:strokeWidth="@dimen/stroke_width">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/card_padding">
+
+                <!-- 声明标题 -->
+                <TextView
+                    android:id="@+id/disclaimerHeading"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/brand_primary"
+                    android:textSize="@dimen/text_hero_title"
+                    android:textStyle="bold" />
+
+                <!-- 声明正文 -->
+                <TextView
+                    android:id="@+id/disclaimerText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_md"
+                    android:textColor="@color/on_surface"
+                    android:textSize="@dimen/text_body"
+                    android:lineSpacingExtra="4dp" />
+
+                <!-- 更新日期 -->
+                <TextView
+                    android:id="@+id/disclaimerDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_xl"
+                    android:layout_marginBottom="@dimen/space_sm"
+                    android:textColor="@color/on_surface_variant"
+                    android:textSize="@dimen/text_label" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
     </androidx.core.widget.NestedScrollView>
 
     <!-- 底部固定操作栏 -->
@@ -51,28 +94,72 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:padding="12dp"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
         android:background="@color/surface_container_low">
 
-        <!-- 滚动进度提示 -->
-        <TextView
-            android:id="@+id/scrollProgress"
+        <!-- 进度条 + 百分比 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="end"
-            android:text="0%"
-            android:textColor="@color/on_surface_variant"
-            android:textSize="11sp" />
+            android:orientation="vertical">
 
-        <!-- 同意按钮 -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnAgree"
+            <!-- 进度条轨道 -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:background="@color/outline_variant">
+
+                <!-- 进度条填充 -->
+                <View
+                    android:id="@+id/progressFill"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:background="@color/brand_primary" />
+            </FrameLayout>
+
+            <!-- 百分比文字 -->
+            <TextView
+                android:id="@+id/scrollProgress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:paddingTop="4dp"
+                android:text="0%"
+                android:textColor="@color/on_surface_variant"
+                android:textSize="@dimen/text_label" />
+        </LinearLayout>
+
+        <!-- 双按钮 -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="8dp"
-            android:text="@string/disclaimer_agree"
-            android:enabled="false"
-            app:cornerRadius="@dimen/radius_medium" />
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_md"
+            android:orientation="horizontal">
+
+            <!-- 不同意按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDisagree"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/button_min_height"
+                android:layout_weight="1"
+                android:text="@string/disclaimer_disagree_exit"
+                android:textColor="@color/on_surface_variant"
+                app:iconGravity="textEnd" />
+
+            <!-- 同意按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAgree"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/button_min_height"
+                android:layout_marginStart="@dimen/space_sm"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="@string/disclaimer_agree"
+                app:cornerRadius="@dimen/radius_medium" />
+        </LinearLayout>
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
