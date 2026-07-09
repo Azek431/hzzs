@@ -231,6 +231,11 @@ enum class Section(val titleRes: Int) {
  *
  * 由于当前项目环境中 androidx.viewpager2 的 FragmentStateAdapter
  * 无法被 Kotlin 编译器解析，此处手动实现等效的 RecyclerView.Adapter。
+ *
+ * Fragment 生命周期管理：
+ * - setFragments() 会先销毁旧的 Fragment（beginTransaction.remove），
+ *   然后替换为新的 Fragment 列表
+ * - 使用 commitNowAllowingStateLoss 避免 FragmentState 不一致问题
  */
 class SettingsPagerAdapter(activity: FragmentActivity) :
     androidx.recyclerview.widget.RecyclerView.Adapter<SettingsPagerAdapter.FragViewHolder>() {
@@ -238,6 +243,14 @@ class SettingsPagerAdapter(activity: FragmentActivity) :
     private val fragmentManager: FragmentManager = activity.supportFragmentManager
     private var fragments: MutableList<SettingsFragment> = mutableListOf()
 
+    /**
+     * 设置新的 Fragment 列表。
+     *
+     * 先通过 FragmentManager 销毁旧 Fragment，再替换为新列表。
+     * 使用 commitNowAllowingStateLoss 避免状态丢失问题。
+     *
+     * @param list 新的 Fragment 列表
+     */
     fun setFragments(list: List<SettingsFragment>) {
         // 先销毁旧的 Fragment
         val transaction = fragmentManager.beginTransaction()
@@ -279,6 +292,12 @@ class SettingsPagerAdapter(activity: FragmentActivity) :
 
     override fun getItemViewType(position: Int) = position + 1000 // 唯一 ID
 
+    /**
+     * 获取指定位置的 Fragment。
+     *
+     * @param position Fragment 位置索引
+     * @return 对应位置的 Fragment，越界时返回 null
+     */
     fun getItem(position: Int): SettingsFragment? {
         return if (position in fragments.indices) fragments[position] else null
     }
