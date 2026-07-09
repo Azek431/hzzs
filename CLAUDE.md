@@ -359,7 +359,7 @@ ScreenshotCapture.takeScreenshot() → CaptureResult(pixels, w, h)
 - **视觉识别原型**：`ScreenshotCapture` 需要 API 31+（Android 12）且依赖无障碍服务。`VisionAnalysisBridge` 当前仅支持绿瓶单行扫描检测，通用视觉识别尚未实现。
 - **VisionSettingsActivity**：设置页面使用 ViewPager2 + 手动 RecyclerView.Adapter 实现 Fragment 管理（因项目环境中 FragmentStateAdapter 编译受限）。
 - **HUDCanvasView 颜色**：绘制颜色已从 `HUDColorPalette` 集中管理，但仍未与主题资源关联，深色模式适配时需改造。
-- **SharedPreferences 三分离**：`FeatureFlags`（`hzzs_feature_flags`）、`OverlayPreviewManager`（`hzzs_overlay_prefs`）、`VisionSettingsKeys`（`hzzs_vision_settings`）各自维护独立的 SharedPreferences，自动操作开关存在三份存储。
+- **SharedPreferences 三分离**：`FeatureFlags`（`hzzs_feature_flags`）、`OverlayPreviewManager`（`hzzs_overlay_prefs`）、`VisionSettingsKeys`（`hzzs_vision_settings`）各自维护独立的 SharedPreferences。自动操作开关已统一委托给 FeatureFlags（`ea06b14` 修复），但透明度/圆角仍存储在 `hzzs_overlay_prefs` 中。
 
 ## 游戏参考素材
 
