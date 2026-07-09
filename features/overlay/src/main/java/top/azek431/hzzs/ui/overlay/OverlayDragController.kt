@@ -7,7 +7,7 @@
 //
 // 不负责：
 // - 不处理缩放逻辑（由 OverlayResizeController 处理）
-// - 不处理滑块绑定（由 OverlaySettingsBinder 处理）
+// - 不处理滑块绑定（OverlaySettingsBinder 已移除，逻辑内聚到 OverlayPreviewManager）
 //
 // 设计原因：
 // - 拖动逻辑独立封装，便于将来修改拖动策略（如添加惯性、吸附边缘等）
@@ -18,7 +18,7 @@
 // - 边界限制：X/Y 坐标由调用方通过 coerceIn 限制，控制器不直接处理
 // - 标题栏区域：仅在 overlayDragHandle 内响应拖动，不影响其他控件
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.view.MotionEvent
 import android.view.View

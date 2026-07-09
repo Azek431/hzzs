@@ -9,7 +9,7 @@
 // 不负责：
 // - 不处理拖动逻辑（由 OverlayDragController 处理）
 // - 不处理缩放逻辑（由 OverlayResizeController 处理）
-// - 不处理滑块绑定（由 OverlaySettingsBinder 处理）
+// - 不处理滑块绑定（OverlaySettingsBinder 已移除，逻辑内聚到 OverlayPreviewManager）
 //
 // 设计原因：
 // - LayoutParams 创建逻辑独立封装，便于将来修改悬浮窗类型/标志位
@@ -22,7 +22,7 @@
 // - FLAG_NOT_FOCUSABLE 确保悬浮窗不抢占焦点，点击事件穿透到下层应用
 // - FLAG_LAYOUT_IN_SCREEN 确保悬浮窗可以定位到屏幕任意位置
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
 import android.graphics.PixelFormat
