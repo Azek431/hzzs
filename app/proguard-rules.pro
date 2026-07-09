@@ -17,7 +17,7 @@
 # ---------------------------------------------------------------------------
 # JNI 门面层：NativeEngineFacade — 可能因 R8 混淆导致符号名不匹配
 # ---------------------------------------------------------------------------
--keep class top.azek431.hzzs.data.native.NativeEngineFacade {
+-keep class top.azek431.hzzs.core.data.native.NativeEngineFacade {
     private native java.lang.String nativeGetEngineInfo();
     private native java.lang.String nativeRunSelfCheck();
     private native java.lang.String nativeAnalyzeFrame(long,float,float,float,float,float,int,float,float,float,float,float,float);
@@ -27,7 +27,7 @@
 # ---------------------------------------------------------------------------
 # JNI 库加载层：NativeLibraryLoader — 静态初始化加载 .so
 # ---------------------------------------------------------------------------
--keep class top.azek431.hzzs.data.native.NativeLibraryLoader
+-keep class top.azek431.hzzs.core.data.native.NativeLibraryLoader
 
 # ---------------------------------------------------------------------------
 # JNI 视觉识别层：VisionAnalysisBridge — 绿瓶检测 JNI 符号
