@@ -68,7 +68,7 @@ jstring ToJString(JNIEnv* env, const std::string& value) {
  */
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_top_azek431_hzzs_data_native_NativeEngineFacade_nativeAnalyzeFrame(
+Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
     JNIEnv* env,
     jobject,
     jlong timestamp_ms,
@@ -310,7 +310,7 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
  */
 extern "C"
 JNIEXPORT void JNICALL
-Java_top_azek431_hzzs_data_native_NativeEngineFacade_nativeResetEngine(
+Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeResetEngine(
     JNIEnv*,
     jobject
 ) {
