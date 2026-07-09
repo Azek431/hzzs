@@ -27,7 +27,7 @@ import top.azek431.hzzs.ui.home.HomeActionCallbacks
 import top.azek431.hzzs.ui.home.HomeFragment
 import top.azek431.hzzs.ui.main.MainDialogController
 import top.azek431.hzzs.ui.main.OverlayPermissionController
-import top.azek431.hzzs.features.overlay.OverlayPreviewManager
+import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.ui.settings.SettingsFragmentPage
 import top.azek431.hzzs.core.util.FeatureFlags
 
