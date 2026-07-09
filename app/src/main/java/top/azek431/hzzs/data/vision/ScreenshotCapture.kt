@@ -26,7 +26,7 @@ package top.azek431.hzzs.data.vision
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
-import top.azek431.hzzs.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.data.native.NativeLibraryLoader
 import top.azek431.hzzs.service.AutoOperationService
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
