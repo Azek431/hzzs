@@ -54,6 +54,14 @@
             android:theme="@style/Theme.HuoZaiZaiAssistant"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- 视觉识别设置 Activity -->
+        <activity
+            android:name=".ui.settings.VisionSettingsActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.HuoZaiZaiAssistant"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 前台通知服务：保持悬浮窗不被系统回收 -->
         <service
             android:name=".service.OverlayNotificationService"

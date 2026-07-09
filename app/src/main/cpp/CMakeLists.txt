@@ -5,13 +5,17 @@ project(hzzs_native LANGUAGES CXX)
 
 # 构建共享库 libhzzs_native.so
 # 包含所有分析引擎源文件：
-# - NativeAnalysisBridge.cpp：JNI 桥接层（Kotlin ↔ C++）
+# - NativeAnalysisBridge.cpp：JNI 桥接层（Kotlin ↔ 主分析引擎）
 # - SceneStateMachine.cpp：场景识别状态机
 # - RunnerStateMachine.cpp：角色姿态推断
 # - JumpStageEstimator.cpp：跳跃阶段估计（含二段跳）
 # - HazardEtaEstimator.cpp：危险物 ETA 计算
 # - ActionPromptEngine.cpp：HUD 动作提示生成
 # - NativeAnalysisEngine.cpp：分析引擎总入口，协调所有子模块
+#
+# 包含所有视觉识别源文件（独立于主分析引擎）：
+# - GreenBottleLineDetector.cpp：绿瓶单行扫描检测器
+# - NativeVisionBridge.cpp：视觉识别 JNI 桥接层
 add_library(
     hzzs_native
     SHARED
@@ -22,6 +26,8 @@ add_library(
     src/analysis/HazardEtaEstimator.cpp
     src/analysis/ActionPromptEngine.cpp
     src/analysis/NativeAnalysisEngine.cpp
+    src/vision/GreenBottleLineDetector.cpp
+    src/vision/NativeVisionBridge.cpp
 )
 
 # 包含目录：指向 include/ 下的所有头文件

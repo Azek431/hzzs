@@ -1,10 +1,11 @@
 // 火崽崽助手（HZZS）悬浮窗 HUD 渲染器。
 //
-// 负责在"开始执行"后启动模拟帧生成循环，驱动 C++ 分析引擎。
-// 不再绑定 UI 视图（HUD 可视化区和自动操作控件已从布局中移除）。
+// 负责驱动 C++ 分析引擎运行，提供两种执行模式：
+// 1. 循环执行（start）：按固定间隔（50ms）持续生成模拟跑酷帧
+// 2. 单次执行（startSingle）：生成一帧后立即退出
 //
 // 核心职责：
-// 1. 模拟帧生成：按固定间隔（50ms）生成模拟跑酷画面数据
+// 1. 模拟帧生成：按固定间隔生成模拟跑酷画面数据
 // 2. 调用 JNI：将模拟数据传入 C++ 引擎获取分析结果
 // 3. 生命周期管理：开始/停止渲染循环，线程安全
 //
@@ -146,6 +147,35 @@ class OverlayHUDRenderer(
         Log.i(TAG, "[HUD] simulation stopped.")
     }
 
+    /**
+     * 单次执行：运行一帧分析后立即停止。
+     *
+     * 用途：
+     * - 点击"单次执行"按钮后触发
+     * - 生成一帧模拟数据，送入 C++ 引擎分析
+     * - 不启动持续循环，执行完毕后立即退出
+     *
+     * 线程模型：
+     * - 在后台线程执行，不阻塞主线程
+     * - 使用 join(500) 等待执行线程退出
+     */
+    fun startSingle() {
+        if (isRunning) {
+            Log.w(TAG, "[HUD] already running, ignoring single.")
+            return
+        }
+
+        isRunning = true
+        frameCount = 0
+
+        simulationThread = Thread(this::singleExecutionLoop, "hzzs-hud-single").apply {
+            isDaemon = true
+            start()
+        }
+
+        Log.i(TAG, "[HUD] single execution started.")
+    }
+
     // ==================== 模拟帧循环 ====================
 
     /**
@@ -222,6 +252,64 @@ class OverlayHUDRenderer(
         }
 
         Log.d(TAG, "[HUD] simulation loop exited after $frameCount frames.")
+    }
+
+    /**
+     * 单次执行循环：生成一帧模拟数据并送入引擎分析，然后退出。
+     *
+     * 流程：
+     * 1. 重置模拟数据状态
+     * 2. 生成一帧玩家 + 危险物数据
+     * 3. 调用 C++ 引擎分析
+     * 4. 退出循环
+     */
+    private fun singleExecutionLoop() {
+        // 重置模拟数据状态
+        playerXOffset = 0f
+        currentHazardLeft = null
+        lastHazardFrame = -HAZARD_INTERVAL
+        currentHazardType = 1
+
+        val timestampMs = 0L
+
+        // 生成一帧玩家位置
+        playerXOffset += 0.003f
+        val playerCenterX = 0.14f + 0.06f * sin(playerXOffset)
+        val playerBounds = RectF(
+            left = playerCenterX - 0.05f,
+            top = 0.66f,
+            right = playerCenterX + 0.05f,
+            bottom = 0.84f,
+        )
+
+        // 生成一个危险物
+        currentHazardLeft = 0.55f
+        val hazardBounds = RectF(
+            left = currentHazardLeft!!,
+            top = 0.78f,
+            right = currentHazardLeft!! + 0.14f,
+            bottom = 0.98f,
+        )
+
+        // 调用 C++ 引擎分析（单次）
+        if (NativeLibraryLoader.isAvailable) {
+            NativeEngineFacade.analyzeFrame(
+                timestampMs = timestampMs,
+                playerBounds = playerBounds,
+                playerConfidence = 0.96f,
+                hazardType = currentHazardType,
+                hazardBounds = hazardBounds,
+                hazardConfidence = 0.93f,
+                hazardVelocityX = WORLD_SCROLL_SPEED,
+                worldScrollSpeed = WORLD_SCROLL_SPEED,
+            )
+        }
+
+        Log.d(TAG, "[HUD] single execution completed.")
+
+        // 标记停止
+        isRunning = false
+        simulationThread = null
     }
 
     /**

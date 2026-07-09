@@ -66,12 +66,14 @@
     <string name="overlay_preview_product_name">火崽崽助手</string>
     <string name="overlay_close_button">×</string>
 
-    <!-- 分析执行：悬浮窗内"开始执行/结束执行"按钮文本 -->
-    <string name="overlay_analysis_start">开始执行</string>
+    <!-- 分析执行：悬浮窗内按钮文本 -->
+    <string name="overlay_btn_cycle_start">循环执行</string>
+    <string name="overlay_btn_cycle_stop">停止运行</string>
+    <string name="overlay_btn_single">单次执行</string>
     <string name="overlay_analysis_running">执行中</string>
-    <string name="overlay_analysis_stop">点击结束执行</string>
-    <string name="overlay_analysis_started">已开始执行，模拟数据驱动分析引擎。</string>
-    <string name="overlay_analysis_stopped">已结束执行。</string>
+    <string name="overlay_analysis_started">已启动模拟帧循环，引擎驱动中。</string>
+    <string name="overlay_analysis_stopped">已停止执行。</string>
+    <string name="overlay_single_started">单次分析已执行，结果将显示 400ms。</string>
 
     <!-- HUD 渲染器：HUD 面板标签和提示文本 -->
     <string name="hud_scene_label">场景：</string>
@@ -126,4 +128,61 @@
     <string name="overlay_auto_op_status_disabled">自动操作：已关闭</string>
     <string name="overlay_auto_op_status_enabled">自动操作：已开启</string>
     <string name="overlay_auto_op_status_paused">自动操作：已暂停</string>
+
+    <!-- ==================== 视觉识别设置页面 ==================== -->
+
+    <!-- 页面标题 -->
+    <string name="settings_title">视觉识别设置</string>
+    <string name="settings_save">保 存</string>
+    <string name="settings_reset">恢复默认</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="settings_reset_title">恢复默认值</string>
+    <string name="settings_reset_message">确定要将所有参数恢复为默认值吗？</string>
+    <string name="settings_reset_done">已恢复为默认值</string>
+    <string name="settings_select_color">选择绘制颜色</string>
+
+    <!-- 操作按钮 -->
+    <string name="action_confirm">确认</string>
+    <string name="action_cancel">取消</string>
+
+    <!-- 分区标题 -->
+    <string name="section_recognition">识别与截图</string>
+    <string name="section_hud_display">HUD 显示</string>
+    <string name="section_player_bottle">玩家与绿瓶</string>
+    <string name="section_detection_params">检测参数</string>
+    <string name="section_debug_options">调试选项</string>
+
+    <!-- 分区 1：识别与截图 -->
+    <string name="settings_detect_mode">识别模式</string>
+    <string name="settings_screenshot_method">截图方式</string>
+    <string name="settings_loop_interval">循环识别间隔</string>
+    <string name="settings_draw_stay">单次绘制停留时间</string>
+
+    <!-- 分区 2：HUD 显示 -->
+    <string name="settings_show_scan_line">显示扫描线</string>
+    <string name="settings_show_value_label">显示数值标签</string>
+    <string name="settings_show_center_point">显示中心点</string>
+    <string name="settings_draw_color">绘制颜色</string>
+    <string name="settings_draw_alpha">绘制透明度</string>
+    <string name="settings_draw_stroke_width">绘制线宽</string>
+
+    <!-- 分区 3：玩家与绿瓶 -->
+    <string name="settings_player_width_ratio">玩家宽度比例</string>
+    <string name="settings_player_height_ratio">玩家高度比例</string>
+    <string name="settings_green_bottle_top">绿瓶上边界比例</string>
+    <string name="settings_green_bottle_bottom">绿瓶下边界比例</string>
+
+    <!-- 分区 4：检测参数 -->
+    <string name="settings_rgb_min">RGB 颜色下限</string>
+    <string name="settings_rgb_max">RGB 颜色上限</string>
+    <string name="settings_min_segment_width">最小段宽</string>
+    <string name="settings_gap_merge">小缺口合并宽度</string>
+    <string name="settings_detection_padding">检测区域 Padding</string>
+    <string name="settings_confidence_threshold">置信度阈值</string>
+
+    <!-- 分区 5：调试选项 -->
+    <string name="settings_log_enabled">输出识别日志</string>
+    <string name="settings_debug_mode">启用调试模式</string>
+    <string name="settings_debug_note">调试模式会在 HUD 上绘制额外的调试信息（边界框、中心线、统计面板等），仅用于开发和测试，正式发布前请关闭。</string>
+
 </resources>

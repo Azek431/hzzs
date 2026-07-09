@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    悬浮窗面板整体背景：深紫黑矩形 + 粉色描边 + 大圆角。
-
-    用途：当前未被任何布局引用，可能是早期设计稿中使用的背景模板。
-    实际悬浮窗面板使用的是 bg_overlay_preview_card.xml（无描边的纯深色卡片）。
+    悬浮窗面板整体背景：深色科技风卡片。
 
     参数：
-    - 填充色 #F019171D：深紫黑，半透明
-    - 描边 #80FFB1C4：粉色半透明边框，1dp
-    - 圆角 20dp：较大圆角，柔和视觉效果
+    - 填充色 #F00D1117：深空蓝黑，近似 GitHub Dark 主题底色
+    - 圆角 14dp：现代圆角风格
+    使用场景：view_overlay_preview.xml 中的 overlayContentPanel
 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#F019171D" />
-    <corners android:radius="20dp" />
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#F00D1117" />
+    <corners android:radius="14dp" />
     <stroke
         android:width="1dp"
-        android:color="#80FFB1C4" />
+        android:color="#3A7DDC" />
 </shape>

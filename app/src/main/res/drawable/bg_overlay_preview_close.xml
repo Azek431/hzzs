@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    悬浮窗关闭按钮（×）背景：两态 selector。
+    悬浮窗关闭按钮（×）背景：两态 selector，深色科技风。
 
     状态：
-    - pressed（按下时）：半透明粉色 #66FFB1C4，提供按压反馈
-    - default（默认）：微透明白色 #2EFFFFFF，低调不抢眼
+    - pressed（按下时）：霓虹红 #FF444D56，提供按压反馈
+    - default（默认）：半透明灰 #33FFFFFF，低调不抢眼
 
-    圆角 24dp（接近圆形）。
+    圆角 20dp（接近圆形）。
     使用场景：view_overlay_preview.xml 中的 overlayCloseButton
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape>
-            <solid android:color="#66FFB1C4" />
-            <corners android:radius="24dp" />
+            <solid android:color="#FF444D56" />
+            <corners android:radius="20dp" />
         </shape>
     </item>
 
     <item>
         <shape>
-            <solid android:color="#2EFFFFFF" />
-            <corners android:radius="24dp" />
+            <solid android:color="#33FFFFFF" />
+            <corners android:radius="20dp" />
         </shape>
     </item>
 </selector>

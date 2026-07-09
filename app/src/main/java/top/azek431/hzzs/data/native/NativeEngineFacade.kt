@@ -122,6 +122,20 @@ object NativeEngineFacade {
         return NativeJsonParser.parse(json)
     }
 
+    /** 重置分析引擎状态 */
+    private external fun nativeResetEngine()
+
+    /**
+     * 公开方法：重置 C++ 分析引擎状态机。
+     *
+     * 在停止循环执行时调用，清除场景/姿态/跳跃阶段等所有子模块状态。
+     */
+    fun resetEngine() {
+        if (NativeLibraryLoader.isAvailable) {
+            nativeResetEngine()
+        }
+    }
+
     // ==================== JNI 原生方法声明 ====================
 
     /** 获取引擎信息字符串 */

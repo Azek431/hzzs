@@ -5,7 +5,7 @@
 //
 // 当前负责的功能：
 // - 显示、拖动、关闭悬浮窗预览面板
-// - 数据分析准备入口（开始/停止按钮）
+// - 循环执行 / 单次执行 按钮驱动 HUD 模拟帧循环
 // - QQ 群与 Telegram 主频道跳转
 // - 悬浮窗透明度调节滑块
 // - 悬浮窗位置、透明度、缩放系数的持久化存储与恢复
@@ -24,6 +24,8 @@ package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
@@ -36,6 +38,7 @@ import top.azek431.hzzs.R
 import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
+import top.azek431.hzzs.ui.overlay.VisionDebugOverlayView
 
 /**
  * 悬浮窗管理器单例。
@@ -77,6 +80,9 @@ object OverlayPreviewManager {
     /** HUD 渲染器实例，负责模拟帧生成和 C++ 引擎驱动 */
     private var hudRenderer: OverlayHUDRenderer? = null
 
+    /** 视觉调试叠加层，用于可视化识别框和扫描线 */
+    private var visionDebugOverlay: VisionDebugOverlayView? = null
+
     // ==================== 悬浮窗会话 ====================
 
     /** 当前活跃的悬浮窗会话 */
@@ -96,13 +102,24 @@ object OverlayPreviewManager {
 
     // ==================== 数据分析状态 ====================
 
+    /**
+     * 分析执行状态枚举。
+     *
+     * CYCLE_RUNNING — 循环执行中（持续生成模拟帧）
+     * SINGLE_PENDING  — 单次执行待触发（按钮刚按下，等待 Handler 回调）
+     * IDLE            — 空闲
+     */
     private enum class AnalysisUiState {
+        CYCLE_RUNNING,
+        SINGLE_PENDING,
         IDLE,
-        EXECUTING,
     }
 
     @Volatile
     private var analysisUiState = AnalysisUiState.IDLE
+
+    /** 单次执行的 Handler，用于 400ms 后自动清空状态 */
+    private val singleHandler = Handler(Looper.getMainLooper())
 
     /**
      * 检查当前是否有悬浮窗正在显示。
@@ -171,8 +188,12 @@ object OverlayPreviewManager {
                 ?: throw IllegalStateException("overlayContentPanel is missing.")
             val statusText = view.findViewById<TextView>(R.id.overlayStatusText)
                 ?: throw IllegalStateException("overlayStatusText is missing.")
-            val startAnalysisButton = view.findViewById<TextView>(R.id.overlayStartAnalysis)
-                ?: throw IllegalStateException("overlayStartAnalysis is missing.")
+            val statusDot = view.findViewById<View>(R.id.overlayStatusDot)
+                ?: throw IllegalStateException("overlayStatusDot is missing.")
+            val btnCycle = view.findViewById<TextView>(R.id.overlayBtnCycle)
+                ?: throw IllegalStateException("overlayBtnCycle is missing.")
+            val btnSingle = view.findViewById<TextView>(R.id.overlayBtnSingle)
+                ?: throw IllegalStateException("overlayBtnSingle is missing.")
             val communityQq = view.findViewById<View>(R.id.overlayCommunityQq)
                 ?: throw IllegalStateException("overlayCommunityQq is missing.")
             val communityTelegram = view.findViewById<View>(R.id.overlayCommunityTelegram)
@@ -185,30 +206,87 @@ object OverlayPreviewManager {
             val windowController = OverlayWindowController(appContext)
             val layoutParams = windowController.createLayoutParams()
 
-            // 绑定开始/停止分析按钮
-            startAnalysisButton.setOnClickListener {
+            // 绑定循环执行 / 单次执行按钮
+            // 辅助函数：更新状态指示器外观
+            fun updateStatusUI(isRunning: Boolean) {
+                if (isRunning) {
+                    statusText.setText(R.string.overlay_analysis_running)
+                    statusText.setTextColor(view.context.getColor(android.R.color.holo_blue_light))
+                    statusDot.setBackgroundColor(view.context.getColor(android.R.color.holo_blue_light))
+                    btnCycle.setText(R.string.overlay_btn_cycle_stop)
+                    btnCycle.setBackgroundResource(R.drawable.bg_overlay_btn_single)
+                    btnSingle.isEnabled = false
+                    btnSingle.alpha = 0.4f
+                } else {
+                    statusText.setText(R.string.overlay_preview_status)
+                    statusText.setTextColor(view.context.getColor(android.R.color.darker_gray))
+                    statusDot.setBackgroundColor(view.context.getColor(android.R.color.holo_blue_dark))
+                    btnCycle.setText(R.string.overlay_btn_cycle_start)
+                    btnCycle.setBackgroundResource(R.drawable.bg_overlay_btn_cycle)
+                    btnSingle.isEnabled = true
+                    btnSingle.alpha = 1f
+                }
+            }
+
+            // 循环执行按钮：点击切换 循环执行 <-> 停止运行
+            btnCycle.setOnClickListener {
                 when (analysisUiState) {
                     AnalysisUiState.IDLE -> {
-                        analysisUiState = AnalysisUiState.EXECUTING
-                        statusText.setText(R.string.overlay_analysis_running)
-                        startAnalysisButton.setText(R.string.overlay_analysis_stop)
-                        startAnalysisButton.isEnabled = true
-                        startAnalysisButton.alpha = 1f
-                        Log.i(TAG, "[Analysis] execution started.")
+                        analysisUiState = AnalysisUiState.CYCLE_RUNNING
+                        updateStatusUI(true)
+                        Log.i(TAG, "[Analysis] cycle execution started.")
                         Toast.makeText(appContext, R.string.overlay_analysis_started, Toast.LENGTH_SHORT).show()
                         hudRenderer?.start()
                     }
-                    AnalysisUiState.EXECUTING -> {
+                    AnalysisUiState.CYCLE_RUNNING -> {
                         analysisUiState = AnalysisUiState.IDLE
-                        statusText.setText(R.string.overlay_preview_status)
-                        startAnalysisButton.setText(R.string.overlay_analysis_start)
-                        startAnalysisButton.isEnabled = true
-                        startAnalysisButton.alpha = 1f
-                        Log.i(TAG, "[Analysis] execution stopped; overlay remains visible.")
+                        updateStatusUI(false)
+                        Log.i(TAG, "[Analysis] cycle execution stopped.")
                         Toast.makeText(appContext, R.string.overlay_analysis_stopped, Toast.LENGTH_SHORT).show()
                         hudRenderer?.stop()
+                        visionDebugOverlay?.stopAnimation()
+                    }
+                    AnalysisUiState.SINGLE_PENDING -> {
+                        // 用户在单次执行等待中点击循环按钮，取消单次并启动循环
+                        singleHandler.removeCallbacksAndMessages(null)
+                        analysisUiState = AnalysisUiState.CYCLE_RUNNING
+                        updateStatusUI(true)
+                        Log.i(TAG, "[Analysis] switched from single to cycle execution.")
+                        hudRenderer?.start()
                     }
                 }
+            }
+
+            // 单次执行按钮：点击后执行一次分析，400ms 后自动恢复空闲状态
+            btnSingle.setOnClickListener {
+                // 如果循环执行正在运行，先停止循环
+                if (analysisUiState == AnalysisUiState.CYCLE_RUNNING) {
+                    singleHandler.removeCallbacksAndMessages(null)
+                    analysisUiState = AnalysisUiState.IDLE
+                    hudRenderer?.stop()
+                    visionDebugOverlay?.stopAnimation()
+                    updateStatusUI(false)
+                }
+
+                // 防止重复点击
+                if (analysisUiState == AnalysisUiState.SINGLE_PENDING) return@setOnClickListener
+
+                analysisUiState = AnalysisUiState.SINGLE_PENDING
+                updateStatusUI(true)
+                Log.i(TAG, "[Analysis] single execution triggered.")
+                Toast.makeText(appContext, R.string.overlay_single_started, Toast.LENGTH_SHORT).show()
+
+                // 执行单次分析
+                hudRenderer?.startSingle()
+
+                // 400ms 后自动恢复空闲状态
+                singleHandler.postDelayed({
+                    if (analysisUiState == AnalysisUiState.SINGLE_PENDING) {
+                        analysisUiState = AnalysisUiState.IDLE
+                        updateStatusUI(false)
+                        Log.i(TAG, "[Analysis] single execution auto-cleared after 400ms.")
+                    }
+                }, 400)
             }
 
             // 绑定社区链接
@@ -286,6 +364,10 @@ object OverlayPreviewManager {
             // 初始化 HUD 渲染器（仅驱动模拟帧生成 + C++ 引擎，不再绑定 UI 视图）
             hudRenderer = OverlayHUDRenderer(appContext)
 
+            // 查找并绑定视觉调试叠加层
+            visionDebugOverlay = view.findViewById(R.id.visionDebugOverlay)
+            visionDebugOverlay?.startAnimation()
+
             // 添加到 WindowManager
             try {
                 manager.addView(view, layoutParams)
@@ -311,6 +393,7 @@ object OverlayPreviewManager {
             }
             activeSession = null
             analysisUiState = AnalysisUiState.IDLE
+            singleHandler.removeCallbacksAndMessages(null)
             return false
         }
     }
@@ -336,6 +419,8 @@ object OverlayPreviewManager {
 
         activeSession = null
         analysisUiState = AnalysisUiState.IDLE
+        singleHandler.removeCallbacksAndMessages(null)
+        visionDebugOverlay?.stopAnimation()
 
         return try {
             session.manager.removeView(session.rootView)
