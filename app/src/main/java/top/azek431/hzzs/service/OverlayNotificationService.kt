@@ -20,6 +20,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import top.azek431.hzzs.R
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 
@@ -90,7 +91,7 @@ class OverlayNotificationService : Service() {
                 Log.i(TAG, "[Service] started as foreground.")
             }
             ACTION_STOP -> {
-                stopForeground(true)
+                stopForeground(Service.STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 Log.i(TAG, "[Service] stopped.")
             }
@@ -123,19 +124,20 @@ class OverlayNotificationService : Service() {
      * - 停止按钮：点击后发送 ACTION_STOP intent 停止服务
      */
     private fun createNotification(): Notification {
-        val builder = Notification.Builder(applicationContext, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setContentTitle(getString(R.string.overlay_notification_title))
             .setContentText(getString(R.string.overlay_notification_text))
             .setSmallIcon(R.drawable.ic_overlay_notification)
             .setOngoing(true)  // 常驻通知，用户不能滑动清除
-            .setPriority(Notification.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
 
         // 添加"停止"按钮
-        builder.addAction(
+        val stopAction = NotificationCompat.Action.Builder(
             android.R.drawable.ic_menu_close_clear_cancel,
             getString(R.string.action_close_overlay),
             createStopPendingIntent()
-        )
+        ).build()
+        builder.addAction(stopAction)
 
         return builder.build()
     }
