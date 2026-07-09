@@ -309,7 +309,7 @@ object OverlayPreviewManager {
             }
 
             // 初始化拖动控制器：处理 overlayDragHandle 的拖动事件
-            // 拖动起始位置由 rootPanel 的 onTouchListener 在 ACTION_DOWN 时记录
+            // dragHandle 的 onTouchListener 在 ACTION_DOWN 时自动记录起始位置
             val dragController = OverlayDragController(dragHandle, object : OnDragUpdateListener {
                 override fun onDragUpdated(x: Int, y: Int) {
                     // 限制 X 坐标不超出屏幕右边界
@@ -323,7 +323,7 @@ object OverlayPreviewManager {
                     }
                 }
             })
-            dragController.attach()
+            dragController.attach(layoutParams.x, layoutParams.y)
 
             // 初始化缩放控制器：处理 overlayResizeHandle 的缩放事件
             // 记录初始高度（WRAP_CONTENT 时取测量值，若为 0 则用基础高度）
@@ -353,19 +353,6 @@ object OverlayPreviewManager {
             closeButton.setOnClickListener {
                 Log.i(TAG, "[Overlay] close requested.")
                 hide("close-button")
-            }
-
-            // 触摸监听器绑定到根布局：
-            // ACTION_DOWN 时记录拖动起始位置，防止拖动时位置跳变
-            // 其他事件不处理，让子控件自行响应
-            rootPanel.setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        dragController.recordStartPosition(layoutParams.x, layoutParams.y)
-                        true
-                    }
-                    else -> false
-                }
             }
 
             // 初始化 HUD 渲染器（仅驱动模拟帧生成 + C++ 引擎，不再绑定 UI 视图）

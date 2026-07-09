@@ -8,68 +8,31 @@
 // 3. 调度业务逻辑（悬浮窗显示/隐藏、免责声明检查）
 // 4. 绑定社区链接（QQ 群、Telegram 频道）
 //
-// 不负责：
-// - 不直接处理系统栏安全区域（由 MainInsetsController 处理）
-// - 不直接绑定按钮点击事件（由 MainActionBinder 处理）
-// - 不直接显示对话框（由 MainDialogController 处理）
-// - 不直接检查悬浮窗权限（由 OverlayPermissionController 处理）
-// - 不直接管理悬浮窗生命周期（由 OverlayPreviewManager 处理）
-// - 不缓存 View 引用（由 MainViewCache 处理）
-// - 不缓存 Padding 初始值（由 MainInsetCache 处理）
-//
 // 设计原因：
-// - MainActivity 只保留"组装和调度"的职责，每个 Controller 负责自己的领域
-// - 新增功能时，只需添加/修改对应的 Controller，不碰 MainActivity
+// - MainActivity 只保留"组装和调度"的职责
+// - 首页和设置页作为 Fragment 共存，切换时保留状态
 // - 符合单一职责原则和依赖倒置原则
 
 package top.azek431.hzzs
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
 import top.azek431.hzzs.ui.home.HomeFragment
-import top.azek431.hzzs.ui.main.MainActionBinder
-import top.azek431.hzzs.ui.main.MainActionCallbacks
 import top.azek431.hzzs.ui.main.MainDialogController
-import top.azek431.hzzs.ui.main.MainInsetCache
-import top.azek431.hzzs.ui.main.MainInsetsController
-import top.azek431.hzzs.ui.main.MainViewCache
-import top.azek431.hzzs.ui.main.MainViewCacheResult
 import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.ui.settings.SettingsFragmentPage
 import top.azek431.hzzs.util.FeatureFlags
 
-class MainActivity : AppCompatActivity(), MainActionCallbacks {
-
-    // ==================== View 引用缓存结果 ====================
-
-    /** 所有缓存 View 引用 */
-    private lateinit var views: MainViewCacheResult
-
-    // ==================== Padding 初始值缓存 ====================
-
-    /** Padding 初始值缓存器 */
-    private val insetCache = MainInsetCache()
+class MainActivity : AppCompatActivity() {
 
     // ==================== Controller 实例 ====================
-
-    /** 系统栏安全区域控制器 */
-    private lateinit var insetsController: MainInsetsController
-
-    /** 按钮点击事件绑定器 */
-    private lateinit var actionBinder: MainActionBinder
 
     /** 对话框控制器 */
     private lateinit var dialogController: MainDialogController
@@ -78,9 +41,6 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
     private lateinit var permissionController: OverlayPermissionController
 
     // ==================== 底部导航栏 ====================
-
-    /** 底部导航栏 */
-    private lateinit var bottomNav: BottomNavigationView
 
     /** 首页 Fragment */
     private lateinit var homeFragment: HomeFragment
@@ -102,19 +62,11 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
         setContentView(R.layout.activity_main)
 
-        // 缓存所有 View 引用
-        views = MainViewCache(this).retrieve()
-
-        // 缓存 Padding 初始值
-        insetCache.capture(views)
-
-        // 初始化所有 Controller
-        initControllers()
+        // 初始化 Controller
+        dialogController = MainDialogController(this)
+        permissionController = OverlayPermissionController(this)
 
         // 执行页面初始化流程
-        applySystemBarInsets()
-        bindHomeActions()
-        bindCommunityFooterLinks()
         refreshOverlayButton()
         setupBottomNavigation()
 
@@ -134,67 +86,7 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         refreshOverlayButton()
     }
 
-    // ==================== Controller 初始化 ====================
-
-    private fun initControllers() {
-        insetsController = MainInsetsController(
-            rootContainer = views.rootContainer,
-            topBarContainer = views.topBarContainer,
-            homeScrollView = null,
-            topBarPaddingStartInit = insetCache.topBarPaddingStartInit,
-            topBarPaddingTopInit = insetCache.topBarPaddingTopInit,
-            topBarPaddingEndInit = insetCache.topBarPaddingEndInit,
-            topBarPaddingBottomInit = insetCache.topBarPaddingBottomInit,
-            scrollPaddingStartInit = insetCache.scrollPaddingStartInit,
-            scrollPaddingTopInit = insetCache.scrollPaddingTopInit,
-            scrollPaddingEndInit = insetCache.scrollPaddingEndInit,
-            scrollPaddingBottomInit = insetCache.scrollPaddingBottomInit,
-        )
-
-        dialogController = MainDialogController(this)
-        permissionController = OverlayPermissionController(this)
-
-        actionBinder = MainActionBinder(
-            btnDevelopmentPlan = views.btnDevelopmentPlan,
-            btnOverlayExecution = views.btnOverlayExecution,
-            btnDisclaimer = views.btnDisclaimer,
-            callbacks = this,
-        )
-    }
-
     // ==================== 页面初始化流程 ====================
-
-    private fun applySystemBarInsets() {
-        insetsController.apply()
-    }
-
-    private fun bindHomeActions() {
-        actionBinder.bind()
-    }
-
-    private fun bindCommunityFooterLinks() {
-        val fallbackMsg = getString(R.string.community_open_fallback)
-
-        val linkBindings: Map<Int, Pair<TextView, Int>> = mapOf(
-            R.id.textCommunityQqLink to Pair(views.textCommunityQqLink, R.string.community_qq_label),
-            R.id.textCommunityTelegramLink to Pair(views.textCommunityTelegramLink, R.string.community_telegram_label),
-        )
-
-        for ((resId, binding) in linkBindings) {
-            val (_, labelRes) = binding
-            val communityEntry = CommunityLinks.entries.find { it.labelRes == labelRes }
-                ?: continue
-
-            binding.first.setOnClickListener {
-                CommunityLinks.openLink(
-                    context = applicationContext,
-                    label = getString(communityEntry.labelRes),
-                    url = communityEntry.url,
-                    fallbackMessage = fallbackMsg,
-                )
-            }
-        }
-    }
 
     // ==================== 底部导航栏 ====================
 
@@ -205,9 +97,6 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
      * 默认显示首页。
      */
     private fun setupBottomNavigation() {
-        bottomNav = findViewById(R.id.bottomNav)
-            ?: throw IllegalStateException("bottomNav not found in activity_main.xml")
-
         homeFragment = HomeFragment()
         settingsFragment = SettingsFragmentPage()
 
@@ -218,6 +107,7 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
             .hide(settingsFragment)
             .commit()
 
+        val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> {
@@ -242,20 +132,32 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
     // ==================== 悬浮窗管理 ====================
 
     private fun refreshOverlayButton() {
-        actionBinder.updateOverlayButtonText(OverlayPreviewManager.isShowing())
+        // 悬浮窗按钮在 HomeFragment 内，通过主页面更新
+        val homeFrag = supportFragmentManager.findFragmentByTag("home") as? HomeFragment
+        homeFrag?.let {
+            val btn = it.requireView().findViewById<com.google.android.material.button.MaterialButton>(R.id.btnOverlayExecution)
+            btn?.text = if (OverlayPreviewManager.isShowing()) {
+                getString(R.string.overlay_preview_close)
+            } else {
+                getString(R.string.action_start_overlay_execution)
+            }
+        }
     }
 
-    // ==================== MainActionCallbacks 实现 ====================
+    // ==================== 业务回调 ====================
 
-    override fun onDevelopmentPlanClicked() {
+    /** 点击了"查看开发计划"按钮 */
+    fun onDevelopmentPlanClicked() {
         dialogController.showDevelopmentPlan()
     }
 
-    override fun onOverlayToggleClicked() {
+    /** 点击了"悬浮窗开关"按钮 */
+    fun onOverlayToggleClicked() {
         handleOverlayPreview()
     }
 
-    override fun onDisclaimerClicked() {
+    /** 点击了"免责声明"按钮 */
+    fun onDisclaimerClicked() {
         startActivity(Intent(this, DisclaimerActivity::class.java))
     }
 

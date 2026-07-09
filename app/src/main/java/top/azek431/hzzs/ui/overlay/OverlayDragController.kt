@@ -84,8 +84,16 @@ class OverlayDragController(
      *
      * 此方法应在 View inflate 完成后调用。
      * 将 OnTouchListener 设置到 dragHandle 上。
+     * 在 ACTION_DOWN 时自动记录窗口起始位置。
+     *
+     * @param currentX 当前窗口 X 坐标（layoutParams.x）
+     * @param currentY 当前窗口 Y 坐标（layoutParams.y）
      */
-    fun attach() {
+    fun attach(currentX: Int = 0, currentY: Int = 0) {
+        // 在 attach 时就记录当前位置，防止首次拖动时位置跳变
+        startX = currentX
+        startY = currentY
+
         dragHandle.setOnTouchListener { _, event ->
             handleMotionEvent(event)
         }
@@ -112,8 +120,8 @@ class OverlayDragController(
                 downRawX = event.rawX
                 downRawY = event.rawY
                 isDragging = false
-                // 让标题栏自身 clickable 事件正常响应
-                return false
+                // 返回 true 拥有手势所有权，确保后续 ACTION_MOVE 能正确传递
+                return true
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -146,18 +154,4 @@ class OverlayDragController(
         }
     }
 
-    /**
-     * 记录拖动起始位置。
-     *
-     * 在 ACTION_DOWN 时调用，保存当前的窗口坐标（layoutParams.x/y）。
-     * 后续 ACTION_MOVE 计算出的 dx/dy 会叠加到此起始位置上，
-     * 得到新的窗口绝对坐标。
-     *
-     * @param x 当前窗口 X 坐标
-     * @param y 当前窗口 Y 坐标
-     */
-    fun recordStartPosition(x: Int, y: Int) {
-        startX = x
-        startY = y
-    }
 }
