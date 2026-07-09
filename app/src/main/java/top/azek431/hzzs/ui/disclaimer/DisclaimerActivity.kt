@@ -25,7 +25,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import top.azek431.hzzs.MainActivity
 import top.azek431.hzzs.R
 import top.azek431.hzzs.util.FeatureFlags
 
@@ -122,8 +121,17 @@ class DisclaimerActivity : AppCompatActivity() {
             if (returnToMain) {
                 finish()  // 回到 MainActivity
             } else {
-                // 首次启动：进入 MainActivity
-                startActivity(Intent(this, MainActivity::class.java))
+                // 首次启动：通过类名字符串启动 MainActivity，避免直接 import 形成循环引用
+                // 拆 Gradle 模块后，MainActivity 可能在另一个模块中，
+                // 直接用字符串引用可以避免编译期模块循环依赖
+                val intent = Intent(Intent.ACTION_MAIN).apply {
+                    component = android.content.ComponentName(
+                        "top.azek431.hzzs",
+                        "top.azek431.hzzs.MainActivity"
+                    )
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
                 finish()
             }
         }

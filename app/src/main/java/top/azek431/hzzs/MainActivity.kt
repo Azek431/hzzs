@@ -23,6 +23,7 @@ import androidx.core.view.WindowCompat
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
+import top.azek431.hzzs.ui.home.HomeActionCallbacks
 import top.azek431.hzzs.ui.home.HomeFragment
 import top.azek431.hzzs.ui.main.MainDialogController
 import top.azek431.hzzs.ui.main.OverlayPermissionController
@@ -30,7 +31,13 @@ import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.ui.settings.SettingsFragmentPage
 import top.azek431.hzzs.util.FeatureFlags
 
-class MainActivity : AppCompatActivity() {
+/**
+ * 主 Activity，同时也是 HomeActionCallbacks 的实现者。
+ *
+ * HomeFragment 通过 HomeActionCallbacks 接口调用业务方法，
+ * MainActivity 实现该接口完成回调。
+ */
+class MainActivity : AppCompatActivity(), HomeActionCallbacks {
 
     // ==================== Controller 实例 ====================
 
@@ -97,7 +104,7 @@ class MainActivity : AppCompatActivity() {
      * 默认显示首页。
      */
     private fun setupBottomNavigation() {
-        homeFragment = HomeFragment()
+        homeFragment = HomeFragment(callbacks = this)
         settingsFragment = SettingsFragmentPage()
 
         // 默认显示首页
@@ -147,17 +154,17 @@ class MainActivity : AppCompatActivity() {
     // ==================== 业务回调 ====================
 
     /** 点击了"查看开发计划"按钮 */
-    fun onDevelopmentPlanClicked() {
+    override fun onDevelopmentPlanClicked() {
         dialogController.showDevelopmentPlan()
     }
 
     /** 点击了"悬浮窗开关"按钮 */
-    fun onOverlayToggleClicked() {
+    override fun onOverlayToggleClicked() {
         handleOverlayPreview()
     }
 
     /** 点击了"免责声明"按钮 */
-    fun onDisclaimerClicked() {
+    override fun onDisclaimerClicked() {
         startActivity(Intent(this, DisclaimerActivity::class.java))
     }
 
