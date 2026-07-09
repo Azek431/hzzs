@@ -34,6 +34,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
+import top.azek431.hzzs.NativeAnalysisBridge
 import top.azek431.hzzs.R
 import top.azek431.hzzs.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
@@ -244,6 +245,7 @@ object OverlayPreviewManager {
                         Log.i(TAG, "[Analysis] cycle execution stopped.")
                         Toast.makeText(appContext, R.string.overlay_analysis_stopped, Toast.LENGTH_SHORT).show()
                         hudRenderer?.stop()
+                        NativeAnalysisBridge.resetEngine()
                         visionDebugOverlay?.stopAnimation()
                     }
                     AnalysisUiState.SINGLE_PENDING -> {

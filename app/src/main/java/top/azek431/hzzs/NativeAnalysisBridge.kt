@@ -33,6 +33,7 @@ import top.azek431.hzzs.model.RectF
  * - engineInfo() → NativeEngineFacade.engineInfo()
  * - runSelfCheck() → NativeEngineFacade.runSelfCheck()
  * - analyzeFrame() → NativeEngineFacade.analyzeFrame()
+ * - resetEngine() → NativeEngineFacade.resetEngine()
  */
 object NativeAnalysisBridge {
 
@@ -95,4 +96,14 @@ object NativeAnalysisBridge {
         hazardType, hazardBounds, hazardConfidence,
         hazardVelocityX, worldScrollSpeed,
     )
+
+    /**
+     * 重置 C++ 分析引擎状态机。
+     *
+     * 委托给 NativeEngineFacade.resetEngine()。
+     * 在停止循环执行时调用，清除场景/姿态/跳跃阶段等所有子模块状态。
+     */
+    fun resetEngine() {
+        NativeEngineFacade.resetEngine()
+    }
 }
