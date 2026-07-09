@@ -13,8 +13,8 @@
 
 package top.azek431.hzzs.data.vision
 
-import top.azek431.hzzs.data.native.NativeLibraryLoader
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.model.RectF
 
 /**
  * 视觉识别桥接层。
