@@ -136,6 +136,13 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         }
     }
 
+    /**
+     * 应用主题颜色到底部操作栏。
+     *
+     * 按钮配色：
+     * - 保存按钮：brand_primary 背景 + brand_on_primary 文字
+     * - 重置按钮：surface 背景 + outline 描边
+     */
     private fun applyTheme() {
         bottomBar.setBackgroundColor(
             ContextCompat.getColor(requireContext(), R.color.surface_container_high)
@@ -147,6 +154,14 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         btnReset.setStrokeColor(ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.outline)))
     }
 
+    /**
+     * 显示恢复默认值确认对话框。
+     *
+     * 用户确认后：
+     * 1. 调用 VisionSettingsKeys.resetAll() 清空 SharedPreferences 并恢复默认值
+     * 2. 弹出 Toast 提示"已恢复默认值"
+     * 3. 重新加载所有 Fragment 以刷新 UI
+     */
     private fun showResetConfirmation() {
         com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.settings_reset_title)
@@ -164,6 +179,14 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
             .show()
     }
 
+    /**
+     * 重新加载所有 Fragment（恢复默认后调用）。
+     *
+     * 流程：
+     * 1. 从 SharedPreferences 读取默认值创建新的 Fragment 列表
+     * 2. 销毁旧 Fragment 并替换为新 Fragment
+     * 3. 切换回第一个 Tab
+     */
     private fun reloadAllFragments() {
         val prefs = requireContext().getSharedPreferences(
             VisionSettingsKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE
