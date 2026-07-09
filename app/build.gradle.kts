@@ -109,6 +109,11 @@ android {
 
 // 依赖配置
 dependencies {
+    // 内部模块依赖
+    implementation(project(":core"))
+    implementation(project(":features:overlay"))
+    // features:service 的 OverlayNotificationService 仍在 app/ 下，暂不引用
+
     // AndroidX 核心库
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
