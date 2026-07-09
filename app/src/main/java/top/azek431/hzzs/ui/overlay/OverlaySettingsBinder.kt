@@ -260,8 +260,10 @@ class OverlaySettingsBinder(
                 (baseWidth * 2.0f).roundToInt()
             )
             val lp = view.layoutParams
-            lp.width = scaledWidth
-            view.layoutParams = lp
+            if (lp != null) {
+                lp.width = scaledWidth
+                view.layoutParams = lp
+            }
         }
     }
 

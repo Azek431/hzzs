@@ -581,10 +581,13 @@ class VisionDebugOverlayView @JvmOverloads constructor(
 
     /**
      * 停止扫描线动画。
+     *
+     * 同时清除 fadeHandler 的 pending 回调，防止消隐动画在 view detach 后继续执行。
      */
     fun stopAnimation() {
         animating = false
         removeCallbacks(animationRunnable)
+        fadeHandler.removeCallbacksAndMessages(null)
     }
 
     /**
