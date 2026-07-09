@@ -20,7 +20,7 @@
 // - 绘制逻辑提取到 HUDDrawers（扩展函数，纯函数式）
 // - 本文件只负责视图生命周期、属性 setter 和画笔初始化
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
 import android.graphics.Bitmap

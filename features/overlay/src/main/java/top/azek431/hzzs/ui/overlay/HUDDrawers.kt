@@ -9,7 +9,7 @@
 // - 每个绘制函数自包含，便于理解和测试
 // - 通过参数传递所有数据，不依赖 HUDCanvasView 内部状态
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.graphics.Canvas
 import android.graphics.Color

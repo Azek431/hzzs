@@ -15,7 +15,7 @@
 // - 深色模式适配时只需替换此处常量的 ARGB 值即可
 // - Color.parseColor() 不是编译时常量，所以使用 val 而非 const val
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.graphics.Color
 

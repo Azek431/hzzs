@@ -8,14 +8,14 @@
 //
 // 不负责：
 // - 不处理拖动逻辑（由 OverlayDragController 处理）
-// - 不处理透明度/自动操作滑块绑定（由 OverlaySettingsBinder 处理）
+// - 不处理透明度/自动操作滑块绑定（OverlaySettingsBinder 已移除，逻辑内聚到 OverlayPreviewManager）
 //
 // 设计原因：
 // - 自由宽高缩放让用户可以精确控制悬浮窗尺寸
 // - 不持久化避免保存错误尺寸导致布局崩溃
 // - 最小尺寸限制保证内容始终可读
 
-package top.azek431.hzzs.ui.overlay.ui.overlay
+package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
 import android.view.MotionEvent
