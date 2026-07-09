@@ -17,6 +17,7 @@ package top.azek431.hzzs.ui.main
 
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
 
@@ -38,35 +39,30 @@ class MainViewCache(private val activity: AppCompatActivity) {
         get() = activity.findViewById(R.id.topBarContainer)
             ?: throw IllegalStateException("topBarContainer not found in activity_main.xml")
 
-    /** 滚动区域：NestedScrollView，承载首页所有内容 */
-    val homeScrollView: android.view.View
-        get() = activity.findViewById(R.id.homeScrollView)
-            ?: throw IllegalStateException("homeScrollView not found in activity_main.xml")
-
     /** 开发计划按钮 */
     val btnDevelopmentPlan: MaterialButton
         get() = activity.findViewById(R.id.btnDevelopmentPlan)
-            ?: throw IllegalStateException("btnDevelopmentPlan not found in activity_main.xml")
+            ?: throw IllegalStateException("btnDevelopmentPlan not found")
 
     /** 悬浮窗开关按钮 */
     val btnOverlayExecution: MaterialButton
         get() = activity.findViewById(R.id.btnOverlayExecution)
-            ?: throw IllegalStateException("btnOverlayExecution not found in activity_main.xml")
+            ?: throw IllegalStateException("btnOverlayExecution not found")
 
     /** 免责声明与功能设置按钮 */
     val btnDisclaimer: MaterialButton
         get() = activity.findViewById(R.id.btnDisclaimer)
-            ?: throw IllegalStateException("btnDisclaimer not found in activity_main.xml")
+            ?: throw IllegalStateException("btnDisclaimer not found")
 
     /** 社区 QQ 群链接 TextView */
     val textCommunityQqLink: TextView
         get() = activity.findViewById(R.id.textCommunityQqLink)
-            ?: throw IllegalStateException("textCommunityQqLink not found in activity_main.xml")
+            ?: throw IllegalStateException("textCommunityQqLink not found")
 
     /** 社区 Telegram 链接 TextView */
     val textCommunityTelegramLink: TextView
         get() = activity.findViewById(R.id.textCommunityTelegramLink)
-            ?: throw IllegalStateException("textCommunityTelegramLink not found in activity_main.xml")
+            ?: throw IllegalStateException("textCommunityTelegramLink not found")
 
     /**
      * 检索所有 View 引用。
@@ -77,7 +73,6 @@ class MainViewCache(private val activity: AppCompatActivity) {
         return MainViewCacheResult(
             rootContainer = rootContainer,
             topBarContainer = topBarContainer,
-            homeScrollView = homeScrollView,
             btnDevelopmentPlan = btnDevelopmentPlan,
             btnOverlayExecution = btnOverlayExecution,
             btnDisclaimer = btnDisclaimer,
@@ -96,7 +91,6 @@ class MainViewCache(private val activity: AppCompatActivity) {
 data class MainViewCacheResult(
     val rootContainer: android.view.View,
     val topBarContainer: android.view.View,
-    val homeScrollView: android.view.View,
     val btnDevelopmentPlan: MaterialButton,
     val btnOverlayExecution: MaterialButton,
     val btnDisclaimer: MaterialButton,

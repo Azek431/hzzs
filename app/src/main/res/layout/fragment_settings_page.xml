@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    设置 Fragment 布局。
+    内容与原 activity_vision_settings.xml 一致。
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/surface_background">
+
+    <!-- 顶部 TabLayout 区域 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        app:tabIndicatorColor="@color/brand_primary"
+        app:tabIndicatorFullWidth="false"
+        app:tabIndicatorHeight="3dp"
+        app:tabMode="fixed"
+        app:tabSelectedTextColor="@color/brand_primary"
+        app:tabTextAppearance="@style/SettingsTabTextAppearance"
+        app:tabTextColor="@color/on_surface_variant" />
+
+    <!-- ViewPager2 内容区域 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- 底部操作栏 -->
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface_container_high"
+        android:elevation="8dp"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/page_padding_horizontal"
+        android:paddingTop="@dimen/space_md"
+        android:paddingEnd="@dimen/page_padding_horizontal"
+        android:paddingBottom="@dimen/space_md">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReset"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/button_min_height"
+            android:layout_weight="1"
+            android:layout_marginEnd="@dimen/space_sm"
+            android:text="@string/settings_reset"
+            android:textColor="@color/on_surface_variant"
+            app:cornerRadius="@dimen/radius_medium"
+            app:icon="@drawable/ic_restore_24"
+            app:iconGravity="textStart"
+            app:iconPadding="@dimen/space_xs"
+            app:iconTint="@color/on_surface_variant"
+            app:strokeColor="@color/outline" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSave"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/button_min_height"
+            android:layout_weight="1"
+            android:layout_marginStart="@dimen/space_sm"
+            android:text="@string/settings_save"
+            android:textColor="@color/brand_on_primary"
+            app:cornerRadius="@dimen/radius_medium" />
+    </LinearLayout>
+</LinearLayout>

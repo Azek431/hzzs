@@ -326,9 +326,14 @@ object OverlayPreviewManager {
             dragController.attach()
 
             // 初始化缩放控制器：处理 overlayResizeHandle 的缩放事件
+            // 记录初始高度（WRAP_CONTENT 时取测量值，若为 0 则用基础高度）
+            val baseHeightPx = view.measuredHeight.takeIf { it > 0 }
+                ?: windowController.dp(300) // 默认高度 fallback
             val resizeListener = object : OnResizeUpdateListener {
                 override fun onResized(newWidth: Int, scaleRatio: Float) {
                     layoutParams.width = newWidth
+                    // 高度跟随宽度同比例缩放，避免缩得太小内容无法辨认
+                    layoutParams.height = (baseHeightPx * scaleRatio).toInt()
                     try {
                         manager.updateViewLayout(view, layoutParams)
                     } catch (e: IllegalArgumentException) {

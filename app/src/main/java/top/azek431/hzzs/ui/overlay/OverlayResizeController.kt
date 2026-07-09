@@ -80,8 +80,8 @@ class OverlayResizeController(
         /** 基础宽度（dp），与 OverlayWindowController.BASE_WIDTH_DP 保持一致 */
         private const val BASE_WIDTH_DP = 228
 
-        /** 最小宽度倍数，缩放下限为初始宽度的 0.5 倍 */
-        private const val MIN_WIDTH_MULTIPLIER = 0.5f
+        /** 最小宽度倍数，缩放下限为初始宽度的 0.7 倍（防止缩得太小无法辨认） */
+        private const val MIN_WIDTH_MULTIPLIER = 0.7f
 
         /** 最大宽度倍数，缩放上限为初始宽度的 2.0 倍 */
         private const val MAX_WIDTH_MULTIPLIER = 2.0f

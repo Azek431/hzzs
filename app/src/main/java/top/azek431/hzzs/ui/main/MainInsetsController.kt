@@ -2,7 +2,7 @@
 //
 // 职责：
 // - 处理 Edge-to-Edge 全屏显示后的系统栏安全区域（状态栏 + 导航栏）
-// - 为顶部栏和滚动区域自动添加 padding，避免内容被刘海屏/底部横条遮挡
+// - 为顶部栏自动添加 padding，避免内容被刘海屏/底部横条遮挡
 //
 // 不负责：
 // - 不处理按钮点击事件
@@ -29,7 +29,6 @@ import androidx.core.view.updatePadding
  *
  * @param rootContainer 根容器（通常是 CoordinatorLayout）
  * @param topBarContainer 顶部栏（包含应用名称和副标题）
- * @param homeScrollView 滚动区域（承载首页所有内容）
  * @param topBarPaddingStartInit 顶部栏左侧初始 padding
  * @param topBarPaddingTopInit 顶部栏顶部初始 padding
  * @param topBarPaddingEndInit 顶部栏右侧初始 padding
@@ -42,7 +41,7 @@ import androidx.core.view.updatePadding
 class MainInsetsController(
     private val rootContainer: View,
     private val topBarContainer: View,
-    private val homeScrollView: View,
+    private val homeScrollView: View?,
     private val topBarPaddingStartInit: Int,
     private val topBarPaddingTopInit: Int,
     private val topBarPaddingEndInit: Int,
@@ -58,14 +57,6 @@ class MainInsetsController(
      *
      * 此方法设置一个监听器，当系统栏 insets 发生变化时（如键盘弹出、导航栏显示/隐藏），
      * 自动为顶部栏和滚动区域添加相应的 padding。
-     *
-     * 处理规则：
-     * - 顶部栏：左右两侧 + 顶部添加 safe insets，底部保持初始 padding 不变
-     * - 滚动区域：左右两侧 + 底部添加 safe insets，顶部保持初始 padding 不变
-     *
-     * 为什么不修改顶部栏的底部 padding？
-     * 因为顶部栏是固定高度（48dp），不需要底部安全区域。
-     * 滚动区域不需要顶部安全区域，因为它的顶部由布局自身控制。
      */
     fun apply() {
         ViewCompat.setOnApplyWindowInsetsListener(rootContainer) { _, insets ->
@@ -82,8 +73,8 @@ class MainInsetsController(
                 bottom = topBarPaddingBottomInit,
             )
 
-            // 滚动区域：左右 + 底部添加安全区域，顶部不变
-            homeScrollView.updatePadding(
+            // 滚动区域（如果存在）：左右 + 底部添加安全区域，顶部不变
+            homeScrollView?.updatePadding(
                 left = scrollPaddingStartInit + safeInsets.left,
                 top = scrollPaddingTopInit,
                 right = scrollPaddingEndInit + safeInsets.right,

@@ -4,7 +4,7 @@
 //
 // 职责（极简）：
 // 1. 页面生命周期管理（onCreate / onResume）
-// 2. 初始化所有 Controller（Insets、按钮、对话框、权限、View 缓存）
+// 2. 底部导航栏管理（首页 / 设置 Fragment 切换）
 // 3. 调度业务逻辑（悬浮窗显示/隐藏、免责声明检查）
 // 4. 绑定社区链接（QQ 群、Telegram 频道）
 //
@@ -30,10 +30,15 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
+import top.azek431.hzzs.ui.home.HomeFragment
 import top.azek431.hzzs.ui.main.MainActionBinder
 import top.azek431.hzzs.ui.main.MainActionCallbacks
 import top.azek431.hzzs.ui.main.MainDialogController
@@ -43,13 +48,14 @@ import top.azek431.hzzs.ui.main.MainViewCache
 import top.azek431.hzzs.ui.main.MainViewCacheResult
 import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
+import top.azek431.hzzs.ui.settings.SettingsFragmentPage
 import top.azek431.hzzs.util.FeatureFlags
 
 class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     // ==================== View 引用缓存结果 ====================
 
-    /** 所有缓存 View 引用的集合（不可变） */
+    /** 所有缓存 View 引用 */
     private lateinit var views: MainViewCacheResult
 
     // ==================== Padding 初始值缓存 ====================
@@ -59,41 +65,50 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     // ==================== Controller 实例 ====================
 
-    /** 系统栏安全区域控制器，处理 Edge-to-Edge 全屏后的 padding 叠加 */
+    /** 系统栏安全区域控制器 */
     private lateinit var insetsController: MainInsetsController
 
-    /** 按钮点击事件绑定器，负责绑定三个按钮的 onClickListener */
+    /** 按钮点击事件绑定器 */
     private lateinit var actionBinder: MainActionBinder
 
-    /** 对话框控制器，负责所有 MaterialAlertDialog 的显示 */
+    /** 对话框控制器 */
     private lateinit var dialogController: MainDialogController
 
-    /** 悬浮窗权限控制器，负责权限检查和跳转系统设置页面 */
+    /** 悬浮窗权限控制器 */
     private lateinit var permissionController: OverlayPermissionController
+
+    // ==================== 底部导航栏 ====================
+
+    /** 底部导航栏 */
+    private lateinit var bottomNav: BottomNavigationView
+
+    /** 首页 Fragment */
+    private lateinit var homeFragment: HomeFragment
+
+    /** 设置 Fragment */
+    private lateinit var settingsFragment: SettingsFragmentPage
 
     // ==================== 生命周期 ====================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 启用 Edge-to-Edge 全屏显示，隐藏状态栏和导航栏
+        // 启用 Edge-to-Edge 全屏显示
         WindowCompat.enableEdgeToEdge(window)
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            // 设置状态栏图标为深色（适配浅色背景）
             isAppearanceLightStatusBars = false
-            // 设置导航栏图标为深色
             isAppearanceLightNavigationBars = false
         }
 
         setContentView(R.layout.activity_main)
 
-        // 缓存所有 View 引用（从 MainViewCache 获取不可变的缓存结果）
+        // 缓存所有 View 引用
         views = MainViewCache(this).retrieve()
 
-        // 缓存 Padding 初始值（用于系统栏安全区域处理时叠加 insets）
+        // 缓存 Padding 初始值
         insetCache.capture(views)
 
-        // 初始化所有 Controller（依赖 views 和 insetCache）
+        // 初始化所有 Controller
         initControllers()
 
         // 执行页面初始化流程
@@ -101,8 +116,9 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         bindHomeActions()
         bindCommunityFooterLinks()
         refreshOverlayButton()
+        setupBottomNavigation()
 
-        // 检查免责声明是否已同意，未同意则跳转到免责声明页面
+        // 检查免责声明
         if (!FeatureFlags.isDisclaimerAccepted(this)) {
             startActivity(Intent(this, DisclaimerActivity::class.java).apply {
                 putExtra(DisclaimerActivity.EXTRA_RETURN_TO_MAIN, true)
@@ -112,9 +128,6 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     /**
      * 每次回到前台时刷新悬浮窗按钮状态。
-     *
-     * 因为悬浮窗可能在后台被其他方式关闭，
-     * 需要在 onResume 时重新同步按钮文本。
      */
     override fun onResume() {
         super.onResume()
@@ -123,16 +136,11 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     // ==================== Controller 初始化 ====================
 
-    /**
-     * 初始化所有 Controller。
-     *
-     * 在 View 缓存完成后调用，确保 Controller 能获取到有效的 View 引用。
-     */
     private fun initControllers() {
         insetsController = MainInsetsController(
             rootContainer = views.rootContainer,
             topBarContainer = views.topBarContainer,
-            homeScrollView = views.homeScrollView,
+            homeScrollView = null,
             topBarPaddingStartInit = insetCache.topBarPaddingStartInit,
             topBarPaddingTopInit = insetCache.topBarPaddingTopInit,
             topBarPaddingEndInit = insetCache.topBarPaddingEndInit,
@@ -156,33 +164,17 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
 
     // ==================== 页面初始化流程 ====================
 
-    /**
-     * 应用系统栏安全区域。
-     *
-     * 委托给 MainInsetsController 处理，不直接在 MainActivity 中实现。
-     */
     private fun applySystemBarInsets() {
         insetsController.apply()
     }
 
-    /**
-     * 绑定首页按钮点击事件。
-     *
-     * 委托给 MainActionBinder 处理，不直接在 MainActivity 中实现。
-     */
     private fun bindHomeActions() {
         actionBinder.bind()
     }
 
-    /**
-     * 绑定底部社区链接。
-     *
-     * 社区链接的打开逻辑由 CommunityLinks 处理，这里只负责找到对应的 TextView 并注册点击事件。
-     */
     private fun bindCommunityFooterLinks() {
         val fallbackMsg = getString(R.string.community_open_fallback)
 
-        // 构建链接绑定映射：View ID → (TextView, 标签资源 ID)
         val linkBindings: Map<Int, Pair<TextView, Int>> = mapOf(
             R.id.textCommunityQqLink to Pair(views.textCommunityQqLink, R.string.community_qq_label),
             R.id.textCommunityTelegramLink to Pair(views.textCommunityTelegramLink, R.string.community_telegram_label),
@@ -204,47 +196,69 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         }
     }
 
-    // ==================== 悬浮窗管理 ====================
+    // ==================== 底部导航栏 ====================
 
     /**
-     * 刷新悬浮窗按钮文本。
+     * 设置底部导航栏。
      *
-     * 根据悬浮窗当前显示状态切换按钮文字：
-     * - 显示中 → "关闭悬浮窗"
-     * - 未显示 → "打开悬浮窗"
+     * 创建首页和设置 Fragment，注册导航栏切换监听。
+     * 默认显示首页。
      */
+    private fun setupBottomNavigation() {
+        bottomNav = findViewById(R.id.bottomNav)
+            ?: throw IllegalStateException("bottomNav not found in activity_main.xml")
+
+        homeFragment = HomeFragment()
+        settingsFragment = SettingsFragmentPage()
+
+        // 默认显示首页
+        supportFragmentManager.beginTransaction()
+            .add(R.id.fragmentContainer, homeFragment, "home")
+            .add(R.id.fragmentContainer, settingsFragment, "settings")
+            .hide(settingsFragment)
+            .commit()
+
+        bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    supportFragmentManager.beginTransaction()
+                        .hide(settingsFragment)
+                        .show(homeFragment)
+                        .commit()
+                    true
+                }
+                R.id.nav_settings -> {
+                    supportFragmentManager.beginTransaction()
+                        .hide(homeFragment)
+                        .show(settingsFragment)
+                        .commit()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    // ==================== 悬浮窗管理 ====================
+
     private fun refreshOverlayButton() {
         actionBinder.updateOverlayButtonText(OverlayPreviewManager.isShowing())
     }
 
     // ==================== MainActionCallbacks 实现 ====================
 
-    /** 点击了"查看开发计划"按钮 */
     override fun onDevelopmentPlanClicked() {
         dialogController.showDevelopmentPlan()
     }
 
-    /** 点击了"悬浮窗开关"按钮 */
     override fun onOverlayToggleClicked() {
         handleOverlayPreview()
     }
 
-    /** 点击了"免责声明"按钮 */
     override fun onDisclaimerClicked() {
         startActivity(Intent(this, DisclaimerActivity::class.java))
     }
 
-    /**
-     * 处理悬浮窗开关逻辑。
-     *
-     * 流程：
-     * 1. 检查悬浮窗权限 → 无权限则引导用户授权
-     * 2. 悬浮窗已显示 → 关闭
-     * 3. 悬浮窗未显示 → 打开
-     *
-     * 权限检查和跳转委托给 OverlayPermissionController，
-     * 悬浮窗的显示/隐藏委托给 OverlayPreviewManager。
-     */
     private fun handleOverlayPreview() {
         if (!permissionController.hasPermission()) {
             dialogController.showOverlayPermissionExplanation(
@@ -275,16 +289,6 @@ class MainActivity : AppCompatActivity(), MainActionCallbacks {
         }
     }
 
-    /**
-     * 获取资源字符串，如果资源不存在则返回提供的默认值。
-     *
-     * 用于未来功能预留：当新字符串资源尚未加入 strings.xml 时，
-     * 不会导致 getString(id) 抛出 NotFoundException，而是优雅降级到 fallback。
-     *
-     * @param name 字符串资源名称（如 "overlay_preview_open"）
-     * @param fallback 资源不存在时的回退文本
-     * @return 实际字符串或 fallback
-     */
     private fun stringOrFallback(name: String, fallback: String): String {
         val id = resources.getIdentifier(name, "string", packageName)
         return if (id == 0) fallback else getString(id)
