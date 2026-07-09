@@ -113,7 +113,7 @@ class VisionSettingsActivity : AppCompatActivity() {
      * 使用自定义 Adapter（非 FragmentStateAdapter）避免编译期依赖问题。
      */
     private fun setupViewPager() {
-        val pagerAdapter = SettingsPagerAdapter(supportFragmentManager, lifecycle)
+        val pagerAdapter = SettingsPagerAdapter(requireContext(), supportFragmentManager, lifecycle)
         viewPager.adapter = pagerAdapter
 
         // 创建 5 个分区 Fragment
