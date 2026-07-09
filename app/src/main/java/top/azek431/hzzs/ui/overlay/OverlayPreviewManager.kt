@@ -68,15 +68,6 @@ object OverlayPreviewManager {
 
     // ==================== HUD 渲染器 ====================
 
-    /**
-     * 悬浮窗根 View（overlayRootPanel）。
-     *
-     * 用于初始化拖动控制器时记录起始位置。
-     * 在 rootPanel 的 onTouchListener 中，ACTION_DOWN 时调用
-     * dragController.recordStartPosition() 保存当前 layoutParams.x/y。
-     */
-    private var rootView: View? = null
-
     /** HUD 渲染器实例，负责模拟帧生成和 C++ 引擎驱动 */
     private var hudRenderer: OverlayHUDRenderer? = null
 
