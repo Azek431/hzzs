@@ -29,8 +29,8 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.View
-import top.azek431.hzzs.model.FrameAnalysisResult
-import top.azek431.hzzs.model.RectF
+import top.azek431.hzzs.core.model.FrameAnalysisResult
+import top.azek431.hzzs.core.model.RectF
 
 /**
  * HUD 自定义 Canvas 绘制视图。

@@ -35,7 +35,7 @@ import androidx.appcompat.widget.SwitchCompat
 import kotlin.math.roundToInt
 import top.azek431.hzzs.R
 import top.azek431.hzzs.service.AutoActionQueue
-import top.azek431.hzzs.util.FeatureFlags
+import top.azek431.hzzs.core.util.FeatureFlags
 
 /**
  * 悬浮窗设置绑定器。
@@ -251,26 +251,9 @@ class OverlaySettingsBinder(
             applyOverlayCornerRadius(radiusPx)
         }
 
-        // 3. 恢复缩放系数
-        val savedScale = prefs.getFloat(KEY_SCALE_RATIO, 1f)
-        if (savedScale != 1f) {
-            // 计算缩放后的宽度，限制在 [0.7x, 2.0x] 范围内
-            val scaledWidth = (baseWidth * savedScale).toInt().coerceIn(
-                (baseWidth * 0.7f).roundToInt(),
-                (baseWidth * 2.0f).roundToInt()
-            )
-            // 高度也跟随同比例缩放
-            val scaledHeight = (view.measuredHeight * savedScale).toInt().coerceIn(
-                (baseWidth * 0.7f).roundToInt(),
-                (baseWidth * 3.0f).roundToInt()
-            )
-            val lp = view.layoutParams
-            if (lp != null) {
-                lp.width = scaledWidth
-                lp.height = scaledHeight
-                view.layoutParams = lp
-            }
-        }
+        // 3. 恢复透明度滑块和自动操作控件（缩放不再持久化，每次打开恢复默认）
+        alphaSlider?.progress = (alpha * 100).toInt()
+        alphaValue?.text = "${alphaSlider?.progress}%"
     }
 
     /**
