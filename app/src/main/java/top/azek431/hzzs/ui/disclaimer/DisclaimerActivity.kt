@@ -30,6 +30,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.HtmlCompat
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
@@ -155,13 +156,8 @@ class DisclaimerActivity : AppCompatActivity() {
             .replace("\n\n", "<br><br>")
             .replace("\n", "<br>")
 
-        // 第二步：解析 HTML 为 Spanned
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Html.FROM_HTML_MODE_COMPACT
-        } else {
-            0
-        }
-        val spanned = Html.fromHtml(processed, flags)
+        // 第二步：解析 HTML 为 Spanned（HtmlCompat 自动处理版本差异）
+        val spanned = HtmlCompat.fromHtml(processed, HtmlCompat.FROM_HTML_MODE_COMPACT)
 
         // 第三步：后处理 — 为 <li> 列表项添加项目符号和缩进
         val indented = applyListItemIndent(spanned)
@@ -183,11 +179,7 @@ class DisclaimerActivity : AppCompatActivity() {
         // 将 <li> 替换为带项目符号的格式
         val bulletPrefix = "\n  • "
         val result = text.replace("<li>", bulletPrefix)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Html.fromHtml(result, Html.FROM_HTML_MODE_COMPACT)
-        } else {
-            Html.fromHtml(result)
-        }
+        return HtmlCompat.fromHtml(result, HtmlCompat.FROM_HTML_MODE_COMPACT)
     }
 
     // ==================== 事件绑定 ====================
