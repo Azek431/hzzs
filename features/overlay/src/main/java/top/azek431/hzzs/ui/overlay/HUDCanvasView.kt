@@ -193,7 +193,8 @@ class HUDCanvasView @JvmOverloads constructor(
      */
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (w != oldw || h != oldh) {
+        if (w > 0 && h > 0 && (w != oldw || h != oldh)) {
+            offscreenBitmap?.recycle()
             offscreenBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             offscreenCanvas = Canvas(offscreenBitmap!!)
         }
@@ -214,11 +215,12 @@ class HUDCanvasView @JvmOverloads constructor(
 
         // 使用离屏 Canvas 绘制所有内容
         val dc = offscreenCanvas ?: return
+        val bitmap = offscreenBitmap ?: return
 
         drawAll(dc, w, h)
 
         // 最后一次性输出到屏幕
-        canvas.drawBitmap(offscreenBitmap!!, 0f, 0f, null)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
     }
 
     /**

@@ -8,7 +8,7 @@
 // - 循环执行 / 单次执行 按钮驱动 HUD 模拟帧循环
 // - QQ 群与 Telegram 主频道跳转
 // - 悬浮窗透明度调节滑块
-// - 悬浮窗位置、透明度、缩放系数的持久化存储与恢复
+// - 悬浮窗位置、透明度的持久化存储与恢复（缩放不持久化，每次打开恢复默认）
 //
 // 触摸交互逻辑：
 // - 拖动：仅在顶部标题栏（overlayDragHandle）区域响应，× 按钮不受拖动影响
@@ -34,7 +34,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
-import top.azek431.hzzs.NativeAnalysisBridge
+import top.azek431.hzzs.core.NativeAnalysisBridge
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.model.RectF
 import top.azek431.hzzs.service.OverlayNotificationService
@@ -254,7 +254,7 @@ object OverlayPreviewManager {
                 }
             }
 
-            // 单次执行按钮：点击后执行一次分析，400ms 后自动恢复空闲状态
+            // 单次执行按钮：点击后执行一次分析，等待完成后再恢复空闲状态
             btnSingle.setOnClickListener {
                 // 如果循环执行正在运行，先停止循环
                 if (analysisUiState == AnalysisUiState.CYCLE_RUNNING) {
@@ -272,17 +272,15 @@ object OverlayPreviewManager {
                 Log.i(TAG, "[Analysis] single execution triggered.")
                 Toast.makeText(appContext, R.string.overlay_single_started, Toast.LENGTH_SHORT).show()
 
-                // 执行单次分析
+                // 执行单次分析（startSingle 内部已同步等待线程完成）
                 hudRenderer?.startSingle()
 
-                // 400ms 后自动恢复空闲状态
-                singleHandler.postDelayed({
-                    if (analysisUiState == AnalysisUiState.SINGLE_PENDING) {
-                        analysisUiState = AnalysisUiState.IDLE
-                        updateStatusUI(false)
-                        Log.i(TAG, "[Analysis] single execution auto-cleared after 400ms.")
-                    }
-                }, 400)
+                // 确认单次执行完成后恢复空闲状态
+                if (analysisUiState == AnalysisUiState.SINGLE_PENDING && hudRenderer?.isSingleDone() == true) {
+                    analysisUiState = AnalysisUiState.IDLE
+                    updateStatusUI(false)
+                    Log.i(TAG, "[Analysis] single execution completed, state restored.")
+                }
             }
 
             // 绑定社区链接

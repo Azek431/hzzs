@@ -147,7 +147,59 @@
 | 文件 | 职责 | 状态 |
 | --- | --- | --- |
 | `CMakeLists.txt` | 定义 `hzzs_native` 共享库，链接 `log`，启用 C++17 与严格警告 | 已实现 |
-| `build.gradle.kts` | Gradle 构建配置，编译 SDK 37，minSDK 24 | 已实现 |
+| `settings.gradle.kts` | 定义多模块结构（:app, :core, :features:overlay, :features:service） | 已实现 |
+| `build.gradle.kts` (顶层) | 统一 AGP/Kotlin 插件版本管理 | 已实现 |
+| `build.gradle.kts` (:app) | APK 构建配置，依赖所有子模块，声明 AndroidManifest | 已实现 |
+| `build.gradle.kts` (:core) | 纯 Kotlin 库，无 Android UI 依赖 | 已实现 |
+| `build.gradle.kts` (:features:overlay) | Android 库，依赖 :core + :features:service | 已实现 |
+| `build.gradle.kts` (:features/service) | Android 库，依赖 :core | 已实现 |
+
+### Gradle 模块结构
+
+```
+hzzs/                          ← 根项目
+├── :app                       ← APK 模块（唯一含 res/ 的模块）
+│   ├── MainActivity.kt        ← 入口 Activity
+│   ├── HomeFragment.kt        ← 首页 Fragment
+│   ├── DisclaimerActivity.kt  ← 免责声明
+│   ├── ui/main/               ← 首页 Controller（5 个文件）
+│   ├── ui/overlay/            ← OverlayPreviewManager + OverlaySettingsBinder
+│   ├── ui/community/          ← CommunityLinks
+│   ├── ui/home/               ← HomeFragment + HomeActionCallbacks
+│   ├── ui/disclaimer/         ← DisclaimerActivity
+│   ├── ui/settings/           ← 设置页面
+│   ├── service/               ← OverlayNotificationService
+│   └── data/vision/           ← 视觉识别原型（未接入主流程）
+│
+├── :core                      ← 纯 Kotlin 库（无 Android UI 依赖）
+│   ├── model/                 ← FrameData.kt（RectF, FrameAnalysisResult 等）
+│   ├── util/                  ← FeatureFlags, ThreadSafeQueue, ObjectPool
+│   └── data/native/           ← NativeLibraryLoader, NativeJsonParser,
+│                                NativeEngineFacade, NativeAnalysisBridge
+│
+└── features/
+    ├── :overlay               ← 悬浮窗 UI 组件（无 R 依赖）
+    │   ├── HUDCanvasView.kt
+    │   ├── HUDColorPalette.kt
+    │   ├── HUDDrawers.kt
+    │   ├── OverlayHUDRenderer.kt
+    │   ├── OverlayWindowController.kt
+    │   ├── OverlayDragController.kt
+    │   └── OverlayResizeController.kt
+    │
+    └── :service               ← 自动操作服务（无 R 依赖）
+        ├── AutoOperationService.kt
+        ├── AutoActionQueue.kt
+        └── GestureInjector.kt
+```
+
+**设计原则：**
+- `:app` 模块独占所有 `res/` 资源（布局、字符串、drawable）
+- `:core` 模块为纯 Kotlin，可独立做单元测试
+- `:features/overlay` 和 `:features/service` 不含 R 引用
+- `OverlayPreviewManager`、`OverlaySettingsBinder` 因引用 R 留在 `:app`
+- `OverlayNotificationService` 因引用 R 留在 `:app`
+- JNI 库加载在 `:core` 模块，但 `Android.mk`/`CMakeLists.txt` 在 `:app` 模块
 
 ## 数据流
 

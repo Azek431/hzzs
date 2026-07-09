@@ -3,7 +3,8 @@
 // 职责：
 // - 绑定透明度滑块到 UI 组件，实时更新 view.alpha 并持久化
 // - 绑定自动操作开关/延迟滑块，控制 AutoOperationService 的行为
-// - 从 SharedPreferences 恢复上次保存的参数（透明度/圆角/缩放系数）
+// - 从 SharedPreferences 恢复上次保存的参数（透明度/圆角）
+// - 将用户调整写入 FeatureFlags（统一管理，避免 SharedPreferences 键不一致）
 // - 将用户调整写入 FeatureFlags（统一管理，避免 SharedPreferences 键不一致）
 //
 // 不负责：
@@ -20,7 +21,7 @@
 // 参数持久化键列表：
 // - overlay_alpha：悬浮窗透明度（0.0 ~ 1.0）
 // - overlay_radius：圆角半径（dp）
-// - overlay_scale_ratio：缩放系数
+// - 缩放系数已移除（不再持久化，每次打开恢复默认）
 // - 自动操作相关设置委托给 FeatureFlags（KEY_AUTO_OPERATION_ENABLED / KEY_AUTO_OPERATION_DELAY_MS）
 
 package top.azek431.hzzs.ui.overlay
@@ -229,9 +230,9 @@ class OverlaySettingsBinder(
      * 恢复内容：
      * 1. 透明度（alpha）— 直接设置 view.alpha + 滑块进度 + 显示文本
      * 2. 圆角半径（radiusDp）— 转换为 px 后通过 GradientDrawable 设置背景圆角
-     * 3. 悬浮窗缩放系数（scaleRatio）— 计算缩放后的宽度并应用到 layoutParams
+     * 3. 透明度滑块和自动操作控件（从 SharedPreferences 恢复 UI 状态）
      *
-     * @param baseWidth 基础宽度（px），用于缩放计算
+     * @param baseWidth 基础宽度（px），用于缩放计算（已废弃，不再使用）
      * @param applyCornerRadius 是否应用圆角（默认 true，可通过 false 跳过）
      */
     fun restoreAll(
@@ -282,14 +283,5 @@ class OverlaySettingsBinder(
      */
     fun getCurrentAlpha(): Float {
         return prefs.getFloat(KEY_ALPHA, 1.0f)
-    }
-
-    /**
-     * 获取当前缩放系数。
-     *
-     * @return 缩放系数（如 1.5 表示 1.5 倍宽度）
-     */
-    fun getCurrentScaleRatio(): Float {
-        return prefs.getFloat(KEY_SCALE_RATIO, 1f)
     }
 }
