@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-**HZZS（火崽崽助手）** 是一个早期阶段的 Android 工具项目，面向跑酷游戏画面分析。提供本地悬浮窗 HUD（模拟帧驱动）、基于状态机的 C++ 分析引擎、无障碍自动操作演示与社区入口。当前版本 0.1.0 — UI 外壳、原生分析引擎骨架、HUD 模拟渲染器和自动操作服务已搭建完成，真实的屏幕采集和视觉识别模块尚在规划中。
+**HZZS（火崽崽助手）** 是一个早期阶段的 Android 工具项目，面向跑酷游戏画面分析。提供本地悬浮窗 HUD（模拟帧驱动）、基于状态机的 C++ 分析引擎、无障碍自动操作演示、视觉识别原型与社区入口。当前版本 0.1.0 — UI 外壳、原生分析引擎骨架、HUD 模拟渲染器、自动操作服务、视觉识别原型（绿瓶检测 + 截图采集）已搭建完成，真实的屏幕采集和通用视觉识别模块尚在规划中。
 
 | 项目 | 内容 |
 | --- | --- |
@@ -60,66 +60,131 @@ APK 输出路径：`app/build/outputs/apk/debug/app-debug.apk`
 ### 分层结构
 
 ```
-┌───────────────────────────────────────────────────────┐
-│              Kotlin UI 层（13 个文件）                   │
-│  MainActivity ──→ OverlayPreviewManager               │
-│  DisclaimerActivity ──→ FeatureFlags                  │
-│  CommunityLinks ──→ NativeAnalysisBridge              │
-│  OverlayHUDRenderer ──→ HUDCanvasView                 │
-│  AutoOperationService ──→ AccessibilityService        │
-│  OverlayNotificationService ──→ Foreground Service    │
-├───────────────────────────────────────────────────────┤
-│              Model 层                                   │
-│  RectF / FrameAnalysisResult / HazardDetail           │
-│  DetectedObject / ActionPrompt                        │
-├───────────────────────────────────────────────────────┤
-│              Util 层                                    │
-│  ThreadSafeQueue（无锁环形缓冲区）                      │
-│  ObjectPool（Paint 对象池）                            │
-│  FeatureFlags（SharedPreferences 偏好管理）             │
-├───────────────────────────────────────────────────────┤
-│              JNI 桥接层                                 │
-│  NativeAnalysisBridge.kt ←→ libhzzs_native.so         │
-├───────────────────────────────────────────────────────┤
-│           C++ 分析核心层（8 个类）                       │
-│  NativeAnalysisEngine（协调器）                         │
-│    ├── SceneStateMachine                              │
-│    ├── RunnerStateMachine                             │
-│    ├── JumpStageEstimator                             │
-│    ├── HazardEtaEstimator                             │
-│    └── ActionPromptEngine                             │
-└───────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│              Kotlin UI 层（35 个文件）                          │
+│                                                               │
+│  MainActivity ──→ ui/main/ (6 个 Controller)                  │
+│    ├── MainViewCache          # View 引用缓存                   │
+│    ├── MainInsetCache         # Padding 初始值缓存              │
+│    ├── MainInsetsController   # 系统栏适配                     │
+│    ├── MainActionBinder       # 按钮/链接事件绑定               │
+│    ├── MainDialogController   # 对话框管理                      │
+│    └── OverlayPermissionController # 悬浮窗权限引导             │
+│                                                               │
+│  ui/overlay/ (8 个文件)                                       │
+│    ├── OverlayPreviewManager      # 悬浮窗生命周期入口          │
+│    ├── OverlayWindowController    # WindowManager 封装         │
+│    ├── OverlayDragController      # 拖动逻辑                   │
+│    ├── OverlayResizeController    # 缩放逻辑                   │
+│    ├── OverlaySettingsBinder      # 透明度/自动操作设置         │
+│    ├── OverlayHUDRenderer         # HUD 渲染器（模拟帧生成）     │
+│    ├── HUDCanvasView              # Canvas 自定义视图           │
+│    ├── HUDDrawers                 # Canvas 绘制扩展函数         │
+│    └── HUDColorPalette            # 颜色常量集中管理           │
+│                                                               │
+│  ui/settings/ (2 个文件)                                      │
+│    ├── VisionSettingsActivity   # 视觉识别设置页面             │
+│    └── VisionSettingsKeys       # 设置参数键名与默认值          │
+│                                                               │
+│  ui/disclaimer/                                               │
+│    └── DisclaimerActivity       # 免责声明页面                │
+│                                                               │
+│  ui/community                                                 │
+│    └── CommunityLinks           # QQ/Telegram 社区链接         │
+│                                                               │
+│  service/ (3 个文件)                                         │
+│    ├── AutoOperationService     # 无障碍服务入口               │
+│    ├── AutoActionQueue          # 操作队列管理                  │
+│    ├── GestureInjector          # 触摸事件注入                 │
+│    └── OverlayNotificationService # 前台通知服务               │
+│                                                               │
+│  data/                                                        │
+│    ├── native/ (3 个文件)                                     │
+│    │   ├── NativeLibraryLoader  # JNI 库加载器                 │
+│    │   ├── NativeJsonParser     # JSON 解析器                  │
+│    │   └── NativeEngineFacade   # 分析引擎统一门面             │
+│    └── vision/ (2 个文件)                                     │
+│        ├── ScreenshotCapture    # 屏幕截图采集器               │
+│        └── VisionAnalysisBridge # 视觉识别 JNI 桥接            │
+│                                                               │
+│  model/                                                       │
+│    └── FrameData.kt                                           │
+│                                                               │
+│  util/                                                        │
+│    ├── FeatureFlags           # SharedPreferences 偏好管理     │
+│    ├── ThreadSafeQueue        # 无锁环形缓冲区                 │
+│    └── ObjectPool             # Paint 对象池                  │
+├───────────────────────────────────────────────────────────────┤
+│              JNI 桥接层                                       │
+│  NativeAnalysisBridge.kt ←→ libhzzs_native.so                 │
+├───────────────────────────────────────────────────────────────┤
+│           C++ 分析核心层（8 个类）                              │
+│  NativeAnalysisEngine（协调器）                                 │
+│    ├── SceneStateMachine      # 场景模式稳定化                 │
+│    ├── RunnerStateMachine     # 玩家姿态推断                   │
+│    ├── JumpStageEstimator     # 跳跃阶段跟踪                   │
+│    ├── HazardEtaEstimator     # 障碍物 ETA 计算                │
+│    └── ActionPromptEngine     # HUD 提示生成                   │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ### 目录结构
 
 ```
 app/src/main/
-├── java/top/azek431/hzzs/          # Kotlin 层（13 个文件）
+├── java/top/azek431/hzzs/          # Kotlin 层（35 个文件）
 │   ├── MainActivity.kt              # 首页：Edge-to-Edge 全屏、悬浮窗开关、免责声明入口、社区链接
 │   ├── NativeAnalysisBridge.kt      # JNI 桥接层：加载 libhzzs_native.so，暴露 engineInfo/runSelfCheck/analyzeFrame
 │   │
 │   ├── ui/
-│   │   ├── overlay/
-│   │   │   ├── OverlayPreviewManager.kt  # 系统悬浮窗生命周期管理（显示/隐藏/拖动/缩放/参数持久化）
-│   │   │   ├── OverlayHUDRenderer.kt     # HUD 渲染器：模拟帧生成、JNI 调用、UI 更新、自动操作入队
-│   │   │   └── HUDCanvasView.kt          # 自定义 Canvas 视图：双缓冲绘制、轨迹线、预测路径、热力图、置信度圆环
+│   │   ├── main/                    # 首页 Controller 组（6 个文件）
+│   │   │   ├── MainViewCache.kt           # View 引用缓存（防止 findViewById 散落）
+│   │   │   ├── MainInsetCache.kt          # Padding 初始值缓存（折叠屏防护）
+│   │   │   ├── MainInsetsController.kt    # Edge-to-Edge 系统栏适配
+│   │   │   ├── MainActionBinder.kt         # 首页按钮/链接事件绑定
+│   │   │   ├── MainDialogController.kt     # 对话框管理
+│   │   │   └── OverlayPermissionController.kt # 悬浮窗权限引导
+│   │   ├── overlay/                 # 悬浮窗相关（8 个文件）
+│   │   │   ├── OverlayPreviewManager.kt   # 悬浮窗生命周期入口（显示/隐藏/参数持久化）
+│   │   │   ├── OverlayWindowController.kt # WindowManager.LayoutParams 封装
+│   │   │   ├── OverlayDragController.kt   # 拖动逻辑（OnTouchListener）
+│   │   │   ├── OverlayResizeController.kt # 缩放逻辑（右下角手柄）
+│   │   │   ├── OverlaySettingsBinder.kt   # 透明度/自动操作设置绑定
+│   │   │   ├── OverlayHUDRenderer.kt      # HUD 渲染器（模拟帧生成、JNI 调用、UI 更新）
+│   │   │   ├── HUDCanvasView.kt           # 自定义 Canvas 视图（双缓冲绘制）
+│   │   │   ├── HUDDrawers.kt            # Canvas 绘制扩展函数（纯函数式）
+│   │   │   └── HUDColorPalette.kt        # HUD 颜色常量集中管理
+│   │   │   └── VisionDebugOverlayView.kt  # 视觉识别调试叠加视图
+│   │   ├── settings/                # 视觉识别设置（2 个文件）
+│   │   │   ├── VisionSettingsActivity.kt  # 设置页面（ViewPager2 + Tabs）
+│   │   │   └── VisionSettingsKeys.kt      # 设置参数键名与默认值
 │   │   ├── community/
-│   │   │   └── CommunityLinks.kt         # 单例对象：打开 QQ 群 / Telegram 链接，失败时回退到剪贴板
+│   │   │   └── CommunityLinks.kt         # 单例对象：打开 QQ 群 / Telegram 链接
 │   │   └── disclaimer/
 │   │       └── DisclaimerActivity.kt     # 免责声明页面：滚动到底部才允许同意
 │   │
-│   ├── service/
+│   ├── service/                     # 服务层（4 个文件）
 │   │   ├── OverlayNotificationService.kt # 前台通知服务：防止悬浮窗被系统回收
-│   │   └── AutoOperationService.kt       # 无障碍自动操作：AccessibilityService 触摸注入（JUMP/SLIDE/DOUBLE_JUMP）
+│   │   ├── AutoOperationService.kt       # 无障碍服务入口
+│   │   ├── AutoActionQueue.kt            # 操作队列管理（线程安全）
+│   │   └── GestureInjector.kt            # 触摸事件注入（dispatchGesture）
+│   │
+│   ├── data/                        # 数据层（5 个文件）
+│   │   ├── native/                  # JNI 调用封装（3 个文件）
+│   │   │   ├── NativeLibraryLoader.kt     # 库加载器（System.loadLibrary）
+│   │   │   ├── NativeJsonParser.kt        # JSON 解析器（正则提取）
+│   │   │   └── NativeEngineFacade.kt      # 分析引擎统一门面
+│   │   └── vision/                  # 视觉识别（2 个文件）
+│   │       ├── ScreenshotCapture.kt       # 屏幕截图采集器（API 31+）
+│   │       └── VisionAnalysisBridge.kt    # 视觉识别 JNI 桥接
 │   │
 │   ├── model/
-│   │   └── FrameData.kt                    # 数据模型：RectF、FrameAnalysisResult、HazardDetail、DetectedObject
+│   │   └── FrameData.kt                    # 数据模型：RectF、FrameAnalysisResult 等
 │   │
 │   └── util/
-│       ├── FeatureFlags.kt                 # SharedPreferences 偏好管理（免责声明/自动操作开关/延迟）
+│       ├── FeatureFlags.kt                 # SharedPreferences 偏好管理
 │       ├── ThreadSafeQueue.kt              # 无锁环形缓冲区（单生产者-单消费者）
-│       └── ObjectPool.kt                   # Paint 对象池（模板克隆模式，避免每帧分配）
+│       └── ObjectPool.kt                   # Paint 对象池（模板克隆模式）
 │
 ├── cpp/                             # C++ 原生分析核心
 │   ├── CMakeLists.txt               # 将所有源文件编译为 libhzzs_native.so
@@ -142,16 +207,18 @@ app/src/main/
 │       │   ├── ActionPromptEngine.cpp
 │       │   └── NativeAnalysisEngine.cpp
 │       └── jni/
-│           └── NativeAnalysisBridge.cpp
+│           ├── NativeAnalysisBridge.cpp  # JNI 导出函数
+│           └── VisionAnalysisBridge.cpp  # 视觉识别 JNI 导出
 │
 ├── res/                             # 资源文件
-│   ├── layout/                      # XML 布局（4 个文件）
+│   ├── layout/                      # XML 布局（5 个文件）
 │   │   ├── activity_main.xml        # 首页布局
 │   │   ├── activity_disclaimer.xml  # 免责声明布局
 │   │   ├── view_overlay_preview.xml # 悬浮窗面板布局
-│   │   └── view_community_footer.xml # 社区链接页脚布局
-│   ├── drawable/                    # 矢量图标 + 形状选择器（~20 个文件）
-│   └── values/                      # 颜色、尺寸、字符串（129 个）、主题
+│   │   ├── view_community_footer.xml # 社区链接页脚布局
+│   │   └── activity_vision_settings.xml # 视觉识别设置页面布局
+│   ├── drawable/                    # 矢量图标 + 形状选择器（~25 个文件）
+│   └── values/                      # 颜色、尺寸、字符串（129+ 个）、主题
 │
 └── AndroidManifest.xml              # 声明 SYSTEM_ALERT_WINDOW、FOREGROUND_SERVICE、ACCESSIBILITY_SERVICE 权限
 ```
@@ -169,19 +236,36 @@ FrameDetections（视觉层输入 / 模拟帧生成）
     → FrameAnalysisResult（Kotlin model 层解析 JSON 得到）
     → HUDCanvasView（Canvas 绘制） / TextView（文本标签）
     → AutoOperationService（如果自动操作已启用，将动作入队）
+
+视觉识别数据流（原型）：
+ScreenshotCapture.takeScreenshot() → CaptureResult(pixels, w, h)
+    → VisionAnalysisBridge.scanGreenBottle() → VisionGreenBottleResult
+    → VisionDebugOverlayView（调试可视化）
 ```
 
 ### 关键设计决策
 
-- **Edge-to-Edge 全屏**：MainActivity 启用全屏边缘到边缘显示，通过 padding 处理系统栏安全区域。折叠屏设备上 padding 初始值会被缓存，防止无限叠加增长。
-- **悬浮窗**：使用 `TYPE_APPLICATION_OVERLAY`（API 26+）或 `TYPE_PHONE` 低版本回退。拖动通过 `OnTouchListener` + `MotionEvent` 实现。右下角有缩放手柄。参数通过 SharedPreferences 持久化。悬浮窗显示期间启动前台通知服务，防止被系统回收。
-- **HUD 模拟渲染**：`OverlayHUDRenderer` 在后台线程以 50ms 间隔（20fps）生成模拟跑酷画面数据（正弦波玩家移动 + 周期性危险物），通过 JNI 传入 C++ 分析引擎，结果更新到悬浮窗 UI。这是演示性质，不代表真实画面采集。
-- **自动操作演示**：`AutoOperationService` 继承 `AccessibilityService`，通过 `dispatchGesture()` 注入触摸事件。当 HUD 检测到动作提示且自动操作已启用时，将 JUMP/SLIDE/DOUBLE_JUMP 操作按配置延迟加入队列执行。当前仅用于技术验证，正式版本中"只读不操控"原则不变。
-- **JNI 桥接**：`NativeAnalysisBridge` Kotlin 单例在类初始化时加载 `libhzzs_native.so`。使用静态异常捕获，避免缺失 ABI 时崩溃。JSON 解析不使用第三方库，通过正则表达式提取字段，减少 APK 体积。
-- **ProGuard/R8 混淆规则**：`NativeAnalysisBridge` 类保持不被混淆，以确保 JNI 符号名匹配。详见 `proguard-rules.pro`。
+- **Edge-to-Edge 全屏**：MainActivity 启用全屏边缘到边缘显示，通过 MainInsetsController 处理系统栏安全区域。折叠屏设备上 padding 初始值会被缓存（MainInsetCache），防止无限叠加增长。
+- **Controller 模式**：MainActivity 的职责已拆分为 6 个 Controller 类（ui/main/），每个负责单一关注点。View 缓存（MainViewCache）与业务逻辑（MainActionBinder）分离。
+- **悬浮窗模块化**：OverlayPreviewManager 是入口，实际职责委托给 OverlayWindowController（窗口管理）、OverlayDragController（拖动）、OverlayResizeController（缩放）、OverlaySettingsBinder（设置绑定）。
+- **悬浮窗**：使用 `TYPE_APPLICATION_OVERLAY`（API 26+）或 `TYPE_PHONE` 低版本回退。拖动通过 OverlayDragController 封装。右下角有缩放手柄（OverlayResizeController）。参数通过 SharedPreferences 持久化。悬浮窗显示期间启动前台通知服务（OverlayNotificationService），防止被系统回收。
+- **HUD 模拟渲染**：`OverlayHUDRenderer` 在后台线程以 50ms 间隔（20fps）生成模拟跑酷画面数据（正弦波玩家移动 + 周期性危险物），通过 NativeEngineFacade → JNI 传入 C++ 分析引擎，结果更新到悬浮窗 UI。这是演示性质，不代表真实画面采集。
+- **HUD 绘制模块化**：HUDCanvasView 只负责视图生命周期和属性 setter。所有绘制逻辑提取为 HUDDrawers.kt 中的扩展函数（纯函数式，无状态）。颜色常量集中在 HUDColorPalette 中。
+- **自动操作模块化**：AutoOperationService 是入口，队列管理（AutoActionQueue）和触摸注入（GestureInjector）已分离。通过 dispatchGesture() 注入 JUMP/SLIDE/DOUBLE_JUMP 操作。当前仅用于技术验证。
+- **JNI 三层架构**：
+  - NativeLibraryLoader：库加载（System.loadLibrary），isAvailable 状态检测
+  - NativeJsonParser：JSON 解析（正则提取），容错策略
+  - NativeEngineFacade：统一门面，封装所有 JNI 调用
+  - 主 NativeAnalysisBridge：兼容门面，保持向后兼容
+- **视觉识别原型**：data/vision/ 包提供截图采集（ScreenshotCapture，API 31+）和绿瓶检测（VisionAnalysisBridge）。VisionSettingsActivity 提供参数调节界面。
+- **ProGuard/R8 混淆规则**：`NativeAnalysisBridge` 和 `VisionAnalysisBridge` 类保持不被混淆，以确保 JNI 符号名匹配。详见 `proguard-rules.pro`。
 - **只读不操控**：应用核心分析引擎仅读取和分析画面，不进行触摸注入、不自动跳跃、未经用户明确授权不录屏。自动操作服务当前仅作为技术演示存在。
-- **线程安全队列**：`ThreadSafeQueue` 是无锁环形缓冲区，适用于单生产者-单消费者场景（如 HUD 后台线程 → 主线程消费分析结果）。
+- **线程安全队列**：`ThreadSafeQueue` 是无锁环形缓冲区（CAS 循环实现），适用于单生产者-单消费者场景（如 HUD 后台线程 → 主线程消费分析结果）。
 - **Paint 对象池**：`ObjectPool.PaintPool` 预定义画笔模板，通过 `new Paint(template)` 克隆避免状态污染，减少高频分配导致的 GC 压力。
+- **SharedPreferences 统一管理**：
+  - `hzzs_feature_flags`：免责声明、自动操作开关/延迟、版本记录
+  - `hzzs_overlay_prefs`：悬浮窗透明度、圆角
+  - `hzzs_vision_settings`：视觉识别参数（25+ 个键）
 
 ## 开发规范
 
@@ -189,14 +273,14 @@ FrameDetections（视觉层输入 / 模拟帧生成）
 
 本项目所有注释均使用中文。遵循以下约定：
 
-- **Kotlin**：公开/半公开成员使用 KDoc（`/** ... */`）；行内逻辑解释使用 `//`；文件头部使用 `//` 块注释说明整体职责
+- **Kotlin**：公开/半公开成员使用 KDoc（`/** ... */`）；行内逻辑解释使用 `//`；文件头部使用 `//` 块注释说明整体职责、设计原因、线程模型等
 - **C++**：类和成员声明使用 Doxygen 风格 `/** ... */`；行内代码注释使用 `//`
 - **XML**：块级注释使用 HTML 风格 `<!-- ... -->`；复杂元素可加行内注释
 - **构建文件**：注释应解释"为什么"而非仅仅"是什么"；配置原因需文档化
 
 ### 资源管理
 
-- **strings.xml**：删除未使用的字符串而非注释掉——保持精简。新增字符串前先 grep 确认是否已有等价项。当前共 129 个字符串资源。
+- **strings.xml**：删除未使用的字符串而非注释掉——保持精简。新增字符串前先 grep 确认是否已有等价项。
 - **drawable**：每个 drawable XML 应包含用途说明、颜色参数、圆角大小和引用位置。矢量图标应标注对应的 Material Design 图标名称。
 - **主题一致性**：README、CHANGELOG 中的 UI 描述必须与实际主题一致（本项目为**浅色**主题）。
 
@@ -272,10 +356,10 @@ FrameDetections（视觉层输入 / 模拟帧生成）
 - **无测试代码**：`src/test` 和 `src/androidTest` 目录不存在。接入真实功能后需补充单元测试和仪器测试。
 - **HUD 模拟数据**：`OverlayHUDRenderer` 使用正弦波玩家移动和周期性危险物生成作为演示数据，不代表真实画面分析。`MAX_FRAMES = 600`（30 秒自动停止）是当前限制。
 - **自动操作合规性**：`AutoOperationService` 的触摸注入功能仅用于技术演示，正式版本中不应作为默认功能启用。
-- **悬浮窗 resize handle 占位**：`view_overlay_preview.xml` 中有 8 个 resize handle View（四边四角），但 Kotlin 代码仅在右下角实现了拖动缩放逻辑，其余 7 个是纯占位。
-- **HUDCanvasView 硬编码颜色**：绘制颜色使用 `Color.parseColor()` 硬编码，未与主题资源关联，深色模式适配时需改造。
-- **AutoOperationService 降级分支冗余**：Android 12 以下分支代码实际也统一使用 `dispatchGesture()`（因为 minSdk=24），`injectDownEvent`/`injectUpEvent` 分支不会被触发。
-- **SharedPreferences 键不一致**：`FeatureFlags` 和 `OverlayPreviewManager` 各自维护独立的 SharedPreferences（`hzzs_feature_flags` vs `hzzs_overlay_prefs`），自动操作开关存在两份存储。
+- **视觉识别原型**：`ScreenshotCapture` 需要 API 31+（Android 12）且依赖无障碍服务。`VisionAnalysisBridge` 当前仅支持绿瓶单行扫描检测，通用视觉识别尚未实现。
+- **VisionSettingsActivity**：设置页面使用 ViewPager2 + 手动 RecyclerView.Adapter 实现 Fragment 管理（因项目环境中 FragmentStateAdapter 编译受限）。
+- **HUDCanvasView 颜色**：绘制颜色已从 `HUDColorPalette` 集中管理，但仍未与主题资源关联，深色模式适配时需改造。
+- **SharedPreferences 三分离**：`FeatureFlags`（`hzzs_feature_flags`）、`OverlayPreviewManager`（`hzzs_overlay_prefs`）、`VisionSettingsKeys`（`hzzs_vision_settings`）各自维护独立的 SharedPreferences，自动操作开关存在三份存储。
 
 ## 游戏参考素材
 
