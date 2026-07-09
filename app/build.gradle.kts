@@ -15,6 +15,7 @@ val releaseSigningConfigured = listOf(
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -109,6 +110,11 @@ android {
 
 // 依赖配置
 dependencies {
+    // 内部模块依赖
+    implementation(project(":core"))
+    implementation(project(":features:overlay"))
+    implementation(project(":features:service"))
+
     // AndroidX 核心库
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
