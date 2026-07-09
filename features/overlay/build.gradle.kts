@@ -22,7 +22,7 @@ plugins {
 }
 
 android {
-    namespace = "top.azek431.hzzs.features.overlay"
+    namespace = "top.azek431.hzzs.ui.overlay"
     compileSdk = 37
 
     defaultConfig {
