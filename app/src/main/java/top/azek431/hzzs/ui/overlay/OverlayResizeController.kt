@@ -143,7 +143,7 @@ class OverlayResizeController(
                 // 如果尚未测量（measuredWidth == 0），fallback 到 BASE_WIDTH_DP 转换后的 px 值
                 initialWidth = resizeHandle?.measuredWidth.takeIf { it != null && it > 0 }
                     ?: dp(BASE_WIDTH_DP)
-                return false  // 不拦截，让其他 onClick 等事件正常处理
+                return true  // 拥有手势所有权，确保后续 ACTION_MOVE 能正确传递
             }
 
             MotionEvent.ACTION_MOVE -> {

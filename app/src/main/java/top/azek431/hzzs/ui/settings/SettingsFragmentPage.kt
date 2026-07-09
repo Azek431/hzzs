@@ -66,11 +66,20 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         btnSave = view.findViewById(R.id.btnSave)
             ?: throw IllegalStateException("btnSave not found")
 
-        setupViewPager()
-        bindActions()
-        applyTheme()
+        // 延迟设置 ViewPager 内容，避免在 FragmentManager 执行事务期间调用 commitNow
+        view.post {
+            setupViewPager()
+            bindActions()
+            applyTheme()
+        }
     }
 
+    /**
+     * 初始化 ViewPager + TabLayout。
+     *
+     * 在 view.post 中延迟执行，避免 FragmentManager 事务冲突。
+     * 流程：创建 SettingsPagerAdapter → 设置 Fragment 列表 → 关联 TabLayout
+     */
     private fun setupViewPager() {
         val pagerAdapter = SettingsPagerAdapter(requireActivity())
         viewPager.adapter = pagerAdapter
@@ -92,6 +101,12 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         }.attach()
     }
 
+    /**
+     * 绑定底部操作栏按钮（恢复默认/保存）。
+     *
+     * 恢复默认：弹出确认对话框 → 调用 VisionSettingsKeys.resetAll() → Toast 提示
+     * 保存：同步所有 Fragment 参数到 SharedPreferences → Toast 提示 → 返回
+     */
     private fun bindActions() {
         btnReset.setOnClickListener {
             showResetConfirmation()
@@ -107,6 +122,12 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         }
     }
 
+    /**
+     * 将 ViewPager 中所有 Fragment 的参数同步回 SharedPreferences。
+     *
+     * 遍历所有 5 个分区 Fragment，调用各自的 syncToPrefs() 方法。
+     * 在点击"保存"按钮时调用。
+     */
     private fun syncAllFragments() {
         val pagerAdapter = viewPager.adapter as SettingsPagerAdapter
         for (i in 0 until pagerAdapter.itemCount) {

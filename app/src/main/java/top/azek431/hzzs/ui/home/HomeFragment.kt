@@ -3,6 +3,7 @@
 // 职责：
 // - 承载首页所有内容（状态卡片、功能规划、社区链接、页脚）
 // - 通过底部导航栏与设置 Fragment 切换显示
+// - 绑定按钮点击事件（开发计划、悬浮窗开关、免责声明）
 //
 // 设计原因：
 // - 将原来 activity_main.xml 中的所有内容移入 Fragment
@@ -14,6 +15,7 @@ package top.azek431.hzzs.ui.home
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.Fragment
+import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
 
 /**
@@ -26,5 +28,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // 绑定按钮点击事件
+        view.findViewById<MaterialButton>(R.id.btnDevelopmentPlan)?.setOnClickListener {
+            (requireActivity() as top.azek431.hzzs.MainActivity).onDevelopmentPlanClicked()
+        }
+
+        view.findViewById<MaterialButton>(R.id.btnOverlayExecution)?.setOnClickListener {
+            (requireActivity() as top.azek431.hzzs.MainActivity).onOverlayToggleClicked()
+        }
+
+        view.findViewById<MaterialButton>(R.id.btnDisclaimer)?.setOnClickListener {
+            (requireActivity() as top.azek431.hzzs.MainActivity).onDisclaimerClicked()
+        }
     }
 }

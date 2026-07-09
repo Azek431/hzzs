@@ -32,6 +32,12 @@ android {
     compileSdk = 37
 
     defaultConfig {
+        // 仅编译 ARM ABI（真机只需要 arm64-v8a 和 armeabi-v7a）
+        // x86/x86_64 仅用于模拟器，日常开发不需要
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
         // 应用 ID，与 namespace 一致
         applicationId = "top.azek431.hzzs"
 
