@@ -291,6 +291,7 @@ object ScreenshotCapture {
         android.util.Log.w("HZZS-Screenshot", "[Screenshot] not available: $reason")
 
         // 在主线程弹出 Toast，告知用户当前无法截图
+        @Suppress("DEPRECATION")
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             android.widget.Toast.makeText(
                 context.applicationContext,

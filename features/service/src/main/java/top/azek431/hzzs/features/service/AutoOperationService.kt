@@ -83,6 +83,7 @@ class AutoOperationService : AccessibilityService() {
      * Handler 运行在主线程，用于定时处理队列中的下一个操作。
      * processRunnable 每 operationDelayMs 毫秒触发一次，调用 processNextAction()。
      */
+    @Suppress("DEPRECATION")
     private val handler = Handler(Looper.getMainLooper())
 
     /**
