@@ -158,7 +158,7 @@ class OverlayWindowController(private val context: Context) {
     fun baseWidthPx(): Int = dp(BASE_WIDTH_DP)
 
     /** 获取悬浮窗最小宽度（px），即基础宽度的 0.5 倍 */
-    fun minWidthPx(): Int = dp(BASE_WIDTH_DP) * MIN_WIDTH_MULTIPLIER.toInt()
+    fun minWidthPx(): Int = (dp(BASE_WIDTH_DP) * MIN_WIDTH_MULTIPLIER).roundToInt()
 
     /** 获取悬浮窗最大宽度（px），即基础宽度的 2.0 倍 */
     fun maxWidthPx(): Int = dp(BASE_WIDTH_DP) * MAX_WIDTH_MULTIPLIER.toInt()
