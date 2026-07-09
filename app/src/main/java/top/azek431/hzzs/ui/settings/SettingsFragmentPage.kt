@@ -81,7 +81,7 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
      * 流程：创建 SettingsPagerAdapter → 设置 Fragment 列表 → 关联 TabLayout
      */
     private fun setupViewPager() {
-        val pagerAdapter = SettingsPagerAdapter(requireActivity().supportFragmentManager, lifecycle)
+        val pagerAdapter = SettingsPagerAdapter(requireContext(), supportFragmentManager, lifecycle)
         viewPager.adapter = pagerAdapter
 
         val prefs = requireContext().getSharedPreferences(
