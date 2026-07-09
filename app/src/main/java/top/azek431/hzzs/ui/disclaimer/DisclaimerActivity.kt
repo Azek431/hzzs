@@ -22,7 +22,6 @@
 package top.azek431.hzzs.ui.disclaimer
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.text.Html
 import android.text.Spanned
