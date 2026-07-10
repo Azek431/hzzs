@@ -27,6 +27,10 @@ constexpr const char* kLogTag = "HZZS-Native";
 /** 参数数量常量：nativeAnalyzeFrame 共 15 个参数（timestamp + 4 player + 6 hazard + 2 scroll） */
 constexpr int kAnalyzeParamCount = 15;
 
+/** 最后一次分析结果（供 nativeSerializeDrawingData 使用） */
+hzzs::analysis::AnalysisResult g_lastAnalysisResult{};
+bool g_hasLastResult = false;
+
 /**
  * 将 C++ std::string 转换为 JNI jstring。
  *
@@ -123,7 +127,11 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
     // 执行分析
     const hzzs::analysis::AnalysisResult result = engine.Analyze(frame);
 
-    // 序列化结果为 JSON 字符串
+    // 保存最后一次分析结果（供 serializeDrawingData 使用）
+    g_lastAnalysisResult = result;
+    g_hasLastResult = true;
+
+    // 序列化结果为 JSON 字符串（包含绘制数据）
     std::ostringstream json;
     json << "{\"scene_mode\":" << static_cast<int>(result.scene_mode)
          << ",\"scene_confidence\":" << result.scene_confidence
@@ -136,7 +144,18 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
          << ",\"prompt_confidence\":" << result.prompt.confidence
          << ",\"hazards_count\":" << result.hazards.size();
 
-    // 添加每个危险物的 ETA
+    // 添加玩家矩形（归一化坐标，供 HUDCanvasView 绘制）
+    json << ",\"player\":{";
+    if (result.runner.bounds.has_value() && result.runner.bounds->IsValid()) {
+        const auto& pb = *result.runner.bounds;
+        json << "\"l\":" << pb.left << ",\"t\":" << pb.top
+             << ",\"r\":" << pb.right << ",\"b\":" << pb.bottom;
+    } else {
+        json << "\"l\":0,\"t\":0,\"r\":0,\"b\":0";
+    }
+    json << "}";
+
+    // 添加每个危险物的 ETA 和边界（供 HUDCanvasView 绘制使用）
     json << ",\"hazards\":[";
     for (size_t i = 0; i < result.hazards.size(); ++i) {
         if (i > 0) json << ",";
@@ -145,7 +164,10 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
              << ",\"confidence\":" << result.hazards[i].confidence
              << ",\"action\":" << static_cast<int>(result.hazards[i].preferred_action)
              << ",\"jump_stage\":" << static_cast<int>(result.hazards[i].required_jump_stage)
-             << "}";
+             << ",\"bounds\":{\"l\":" << result.hazards[i].danger_bounds.left
+             << ",\"t\":" << result.hazards[i].danger_bounds.top
+             << ",\"r\":" << result.hazards[i].danger_bounds.right
+             << ",\"b\":" << result.hazards[i].danger_bounds.bottom << "}}";
     }
     json << "]";
 
@@ -316,5 +338,30 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeResetEngine(
 ) {
     static hzzs::analysis::NativeAnalysisEngine engine{};
     engine.Reset();
+    g_hasLastResult = false;
     __android_log_print(ANDROID_LOG_DEBUG, kLogTag, "[JNI] engine reset.");
+}
+
+/**
+ * JNI 导出方法：获取当前分析结果的绘制数据 JSON。
+ *
+ * 在 Kotlin 端调用 analyzeFrame() 后，通过此方法获取完整的绘制数据。
+ * 包含玩家矩形、危险物矩形及 ETA 等信息，供 HUDCanvasView 直接渲染。
+ *
+ * @param env JNI 环境指针
+ * @param obj JNI 对象（此方法不需要，保留占位）
+ * @return JSON 格式的绘制数据字符串
+ */
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeSerializeDrawingData(
+    JNIEnv* env,
+    jobject
+) {
+    // 直接返回上次 analyzeFrame 保存的结果
+    if (!g_hasLastResult) {
+        return env->NewStringUTF("{}");
+    }
+
+    return ToJString(env, g_lastAnalysisResult.serializeDrawingData());
 }
