@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "hzzs/analysis/Geometry.h"
@@ -239,6 +240,32 @@ struct AnalysisResult {
     float shield_confidence{0.0F};
 
     ActionPrompt prompt{};
+
+    /**
+     * 将分析结果序列化为 HUD 绘制数据 JSON 字符串。
+     *
+     * 输出格式（手动拼接，不依赖 JSON 库）：
+     * {
+     *   "scene": <int>,
+     *   "scene_conf": <float>,
+     *   "pose": <int>,
+     *   "grounded": <bool>,
+     *   "jump_stage": <int>,
+     *   "prompt_action": <int>,
+     *   "prompt_target": <int>,
+     *   "prompt_eta_ms": <float>,
+     *   "prompt_conf": <float>,
+     *   "player": { "l": <float>, "t": <float>, "r": <float>, "b": <float> },
+     *   "hazards": [
+     *     { "type": <int>, "eta_ms": <float>, "conf": <float>, "action": <int>,
+     *       "bounds": { "l": <float>, "t": <float>, "r": <float>, "b": <float> } }
+     *   ],
+     *   "collectibles_count": <int>
+     * }
+     *
+     * @return JSON 字符串，包含所有 HUD 绘制所需数据
+     */
+    std::string serializeDrawingData() const;
 };
 
 /** 判断对象类型是否为可收集物品（条纹糖果、双倍糖果、护盾令牌等）。 */
