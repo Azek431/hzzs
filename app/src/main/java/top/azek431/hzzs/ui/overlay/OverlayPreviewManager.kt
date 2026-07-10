@@ -41,7 +41,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import android.widget.Toast
 import top.azek431.hzzs.core.NativeAnalysisBridge
 import top.azek431.hzzs.R
 import top.azek431.hzzs.service.OverlayNotificationService
@@ -77,6 +76,15 @@ object OverlayPreviewManager {
 
     /** HUD 渲染器实例，负责模拟帧生成和 C++ 引擎驱动 */
     private var hudRenderer: OverlayHUDRenderer? = null
+
+    /** 屏幕调试叠加视图，全屏显示分析结果绘制 */
+    private var screenOverlay: ScreenOverlayView? = null
+
+    /** 屏幕叠加视图的 WindowManager 参数 */
+    private var screenOverlayParams: WindowManager.LayoutParams? = null
+
+    /** 屏幕叠加视图的 WindowManager 实例（用于 hide 时移除） */
+    private var screenOverlayManager: WindowManager? = null
 
     // ==================== 悬浮窗会话 ====================
 
@@ -273,6 +281,45 @@ object OverlayPreviewManager {
             // 初始化 HUD 渲染器
             hudRenderer = OverlayHUDRenderer(appContext)
 
+            // 创建屏幕调试叠加视图（全屏绘制分析结果）
+            screenOverlay = ScreenOverlayView(appContext).apply {
+                isClickable = false
+                isFocusable = false
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            }
+
+            // 设置屏幕叠加视图的窗口参数
+            screenOverlayParams = WindowManager.LayoutParams().apply {
+                width = WindowManager.LayoutParams.MATCH_PARENT
+                height = WindowManager.LayoutParams.MATCH_PARENT
+                // 悬浮窗类型：在所有窗口之上
+                type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
+                flags = (WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                format = android.graphics.PixelFormat.TRANSLUCENT
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            }
+
+            // 连接渲染器 → 叠加视图：每次分析结果出来后自动绘制到屏幕上
+            val overlayView = screenOverlay!!
+            hudRenderer?.setOnFrameResultListener { result ->
+                overlayView.updateResult(result)
+            }
+
+            // 添加到 WindowManager（在悬浮窗之后）
+            try {
+                manager.addView(screenOverlay, screenOverlayParams)
+                screenOverlayManager = manager
+            } catch (e: Exception) {
+                Log.w(TAG, "[Overlay] failed to add screen overlay: ${e.message}")
+            }
+
             // 添加到 WindowManager
             try {
                 manager.addView(view, layoutParams)
@@ -299,6 +346,12 @@ object OverlayPreviewManager {
             activeSession = null
             analysisUiState = AnalysisUiState.IDLE
             singleHandler.removeCallbacksAndMessages(null)
+            screenOverlay?.let {
+                try { screenOverlayManager?.removeView(it) } catch (e: Exception) { /* ignore */ }
+            }
+            screenOverlay = null
+            screenOverlayParams = null
+            hudRenderer = null
             return false
         }
     }
@@ -325,6 +378,14 @@ object OverlayPreviewManager {
         activeSession = null
         analysisUiState = AnalysisUiState.IDLE
         singleHandler.removeCallbacksAndMessages(null)
+
+        // 清理屏幕叠加视图
+        screenOverlay?.let { ov ->
+            screenOverlayManager?.removeView(ov)
+            screenOverlayManager = null
+            screenOverlay = null
+            screenOverlayParams = null
+        }
 
         return try {
             session.manager.removeView(session.rootView)
