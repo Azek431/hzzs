@@ -24,14 +24,17 @@
 
 package top.azek431.hzzs.ui.overlay
 
-import android.content.Context
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import top.azek431.hzzs.core.data.native.NativeEngineFacade
 import top.azek431.hzzs.core.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.data.native.VisionBridge
 import top.azek431.hzzs.core.model.FrameAnalysisResult
 import top.azek431.hzzs.core.model.RectF
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * HUD 渲染器。
@@ -67,6 +70,28 @@ class OverlayHUDRenderer(
 
     /** 主线程 Handler，用于将后台线程的分析结果切换到主线程执行 UI 回调 */
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // ==================== 视觉识别回调 ====================
+
+    /**
+     * 视觉识别结果回调监听器。
+     *
+     * 每次视觉识别完成后，通过此回调将绿瓶/坑位检测结果推送给 UI 层。
+     */
+    private var onVisualRecognitionListener: ((Boolean, Int, Int, Int, Int, Int, Float, Double,
+                                                Boolean, Int, Int, Int, Int, Int, Float, Double) -> Unit)? = null
+
+    /**
+     * 设置视觉识别结果回调监听器。
+     *
+     * @param listener 回调函数，参数依次为：
+     *   bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleCenterY, bottleWidth, bottleConfidence, bottleCostMs,
+     *   pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence, pitCostMs
+     */
+    fun setOnVisualRecognitionListener(listener: (Boolean, Int, Int, Int, Int, Int, Float, Double,
+                                                   Boolean, Int, Int, Int, Int, Int, Float, Double) -> Unit) {
+        onVisualRecognitionListener = listener
+    }
 
     companion object {
         private const val TAG = "HZZS-HUD"
@@ -310,6 +335,11 @@ class OverlayHUDRenderer(
                 onFrameResultListener?.let { listener ->
                     mainHandler.post { listener(result) }
                 }
+
+                // 同时调用视觉识别（绿瓶 + 坑位检测）
+                mainHandler.post {
+                    runVisualRecognition(result)
+                }
             }
 
             // 更新危险物位置（向左移动）
@@ -382,6 +412,11 @@ class OverlayHUDRenderer(
             frameResult?.let { result ->
                 onFrameResultListener?.let { listener ->
                     mainHandler.post { listener(result) }
+                }
+
+                // 同时调用视觉识别（绿瓶 + 坑位检测）
+                mainHandler.post {
+                    runVisualRecognition(result)
                 }
             }
         }
