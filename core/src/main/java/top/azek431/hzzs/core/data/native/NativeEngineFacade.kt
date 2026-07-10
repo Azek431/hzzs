@@ -122,6 +122,19 @@ object NativeEngineFacade {
         return NativeJsonParser.parse(json)
     }
 
+    /**
+     * 获取上一次分析结果的绘制数据 JSON 字符串。
+     *
+     * 在 analyzeFrame() 调用后，C++ 端已保存最后一次 AnalysisResult。
+     * 此方法将其序列化为包含玩家矩形、危险物矩形等 HUD 绘制数据的 JSON。
+     *
+     * @return 绘制数据 JSON 字符串，或 null（库不可用时）
+     */
+    fun serializeDrawingData(): String? {
+        if (!NativeLibraryLoader.isAvailable) return null
+        return nativeSerializeDrawingData()
+    }
+
     /** 重置分析引擎状态 */
     private external fun nativeResetEngine()
 
@@ -166,4 +179,12 @@ object NativeEngineFacade {
         hazardVelocityX: Float,
         worldScrollSpeed: Float,
     ): String
+
+    /**
+     * 获取上一次分析结果的绘制数据 JSON。
+     *
+     * 对应 C++ 端的 Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeSerializeDrawingData。
+     * 返回包含玩家矩形、危险物矩形、ETA 等 HUD 绘制信息的 JSON 字符串。
+     */
+    private external fun nativeSerializeDrawingData(): String
 }
