@@ -80,17 +80,17 @@ class OverlayHUDRenderer(
      * 每次视觉识别完成后，通过此回调将绿瓶/坑位检测结果推送给 UI 层。
      */
     private var onVisualRecognitionListener: ((Boolean, Int, Int, Int, Int, Int, Float, Double,
-                                                Boolean, Int, Int, Int, Int, Int, Float, Double) -> Unit)? = null
+                                                Boolean, Int, Int, Int, Int, Int, Int, Float) -> Unit)? = null
 
     /**
      * 设置视觉识别结果回调监听器。
      *
      * @param listener 回调函数，参数依次为：
      *   bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleScanY, bottleWidth, bottleConfidence, bottleCostMs,
-     *   pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence, pitCostMs
+     *   pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence
      */
     fun setOnVisualRecognitionListener(listener: (Boolean, Int, Int, Int, Int, Int, Float, Double,
-                                                   Boolean, Int, Int, Int, Int, Int, Float, Double) -> Unit) {
+                                                   Boolean, Int, Int, Int, Int, Int, Int, Float) -> Unit) {
         onVisualRecognitionListener = listener
     }
 
@@ -462,6 +462,9 @@ class OverlayHUDRenderer(
 
     /**
      * 运行视觉识别（绿瓶 + 坑位检测）。
+     *
+     * 注意：当前使用模拟像素数据，实际使用时需要替换为真实截图。
+     * 如果像素数组为空，直接跳过视觉识别，不崩溃。
      */
     private fun runVisualRecognition(result: FrameAnalysisResult) {
         if (!NativeLibraryLoader.isAvailable) return
@@ -472,6 +475,11 @@ class OverlayHUDRenderer(
         } ?: context.applicationContext.resources.displayMetrics
         val w = metrics.widthPixels
         val h = metrics.heightPixels
+
+        // 当前没有真实截图数据，跳过视觉识别
+        // TODO: 接入 ScreenshotCapture.takeScreenshot() 后取消此跳过
+        Log.d(TAG, "[HUD] visual recognition skipped — no real screenshot data yet")
+        return
 
         // 调用 C++ 视觉算法
         try {
@@ -496,7 +504,7 @@ class OverlayHUDRenderer(
 
                     onVisualRecognitionListener?.invoke(
                         true, left, right, centerX, scanY, widthPx, confidence, costMs,
-                        false, 0, 0, 0, 0, 0, 0f, 0.0
+                        false, 0, 0, 0, 0, 0, 0, 0f
                     )
                 }
             }
@@ -522,7 +530,7 @@ class OverlayHUDRenderer(
 
                     onVisualRecognitionListener?.invoke(
                         false, 0, 0, 0, 0, 0, 0f, 0.0,
-                        true, left, right, centerX, scanY, widthPx, confidence, costMs
+                        true, left, right, centerX, scanY, widthPx, edgeGap, confidence
                     )
                 }
             }
