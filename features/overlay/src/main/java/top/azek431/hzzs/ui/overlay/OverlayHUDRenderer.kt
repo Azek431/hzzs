@@ -86,7 +86,7 @@ class OverlayHUDRenderer(
      * 设置视觉识别结果回调监听器。
      *
      * @param listener 回调函数，参数依次为：
-     *   bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleCenterY, bottleWidth, bottleConfidence, bottleCostMs,
+     *   bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleScanY, bottleWidth, bottleConfidence, bottleCostMs,
      *   pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence, pitCostMs
      */
     fun setOnVisualRecognitionListener(listener: (Boolean, Int, Int, Int, Int, Int, Float, Double,
@@ -496,7 +496,7 @@ class OverlayHUDRenderer(
 
                     onVisualRecognitionListener?.invoke(
                         true, left, right, centerX, scanY, widthPx, confidence, costMs,
-                        false, 0, 0, 0, 0, 0, 0, 0f, 0.0
+                        false, 0, 0, 0, 0, 0, 0f, 0.0
                     )
                 }
             }
@@ -522,7 +522,7 @@ class OverlayHUDRenderer(
 
                     onVisualRecognitionListener?.invoke(
                         false, 0, 0, 0, 0, 0, 0f, 0.0,
-                        true, left, right, centerX, scanY, widthPx, edgeGap, confidence, costMs
+                        true, left, right, centerX, scanY, widthPx, confidence, costMs
                     )
                 }
             }
