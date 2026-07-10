@@ -48,6 +48,7 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
         "玩家与绿瓶",
         "检测参数",
         "调试选项",
+        "算法日志",
     )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

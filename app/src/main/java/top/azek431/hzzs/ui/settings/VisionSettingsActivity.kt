@@ -40,6 +40,7 @@ import top.azek431.hzzs.R
 import top.azek431.hzzs.ui.settings.SettingsFragment.Companion.createInstance
 import top.azek431.hzzs.ui.settings.VisionSettingsKeys.resetAll
 import top.azek431.hzzs.ui.settings.VisionSettingsKeys.PREFS_NAME
+import top.azek431.hzzs.ui.settings.LogViewerFragment
 
 /**
  * 视觉识别设置页面。
@@ -246,6 +247,10 @@ class SettingsPagerAdapter(
     }
 
     override fun createFragment(position: Int): Fragment {
+        // 第 6 个 tab（索引 5）是日志查看页面
+        if (position == 5) {
+            return LogViewerFragment.newInstance()
+        }
         val section = sections[position]
         return SettingsFragment.createInstance(section, prefs)
     }
