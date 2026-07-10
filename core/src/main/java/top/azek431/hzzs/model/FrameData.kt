@@ -109,6 +109,12 @@ data class FrameAnalysisResult(
 
     // === 新增：危险物详细信息列表 ===
     val hazardDetails: List<HazardDetail> = emptyList(),
+
+    // === 绘制数据：玩家矩形（归一化坐标） ===
+    val playerBounds: RectF? = null,
+
+    // === 绘制数据：危险物矩形列表（归一化坐标） ===
+    val hazardBounds: List<RectF> = emptyList(),
 ) {
     companion object {
         // ==================== 场景模式常量 ====================
