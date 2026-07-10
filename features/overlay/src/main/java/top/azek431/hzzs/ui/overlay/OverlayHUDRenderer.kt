@@ -6,8 +6,9 @@
 //
 // 核心职责：
 // 1. 模拟帧生成：按固定间隔生成模拟跑酷画面数据
-// 2. 引擎驱动：将模拟数据传入 C++ 引擎运行分析（结果不用于 UI 更新）
+// 2. 引擎驱动：将模拟数据传入 C++ 引擎运行分析
 // 3. 生命周期管理：开始/停止渲染循环，线程安全
+// 4. 结果分发：通过 onFrameResultListener 将分析结果推送给 UI
 //
 // 模拟数据策略：
 // - 玩家矩形：在屏幕中下部缓慢左右移动（正弦波驱动）
@@ -19,26 +20,53 @@
 // - 模拟帧循环在独立后台线程运行
 // - 使用 volatile 标志（isRunning）控制循环启停
 // - stop() 中调用 thread.join(1000) 等待线程退出，超时强制放弃
+// - onFrameResultListener 回调在主线程执行（通过 postInvalidate 机制）
 
 package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import top.azek431.hzzs.core.data.native.NativeEngineFacade
 import top.azek431.hzzs.core.data.native.NativeLibraryLoader
+import top.azek431.hzzs.core.model.FrameAnalysisResult
 import top.azek431.hzzs.core.model.RectF
 
 /**
  * HUD 渲染器。
  *
  * 负责生成模拟跑酷帧数据并通过 JNI 驱动 C++ 分析引擎运行。
- * 重构后不再绑定 UI 视图，仅负责"模拟帧生成 + 引擎驱动"。
+ * 通过 onFrameResultListener 回调将分析结果推送给 UI 层绘制。
  *
  * @param context 上下文（用于获取 displayMetrics 等系统信息）
  */
 class OverlayHUDRenderer(
     private val context: Context,
 ) {
+
+    // ==================== UI 结果回调 ====================
+
+    /**
+     * 帧分析结果回调监听器。
+     *
+     * 每次 analyzeFrame 返回结果后，通过此回调将 FrameAnalysisResult
+     * 推送给 UI 层（HUDCanvasView）进行绘制。
+     * 回调在主线程执行，确保 UI 线程安全。
+     */
+    private var onFrameResultListener: ((FrameAnalysisResult) -> Unit)? = null
+
+    /**
+     * 设置帧分析结果回调监听器。
+     *
+     * @param listener 回调函数，接收每次分析得到的 FrameAnalysisResult
+     */
+    fun setOnFrameResultListener(listener: (FrameAnalysisResult) -> Unit) {
+        onFrameResultListener = listener
+    }
+
+    /** 主线程 Handler，用于将后台线程的分析结果切换到主线程执行 UI 回调 */
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
         private const val TAG = "HZZS-HUD"
@@ -261,8 +289,8 @@ class OverlayHUDRenderer(
                 null
             }
 
-            // 调用 C++ 引擎分析（结果不再更新 UI，仅驱动引擎运行）
-            if (NativeLibraryLoader.isAvailable) {
+            // 调用 C++ 引擎分析，并将结果推送给 UI 绘制
+            val frameResult = if (NativeLibraryLoader.isAvailable) {
                 NativeEngineFacade.analyzeFrame(
                     timestampMs = timestampMs,
                     playerBounds = playerBounds,
@@ -273,6 +301,15 @@ class OverlayHUDRenderer(
                     hazardVelocityX = WORLD_SCROLL_SPEED,
                     worldScrollSpeed = WORLD_SCROLL_SPEED,
                 )
+            } else {
+                null
+            }
+
+            // 将分析结果切换到主线程推送给 HUDCanvasView 绘制
+            frameResult?.let { result ->
+                onFrameResultListener?.let { listener ->
+                    mainHandler.post { listener(result) }
+                }
             }
 
             // 更新危险物位置（向左移动）
@@ -328,9 +365,9 @@ class OverlayHUDRenderer(
             bottom = 0.98f,
         )
 
-        // 调用 C++ 引擎分析（单次）
+        // 调用 C++ 引擎分析（单次），并将结果推送给 UI 绘制
         if (NativeLibraryLoader.isAvailable) {
-            NativeEngineFacade.analyzeFrame(
+            val frameResult = NativeEngineFacade.analyzeFrame(
                 timestampMs = timestampMs,
                 playerBounds = playerBounds,
                 playerConfidence = 0.96f,
@@ -340,6 +377,13 @@ class OverlayHUDRenderer(
                 hazardVelocityX = WORLD_SCROLL_SPEED,
                 worldScrollSpeed = WORLD_SCROLL_SPEED,
             )
+
+            // 将分析结果切换到主线程推送给 HUDCanvasView 绘制
+            frameResult?.let { result ->
+                onFrameResultListener?.let { listener ->
+                    mainHandler.post { listener(result) }
+                }
+            }
         }
 
         Log.d(TAG, "[HUD] single execution frame completed.")
