@@ -17,7 +17,6 @@ package top.azek431.hzzs.ui.main
 
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
 

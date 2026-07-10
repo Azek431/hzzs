@@ -22,7 +22,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import top.azek431.hzzs.R
-import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 
 class OverlayNotificationService : Service() {
 

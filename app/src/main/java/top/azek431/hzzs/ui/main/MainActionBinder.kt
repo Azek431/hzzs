@@ -16,10 +16,8 @@
 
 package top.azek431.hzzs.ui.main
 
-import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import top.azek431.hzzs.R
-import top.azek431.hzzs.ui.community.CommunityLinks
 
 /**
  * 首页按钮点击事件的回调接口。
