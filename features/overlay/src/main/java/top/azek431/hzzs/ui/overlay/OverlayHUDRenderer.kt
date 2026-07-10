@@ -24,6 +24,7 @@
 
 package top.azek431.hzzs.ui.overlay
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -457,5 +458,76 @@ class OverlayHUDRenderer(
      */
     private fun sin(x: Float): Float {
         return kotlin.math.sin(x)
+    }
+
+    /**
+     * 运行视觉识别（绿瓶 + 坑位检测）。
+     */
+    private fun runVisualRecognition(result: FrameAnalysisResult) {
+        if (!NativeLibraryLoader.isAvailable) return
+
+        val pb = result.playerBounds ?: return
+        val metrics = (context as? android.content.Context)?.let {
+            android.content.ContextWrapper(it).resources?.displayMetrics
+        } ?: context.applicationContext.resources.displayMetrics
+        val w = metrics.widthPixels
+        val h = metrics.heightPixels
+
+        // 调用 C++ 视觉算法
+        try {
+            val bottleBytes = VisionBridge.detectGreenBottle(
+                intArrayOf(), w, h,
+                pb.left.toFloat(), pb.right.toFloat(), pb.width.toFloat(),
+                pb.centerX.toFloat(), pb.centerY.toFloat()
+            )
+
+            if (bottleBytes.size >= 48) {
+                val buf = ByteBuffer.wrap(bottleBytes).order(ByteOrder.nativeOrder())
+                val bottleFound = buf.get(0) != 0.toByte()
+                if (bottleFound) {
+                    val scanY = buf.getInt(4)
+                    val left = buf.getInt(8)
+                    val right = buf.getInt(12)
+                    val centerX = buf.getInt(16)
+                    val widthPx = buf.getInt(20)
+                    val edgeGap = buf.getInt(24)
+                    val confidence = buf.getFloat(32)
+                    val costMs = buf.getDouble(36)
+
+                    onVisualRecognitionListener?.invoke(
+                        true, left, right, centerX, scanY, widthPx, confidence, costMs,
+                        false, 0, 0, 0, 0, 0, 0, 0f, 0.0
+                    )
+                }
+            }
+
+            val pitBytes = VisionBridge.detectPit(
+                intArrayOf(), w, h,
+                pb.left.toFloat(), pb.right.toFloat(), pb.width.toFloat(),
+                pb.centerX.toFloat(), pb.centerY.toFloat()
+            )
+
+            if (pitBytes.size >= 48) {
+                val buf = ByteBuffer.wrap(pitBytes).order(ByteOrder.nativeOrder())
+                val pitFound = buf.get(0) != 0.toByte()
+                if (pitFound) {
+                    val scanY = buf.getInt(4)
+                    val left = buf.getInt(8)
+                    val right = buf.getInt(12)
+                    val centerX = buf.getInt(16)
+                    val widthPx = buf.getInt(20)
+                    val edgeGap = buf.getInt(24)
+                    val confidence = buf.getFloat(32)
+                    val costMs = buf.getDouble(36)
+
+                    onVisualRecognitionListener?.invoke(
+                        false, 0, 0, 0, 0, 0, 0f, 0.0,
+                        true, left, right, centerX, scanY, widthPx, edgeGap, confidence, costMs
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "[HUD] visual recognition failed: ${e.message}")
+        }
     }
 }

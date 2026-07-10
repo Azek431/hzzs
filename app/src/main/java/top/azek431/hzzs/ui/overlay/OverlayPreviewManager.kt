@@ -312,6 +312,32 @@ object OverlayPreviewManager {
                 overlayView.updateResult(result)
             }
 
+            // 连接视觉识别结果 → 叠加视图
+            hudRenderer?.setOnVisualRecognitionListener {
+                bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleScanY, bottleWidth, bottleConfidence, bottleCostMs,
+                pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence, pitCostMs ->
+
+                overlayView.bottleFound = bottleFound
+                overlayView.bottleLeft = bottleLeft
+                overlayView.bottleRight = bottleRight
+                overlayView.bottleCenterX = bottleCenterX
+                overlayView.bottleCenterY = bottleScanY
+                overlayView.bottleWidth = bottleWidth
+                overlayView.bottleScanY = bottleScanY
+                overlayView.bottleConfidence = bottleConfidence
+                overlayView.bottleCostMs = bottleCostMs
+
+                overlayView.pitFound = pitFound
+                overlayView.pitLeft = pitLeft
+                overlayView.pitRight = pitRight
+                overlayView.pitCenterX = pitCenterX
+                overlayView.pitScanY = pitScanY
+                overlayView.pitWidth = pitWidth
+                overlayView.pitEdgeGap = pitEdgeGap
+                overlayView.pitConfidence = pitConfidence
+                overlayView.pitCostMs = pitCostMs
+            }
+
             // 添加到 WindowManager（在悬浮窗之后）
             try {
                 manager.addView(screenOverlay, screenOverlayParams)
