@@ -14,8 +14,6 @@ package top.azek431.hzzs.ui.settings
 import android.content.Context
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.TextView
-import top.azek431.hzzs.R
 
 /**
  * 参数控件渲染器（入口类）。
