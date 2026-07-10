@@ -27,7 +27,6 @@ package top.azek431.hzzs.ui.overlay
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
-import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import kotlin.math.roundToInt

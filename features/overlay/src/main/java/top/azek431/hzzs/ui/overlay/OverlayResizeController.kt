@@ -20,7 +20,6 @@ package top.azek431.hzzs.ui.overlay
 import android.content.Context
 import android.view.MotionEvent
 import android.view.View
-import android.view.WindowManager
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
