@@ -23,8 +23,8 @@ package top.azek431.hzzs.ui.disclaimer
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.Html
 import android.text.Spanned
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -70,7 +70,7 @@ class DisclaimerActivity : AppCompatActivity() {
     private lateinit var disagreeButton: MaterialButton
 
     /** 进度条填充 View */
-    private lateinit var progressFill: FrameLayout
+    private lateinit var progressFill: View
 
     /** 百分比显示 TextView */
     private lateinit var scrollProgress: TextView
@@ -254,8 +254,8 @@ class DisclaimerActivity : AppCompatActivity() {
         lastProgressPercent = percent
 
         // 计算填充宽度（百分比 × 父布局宽度）
-        val parentWidth = progressFill.parent as? FrameLayout ?: return
-        val maxWidth = parentWidth.width.toFloat()
+        val parent = progressFill.parent as? FrameLayout ?: return
+        val maxWidth = parent.width.toFloat()
         val targetWidth = maxWidth * clampedProgress
 
         val layoutParams = progressFill.layoutParams
