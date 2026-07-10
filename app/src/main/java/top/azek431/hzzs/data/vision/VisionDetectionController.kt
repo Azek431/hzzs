@@ -26,6 +26,7 @@ import android.os.Looper
 import android.util.Log
 import top.azek431.hzzs.features.service.AutoActionQueue
 import top.azek431.hzzs.service.AutoOperationService
+import top.azek431.hzzs.ui.overlay.ScreenshotCapture
 
 /**
  * 视觉识别检测调度控制器。
