@@ -14,8 +14,12 @@ project(hzzs_native LANGUAGES CXX)
 # - NativeAnalysisEngine.cpp：分析引擎总入口，协调所有子模块
 #
 # 包含所有视觉识别源文件（独立于主分析引擎）：
-# - GreenBottleLineDetector.cpp：绿瓶单行扫描检测器
-# - NativeVisionBridge.cpp：视觉识别 JNI 桥接层
+# - GreenBottleLineDetector.cpp：旧版绿瓶单行扫描检测器
+# - NativeVisionBridge.cpp：旧版视觉识别 JNI 桥接层
+#
+# 新版视觉算法模块（移植 Python 脚本）：
+# - GreenBottleDetector.cpp：绿瓶检测（RGB 颜色判断 + 片段合并）
+# - PitDetector.cpp：坑位检测（奶油白地面断口检测）
 add_library(
     hzzs_native
     SHARED
@@ -28,6 +32,11 @@ add_library(
     src/analysis/NativeAnalysisEngine.cpp
     src/vision/GreenBottleLineDetector.cpp
     src/vision/NativeVisionBridge.cpp
+    vision/algorithm/GreenBottleDetector.cpp
+    vision/algorithm/PitDetector.cpp
+    vision/renderer/DebugRenderer.cpp
+    vision/logger/LogManager.cpp
+    vision/bridge/VisionBridge.cpp
 )
 
 # 包含目录：指向 include/ 下的所有头文件
@@ -35,6 +44,10 @@ target_include_directories(
     hzzs_native
     PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vision/algorithm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vision/renderer"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vision/logger"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vision/bridge"
 )
 
 # 编译标准：C++17（使用 std::optional, std::filesystem 等特性）
