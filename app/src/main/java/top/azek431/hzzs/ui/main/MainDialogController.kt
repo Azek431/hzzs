@@ -19,7 +19,6 @@ package top.azek431.hzzs.ui.main
 
 import android.content.Context
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import top.azek431.hzzs.R
 
 /**
  * 首页对话框控制器。

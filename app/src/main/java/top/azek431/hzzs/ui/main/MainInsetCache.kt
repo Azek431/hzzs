@@ -15,8 +15,6 @@
 
 package top.azek431.hzzs.ui.main
 
-import android.view.View
-
 /**
  * 主页 Padding 初始值缓存器。
  *
