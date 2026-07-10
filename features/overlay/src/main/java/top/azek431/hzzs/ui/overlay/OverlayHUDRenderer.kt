@@ -25,7 +25,6 @@
 package top.azek431.hzzs.ui.overlay
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -463,76 +462,113 @@ class OverlayHUDRenderer(
     /**
      * 运行视觉识别（绿瓶 + 坑位检测）。
      *
-     * 注意：当前使用模拟像素数据，实际使用时需要替换为真实截图。
-     * 如果像素数组为空，直接跳过视觉识别，不崩溃。
+     * 流程：
+     * 1. 尝试截取当前屏幕（ScreenshotCapture.takeScreenshot）
+     * 2. 如果截图成功，调用 C++ 视觉算法（VisionBridge.detectGreenBottle / detectPit）
+     * 3. 解析 C++ 返回的 byte[] 结果，通过 onVisualRecognitionListener 回调推送
+     * 4. 如果截图失败，回退到模拟像素（空数组 → 未检测到）
+     *
+     * 线程模型：此方法在主线程调用（由 mainHandler.post 触发），
+     * ScreenshotCapture.takeScreenshot 内部会阻塞等待截图完成。
      */
     private fun runVisualRecognition(result: FrameAnalysisResult) {
-        if (!NativeLibraryLoader.isAvailable) return
-
         val pb = result.playerBounds ?: return
+        val appContext = context.applicationContext
         val metrics = (context as? android.content.Context)?.let {
             android.content.ContextWrapper(it).resources?.displayMetrics
-        } ?: context.applicationContext.resources.displayMetrics
+        } ?: appContext.resources.displayMetrics
         val w = metrics.widthPixels
         val h = metrics.heightPixels
 
-        // 当前没有真实截图数据，跳过视觉识别
-        // TODO: 接入 ScreenshotCapture.takeScreenshot() 后取消此跳过
-        Log.d(TAG, "[HUD] visual recognition skipped — no real screenshot data yet")
-        return
+        // 1. 尝试真实截图
+        val capture = ScreenshotCapture.takeScreenshot(appContext)
 
-        // 调用 C++ 视觉算法
+        // 2. 构建像素数组（真实截图优先，失败则用空数组让 C++ 检测返回未找到）
+        val pixelArray = capture?.pixels ?: intArrayOf()
+        val actualW = capture?.width ?: w
+        val actualH = capture?.height ?: h
+
+        // 3. 调用 C++ 视觉算法
         try {
             val bottleBytes = VisionBridge.detectGreenBottle(
-                intArrayOf(), w, h,
+                pixelArray, actualW, actualH,
                 pb.left.toFloat(), pb.right.toFloat(), pb.width.toFloat(),
                 pb.centerX.toFloat(), pb.centerY.toFloat()
             )
 
-            if (bottleBytes.size >= 48) {
-                val buf = ByteBuffer.wrap(bottleBytes).order(ByteOrder.nativeOrder())
-                val bottleFound = buf.get(0) != 0.toByte()
-                if (bottleFound) {
-                    val scanY = buf.getInt(4)
-                    val left = buf.getInt(8)
-                    val right = buf.getInt(12)
-                    val centerX = buf.getInt(16)
-                    val widthPx = buf.getInt(20)
-                    val edgeGap = buf.getInt(24)
-                    val confidence = buf.getFloat(32)
-                    val costMs = buf.getDouble(36)
+            val pitBytes = VisionBridge.detectPit(
+                pixelArray, actualW, actualH,
+                pb.left.toFloat(), pb.right.toFloat(), pb.width.toFloat(),
+                pb.centerX.toFloat(), pb.centerY.toFloat()
+            )
 
-                    onVisualRecognitionListener?.invoke(
-                        true, left, right, centerX, scanY, widthPx, confidence, costMs,
-                        false, 0, 0, 0, 0, 0, 0, 0f
-                    )
+            // 4. 解析绿瓶结果
+            var bottleFound = false
+            var bottleLeft = 0
+            var bottleRight = 0
+            var bottleCenterX = 0
+            var bottleScanY = 0
+            var bottleWidth = 0
+            var bottleConfidence = 0f
+            var bottleCostMs = 0.0
+
+            if (bottleBytes.size >= 48) {
+                val buf = ByteBuffer.wrap(bottleBytes).order(ByteOrder.LITTLE_ENDIAN)
+                bottleFound = buf.get(0) != 0.toByte()
+                if (bottleFound) {
+                    bottleScanY = buf.getInt(4)
+                    bottleLeft = buf.getInt(8)
+                    bottleRight = buf.getInt(12)
+                    bottleCenterX = buf.getInt(16)
+                    bottleWidth = buf.getInt(20)
+                    val edgeGap = buf.getInt(24)
+                    val centerDist = buf.getInt(28)
+                    bottleConfidence = buf.getFloat(32)
+                    bottleCostMs = buf.getDouble(36)
                 }
             }
 
-            val pitBytes = VisionBridge.detectPit(
-                intArrayOf(), w, h,
-                pb.left.toFloat(), pb.right.toFloat(), pb.width.toFloat(),
-                pb.centerX.toFloat(), pb.centerY.toFloat()
-            )
+            // 5. 解析坑位结果
+            var pitFound = false
+            var pitLeft = 0
+            var pitRight = 0
+            var pitCenterX = 0
+            var pitScanY = 0
+            var pitWidth = 0
+            var pitEdgeGap = 0
+            var pitConfidence = 0f
+            var pitCostMs = 0.0
 
             if (pitBytes.size >= 48) {
-                val buf = ByteBuffer.wrap(pitBytes).order(ByteOrder.nativeOrder())
-                val pitFound = buf.get(0) != 0.toByte()
+                val buf = ByteBuffer.wrap(pitBytes).order(ByteOrder.LITTLE_ENDIAN)
+                pitFound = buf.get(0) != 0.toByte()
                 if (pitFound) {
-                    val scanY = buf.getInt(4)
-                    val left = buf.getInt(8)
-                    val right = buf.getInt(12)
-                    val centerX = buf.getInt(16)
-                    val widthPx = buf.getInt(20)
-                    val edgeGap = buf.getInt(24)
-                    val confidence = buf.getFloat(32)
-                    val costMs = buf.getDouble(36)
-
-                    onVisualRecognitionListener?.invoke(
-                        false, 0, 0, 0, 0, 0, 0f, 0.0,
-                        true, left, right, centerX, scanY, widthPx, edgeGap, confidence
-                    )
+                    pitScanY = buf.getInt(4)
+                    pitLeft = buf.getInt(8)
+                    pitRight = buf.getInt(12)
+                    pitCenterX = buf.getInt(16)
+                    pitWidth = buf.getInt(20)
+                    pitEdgeGap = buf.getInt(24)
+                    val centerDist = buf.getInt(28)
+                    pitConfidence = buf.getFloat(32)
+                    pitCostMs = buf.getDouble(36)
                 }
+            }
+
+            // 6. 回调推送给 UI 层
+            onVisualRecognitionListener?.invoke(
+                bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleScanY, bottleWidth,
+                bottleConfidence, bottleCostMs,
+                pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap,
+                pitConfidence
+            )
+
+            // 调试日志
+            if (bottleFound) {
+                Log.d(TAG, "[HUD] C++ bottle detected: L=$bottleLeft R=$bottleRight Cx=$bottleCenterX conf=$bottleConfidence cost=${bottleCostMs}ms")
+            }
+            if (pitFound) {
+                Log.d(TAG, "[HUD] C++ pit detected: L=$pitLeft R=$pitRight Cx=$pitCenterX W=$pitWidth conf=$pitConfidence cost=${pitCostMs}ms")
             }
         } catch (e: Exception) {
             Log.w(TAG, "[HUD] visual recognition failed: ${e.message}")
