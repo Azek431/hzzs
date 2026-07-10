@@ -104,6 +104,19 @@
 | `AutoActionQueue.kt` | `service` | 操作队列管理器（FIFO、线程安全、暂停/开关/延迟配置） | 已实现 |
 | `GestureInjector.kt` | `service` | 手势注入器（归一化坐标 → 像素坐标 → dispatchGesture） | 已实现 |
 
+### 视觉识别层（Kotlin）
+
+| 文件 | 包路径 | 职责 | 状态 |
+| --- | --- | --- | --- |
+| `VisionDetectionController.kt` | `data/vision` | 调度层：截图→分析→操作→绘制完整生命周期 | 已实现 |
+| `VisionDebugOverlayView.kt` | `data/vision` | 绘制层：屏幕调试叠加视图（扫描线/检测结果/面板） | 已实现 |
+| `GreenBottleLineDetector.kt` | `data/vision` | 算法层：绿瓶 RGB 行扫描检测 | 已实现 |
+| `PitLineDetector.kt` | `data/vision` | 算法层：坑位地面断裂检测 | 已实现 |
+| `VisionModels.kt` | `data/vision` | 数据结构：VisionFrame / PlayerReference / VisionFrameResult | 已实现 |
+| `VisionDetectors.kt` | `data/vision` | 接口：VisionDetector / DetectionResult 密封类 | 已实现 |
+| `ScreenshotCapture.kt` | `data/vision` | 截图层：AccessibilityService.takeScreenshot() 代理 | 已实现 |
+| `VisionAnalysisBridge.kt` | `data/vision` | JNI 桥接：绿瓶单行扫描检测（C++ 端） | 已实现 |
+
 ### 数据模型层（Kotlin）
 
 | 文件 | 包路径 | 职责 | 状态 |
@@ -286,7 +299,10 @@ AnalysisResult (输出)
 | 模块 | 预期职责 | 计划里程碑 |
 | --- | --- | --- |
 | 屏幕采集层 | MediaProjection + ImageReader 帧采样 | Milestone 2 |
-| 视觉识别层 | 模板匹配 / 像素分析 → `FrameDetections` | Milestone 2 |
+| 糖果/分数识别 | 模板匹配 / OCR → 游戏状态数据 | Milestone 3 |
+| 战报存储层 | Room 数据库，持久化事件记录 | Milestone 3 |
+| 校准中心 | 设备适配参数保存/恢复 | Milestone 4 |
+| 异常诊断 | 自动检测采集中断、识别置信度低等 | Milestone 4 |
 | HUD 渲染层 | 将 `AnalysisResult` 渲染到悬浮窗 | Milestone 3 |
 | 战报存储层 | Room 数据库，持久化事件记录 | Milestone 3 |
 | 校准中心 | 设备适配参数保存/恢复 | Milestone 4 |

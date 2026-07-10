@@ -1,154 +1,100 @@
-# 绿瓶识别算法说明
+# 绿瓶算法详解
 
-> **状态**：规划中（Milestone 2 视觉识别层）
->
-> 本文档描述未来视觉识别模块中绿瓶（毒瓶 / Poison Bottle）识别算法的设计原理、参数默认值和 RGB 判断规则。
+## 概述
 
-## 1. 算法概述
+绿瓶检测器在玩家中心 Y 水平线上执行 RGB 绿色像素扫描，用于识别画面中的绿色收集物。
 
-绿瓶识别是跑酷游戏画面分析中的关键视觉任务之一。在游戏中，毒瓶（`GameObjectType.kPoisonBottle`）是一种地面危险物，以绿色玻璃瓶形态出现在跑道上，玩家需要通过跳跃或护盾躲避。
+## 算法流程
 
-当前项目的 C++ 分析引擎已将毒瓶纳入 `GameObjectType` 枚举和 `IsHazard()` 判断中，默认推荐动作为跳跃。视觉识别模块需要在屏幕截图中准确定位毒瓶的归一化坐标（`RectF`），供 `HazardEtaEstimator` 计算 ETA。
-
-## 2. 算法原理
-
-### 2.1 总体流程
+### 1. 计算扫描参数
 
 ```
-屏幕截图（像素级 RGB）
-    → ROI 裁剪（去除状态栏、导航栏、非游戏区域）
-    → 颜色空间转换（RGB → HSV / LAB）
-    → 绿色通道阈值分割
-    → 形态学滤波（去噪 + 连通域分析）
-    → 轮廓拟合 → RectF 归一化坐标
-    → 置信度评估（面积比、形状因子、颜色纯度）
-    → 输出 DetectedObject(type=kPoisonBottle, bounds, confidence)
+playerLeftPx   = playerReference.left   * screenWidth
+playerRightPx  = playerReference.right  * screenWidth
+playerWidthPx  = playerReference.width  * screenWidth
+scanY          = playerReference.centerY * screenHeight（限制在 [0, height-1]）
+scanStartX     = playerRightPx + playerWidthPx * 0.15（限制不超过 width-20）
+scanEndX       = screenWidth - 20
 ```
 
-### 2.2 颜色空间选择
+### 2. 行扫描
 
-推荐使用 **HSV 色彩空间** 而非原始 RGB，原因：
+从 scanStartX 到 scanEndX，逐像素检查是否为绿色：
 
-1. **光照鲁棒性**：游戏中的光影变化主要影响亮度（V 通道），H（色相）和 S（饱和度）通道相对稳定。
-2. **绿色分离**：毒瓶的绿色在 HSV 空间中集中在较窄的 H 范围内，易于阈值分割。
-3. **与 RGB 对比**：RGB 空间中绿色受 R/G/B 三通道耦合影响，同一绿色在不同光照下差异显著。
+```
+if (isGreenPixel(r, g, b)) {
+    如果 segStart < 0 → 记录段起点
+} else {
+    如果 segStart >= 0 → 记录段终点，segStart = -1
+}
+```
 
-### 2.3 RGB 判断规则
+### 3. 合并小缺口
 
-虽然主流程使用 HSV，但 RGB 通道仍作为辅助判断条件：
+如果两个绿色段之间的距离 <= gapMergeWidth（默认 5px），合并为一个段。
 
-#### 主判断（HSV 阈值）
+### 4. 过滤与选择
 
-| 参数 | 默认值 | 说明 |
+- 过滤宽度 < minSegmentWidth（默认 3px）的候选
+- 取玩家右侧最近的候选（left - playerRightPx 最小）
+
+### 5. 计算精确边界
+
+```
+padding = playerWidthPx * 0.065，限制在 [4, 10]px
+leftX   = closest.left + padding
+rightX  = closest.right - padding
+centerX = (leftX + rightX) / 2
+```
+
+### 6. 置信度计算
+
+```
+widthScore   = min(closest.width / (playerWidthPx * 0.5), 1.0)
+chromaScore  = average(max(R,G,B) - min(R,G,B)) / 255
+confidence   = widthScore * 0.4 + chromaScore * 0.6
+```
+
+### 7. 阈值过滤
+
+如果 confidence < confidenceThreshold（默认 0.5），返回未检测到。
+
+## RGB 绿色规则
+
+```
+G > rgbGMin          (默认 120)
+G - R > 15
+G - B > 30
+max(R,G,B) - min(R,G,B) > 45
+```
+
+## 输出字段
+
+| 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| H_MIN | 40 | 色相下限（绿色范围） |
-| H_MAX | 80 | 色相上限（绿色范围） |
-| S_MIN | 60 | 饱和度下限（排除灰绿色） |
-| V_MIN | 40 | 亮度下限（排除暗色干扰） |
+| found | Boolean | 是否检测到 |
+| leftX | Float | 左边界归一化坐标 |
+| rightX | Float | 右边界归一化坐标 |
+| centerX | Float | 中心归一化坐标 |
+| scanY | Int | 扫描线 Y 像素坐标 |
+| confidence | Float | 置信度 0.0~1.0 |
+| edgeGapPx | Int | 左边缘到玩家右侧距离 |
+| costMs | Float | 检测耗时毫秒 |
 
-以上 HSV 值基于 OpenCV 默认范围：H ∈ [0, 180]，S ∈ [0, 255]，V ∈ [0, 255]。
+## 可调参数
 
-#### 辅助判断（RGB 通道）
-
-| 条件 | 规则 | 说明 |
-| --- | --- | --- |
-| G > R | `pixel.G > pixel.R * 1.3` | 绿色通道明显强于红色 |
-| G > B | `pixel.G > pixel.B * 1.2` | 绿色通道明显强于蓝色 |
-| 亮度约束 | `max(R,G,B) - min(R,G,B) < 80` | 排除高对比度非绿色区域 |
-
-RGB 辅助规则用于在 HSV 阈值边界附近做二次验证，降低误检率。
-
-### 2.4 形态学后处理
-
-| 操作 | 内核大小 | 迭代次数 | 目的 |
+| 参数 | 默认值 | 范围 | 说明 |
 | --- | --- | --- | --- |
-| 开运算（先腐蚀后膨胀） | 3x3 | 1 | 去除细小噪声点 |
-| 闭运算（先膨胀后腐蚀） | 5x5 | 1 | 填补瓶身内部的空洞 |
-| 轮廓近似 | - | - | 将轮廓拟合为多边形，过滤非瓶状轮廓 |
+| rgbGMin | 120 | 0~255 | G 通道下限 |
+| rgbRMin | 30 | 0~255 | R 通道下限 |
+| rgbBMin | 30 | 0~255 | B 通道下限 |
+| minSegmentWidth | 3 | 1~50 | 最小段宽（像素） |
+| gapMergeWidth | 5 | 0~100 | 小缺口合并宽度（像素） |
+| detectionPadding | 10 | 0~200 | 检测区域 padding（像素） |
+| confidenceThreshold | 0.5 | 0.0~1.0 | 置信度阈值 |
 
-### 2.5 置信度计算
+## 性能
 
-```
-confidence = color_purity * 0.4 + shape_factor * 0.3 + area_consistency * 0.3
-```
-
-| 因子 | 计算方式 | 权重 |
-| --- | --- | --- |
-| color_purity | 绿色像素数 / 轮廓内总像素数 | 0.4 |
-| shape_factor | 基于长宽比和圆度的形状评分（瓶状 = 细长矩形） | 0.3 |
-| area_consistency | 与历史帧同对象面积的 IoU（跨帧一致性） | 0.3 |
-
-置信度 < 0.62 的对象将被 `HazardEtaEstimator` 过滤（`kMinHazardConfidence = 0.62F`）。
-
-## 3. 参数默认值汇总
-
-| 参数名 | 默认值 | 范围 | 说明 |
-| --- | --- | --- | --- |
-| `hsv_h_min` | 40 | [0, 180] | 色相下限 |
-| `hsv_h_max` | 80 | [0, 180] | 色相上限 |
-| `hsv_s_min` | 60 | [0, 255] | 饱和度下限 |
-| `hsv_v_min` | 40 | [0, 255] | 亮度下限 |
-| `rgb_g_r_ratio` | 1.3 | [1.0, 3.0] | G/R 最小比值 |
-| `rgb_g_b_ratio` | 1.2 | [1.0, 3.0] | G/B 最小比值 |
-| `morph_open_kernel` | 3x3 | - | 开运算核大小 |
-| `morph_close_kernel` | 5x5 | - | 闭运算核大小 |
-| `min_contour_area` | 200 像素 | [50, 5000] | 最小有效轮廓面积 |
-| `max_contour_area` | 10000 像素 | [500, 50000] | 最大有效轮廓面积（防大面积误检） |
-| `bottle_aspect_ratio_min` | 0.3 | [0.1, 0.8] | 瓶状最小长宽比 |
-| `bottle_aspect_ratio_max` | 0.8 | [0.2, 1.0] | 瓶状最大长宽比 |
-| `confidence_threshold` | 0.62 | [0.5, 0.9] | 最低输出置信度（与 C++ 端 kMinHazardConfidence 对齐） |
-
-## 4. 与现有分析引擎的对接
-
-### 4.1 数据流
-
-```
-视觉识别层（本模块）
-    → DetectedObject(type=kPoisonBottle, bounds=RectF, confidence=Float, velocity_x=Float)
-    → FrameDetections.objects[]
-    → HazardEtaEstimator.Estimate()
-        → 过滤：confidence >= 0.62
-        → 过滤：leftward_speed >= 0.04
-        → 计算 ETA
-    → HazardForecast[type=kPoisonBottle, eta_ms, preferred_action=kJump]
-    → ActionPromptEngine（综合输出 HUD 提示）
-```
-
-### 4.2 当前默认动作
-
-在 `HazardEtaEstimator::DefaultActionFor()` 中，毒瓶的默认推荐动作为 `kJump`（跳跃）。这是因为毒瓶作为地面障碍，跳跃是最通用的规避方式。
-
-> **注意**：毒瓶的具体碰撞规则（是否需要触碰判定、是否可穿越等）尚需通过真实游戏回放验证。当前 `kJump` 为保守假设，后续可根据实际测试调整。
-
-## 5. 测试方法
-
-### 5.1 离线测试
-
-1. 从素材库选取包含毒瓶的游戏截图（多种光照、分辨率）。
-2. 人工标注毒瓶的归一化边界。
-3. 运行识别算法，对比输出 `bounds` 与标注的 IoU。
-4. 指标：IoU >= 0.7 视为合格检测。
-
-### 5.2 在线测试
-
-1. 在 `VisionDebugOverlayView` 中可视化绿瓶识别框（霓虹绿边框 + 角标）。
-2. 运行游戏，观察识别框是否稳定跟踪毒瓶。
-3. 检查 HUDCanvasView 中 ETA 计算和提示是否合理。
-
-### 5.3 边界测试
-
-| 场景 | 预期行为 |
-| --- | --- |
-| 无绿瓶画面 | 不输出任何 DetectedObject |
-| 绿瓶被部分遮挡 | 置信度降低，但仍输出（IoU 仍 > 0.5） |
-| 绿瓶颜色偏移（技能特效） | 置信度降低，可能需要调宽 H 范围 |
-| 多个绿瓶同时出现 | 输出多个 DetectedObject，各自独立 ETA |
-| 绿色背景/草地干扰 | 通过 shape_factor 过滤 |
-
-## 6. 已知风险和限制
-
-1. **光照变化**：不同关卡的光照风格可能差异很大（白天/夜晚/地下），HSV 阈值可能需要动态自适应。
-2. **分辨率差异**：素材库中分辨率从 570x1280 到 1746x3840，绝对像素面积阈值需要归一化或按分辨率分段设定。
-3. **与收藏物混淆**：游戏中可能存在绿色收藏品（如条纹糖果），需要通过形状和位置双重判断区分。
-4. **性能**：每帧全图颜色分割在低端设备上可能有性能压力，建议配合 ROI 裁剪使用。
-5. **当前为规划中模块**：本节描述的是设计目标，尚未有对应实现代码。
+- 无状态，可安全在任意线程调用
+- 检测耗时通常在 1~5ms 以内（取决于屏幕宽度）
+- 单次扫描 O(n)，n = scanEndX - scanStartX
