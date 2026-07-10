@@ -11,6 +11,8 @@
 #include "hzzs/analysis/NativeAnalysisEngine.h"
 
 #include <algorithm>
+#include <sstream>
+#include <string>
 
 namespace hzzs::analysis {
 
@@ -102,6 +104,79 @@ void NativeAnalysisEngine::Reset() {
     runner_state_machine_.Reset();
     jump_stage_estimator_.Reset();
     action_prompt_engine_.Reset();
+}
+
+// ==================== 绘制数据序列化 ====================
+
+/**
+ * 将 AnalysisResult 序列化为 HUD 绘制数据 JSON 字符串。
+ *
+ * 输出格式：
+ * {
+ *   "scene": <int>, "scene_conf": <float>,
+ *   "pose": <int>, "grounded": <bool>, "jump_stage": <int>,
+ *   "prompt_action": <int>, "prompt_target": <int>,
+ *   "prompt_eta_ms": <float>, "prompt_conf": <float>,
+ *   "player": { "l": <float>, "t": <float>, "r": <float>, "b": <float> },
+ *   "hazards": [ { "type": <int>, "eta_ms": <float>, "conf": <float>,
+ *                  "action": <int>, "bounds": { ... } } ],
+ *   "collectibles_count": <int>
+ * }
+ *
+ * 所有矩形坐标均为归一化坐标（0.0 ~ 1.0），可直接用于 Canvas 绘制。
+ */
+std::string AnalysisResult::serializeDrawingData() const {
+    std::ostringstream json;
+
+    // === 场景与角色信息 ===
+    json << "{"
+         << "\"scene\":" << static_cast<int>(scene_mode)
+         << ",\"scene_conf\":" << scene_confidence
+         << ",\"pose\":" << static_cast<int>(runner.pose)
+         << ",\"grounded\":" << (runner.grounded ? "true" : "false")
+         << ",\"jump_stage\":" << static_cast<int>(jump_stage)
+         << ",\"prompt_action\":" << static_cast<int>(prompt.action)
+         << ",\"prompt_target\":" << static_cast<int>(prompt.target)
+         << ",\"prompt_eta_ms\":" << prompt.eta_ms
+         << ",\"prompt_conf\":" << prompt.confidence;
+
+    // === 玩家矩形 ===
+    json << ",\"player\":{";
+    if (runner.bounds.has_value() && runner.bounds->IsValid()) {
+        const auto& pb = *runner.bounds;
+        json << "\"l\":" << pb.left << ",\"t\":" << pb.top
+             << ",\"r\":" << pb.right << ",\"b\":" << pb.bottom;
+    } else {
+        json << "\"l\":0,\"t\":0,\"r\":0,\"b\":0";
+    }
+    json << "}";
+
+    // === 危险物列表 ===
+    json << ",\"hazards\":[";
+    for (size_t i = 0; i < hazards.size(); ++i) {
+        if (i > 0) json << ",";
+        const auto& h = hazards[i];
+        json << "{\"type\":" << static_cast<int>(h.type)
+             << ",\"eta_ms\":" << h.eta_ms
+             << ",\"conf\":" << h.confidence
+             << ",\"action\":" << static_cast<int>(h.preferred_action)
+             << ",\"bounds\":{";
+        if (h.danger_bounds.IsValid()) {
+            const auto& hb = h.danger_bounds;
+            json << "\"l\":" << hb.left << ",\"t\":" << hb.top
+                 << ",\"r\":" << hb.right << ",\"b\":" << hb.bottom;
+        } else {
+            json << "\"l\":0,\"t\":0,\"r\":0,\"b\":0";
+        }
+        json << "}}";
+    }
+    json << "]";
+
+    // === 收藏物数量 ===
+    json << ",\"collectibles_count\":" << collectibles.size();
+
+    json << "}";
+    return json.str();
 }
 
 }  // namespace hzzs::analysis
