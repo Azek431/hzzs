@@ -25,15 +25,12 @@ package top.azek431.hzzs.ui.settings
 
 import android.content.res.ColorStateList
 import android.os.Bundle
-import android.util.TypedValue
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.fragment.app.FragmentManager
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -110,21 +107,11 @@ class VisionSettingsActivity : AppCompatActivity() {
      * 设置 ViewPager2 + TabLayout。
      *
      * 创建 5 个 SettingsFragment，每个对应一个分区。
-     * 使用自定义 Adapter（非 FragmentStateAdapter）避免编译期依赖问题。
+     * 使用 FragmentStateAdapter 管理 Fragment 生命周期。
      */
     private fun setupViewPager() {
-        val pagerAdapter = SettingsPagerAdapter(this, supportFragmentManager, lifecycle)
+        val pagerAdapter = SettingsPagerAdapter(this, Section.entries, prefs)
         viewPager.adapter = pagerAdapter
-
-        // 创建 5 个分区 Fragment
-        val fragments = listOf(
-            createInstance(Section.RECOGNITION, prefs),
-            createInstance(Section.HUD_DISPLAY, prefs),
-            createInstance(Section.PLAYER_BOTTLE, prefs),
-            createInstance(Section.DETECTION_PARAMS, prefs),
-            createInstance(Section.DEBUG_OPTIONS, prefs),
-        )
-        pagerAdapter.setFragments(fragments)
 
         // 绑定 TabLayout 与 ViewPager2
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
@@ -149,10 +136,7 @@ class VisionSettingsActivity : AppCompatActivity() {
     /** 将 ViewPager 中所有 Fragment 的参数同步回 SharedPreferences */
     private fun syncAllFragments() {
         val pagerAdapter = viewPager.adapter as SettingsPagerAdapter
-        for (i in 0 until pagerAdapter.itemCount) {
-            val fragment = pagerAdapter.getItem(i)
-            fragment?.syncToPrefs()
-        }
+        pagerAdapter.syncAllFragments()
     }
 
     // ==================== 主题适配 ====================
@@ -194,16 +178,10 @@ class VisionSettingsActivity : AppCompatActivity() {
 
     /** 重建所有 Fragment（恢复默认值后重新加载） */
     private fun reloadAllFragments() {
-        val fragments = listOf(
-            createInstance(Section.RECOGNITION, prefs),
-            createInstance(Section.HUD_DISPLAY, prefs),
-            createInstance(Section.PLAYER_BOTTLE, prefs),
-            createInstance(Section.DETECTION_PARAMS, prefs),
-            createInstance(Section.DEBUG_OPTIONS, prefs),
-        )
-        (viewPager.adapter as SettingsPagerAdapter).setFragments(fragments)
-        viewPager.currentItem = 0
-        tabLayout.selectTab(tabLayout.getTabAt(0))
+        // FragmentStateAdapter 会自动重建 Fragment，
+        // 只需重新创建 Activity 即可刷新所有 Fragment
+        finish()
+        startActivity(intent)
     }
 
     // ==================== 工具方法 ====================
@@ -237,82 +215,40 @@ enum class Section(val titleRes: Int) {
 }
 
 // ============================================================================
-//  SettingsPagerAdapter — ViewPager2 适配器
+//  SettingsPagerAdapter — ViewPager2 FragmentStateAdapter
 // ============================================================================
 
 /**
  * ViewPager2 适配器，管理五个设置分区 Fragment。
  *
- * 由于当前项目环境中 androidx.viewpager2 的 FragmentStateAdapter
- * 无法被 Kotlin 编译器解析，此处手动实现等效的 RecyclerView.Adapter。
- *
- * Fragment 生命周期管理：
- * - setFragments() 会先销毁旧的 Fragment（beginTransaction.remove），
- *   然后替换为新的 Fragment 列表
- * - 使用 commitNowAllowingStateLoss 避免 FragmentState 不一致问题
+ * 使用 FragmentStateAdapter 而非手动 RecyclerView.Adapter，
+ * 因为 ViewPager2 的 Fragment 管理需要 Fragment 容器属于 Activity 的视图层级。
+ * 手动创建的 FrameLayout 不属于 FragmentManager 管理的容器，
+ * 导致 FragmentTransaction.replace() 找不到视图而崩溃。
  */
 class SettingsPagerAdapter(
-    private val context: android.content.Context,
-    fragmentManager: FragmentManager,
-    lifecycle: androidx.lifecycle.Lifecycle,
-) : RecyclerView.Adapter<SettingsPagerAdapter.FragViewHolder>() {
+    private val hostingActivity: AppCompatActivity,
+    private val sections: List<Section>,
+    private val prefs: android.content.SharedPreferences,
+) : FragmentStateAdapter(hostingActivity) {
 
-    private val layoutManager = LinearLayoutManager(context)
+    /** 当前 Fragment 实例缓存 */
+    private var cachedFragments: List<SettingsFragment> = listOf()
 
-    /** Fragment 管理器 */
-    private val fragmentManager: FragmentManager = fragmentManager
-
-    /** 当前 Fragment 列表 */
-    private var fragments: MutableList<SettingsFragment> = mutableListOf()
+    override fun getItemCount(): Int = sections.size
 
     /**
-     * 设置新的 Fragment 列表。
-     *
-     * 先通过 FragmentManager 销毁旧 Fragment，再替换为新列表。
-     * 使用 commitNowAllowingStateLoss 避免状态丢失问题。
-     *
-     * @param list 新的 Fragment 列表
+     * 设置 Fragment 列表（用于重建/恢复默认值后调用）。
      */
-    fun setFragments(list: List<SettingsFragment>) {
-        // 先销毁旧的 Fragment
-        val transaction = fragmentManager.beginTransaction()
-        for (frag in fragments) {
-            transaction.remove(frag)
-        }
-        transaction.commitNowAllowingStateLoss()
-        fragments.clear()
-        fragments.addAll(list)
+    fun setFragments(newFragments: List<SettingsFragment>) {
+        cachedFragments = newFragments
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): FragViewHolder {
-        val container = android.widget.FrameLayout(parent.context).apply {
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            id = viewType
-        }
-        return FragViewHolder(container)
+    override fun createFragment(position: Int): Fragment {
+        val section = sections[position]
+        return SettingsFragment.createInstance(section, prefs)
     }
-
-    override fun onBindViewHolder(holder: FragViewHolder, position: Int) {
-        val frag = fragments[position]
-        // 使用 FragmentManager 添加/显示 Fragment
-        val transaction = fragmentManager.beginTransaction()
-        val existing = fragmentManager.findFragmentByTag("f$position")
-        if (existing != null) {
-            transaction.show(existing)
-        } else {
-            transaction.replace(holder.container.id, frag, "f$position")
-        }
-        transaction.commitNowAllowingStateLoss()
-        holder.container.tag = frag
-    }
-
-    override fun getItemCount() = fragments.size
-
-    override fun getItemViewType(position: Int) = position + 1000 // 唯一 ID
 
     /**
      * 获取指定位置的 Fragment。
@@ -321,10 +257,30 @@ class SettingsPagerAdapter(
      * @return 对应位置的 Fragment，越界时返回 null
      */
     fun getItem(position: Int): SettingsFragment? {
-        return if (position in fragments.indices) fragments[position] else null
+        return if (position in 0 until itemCount) {
+            // FragmentStateAdapter 管理的 Fragment 通过 tag 存储
+            val tag = "f$position"
+            hostingActivity.supportFragmentManager
+                .findFragmentByTag(tag) as? SettingsFragment
+        } else null
     }
 
-    /** ViewHolder，包装 Fragment 容器 */
-    class FragViewHolder(val container: android.widget.FrameLayout) :
-        RecyclerView.ViewHolder(container)
+    /**
+     * 同步所有 Fragment 的参数到 SharedPreferences。
+     */
+    fun syncAllFragments() {
+        for (i in 0 until itemCount) {
+            getItem(i)?.syncToPrefs()
+        }
+    }
+
+    /**
+     * 重建所有 Fragment（恢复默认值后调用）。
+     */
+    fun reloadFragments(newPrefs: android.content.SharedPreferences) {
+        // FragmentStateAdapter 会自动处理 Fragment 重建
+        // 只需更新 prefs 引用并通知数据集变化
+        // 由于 FragmentStateAdapter 不暴露直接刷新方法，
+        // 我们通过重新创建 Activity 来处理
+    }
 }

@@ -13,12 +13,10 @@
 package top.azek431.hzzs.ui.settings
 
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
@@ -81,20 +79,11 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
      * 流程：创建 SettingsPagerAdapter → 设置 Fragment 列表 → 关联 TabLayout
      */
     private fun setupViewPager() {
-        val pagerAdapter = SettingsPagerAdapter(requireContext(), childFragmentManager, lifecycle)
-        viewPager.adapter = pagerAdapter
-
         val prefs = requireContext().getSharedPreferences(
             VisionSettingsKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE
         )
-        val fragments = listOf(
-            SettingsFragment.createInstance(Section.RECOGNITION, prefs),
-            SettingsFragment.createInstance(Section.HUD_DISPLAY, prefs),
-            SettingsFragment.createInstance(Section.PLAYER_BOTTLE, prefs),
-            SettingsFragment.createInstance(Section.DETECTION_PARAMS, prefs),
-            SettingsFragment.createInstance(Section.DEBUG_OPTIONS, prefs),
-        )
-        pagerAdapter.setFragments(fragments)
+        val pagerAdapter = SettingsPagerAdapter(requireActivity() as androidx.appcompat.app.AppCompatActivity, Section.entries, prefs)
+        viewPager.adapter = pagerAdapter
 
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = tabTitles[position]
@@ -130,10 +119,7 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
      */
     private fun syncAllFragments() {
         val pagerAdapter = viewPager.adapter as SettingsPagerAdapter
-        for (i in 0 until pagerAdapter.itemCount) {
-            val fragment = pagerAdapter.getItem(i)
-            fragment?.syncToPrefs()
-        }
+        pagerAdapter.syncAllFragments()
     }
 
     /**
@@ -188,17 +174,18 @@ class SettingsFragmentPage : Fragment(R.layout.fragment_settings_page) {
      * 3. 切换回第一个 Tab
      */
     private fun reloadAllFragments() {
+        // FragmentStateAdapter 会自动重建 Fragment
+        // 重新创建当前 Fragment 即可
         val prefs = requireContext().getSharedPreferences(
             VisionSettingsKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE
         )
-        val fragments = listOf(
-            SettingsFragment.createInstance(Section.RECOGNITION, prefs),
-            SettingsFragment.createInstance(Section.HUD_DISPLAY, prefs),
-            SettingsFragment.createInstance(Section.PLAYER_BOTTLE, prefs),
-            SettingsFragment.createInstance(Section.DETECTION_PARAMS, prefs),
-            SettingsFragment.createInstance(Section.DEBUG_OPTIONS, prefs),
+        val pagerAdapter = viewPager.adapter as SettingsPagerAdapter
+        // 通过重新创建 ViewPager 来触发 Fragment 重建
+        viewPager.adapter = SettingsPagerAdapter(
+            requireActivity() as androidx.appcompat.app.AppCompatActivity,
+            Section.entries,
+            prefs
         )
-        (viewPager.adapter as SettingsPagerAdapter).setFragments(fragments)
         viewPager.currentItem = 0
         tabLayout.selectTab(tabLayout.getTabAt(0))
     }
