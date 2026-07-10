@@ -18,10 +18,7 @@ package top.azek431.hzzs
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import top.azek431.hzzs.service.OverlayNotificationService
-import top.azek431.hzzs.ui.community.CommunityLinks
 import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
 import top.azek431.hzzs.ui.home.HomeActionCallbacks
 import top.azek431.hzzs.ui.home.HomeFragment
@@ -108,7 +105,7 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
      * 默认显示首页。
      */
     private fun setupBottomNavigation() {
-        homeFragment = HomeFragment(callbacks = this)
+        homeFragment = HomeFragment.newInstance(MainActivity::class.java)
         settingsFragment = SettingsFragmentPage()
 
         // 默认显示首页
