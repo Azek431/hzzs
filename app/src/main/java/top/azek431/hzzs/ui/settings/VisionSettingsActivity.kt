@@ -278,7 +278,9 @@ class SettingsPagerAdapter(
      */
     fun syncAllFragments() {
         for (i in 0 until sections.size) {  // 只同步设置分区，不包括日志 tab
-            getItem(i)?.syncToPrefs()
+            val tag = "f$i"
+            val frag = hostingActivity.supportFragmentManager.findFragmentByTag(tag) as? SettingsFragment
+            frag?.syncToPrefs()
         }
     }
 
