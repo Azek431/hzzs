@@ -88,12 +88,6 @@ object ScreenshotCapture {
             return null
         }
 
-        // 检查无障碍服务是否已连接
-        if (AutoOperationService.getInstance() == null) {
-            LogNotAvailable(appContext, "AutoOperationService not connected — enable accessibility service")
-            return null
-        }
-
         // 执行截图（通过无障碍服务静态代理）
         val latch = CountDownLatch(1)
         var capturedResult: ScreenshotCaptureResult? = null
