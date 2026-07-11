@@ -24,6 +24,8 @@
 package top.azek431.hzzs.core.util
 
 import android.os.SystemClock
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * 内存日志缓冲区。
@@ -50,26 +52,18 @@ object Logger {
      * 单条日志数据。
      *
      * @property timestamp 时间戳（SystemClock.uptimeMillis）
+     * @property timeText 格式化时间文本（HH:mm:ss.SSS，创建时计算一次）
      * @property level 日志级别（0=VERBOSE, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR）
      * @property tag 日志标签（模块名）
      * @property message 日志消息
      */
     data class LogEntry(
         val timestamp: Long,
+        val timeText: String,
         val level: Int,
         val tag: String,
         val message: String,
     ) {
-        /** 时间戳可读文本（HH:mm:ss.SSS） */
-        val timeText: String
-            get() {
-                val ms = SystemClock.uptimeMillis() - timestamp
-                val sec = ms / 1000
-                val millis = (ms % 1000).toString().padStart(3, '0')
-                val s = sec.toString().padStart(2, '0')
-                return "$s.$millis"
-            }
-
         /** 级别文本 */
         val levelText: String
             get() = when (level) {
@@ -103,6 +97,13 @@ object Logger {
 
     private const val DEFAULT_CAPACITY = 5000
 
+    /** 时间格式器（线程安全：每个线程独立实例） */
+    private val timeFormatter: ThreadLocal<SimpleDateFormat> = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue() = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    }
+
+    // ==================== 写入 ====================
+
     /**
      * 写入一条日志到缓冲区。
      *
@@ -115,10 +116,11 @@ object Logger {
      */
     @Synchronized
     fun log(level: Int, tag: String, message: String) {
-        if (buffer == arrayOfNulls<Any>(0).javaClass) return
+        if (capacity <= 0) return
 
         val entry = LogEntry(
             timestamp = SystemClock.uptimeMillis(),
+            timeText = timeFormatter.get()?.format(SystemClock.uptimeMillis()) ?: "?",
             level = level,
             tag = tag,
             message = message,
@@ -158,15 +160,6 @@ object Logger {
      */
     fun e(tag: String, message: String) = log(LEVEL_ERROR, tag, message)
 
-    @Synchronized
-    private fun _pollEntry(): LogEntry? {
-        if (count == 0) return null
-        val entry = buffer[head]
-        head = (head + 1) % capacity
-        count--
-        return entry
-    }
-
     // ==================== 读取接口 ====================
 
     /**
@@ -182,7 +175,7 @@ object Logger {
     fun drainTo(target: MutableList<LogEntry>): Int {
         var extracted = 0
         while (extracted < 100) {
-            val entry = _pollEntry() ?: break
+            val entry = pollEntry() ?: break
             target.add(entry)
             extracted++
         }
@@ -204,8 +197,7 @@ object Logger {
         var idx = head
         val toRead = minOf(limit, count)
         for (i in 0 until toRead) {
-            @Suppress("UNCHECKED_CAST")
-            val entry = buffer[idx] as LogEntry?
+            val entry = buffer[idx]
             if (entry != null) result.add(entry)
             idx = (idx + 1) % capacity
         }
@@ -240,29 +232,6 @@ object Logger {
         }
     }
 
-    /**
-     * 从指定索引开始读取日志（用于增量更新 UI）。
-     *
-     * @param startIndex 起始索引（上次已读取的位置）
-     * @param limit 最多读取多少条
-     * @return 日志列表
-     */
-    @Synchronized
-    fun readFrom(startIndex: Int, limit: Int = 100): List<LogEntry> {
-        val result = mutableListOf<LogEntry>()
-        if (count == 0 || startIndex >= count) return result
-
-        val toRead = minOf(limit, count - startIndex)
-        var idx = (head + startIndex) % capacity
-        for (i in 0 until toRead) {
-            @Suppress("UNCHECKED_CAST")
-            val entry = buffer[idx] as LogEntry?
-            if (entry != null) result.add(entry)
-            idx = (idx + 1) % capacity
-        }
-        return result
-    }
-
     // ==================== 状态管理 ====================
 
     /** 当前缓冲区中的日志条数 */
@@ -295,7 +264,7 @@ object Logger {
     fun setCapacity(newCapacity: Int) {
         if (newCapacity <= 0) return
         val oldEntries = getAll()
-        buffer = arrayOfNulls<Any>(newCapacity) as Array<LogEntry?>
+        buffer = arrayOfNulls<LogEntry?>(newCapacity)
         head = 0
         tail = 0
         count = 0
@@ -310,5 +279,17 @@ object Logger {
             }
             // 满了就丢弃
         }
+    }
+
+    // ==================== 内部方法 ====================
+
+    /** 从队头弹出一条日志（内部方法，必须在 synchronized 块内调用） */
+    @Synchronized
+    private fun pollEntry(): LogEntry? {
+        if (count == 0) return null
+        val entry = buffer[head]
+        head = (head + 1) % capacity
+        count--
+        return entry
     }
 }
