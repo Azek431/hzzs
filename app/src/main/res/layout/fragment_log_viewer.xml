@@ -145,22 +145,31 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <!-- C++ 视觉算法日志 tab（保留原有功能） -->
+    <!-- C++ 视觉算法日志区域（可折叠） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
+        android:gravity="center_vertical"
         android:paddingTop="8dp"
         android:paddingBottom="4dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="▼ C++ 算法原始日志 ▼"
             android:textColor="#5CB8FF"
             android:textSize="12sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnCollapseCppLog"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:text="收起"
+            android:textSize="10sp"
+            android:backgroundTint="#3A7DDC" />
     </LinearLayout>
 
     <LinearLayout
