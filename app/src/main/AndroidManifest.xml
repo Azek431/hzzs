@@ -27,6 +27,9 @@
     <!-- 通知权限（Android 13+） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 屏幕截图权限：MediaProjection 需要 FOREGROUND_SERVICE 即可（Android 10+） -->
+    <!-- 不需要额外的 MEDIA_PROJECTION 权限（该权限仅系统/签名应用可用） -->
+
 <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
