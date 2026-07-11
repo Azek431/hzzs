@@ -16,12 +16,10 @@ import top.azek431.hzzs.core.model.RectF
  * - detectPit：坑位检测
  * - renderDebugImage：绘制调试图
  * - getLogCsv/getLogJson/getLogCount/clearLog：日志管理
+ *
+ * 注意：native 库由 NativeLibraryLoader 统一加载，此处不再重复 System.loadLibrary。
  */
 object VisionBridge {
-
-    init {
-        System.loadLibrary("hzzs_native")
-    }
 
     // ==================== 绿瓶检测 ====================
 
