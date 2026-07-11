@@ -316,7 +316,15 @@ class LogViewerFragment : Fragment() {
      */
     private fun updateStats(filteredCount: Int) {
         val totalCount = Logger.size
-        val cppCount = VisionBridge.getLogCount()
+        val cppCount = try {
+            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
+                VisionBridge.getLogCount()
+            } else {
+                0
+            }
+        } catch (_: Throwable) {
+            0  // JNI 调用失败时优雅降级
+        }
         tvLogStats.text = "内存日志: $totalCount 条 | 筛选后: $filteredCount 条 | C++ 算法日志: $cppCount 条"
     }
 
@@ -326,7 +334,13 @@ class LogViewerFragment : Fragment() {
      * 刷新 C++ 视觉算法原始日志。
      */
     private fun refreshCppLog() {
-        val csv = VisionBridge.getLogCsv()
+        val csv = try {
+            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
+                VisionBridge.getLogCsv()
+            } else ""
+        } catch (_: Throwable) {
+            ""
+        }
         if (csv.isEmpty()) {
             cppLogTextView.text = "暂无 C++ 算法日志（点击'刷新'查看）"
         } else {
@@ -402,7 +416,13 @@ class LogViewerFragment : Fragment() {
         }
 
         // 追加 C++ 日志 CSV 内容
-        val cppCsv = VisionBridge.getLogCsv()
+        val cppCsv = try {
+            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
+                VisionBridge.getLogCsv()
+            } else ""
+        } catch (_: Throwable) {
+            ""
+        }
         if (cppCsv.isNotEmpty()) {
             sb.append("\n--- C++ 视觉算法日志 ---\n")
             sb.append(cppCsv)
@@ -439,7 +459,11 @@ class LogViewerFragment : Fragment() {
      */
     private fun clearLog() {
         Logger.clear()
-        VisionBridge.clearLog()
+        try {
+            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
+                VisionBridge.clearLog()
+            }
+        } catch (_: Throwable) { /* C++ 日志不可用时忽略 */ }
         displayedLogs = emptyList()
         logContainer.removeAllViews()
 
