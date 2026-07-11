@@ -294,6 +294,11 @@ venv/
 # 应用、Gradle、脚本、工具运行日志。
 *.log
 
+# JVM 崩溃转储文件（堆栈跟踪 + replay 数据）
+# 即使 *.log 已匹配，显式写出以便维护和理解
+hs_err_pid*.log
+replay_pid*.log
+
 # 编辑器自动保存、手动备份、补丁残留与 Vim 临时文件。
 # 长期需要保留的资料请使用正式文件名，不要依赖 .bak / .tmp / .old。
 *.tmp
