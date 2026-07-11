@@ -35,6 +35,7 @@ import top.azek431.hzzs.core.data.native.NativeLibraryLoader
 import top.azek431.hzzs.core.data.native.VisionBridge
 import top.azek431.hzzs.core.model.FrameAnalysisResult
 import top.azek431.hzzs.core.model.RectF
+import top.azek431.hzzs.core.util.Logger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
@@ -211,6 +212,7 @@ class OverlayHUDRenderer(
         }
 
         Log.i(TAG, "[HUD] simulation started. maxFrames=$maxFrames")
+        Logger.i("HUD", "循环执行已启动，maxFrames=$maxFrames")
     }
 
     /**
@@ -234,6 +236,7 @@ class OverlayHUDRenderer(
         simulationThread = null
 
         Log.i(TAG, "[HUD] simulation stopped.")
+        Logger.i("HUD", "循环执行已停止，共处理 $frameCount 帧")
     }
 
     /**
@@ -282,6 +285,7 @@ class OverlayHUDRenderer(
         simulationThread = null
 
         Log.d(TAG, "[HUD] single execution completed.")
+        Logger.i("HUD", "单次执行完成，已推送 1 帧分析结果")
     }
 
     /**
@@ -354,6 +358,11 @@ class OverlayHUDRenderer(
                 )
             } else {
                 null
+            }
+
+            // 记录每帧分析结果摘要（每 10 帧记录一次，避免日志过多）
+            if (frameCount % 10 == 0) {
+                Logger.d("HUD-FPS", "帧 #$frameCount | 时间戳=${timestampMs}ms | 玩家X=${"%.3f".format(playerCenterX)} | 危险物=${currentHazardType.takeIf { hasHazard } ?: 0}")
             }
 
             // 将分析结果切换到主线程推送给 HUDCanvasView 绘制
@@ -512,6 +521,9 @@ class OverlayHUDRenderer(
         // 2. 截图失败时直接跳过视觉识别（不再传入空数组）
         if (capture == null) {
             Log.d(TAG, "[HUD] screenshot unavailable, skipping visual recognition.")
+            if (frameCount % 50 == 0) {
+                Logger.w("Screenshot", "截图不可用（API=${android.os.Build.VERSION.SDK_INT}），跳过视觉识别")
+            }
             return
         }
 
@@ -597,9 +609,11 @@ class OverlayHUDRenderer(
             // 调试日志
             if (bottleFound) {
                 Log.d(TAG, "[HUD] C++ bottle detected: L=$bottleLeft R=$bottleRight Cx=$bottleCenterX conf=$bottleConfidence cost=${bottleCostMs}ms")
+                Logger.d("Vision-Bottle", "绿瓶检测: L=$bottleLeft R=$bottleRight Cx=$bottleCenterX W=$bottleWidth 置信度=${"%.2f".format(bottleConfidence)} 耗时=${"%.1f".format(bottleCostMs)}ms")
             }
             if (pitFound) {
                 Log.d(TAG, "[HUD] C++ pit detected: L=$pitLeft R=$pitRight Cx=$pitCenterX W=$pitWidth conf=$pitConfidence cost=${pitCostMs}ms")
+                Logger.d("Vision-Pit", "坑位检测: L=$pitLeft R=$pitRight Cx=$pitCenterX W=$pitWidth 置信度=${"%.2f".format(pitConfidence)} 耗时=${"%.1f".format(pitCostMs)}ms")
             }
         } catch (e: Exception) {
             Log.w(TAG, "[HUD] visual recognition failed: ${e.message}")

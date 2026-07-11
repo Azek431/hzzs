@@ -18,6 +18,7 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import top.azek431.hzzs.R
+import top.azek431.hzzs.core.util.Logger
 
 /**
  * 悬浮窗按钮绑定器。
@@ -91,6 +92,7 @@ class OverlayButtonBinder(
                     state = AnalysisUiState.CYCLE_RUNNING
                     updateStatusUI(true)
                     Log.i(TAG, "[Btn] cycle execution started.")
+                    Logger.i("Btn", "循环执行已启动")
                     Toast.makeText(context, R.string.overlay_analysis_started, Toast.LENGTH_SHORT).show()
                     startCycle()
                 }
@@ -98,6 +100,7 @@ class OverlayButtonBinder(
                     state = AnalysisUiState.IDLE
                     updateStatusUI(false)
                     Log.i(TAG, "[Btn] cycle execution stopped.")
+                    Logger.i("Btn", "循环执行已停止")
                     Toast.makeText(context, R.string.overlay_analysis_stopped, Toast.LENGTH_SHORT).show()
                     stopCycle()
                     reset()
@@ -108,6 +111,7 @@ class OverlayButtonBinder(
                     state = AnalysisUiState.CYCLE_RUNNING
                     updateStatusUI(true)
                     Log.i(TAG, "[Btn] switched from single to cycle execution.")
+                    Logger.i("Btn", "从单次执行切换到循环执行")
                     startCycle()
                 }
             }
@@ -129,6 +133,7 @@ class OverlayButtonBinder(
             state = AnalysisUiState.SINGLE_PENDING
             updateStatusUI(true)
             Log.i(TAG, "[Btn] single execution triggered.")
+            Logger.i("Btn", "单次执行已触发")
             Toast.makeText(context, R.string.overlay_single_started, Toast.LENGTH_SHORT).show()
 
             // 执行单次分析
@@ -139,6 +144,7 @@ class OverlayButtonBinder(
                 state = AnalysisUiState.IDLE
                 updateStatusUI(false)
                 Log.i(TAG, "[Btn] single execution completed, state restored.")
+                Logger.i("Btn", "单次执行完成，状态已恢复")
             }
 
             // SINGLE_DELAY_MS 后自动恢复空闲状态（防止单次执行卡住）
