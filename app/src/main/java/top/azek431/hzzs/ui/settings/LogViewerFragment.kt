@@ -276,7 +276,7 @@ class LogViewerFragment : Fragment() {
         if (entries.isEmpty()) {
             val emptyTv = TextView(requireContext()).apply {
                 text = "暂无日志"
-                textColor = android.graphics.Color.rgb(100, 100, 100)
+                setTextColor(android.graphics.Color.rgb(100, 100, 100))
                 textSize = 12f
                 setPadding(0, 16, 0, 16)
             }
@@ -448,7 +448,7 @@ class LogViewerFragment : Fragment() {
 
         val emptyTv = TextView(requireContext()).apply {
             text = "日志已清空"
-            textColor = android.graphics.Color.rgb(150, 150, 150)
+            setTextColor(android.graphics.Color.rgb(150, 150, 150))
             textSize = 12f
             setPadding(0, 16, 0, 16)
         }
