@@ -115,6 +115,9 @@ class VisionSettingsActivity : AppCompatActivity() {
         val pagerAdapter = SettingsPagerAdapter(this, Section.entries, prefs)
         viewPager.adapter = pagerAdapter
 
+        // 预加载所有 tab 的 Fragment，确保保存设置时所有 Fragment 都已创建
+        viewPager.offscreenPageLimit = Section.entries.size
+
         // 绑定 TabLayout 与 ViewPager2
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = tabTitles[position]
@@ -234,18 +237,7 @@ class SettingsPagerAdapter(
     private val prefs: android.content.SharedPreferences,
 ) : FragmentStateAdapter(hostingActivity) {
 
-    /** 当前 Fragment 实例缓存 */
-    private var cachedFragments: List<SettingsFragment> = listOf()
-
     override fun getItemCount(): Int = sections.size + 1  // 5 个分区 + 1 个日志 tab
-
-    /**
-     * 设置 Fragment 列表（用于重建/恢复默认值后调用）。
-     */
-    fun setFragments(newFragments: List<SettingsFragment>) {
-        cachedFragments = newFragments
-        notifyDataSetChanged()
-    }
 
     override fun createFragment(position: Int): Fragment {
         // 第 6 个 tab（索引 5）是日志查看页面
@@ -257,23 +249,6 @@ class SettingsPagerAdapter(
     }
 
     /**
-     * 获取指定位置的 Fragment。
-     *
-     * @param position Fragment 位置索引
-     * @return 对应位置的 Fragment，越界时返回 null
-     */
-    fun getItem(position: Int): Fragment? {
-        return if (position in 0 until itemCount) {
-            // 日志 tab 不是 SettingsFragment
-            if (position == sections.size) return null
-            // FragmentStateAdapter 管理的 Fragment 通过 tag 存储
-            val tag = "f$position"
-            hostingActivity.supportFragmentManager
-                .findFragmentByTag(tag) as? SettingsFragment
-        } else null
-    }
-
-    /**
      * 同步所有 Fragment 的参数到 SharedPreferences。
      */
     fun syncAllFragments() {
@@ -282,15 +257,5 @@ class SettingsPagerAdapter(
             val frag = hostingActivity.supportFragmentManager.findFragmentByTag(tag) as? SettingsFragment
             frag?.syncToPrefs()
         }
-    }
-
-    /**
-     * 重建所有 Fragment（恢复默认值后调用）。
-     */
-    fun reloadFragments(newPrefs: android.content.SharedPreferences) {
-        // FragmentStateAdapter 会自动处理 Fragment 重建
-        // 只需更新 prefs 引用并通知数据集变化
-        // 由于 FragmentStateAdapter 不暴露直接刷新方法，
-        // 我们通过重新创建 Activity 来处理
     }
 }
