@@ -66,25 +66,26 @@ object Logger {
     ) {
         /** 级别文本 */
         val levelText: String
-            get() = when (level) {
-                LEVEL_VERBOSE -> "V"
-                LEVEL_DEBUG -> "D"
-                LEVEL_INFO -> "I"
-                LEVEL_WARN -> "W"
-                LEVEL_ERROR -> "E"
-                else -> "?"
-            }
+            get() = LEVEL_TEXT[level]
 
-        /** 级别颜色（Android 标准日志颜色） */
+        /** 级别颜色（预计算常量，避免每次创建临时对象） */
         val levelColor: Int
-            get() = when (level) {
-                LEVEL_VERBOSE -> android.graphics.Color.rgb(150, 150, 150)
-                LEVEL_DEBUG -> android.graphics.Color.rgb(150, 200, 255)
-                LEVEL_INFO -> android.graphics.Color.rgb(150, 255, 150)
-                LEVEL_WARN -> android.graphics.Color.rgb(255, 200, 50)
-                LEVEL_ERROR -> android.graphics.Color.rgb(255, 80, 80)
-                else -> android.graphics.Color.WHITE
-            }
+            get() = LEVEL_COLORS[level]
+
+        companion object {
+            /** 级别文本常量数组 */
+            private val LEVEL_TEXT = arrayOf("V", "D", "I", "W", "E", "?")
+
+            /** 级别颜色常量数组（预计算，避免重复创建） */
+            private val LEVEL_COLORS = intArrayOf(
+                android.graphics.Color.rgb(150, 150, 150),  // VERBOSE - 灰色
+                android.graphics.Color.rgb(150, 200, 255),  // DEBUG - 蓝色
+                android.graphics.Color.rgb(150, 255, 150),  // INFO - 绿色
+                android.graphics.Color.rgb(255, 200, 50),   // WARN - 黄色
+                android.graphics.Color.rgb(255, 80, 80),    // ERROR - 红色
+                android.graphics.Color.WHITE,               // 未知 - 白色
+            )
+        }
     }
 
     // ==================== 环形缓冲区 ====================
@@ -139,6 +140,9 @@ object Logger {
             tail = (tail + 1) % capacity
             // count 不变（进一出一）
         }
+
+        // 增量维护标签集合（避免 UI 层全量扫描）
+        tagSet.add(tag)
     }
 
     /**
@@ -241,6 +245,18 @@ object Logger {
     /** 缓冲区是否已满 */
     val isFull: Boolean get() = count >= capacity
 
+    /** 所有标签集合（增量维护，避免每次 getAll() 扫描） */
+    private val tagSet = mutableSetOf<String>()
+
+    /** 获取所有不重复的标签（含 C++ 视觉模块标签） */
+    fun getAllTags(): Set<String> {
+        // 补充 C++ 视觉模块的固定标签
+        tagSet.add("Vision-Bottle")
+        tagSet.add("Vision-Pit")
+        tagSet.add("Vision-General")
+        return tagSet
+    }
+
     /**
      * 清空缓冲区。
      */
@@ -252,6 +268,7 @@ object Logger {
         head = 0
         tail = 0
         count = 0
+        tagSet.clear()
     }
 
     /**
@@ -270,6 +287,7 @@ object Logger {
         tail = 0
         count = 0
         capacity = newCapacity
+        tagSet.clear()
 
         // 重新写入旧日志（可能因容量变小而被截断）
         for (entry in oldEntries) {
