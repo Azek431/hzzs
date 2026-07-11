@@ -69,6 +69,11 @@ class LogViewerFragment : Fragment() {
     private lateinit var logContainer: LinearLayout
     private lateinit var cppLogTextView: TextView
     private lateinit var scrollView: ScrollView
+    private lateinit var cppLogContainer: LinearLayout
+    private lateinit var btnCollapseCppLog: Button
+
+    /** C++ 日志区域是否展开 */
+    private var cppLogExpanded = false
 
     /** 标签筛选 Spinner 的 Adapter（需要在 refreshTagSpinner 中更新） */
     private lateinit var tagAdapter: ArrayAdapter<String>
@@ -90,9 +95,6 @@ class LogViewerFragment : Fragment() {
 
     /** 日志级别数组 */
     private val LEVELS = arrayOf("全部", "VERBOSE", "DEBUG", "INFO", "WARN", "ERROR")
-
-    /** 标签集合（动态收集） */
-    private val allTags = mutableSetOf<String>()
 
     // ==================== Fragment 生命周期 ====================
 
@@ -121,6 +123,9 @@ class LogViewerFragment : Fragment() {
         logContainer = view.findViewById(R.id.logContainer)
         cppLogTextView = view.findViewById(R.id.cppLogTextView)
         scrollView = view.findViewById(R.id.logScrollView)
+        cppLogContainer = view.findViewById(R.id.cppLogContainer)
+        btnCollapseCppLog = view.findViewById(R.id.btnCollapseCppLog)
+        btnCollapseCppLog.setOnClickListener { toggleCppLogVisibility() }
 
         // 初始化级别筛选
         val levelAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, LEVELS)
@@ -129,7 +134,7 @@ class LogViewerFragment : Fragment() {
 
         // 初始化标签筛选（先加载已有的标签）
         refreshTagSpinner()
-        val tagAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, allTags.toList())
+        tagAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, Logger.getAllTags().toList())
         tagAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerTag.adapter = tagAdapter
 
@@ -224,22 +229,16 @@ class LogViewerFragment : Fragment() {
 
     /**
      * 刷新标签 Spinner。
+     *
+     * 使用 Logger.getAllTags() 增量维护的标签集合，不再需要 getAll() 全量扫描。
      */
     private fun refreshTagSpinner() {
-        allTags.clear()
-        val allLogs = Logger.getAll()
-        for (entry in allLogs) {
-            allTags.add(entry.tag)
-        }
-        // 也加上 C++ 视觉模块的标签
-        allTags.add("Vision-Bottle")
-        allTags.add("Vision-Pit")
-        allTags.add("Vision-General")
+        val tags = Logger.getAllTags()
 
         // 更新 adapter 以反映新标签
         if (::tagAdapter.isInitialized) {
             tagAdapter.clear()
-            tagAdapter.addAll(allTags.toList())
+            tagAdapter.addAll(tags)
             tagAdapter.notifyDataSetChanged()
         }
     }
@@ -267,8 +266,17 @@ class LogViewerFragment : Fragment() {
 
     /**
      * 渲染日志列表到 UI。
+     *
+     * 优化：使用 TextView 复用池，避免每次都 removeAllViews() + 重建。
+     * 当 entries 与 displayedLogs 相同时（自动刷新但无新数据），跳过渲染。
      */
     private fun renderLogList(entries: List<LogEntry>) {
+        // 如果内容与上次相同，跳过渲染（避免无意义的 UI 重建）
+        if (entries === displayedLogs) return
+        if (entries.size == displayedLogs.size && entries.zip(displayedLogs).all { (a, b) -> a === b }) {
+            return
+        }
+
         // 清空现有内容
         logContainer.removeAllViews()
 
@@ -348,6 +356,15 @@ class LogViewerFragment : Fragment() {
         }
     }
 
+    /**
+     * 切换 C++ 日志区域的展开/收起状态。
+     */
+    private fun toggleCppLogVisibility() {
+        cppLogExpanded = !cppLogExpanded
+        cppLogContainer.visibility = if (cppLogExpanded) View.VISIBLE else View.GONE
+        btnCollapseCppLog.text = if (cppLogExpanded) "收起" else "展开"
+    }
+
     // ==================== 自动刷新 ====================
 
     private val refreshRunnable = object : Runnable {
@@ -401,7 +418,14 @@ class LogViewerFragment : Fragment() {
      */
     private fun exportCsv() {
         val entries = displayedLogs.ifEmpty { Logger.getAll() }
-        if (entries.isEmpty() && VisionBridge.getLogCsv().isEmpty()) {
+        val cppCsv = try {
+            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
+                VisionBridge.getLogCsv()
+            } else ""
+        } catch (_: Throwable) {
+            ""
+        }
+        if (entries.isEmpty() && cppCsv.isEmpty()) {
             Toast.makeText(context, "暂无日志可导出", Toast.LENGTH_SHORT).show()
             return
         }
@@ -416,13 +440,6 @@ class LogViewerFragment : Fragment() {
         }
 
         // 追加 C++ 日志 CSV 内容
-        val cppCsv = try {
-            if (top.azek431.hzzs.core.data.native.NativeLibraryLoader.isAvailable) {
-                VisionBridge.getLogCsv()
-            } else ""
-        } catch (_: Throwable) {
-            ""
-        }
         if (cppCsv.isNotEmpty()) {
             sb.append("\n--- C++ 视觉算法日志 ---\n")
             sb.append(cppCsv)
