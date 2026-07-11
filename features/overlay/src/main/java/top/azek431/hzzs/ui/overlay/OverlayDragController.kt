@@ -60,8 +60,8 @@ class OverlayDragController(
 ) {
 
     companion object {
-        /** 最小拖动距离（像素），约 3dp，避免手指抖动误触 */
-        private const val MIN_DRAG_DISTANCE_PX = 3
+        /** 最小拖动距离（像素），约 1dp，避免手指抖动误触 */
+        private const val MIN_DRAG_DISTANCE_PX = 1
     }
 
     /** 拖动起始时的窗口 X 坐标，由 recordStartPosition() 设置 */
@@ -72,6 +72,12 @@ class OverlayDragController(
 
     /** 是否已确认启动拖动（超过阈值后才为 true） */
     private var isDragging = false
+
+    /** 手指按下时的窗口 X 坐标（由 attach/回调同步），用于计算绝对位置 */
+    private var windowStartX = 0
+
+    /** 手指按下时的窗口 Y 坐标（由 attach/回调同步），用于计算绝对位置 */
+    private var windowStartY = 0
 
     /** 手指按下时的屏幕 X 坐标（rawX），用于计算 dx */
     private var downRawX = 0f
@@ -89,9 +95,9 @@ class OverlayDragController(
      * @param currentY 当前窗口 Y 坐标（layoutParams.y）
      */
     fun attach(currentX: Int = 0, currentY: Int = 0) {
-        // 记录当前窗口位置，供首次拖动时作为基准
-        startX = currentX
-        startY = currentY
+        // 记录当前窗口位置，供拖动时作为基准
+        windowStartX = currentX
+        windowStartY = currentY
 
         dragHandle.setOnTouchListener { _, event ->
             handleMotionEvent(event)
@@ -99,30 +105,34 @@ class OverlayDragController(
     }
 
     /**
-     * 在拖动过程中实时更新起始窗口坐标。
+     * 在拖动过程中实时更新窗口起始坐标。
      *
-     * 每次 ACTION_MOVE 时调用，将当前的窗口位置同步给控制器，
+     * 每次 ACTION_MOVE 的回调后调用，将最新的窗口位置同步给控制器，
      * 防止多次拖动之间出现跳变。
      *
      * @param newX 新的窗口 X 坐标
      * @param newY 新的窗口 Y 坐标
      */
     fun updateStartPosition(newX: Int, newY: Int) {
-        startX = newX
-        startY = newY
+        windowStartX = newX
+        windowStartY = newY
     }
 
     /**
      * 处理触摸事件。
      *
      * 拖动逻辑：
-     * - ACTION_DOWN：记录手指按下位置，设置 isDragging = false
-     *   返回 false 让标题栏自身 clickable 事件正常响应
-     * - ACTION_MOVE：计算 dx/dy 的欧几里得距离
-     *   - 距离 < 10px：不启动拖动，返回 false
-     *   - 距离 >= 10px 且首次超过：设置 isDragging = true
-     *   - 已确认拖动：更新 layoutParams.x/y 并通过 listener 通知调用方
+     * - ACTION_DOWN：记录手指按下时的窗口位置（windowStartX/Y）
+     * - ACTION_MOVE：计算手指相对按下位置的偏移（dx/dy）
+     *   - 距离 < MIN_DRAG_DISTANCE_PX：不启动拖动，返回 false
+     *   - 首次超过阈值：设置 isDragging = true
+     *   - 已确认拖动：窗口新位置 = windowStartX + dx，windowStartY + dy
      * - ACTION_UP/CANCEL：重置 isDragging = false
+     *
+     * 关键设计：
+     * - dx/dy 始终是相对于 ACTION_DOWN 时的手指位置，不会累积
+     * - 窗口新位置 = windowStartX + dx，其中 windowStartX 是手指按下时的窗口位置
+     * - 这样无论手指移动多少，窗口始终跟随手指，不会有"大跳"
      *
      * @param event 触摸事件
      * @return true 表示已确认拖动中（事件已处理），false 表示未启动拖动
@@ -132,8 +142,10 @@ class OverlayDragController(
             MotionEvent.ACTION_DOWN -> {
                 downRawX = event.rawX
                 downRawY = event.rawY
+                // 记录手指按下时的窗口位置，作为拖动基准
+                windowStartX = startX
+                windowStartY = startY
                 isDragging = false
-                // 返回 true 拥有手势所有权，确保后续 ACTION_MOVE 能正确传递
                 return true
             }
 
@@ -151,13 +163,11 @@ class OverlayDragController(
                 // 首次超过阈值：确认启动拖动
                 if (!isDragging) {
                     isDragging = true
-                    // 立即锁定当前窗口位置为拖动起点，防止首次触发时跳变
-                    startX += dx
-                    startY += dy
                 }
 
-                // 通知调用方更新布局参数（传入绝对坐标）
-                listener.onDragUpdated(startX + dx, startY + dy)
+                // 窗口新位置 = 按下时的窗口位置 + 手指偏移
+                // 这样窗口始终跟随手指，不会有"大跳"
+                listener.onDragUpdated(windowStartX + dx, windowStartY + dy)
                 return true
             }
 
