@@ -161,6 +161,14 @@ object VisionSettingsKeys {
     const val KEY_DEBUG_MODE = "vision_debug_mode"
     const val DEFAULT_DEBUG_MODE = false
 
+    // ==================== 日志中心配置 ====================
+
+    /** 内存日志缓冲区容量（条数），默认 5000，范围 100~50000 */
+    const val KEY_LOG_BUFFER_CAPACITY = "vision_log_buffer_capacity"
+    const val DEFAULT_LOG_BUFFER_CAPACITY = 5000
+    const val MIN_LOG_BUFFER_CAPACITY = 100
+    const val MAX_LOG_BUFFER_CAPACITY = 50000
+
     // ==================== 工具方法 ====================
 
     private fun getPrefs(ctx: Context) = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -194,6 +202,7 @@ object VisionSettingsKeys {
             putFloat(KEY_CONFIDENCE_THRESHOLD, DEFAULT_CONFIDENCE_THRESHOLD)
             putBoolean(KEY_LOG_ENABLED, DEFAULT_LOG_ENABLED)
             putBoolean(KEY_DEBUG_MODE, DEFAULT_DEBUG_MODE)
+            putInt(KEY_LOG_BUFFER_CAPACITY, DEFAULT_LOG_BUFFER_CAPACITY)
         }.apply()
     }
 }
