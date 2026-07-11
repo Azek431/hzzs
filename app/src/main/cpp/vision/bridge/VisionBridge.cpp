@@ -15,6 +15,7 @@
 
 #define LOG_TAG "HZZS-Vision"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // ============================================================
@@ -28,6 +29,9 @@ static void getIntArray(jintArray arr, int* out, int len, JNIEnv* env) {
 
 /** 将 C++ 结构体序列化为 Java byte[] */
 static jbyteArray structToByteArray(JNIEnv* env, const void* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return env->NewByteArray(0);
+    }
     jbyteArray result = env->NewByteArray(static_cast<jsize>(size));
     env->SetByteArrayRegion(result, 0, static_cast<jsize>(size),
                             reinterpret_cast<const jbyte*>(data));
@@ -66,13 +70,29 @@ Java_top_azek431_hzzs_core_data_native_VisionBridge_detectGreenBottle(
     jfloat playerLeft, jfloat playerRight, jfloat playerWidth,
     jfloat playerCenterX, jfloat playerCenterY) {
 
-    // 1. 读取像素数据
-    int pixelCount = width * height;
+    // 参数校验：像素数组不能为空
+    if (rgbPixels == nullptr) {
+        LOGE("[JNI] detectGreenBottle: rgbPixels is null");
+        return structToByteArray(env, nullptr, 0);
+    }
+
+    // 读取像素数据前先校验 Java 数组长度，防止越界读取
+    int javaArrayLen = env->GetArrayLength(rgbPixels);
+    int expectedPixelCount = width * height;
+    if (javaArrayLen < expectedPixelCount || expectedPixelCount <= 0) {
+        LOGW("[JNI] detectGreenBottle: pixel mismatch javaLen=%d expected=%d (w=%d h=%d), skipping.",
+             javaArrayLen, expectedPixelCount, width, height);
+        // 返回全零结果（未检测到）
+        hzzs::vision::VisionGreenBottleResult emptyResult{};
+        emptyResult.found = false;
+        return structToByteArray(env, &emptyResult, sizeof(emptyResult));
+    }
+
     jint* pixels = env->GetIntArrayElements(rgbPixels, nullptr);
 
-    // 2. 转换为 uint8_t* RGB
-    uint8_t* rgb = new uint8_t[pixelCount * 3];
-    for (int i = 0; i < pixelCount; i++) {
+    // 转换为 uint8_t* RGB
+    uint8_t* rgb = new uint8_t[expectedPixelCount * 3];
+    for (int i = 0; i < expectedPixelCount; i++) {
         jint p = pixels[i];
         rgb[i * 3 + 0] = static_cast<uint8_t>((p >> 16) & 0xFF);  // R
         rgb[i * 3 + 1] = static_cast<uint8_t>((p >> 8) & 0xFF);   // G
@@ -126,11 +146,27 @@ Java_top_azek431_hzzs_core_data_native_VisionBridge_detectPit(
     jfloat playerLeft, jfloat playerRight, jfloat playerWidth,
     jfloat playerCenterX, jfloat playerCenterY) {
 
-    int pixelCount = width * height;
+    // 参数校验：像素数组不能为空
+    if (rgbPixels == nullptr) {
+        LOGE("[JNI] detectPit: rgbPixels is null");
+        return structToByteArray(env, nullptr, 0);
+    }
+
+    // 读取像素数据前先校验 Java 数组长度，防止越界读取
+    int javaArrayLen = env->GetArrayLength(rgbPixels);
+    int expectedPixelCount = width * height;
+    if (javaArrayLen < expectedPixelCount || expectedPixelCount <= 0) {
+        LOGW("[JNI] detectPit: pixel mismatch javaLen=%d expected=%d (w=%d h=%d), skipping.",
+             javaArrayLen, expectedPixelCount, width, height);
+        hzzs::vision::VisionPitResult emptyResult{};
+        emptyResult.found = false;
+        return structToByteArray(env, &emptyResult, sizeof(emptyResult));
+    }
+
     jint* pixels = env->GetIntArrayElements(rgbPixels, nullptr);
 
-    uint8_t* rgb = new uint8_t[pixelCount * 3];
-    for (int i = 0; i < pixelCount; i++) {
+    uint8_t* rgb = new uint8_t[expectedPixelCount * 3];
+    for (int i = 0; i < expectedPixelCount; i++) {
         jint p = pixels[i];
         rgb[i * 3 + 0] = static_cast<uint8_t>((p >> 16) & 0xFF);
         rgb[i * 3 + 1] = static_cast<uint8_t>((p >> 8) & 0xFF);
@@ -188,11 +224,24 @@ Java_top_azek431_hzzs_core_data_native_VisionBridge_renderDebugImage(
     jint width, jint height,
     jbyteArray playerData, jbyteArray bottleData, jbyteArray pitData) {
 
-    int pixelCount = width * height;
+    // 参数校验：像素数组不能为空
+    if (rgbPixels == nullptr) {
+        LOGE("[JNI] renderDebugImage: rgbPixels is null");
+        return env->NewByteArray(0);
+    }
+
+    int javaArrayLen = env->GetArrayLength(rgbPixels);
+    int expectedPixelCount = width * height;
+    if (javaArrayLen < expectedPixelCount || expectedPixelCount <= 0) {
+        LOGW("[JNI] renderDebugImage: pixel mismatch javaLen=%d expected=%d, returning empty.",
+             javaArrayLen, expectedPixelCount);
+        return env->NewByteArray(0);
+    }
+
     jint* pixels = env->GetIntArrayElements(rgbPixels, nullptr);
 
-    uint8_t* rgb = new uint8_t[pixelCount * 3];
-    for (int i = 0; i < pixelCount; i++) {
+    uint8_t* rgb = new uint8_t[expectedPixelCount * 3];
+    for (int i = 0; i < expectedPixelCount; i++) {
         jint p = pixels[i];
         rgb[i * 3 + 0] = static_cast<uint8_t>((p >> 16) & 0xFF);
         rgb[i * 3 + 1] = static_cast<uint8_t>((p >> 8) & 0xFF);
@@ -211,8 +260,8 @@ Java_top_azek431_hzzs_core_data_native_VisionBridge_renderDebugImage(
     byteArrayToStruct(env, pitData, &result.pit, sizeof(result.pit));
 
     // 生成 RGBA 输出
-    uint8_t* rgba = new uint8_t[pixelCount * 4];
-    for (int i = 0; i < pixelCount; i++) {
+    uint8_t* rgba = new uint8_t[expectedPixelCount * 4];
+    for (int i = 0; i < expectedPixelCount; i++) {
         rgba[i * 4 + 0] = rgb[i * 3 + 0];  // R
         rgba[i * 4 + 1] = rgb[i * 3 + 1];  // G
         rgba[i * 4 + 2] = rgb[i * 3 + 2];  // B
@@ -221,8 +270,8 @@ Java_top_azek431_hzzs_core_data_native_VisionBridge_renderDebugImage(
 
     hzzs::vision::renderDebugImage(rgba, rgb, width, height, &result, rgba);
 
-    jbyteArray output = env->NewByteArray(pixelCount * 4);
-    env->SetByteArrayRegion(output, 0, pixelCount * 4,
+    jbyteArray output = env->NewByteArray(expectedPixelCount * 4);
+    env->SetByteArrayRegion(output, 0, expectedPixelCount * 4,
                             reinterpret_cast<const jbyte*>(rgba));
 
     delete[] rgb;
