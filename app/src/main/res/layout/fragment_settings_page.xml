@@ -2,6 +2,12 @@
 <!--
     设置 Fragment 布局。
     内容与原 activity_vision_settings.xml 一致。
+
+    结构：
+    1. AppBarLayout + Toolbar → 固定顶部标题栏（"火崽崽助手"）
+    2. TabLayout → 设置分区导航
+    3. ViewPager2 → 分区内容
+    4. 底部操作栏 → 恢复默认 / 保存
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -10,6 +16,23 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/surface_background">
+
+    <!-- 顶部标题栏（固定，不滚动） -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/settingsTopAppBar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:layout_marginTop="@dimen/space_md"
+            app:title="@string/app_name"
+            app:titleTextAppearance="@style/TopAppBarTitle"
+            app:titleTextColor="@color/on_surface" />
+    </com.google.android.material.appbar.AppBarLayout>
 
     <!-- 顶部 TabLayout 区域 -->
     <com.google.android.material.tabs.TabLayout
