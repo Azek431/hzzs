@@ -24,15 +24,11 @@ import androidx.core.view.updatePadding
 /**
  * 首页系统栏安全区域控制器。
  *
- * 构造函数接收所有需要处理 Insets 的 View 及其初始 padding 值，
+ * 构造函数接收根容器和滚动区域 View，
  * 在 apply() 调用后自动处理系统栏遮挡问题。
  *
- * @param rootContainer 根容器（通常是 CoordinatorLayout）
- * @param topBarContainer 顶部栏（包含应用名称和副标题）
- * @param topBarPaddingStartInit 顶部栏左侧初始 padding
- * @param topBarPaddingTopInit 顶部栏顶部初始 padding
- * @param topBarPaddingEndInit 顶部栏右侧初始 padding
- * @param topBarPaddingBottomInit 顶部栏底部初始 padding
+ * @param rootContainer 根容器（LinearLayout，整个页面的最外层布局）
+ * @param homeScrollView 滚动区域（ScrollView）
  * @param scrollPaddingStartInit 滚动区域左侧初始 padding
  * @param scrollPaddingTopInit 滚动区域顶部初始 padding
  * @param scrollPaddingEndInit 滚动区域右侧初始 padding
@@ -40,12 +36,7 @@ import androidx.core.view.updatePadding
  */
 class MainInsetsController(
     private val rootContainer: View,
-    private val topBarContainer: View,
     private val homeScrollView: View?,
-    private val topBarPaddingStartInit: Int,
-    private val topBarPaddingTopInit: Int,
-    private val topBarPaddingEndInit: Int,
-    private val topBarPaddingBottomInit: Int,
     private val scrollPaddingStartInit: Int,
     private val scrollPaddingTopInit: Int,
     private val scrollPaddingEndInit: Int,
@@ -63,14 +54,6 @@ class MainInsetsController(
             val safeInsets = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or
                     WindowInsetsCompat.Type.displayCutout(),
-            )
-
-            // 顶部栏：左右 + 顶部添加安全区域，底部不变
-            topBarContainer.updatePadding(
-                left = topBarPaddingStartInit + safeInsets.left,
-                top = topBarPaddingTopInit + safeInsets.top,
-                right = topBarPaddingEndInit + safeInsets.right,
-                bottom = topBarPaddingBottomInit,
             )
 
             // 滚动区域（如果存在）：左右 + 底部添加安全区域，顶部不变

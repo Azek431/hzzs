@@ -46,4 +46,9 @@
         <item name="android:textSize">13sp</item>
     </style>
 
+    <!-- 顶部标题栏文字样式 -->
+    <style name="TopAppBarTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontWeight">500</item>
+    </style>
+
 </resources>

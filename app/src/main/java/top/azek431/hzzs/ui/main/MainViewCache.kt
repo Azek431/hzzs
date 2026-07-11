@@ -33,11 +33,6 @@ class MainViewCache(private val activity: AppCompatActivity) {
         get() = activity.findViewById(R.id.rootContainer)
             ?: throw IllegalStateException("rootContainer not found in activity_main.xml")
 
-    /** 顶部栏：LinearLayout，包含应用名称和副标题 */
-    val topBarContainer: android.view.View
-        get() = activity.findViewById(R.id.topBarContainer)
-            ?: throw IllegalStateException("topBarContainer not found in activity_main.xml")
-
     /** 开发计划按钮 */
     val btnDevelopmentPlan: MaterialButton
         get() = activity.findViewById(R.id.btnDevelopmentPlan)
@@ -71,7 +66,6 @@ class MainViewCache(private val activity: AppCompatActivity) {
     fun retrieve(): MainViewCacheResult {
         return MainViewCacheResult(
             rootContainer = rootContainer,
-            topBarContainer = topBarContainer,
             btnDevelopmentPlan = btnDevelopmentPlan,
             btnOverlayExecution = btnOverlayExecution,
             btnDisclaimer = btnDisclaimer,
@@ -89,7 +83,6 @@ class MainViewCache(private val activity: AppCompatActivity) {
  */
 data class MainViewCacheResult(
     val rootContainer: android.view.View,
-    val topBarContainer: android.view.View,
     val btnDevelopmentPlan: MaterialButton,
     val btnOverlayExecution: MaterialButton,
     val btnDisclaimer: MaterialButton,

@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     首页 Fragment 布局。
-    内容与原 activity_main.xml 一致，只是移除了外层 CoordinatorLayout 和底部导航栏。
+
+    结构：
+    1. AppBarLayout + Toolbar → 固定顶部标题栏（"火崽崽助手"）
+    2. ScrollView 可滚动内容区 → 状态卡片、功能规划、社区链接、页脚
+
+    设计原因：
+    - Toolbar 固定在顶部，不随内容滚动，提供全局应用标识
+    - 与设置页的 Toolbar 风格统一，底部导航栏切换时视觉一致
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -11,35 +18,24 @@
     android:orientation="vertical"
     android:paddingStart="@dimen/page_padding_horizontal"
     android:paddingEnd="@dimen/page_padding_horizontal"
-    android:paddingTop="@dimen/space_sm"
     android:paddingBottom="@dimen/page_padding_bottom">
 
-    <!-- 顶部标题栏 -->
-    <LinearLayout
-        android:id="@+id/topBarContainer"
+    <!-- 顶部标题栏（固定，不滚动） -->
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="@dimen/top_bar_min_height"
-        android:orientation="vertical"
-        android:paddingTop="@dimen/top_bar_padding_top"
-        android:paddingBottom="@dimen/top_bar_padding_bottom">
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textColor="@color/on_surface"
-            android:textSize="@dimen/text_app_title"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/space_2xs"
-            android:text="@string/app_subtitle"
-            android:textColor="@color/on_surface_variant"
-            android:textSize="@dimen/text_app_subtitle" />
-    </LinearLayout>
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/topAppBar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:layout_marginTop="@dimen/space_md"
+            app:title="@string/app_name"
+            app:titleTextAppearance="@style/TopAppBarTitle"
+            app:titleTextColor="@color/on_surface" />
+    </com.google.android.material.appbar.AppBarLayout>
 
     <!-- 可滚动内容区 -->
     <ScrollView
