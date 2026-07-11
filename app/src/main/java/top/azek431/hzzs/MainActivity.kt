@@ -26,7 +26,9 @@ import top.azek431.hzzs.ui.main.MainDialogController
 import top.azek431.hzzs.ui.main.OverlayPermissionController
 import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
 import top.azek431.hzzs.ui.settings.SettingsFragmentPage
+import top.azek431.hzzs.ui.settings.VisionSettingsKeys
 import top.azek431.hzzs.core.util.FeatureFlags
+import top.azek431.hzzs.core.util.Logger
 
 /**
  * 主 Activity，同时也是 HomeActionCallbacks 的实现者。
@@ -80,6 +82,11 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
         // 初始化 Controller
         dialogController = MainDialogController(this)
         permissionController = OverlayPermissionController(this)
+
+        // 初始化日志缓冲区容量（从 SharedPreferences 读取配置）
+        val capacity = getSharedPreferences(VisionSettingsKeys.PREFS_NAME, MODE_PRIVATE)
+            .getInt(VisionSettingsKeys.KEY_LOG_BUFFER_CAPACITY, VisionSettingsKeys.DEFAULT_LOG_BUFFER_CAPACITY)
+        Logger.setCapacity(capacity)
 
         // 执行页面初始化流程
         refreshOverlayButton()

@@ -43,6 +43,7 @@ import android.view.View
 import android.view.WindowManager
 import top.azek431.hzzs.core.NativeAnalysisBridge
 import top.azek431.hzzs.R
+import top.azek431.hzzs.core.util.Logger
 import top.azek431.hzzs.service.OverlayNotificationService
 import top.azek431.hzzs.ui.community.CommunityLinks
 
@@ -358,6 +359,7 @@ object OverlayPreviewManager {
             OverlayNotificationService.start(appContext)
 
             Log.i(TAG, "[Overlay] session created and window is visible.")
+            Logger.i("Overlay", "悬浮窗已创建并显示")
             return true
         } catch (error: Exception) {
             Log.e(TAG, "[Overlay] unable to show preview overlay.", error)
@@ -416,6 +418,7 @@ object OverlayPreviewManager {
             session.manager.removeView(session.rootView)
             OverlayNotificationService.stop(session.rootView.context)
             Log.i(TAG, "[Overlay] window removed. reason=$reason")
+            Logger.i("Overlay", "悬浮窗已移除，原因=$reason")
             true
         } catch (error: IllegalArgumentException) {
             Log.w(TAG, "[Overlay] window was already detached. reason=$reason", error)
