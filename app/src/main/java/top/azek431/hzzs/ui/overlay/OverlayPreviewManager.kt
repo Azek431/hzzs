@@ -240,10 +240,12 @@ object OverlayPreviewManager {
             }
 
             // 初始化拖动控制器
-            val dragController = OverlayDragController(finder.dragHandle, object : OnDragUpdateListener {
+            var dragController: OverlayDragController? = null
+            dragController = OverlayDragController(finder.dragHandle, object : OnDragUpdateListener {
                 override fun onDragUpdated(x: Int, y: Int) {
                     layoutParams.x = x.coerceIn(0, windowController.calculateMaxX(layoutParams.width))
-                    layoutParams.y = y.coerceIn(0, windowController.calculateMaxY(view.height))
+                    layoutParams.y = y.coerceIn(0, windowController.calculateMaxY(layoutParams.height))
+                    dragController?.updateStartPosition(layoutParams.x, layoutParams.y)
                     try {
                         manager.updateViewLayout(view, layoutParams)
                     } catch (e: IllegalArgumentException) {
@@ -251,7 +253,7 @@ object OverlayPreviewManager {
                     }
                 }
             })
-            dragController.attach(layoutParams.x, layoutParams.y)
+            dragController!!.attach(layoutParams.x, layoutParams.y)
 
             // 初始化缩放控制器
             val resizeController = OverlayResizeController(finder.resizeHandle, appContext, object : OnResizeUpdateListener {

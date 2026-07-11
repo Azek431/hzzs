@@ -60,8 +60,8 @@ class OverlayDragController(
 ) {
 
     companion object {
-        /** 最小拖动距离（像素），约 10dp，避免手指抖动误触 */
-        private const val MIN_DRAG_DISTANCE_PX = 10
+        /** 最小拖动距离（像素），约 3dp，避免手指抖动误触 */
+        private const val MIN_DRAG_DISTANCE_PX = 3
     }
 
     /** 拖动起始时的窗口 X 坐标，由 recordStartPosition() 设置 */
@@ -84,19 +84,32 @@ class OverlayDragController(
      *
      * 此方法应在 View inflate 完成后调用。
      * 将 OnTouchListener 设置到 dragHandle 上。
-     * 在 ACTION_DOWN 时自动记录窗口起始位置。
      *
      * @param currentX 当前窗口 X 坐标（layoutParams.x）
      * @param currentY 当前窗口 Y 坐标（layoutParams.y）
      */
     fun attach(currentX: Int = 0, currentY: Int = 0) {
-        // 在 attach 时就记录当前位置，防止首次拖动时位置跳变
+        // 记录当前窗口位置，供首次拖动时作为基准
         startX = currentX
         startY = currentY
 
         dragHandle.setOnTouchListener { _, event ->
             handleMotionEvent(event)
         }
+    }
+
+    /**
+     * 在拖动过程中实时更新起始窗口坐标。
+     *
+     * 每次 ACTION_MOVE 时调用，将当前的窗口位置同步给控制器，
+     * 防止多次拖动之间出现跳变。
+     *
+     * @param newX 新的窗口 X 坐标
+     * @param newY 新的窗口 Y 坐标
+     */
+    fun updateStartPosition(newX: Int, newY: Int) {
+        startX = newX
+        startY = newY
     }
 
     /**
@@ -138,6 +151,9 @@ class OverlayDragController(
                 // 首次超过阈值：确认启动拖动
                 if (!isDragging) {
                     isDragging = true
+                    // 立即锁定当前窗口位置为拖动起点，防止首次触发时跳变
+                    startX += dx
+                    startY += dy
                 }
 
                 // 通知调用方更新布局参数（传入绝对坐标）
