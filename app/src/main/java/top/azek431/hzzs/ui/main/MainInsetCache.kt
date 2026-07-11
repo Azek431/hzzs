@@ -25,22 +25,6 @@ class MainInsetCache {
 
     // ==================== Padding 初始值 ====================
 
-    /** 顶部栏初始 padding 值（左/上/右/下） */
-    var topBarPaddingStartInit = 0
-        private set
-
-    /** 顶部栏初始 padding 值（上） */
-    var topBarPaddingTopInit = 0
-        private set
-
-    /** 顶部栏初始 padding 值（右） */
-    var topBarPaddingEndInit = 0
-        private set
-
-    /** 顶部栏初始 padding 值（下） */
-    var topBarPaddingBottomInit = 0
-        private set
-
     /** 滚动区域初始 padding 值（左） */
     var scrollPaddingStartInit = 0
         private set
@@ -63,13 +47,7 @@ class MainInsetCache {
      * @param views 包含所有 View 引用缓存的结果对象
      */
     fun capture(views: MainViewCacheResult) {
-        val topBar = views.topBarContainer
         val scroll = views.rootContainer
-
-        topBarPaddingStartInit = topBar.paddingStart
-        topBarPaddingTopInit = topBar.paddingTop
-        topBarPaddingEndInit = topBar.paddingEnd
-        topBarPaddingBottomInit = topBar.paddingBottom
 
         scrollPaddingStartInit = scroll.paddingStart
         scrollPaddingTopInit = scroll.paddingTop
