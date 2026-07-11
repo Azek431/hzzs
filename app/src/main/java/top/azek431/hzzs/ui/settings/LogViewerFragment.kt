@@ -70,13 +70,13 @@ class LogViewerFragment : Fragment() {
     private lateinit var cppLogTextView: TextView
     private lateinit var scrollView: ScrollView
 
+    /** 标签筛选 Spinner 的 Adapter（需要在 refreshTagSpinner 中更新） */
+    private lateinit var tagAdapter: ArrayAdapter<String>
+
     // ==================== 数据状态 ====================
 
     /** 当前显示的日志条目 */
     private var displayedLogs: List<LogEntry> = emptyList()
-
-    /** 上次读取的索引（用于增量更新） */
-    private var lastReadIndex = 0
 
     /** 自动刷新状态 */
     private var autoRefreshEnabled = false
@@ -211,22 +211,14 @@ class LogViewerFragment : Fragment() {
     // ==================== 日志刷新 ====================
 
     /**
-     * 刷新所有日志（增量读取 + 筛选 + 渲染）。
+     * 刷新所有日志（全量读取 + 筛选 + 渲染）。
+     *
+     * 使用全量读取替代增量读取，避免环形缓冲区 wrap-around 后索引漂移问题。
+     * 5000 条以内全量读取 + 筛选通常在 10ms 以内，对 1 秒自动刷新间隔无感知影响。
      */
     private fun refreshAllLogs() {
         // 收集所有标签
         refreshTagSpinner()
-
-        // 增量读取新日志
-        val newEntries = Logger.readFrom(lastReadIndex, 200)
-        if (newEntries.isNotEmpty()) {
-            lastReadIndex += newEntries.size
-            // 如果缓冲区满了，重置索引
-            if (lastReadIndex > Logger.size) {
-                lastReadIndex = 0
-            }
-        }
-
         refreshDisplayedLogs()
     }
 
@@ -243,6 +235,13 @@ class LogViewerFragment : Fragment() {
         allTags.add("Vision-Bottle")
         allTags.add("Vision-Pit")
         allTags.add("Vision-General")
+
+        // 更新 adapter 以反映新标签
+        if (::tagAdapter.isInitialized) {
+            tagAdapter.clear()
+            tagAdapter.addAll(allTags.toList())
+            tagAdapter.notifyDataSetChanged()
+        }
     }
 
     /**
@@ -309,8 +308,6 @@ class LogViewerFragment : Fragment() {
             textSize = 11f
             setPadding(4, 2, 4, 2)
             setLineSpacing(2f, 1f)
-            isClickable = true
-            tooltipText = "时间: ${entry.timestamp}ms"
         }
     }
 
@@ -438,11 +435,11 @@ class LogViewerFragment : Fragment() {
     }
 
     /**
-     * 清空内存日志缓冲区。
+     * 清空日志缓冲区（内存 + C++）。
      */
     private fun clearLog() {
         Logger.clear()
-        lastReadIndex = 0
+        VisionBridge.clearLog()
         displayedLogs = emptyList()
         logContainer.removeAllViews()
 
@@ -454,6 +451,9 @@ class LogViewerFragment : Fragment() {
         }
         logContainer.addView(emptyTv)
 
-        Toast.makeText(context, "内存日志已清空", Toast.LENGTH_SHORT).show()
+        // 同时清空 C++ 日志显示
+        cppLogTextView.text = "暂无 C++ 算法日志（点击'刷新'查看）"
+
+        Toast.makeText(context, "日志已清空", Toast.LENGTH_SHORT).show()
     }
 }
