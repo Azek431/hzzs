@@ -137,6 +137,15 @@ class OverlayResizeController(
             MotionEvent.ACTION_DOWN -> {
                 downRawX = event.rawX
                 downRawY = event.rawY
+                // 在手指按下时从 resizeHandle 的父 View 获取当前悬浮窗实际尺寸
+                resizeHandle?.parent?.let { parent ->
+                    if (parent is View) {
+                        initialWidth = parent.measuredWidth.takeIf { it > 0 }
+                            ?.coerceAtLeast(MIN_SIZE_PX) ?: dp(BASE_WIDTH_DP).coerceAtLeast(MIN_SIZE_PX)
+                        initialHeight = parent.measuredHeight.takeIf { it > 0 }
+                            ?.coerceAtLeast(MIN_SIZE_PX) ?: dp(BASE_HEIGHT_DP).coerceAtLeast(MIN_SIZE_PX)
+                    }
+                }
                 return true
             }
 
