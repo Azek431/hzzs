@@ -278,8 +278,8 @@ object OverlayPreviewManager {
                 hide("close-button")
             }
 
-            // 初始化 HUD 渲染器
-            hudRenderer = OverlayHUDRenderer(appContext)
+            // 初始化 HUD 渲染器（maxFrames=-1 表示无限运行，直到用户手动停止）
+            hudRenderer = OverlayHUDRenderer(appContext, maxFrames = -1)
 
             // 创建屏幕调试叠加视图（全屏绘制分析结果）
             screenOverlay = ScreenOverlayView(appContext).apply {
