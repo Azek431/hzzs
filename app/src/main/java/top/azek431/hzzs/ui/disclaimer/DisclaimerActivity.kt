@@ -78,6 +78,9 @@ class DisclaimerActivity : AppCompatActivity() {
     /** 上次滚动进度（用于进度条防抖） */
     private var lastProgressPercent = -1
 
+    /** 底部操作栏高度（px，用于 post {} 中精确计算可见区域） */
+    private var bottomBarHeightPx = 0
+
     // ==================== 生命周期 ====================
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,7 +95,10 @@ class DisclaimerActivity : AppCompatActivity() {
         cacheViews()
         applyDynamicDate()
         applyEnhancedHtmlText()
+        measureBottomBarHeight()
         bindActions()
+        // 布局完成后重新计算一次滚动进度（防止超高 DPI 下初始计算偏差）
+        requestInitialProgressCalculation()
     }
 
     // ==================== View 缓存 ====================
@@ -184,30 +190,50 @@ class DisclaimerActivity : AppCompatActivity() {
     // ==================== 事件绑定 ====================
 
     /**
+     * 测量底部操作栏的高度（px），用于精确计算可见区域。
+     * 底部操作栏是 CoordinatorLayout 中 layout_gravity="bottom" 的 LinearLayout，
+     * 它占用空间后会使 NestedScrollView 的实际可见高度变小。
+     * 通过 post {} 确保布局已完成后再测量。
+     */
+    private fun measureBottomBarHeight() {
+        // 底部操作栏是 CoordinatorLayout 的第 2 个子 View（第 0 个=AppBarLayout, 第 1 个=NestedScrollView）
+        val coordinator = findViewById<androidx.coordinatorlayout.widget.CoordinatorLayout>(R.id.coordinatorLayout)
+        if (coordinator != null) {
+            // 底部操作栏是最后一个子 View
+            val bottomBar = coordinator.getChildAt(2)
+            if (bottomBar != null) {
+                bottomBar.post {
+                    bottomBarHeightPx = bottomBar.height
+                }
+            }
+        }
+    }
+
+    /**
+     * 在布局完成后重新计算一次初始滚动进度。
+     * 超高 DPI 设备（如 2800×1840）上，onCreate 中 ScrollView 的高度可能尚未正确测量，
+     * 导致初始进度始终为 0%。通过 post {} 延迟到布局阶段结束后再计算。
+     */
+    private fun requestInitialProgressCalculation() {
+        scrollView.post {
+            calculateAndUpdateProgress()
+        }
+    }
+
+    /**
      * 绑定所有交互事件：滚动监听、同意按钮、不同意按钮、返回按钮。
      *
      * 滚动监听逻辑：
-     * - 计算 maxScroll = 内容总高度 - 可见区域高度
-     * - progress = scrollY / maxScroll
+     * - 使用 computeVerticalScrollRange() 获取准确的滚动范围（不受 sub-pixel 舍入误差影响）
+     * - progress = scrollY / (scrollRange - viewportHeight)
      * - progress >= 0.8 时启用 agreeButton
      * - 进度条 View 宽度随滚动平滑变化
+     * - 当 scrollRange <= viewportHeight 时（内容无需滚动即全可见），直接启用按钮
      */
     private fun bindActions() {
         // 监听滚动进度
         scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            val contentHeight = scrollView.getChildAt(0).height
-            val scrollRange = contentHeight - scrollView.height
-            val progress = if (scrollRange > 0) scrollY.toFloat() / scrollRange else 0f
-
-            // 更新百分比显示
-            val percent = (progress * 100).toInt()
-            scrollProgress.text = "$percent%"
-
-            // 更新进度条填充宽度（防抖：只在百分比变化时更新）
-            updateProgressFill(progress, percent)
-
-            // 滚动到 80% 以上才允许点击同意
-            agreeButton.isEnabled = progress >= SCROLL_THRESHOLD
+            calculateAndUpdateProgress()
         }
 
         // 同意按钮
@@ -237,6 +263,36 @@ class DisclaimerActivity : AppCompatActivity() {
         findViewById<android.widget.ImageView>(android.R.id.home)?.setOnClickListener {
             finish()
         }
+    }
+
+    /**
+     * 计算当前滚动进度并更新 UI。
+     *
+     * 使用 NestedScrollView.computeVerticalScrollRange() 获取内容总高度，
+     * 用 computeVerticalScrollOffset() 获取当前滚动偏移量，
+     * 用 computeVerticalScrollExtent() 获取可见区域高度。
+     * 这三个 API 由 Android 框架内部维护，不受 sub-pixel 舍入误差影响，
+     * 在超高 DPI 设备（如 2800×1840）上也能准确工作。
+     */
+    private fun calculateAndUpdateProgress() {
+        val scrollRange = scrollView.computeVerticalScrollRange()          // 内容总高度（px）
+        val scrollOffset = scrollView.scrollY                               // 当前滚动偏移（px）
+        val scrollExtent = scrollView.computeVerticalScrollExtent()         // 可见区域高度（px）
+
+        // 可滚动范围 = 内容总高度 - 可见区域高度
+        val scrollRangePx = scrollRange - scrollExtent
+        val progress = if (scrollRangePx > 0) scrollOffset.toFloat() / scrollRangePx else 1f
+
+        // 更新百分比显示
+        val percent = (progress * 100).toInt().coerceIn(0, 100)
+        scrollProgress.text = "$percent%"
+
+        // 更新进度条填充宽度（防抖：只在百分比变化时更新）
+        updateProgressFill(progress, percent)
+
+        // 滚动到 80% 以上才允许点击同意
+        // 如果内容无需滚动（scrollRangePx <= 0），直接启用按钮
+        agreeButton.isEnabled = progress >= SCROLL_THRESHOLD || scrollRangePx <= 0
     }
 
     /**
