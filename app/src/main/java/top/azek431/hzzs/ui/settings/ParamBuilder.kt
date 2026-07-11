@@ -299,6 +299,18 @@ class ParamBuilder(private val context: Context) {
             summary = "启用调试模式：绘制额外调试信息（边界框、中心线等）",
         ))
 
+        paramDefs.add(ParamDef.Spacer(12))
+        paramDefs.add(ParamDef.SeekBarInt(
+            label = context.getString(R.string.settings_log_buffer_capacity),
+            key = "logBufferCapacity",
+            min = VisionSettingsKeys.MIN_LOG_BUFFER_CAPACITY,
+            max = VisionSettingsKeys.MAX_LOG_BUFFER_CAPACITY,
+            step = 500,
+            defaultValue = VisionSettingsKeys.DEFAULT_LOG_BUFFER_CAPACITY,
+            unit = "条",
+            summary = "内存日志缓冲区容量，超出后自动丢弃最旧日志",
+        ))
+
         paramDefs.add(ParamDef.Spacer(24))
         paramDefs.add(ParamDef.Note(context.getString(R.string.settings_debug_note)))
     }

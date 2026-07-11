@@ -63,6 +63,7 @@ class VisionSettingsActivity : AppCompatActivity() {
         "玩家与绿瓶",
         "检测参数",
         "调试选项",
+        "日志",
     )
 
     /** SharedPreferences 实例，在 onCreate 中初始化 */
@@ -236,7 +237,7 @@ class SettingsPagerAdapter(
     /** 当前 Fragment 实例缓存 */
     private var cachedFragments: List<SettingsFragment> = listOf()
 
-    override fun getItemCount(): Int = sections.size
+    override fun getItemCount(): Int = sections.size + 1  // 5 个分区 + 1 个日志 tab
 
     /**
      * 设置 Fragment 列表（用于重建/恢复默认值后调用）。
@@ -248,7 +249,7 @@ class SettingsPagerAdapter(
 
     override fun createFragment(position: Int): Fragment {
         // 第 6 个 tab（索引 5）是日志查看页面
-        if (position == 5) {
+        if (position == sections.size) {
             return LogViewerFragment.newInstance()
         }
         val section = sections[position]
@@ -261,8 +262,10 @@ class SettingsPagerAdapter(
      * @param position Fragment 位置索引
      * @return 对应位置的 Fragment，越界时返回 null
      */
-    fun getItem(position: Int): SettingsFragment? {
+    fun getItem(position: Int): Fragment? {
         return if (position in 0 until itemCount) {
+            // 日志 tab 不是 SettingsFragment
+            if (position == sections.size) return null
             // FragmentStateAdapter 管理的 Fragment 通过 tag 存储
             val tag = "f$position"
             hostingActivity.supportFragmentManager
@@ -274,7 +277,7 @@ class SettingsPagerAdapter(
      * 同步所有 Fragment 的参数到 SharedPreferences。
      */
     fun syncAllFragments() {
-        for (i in 0 until itemCount) {
+        for (i in 0 until sections.size) {  // 只同步设置分区，不包括日志 tab
             getItem(i)?.syncToPrefs()
         }
     }

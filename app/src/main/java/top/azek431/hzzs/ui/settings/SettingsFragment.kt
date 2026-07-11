@@ -145,6 +145,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         currentValues["confidenceThreshold"] = prefs.getFloat(VisionSettingsKeys.KEY_CONFIDENCE_THRESHOLD, VisionSettingsKeys.DEFAULT_CONFIDENCE_THRESHOLD)
         currentValues["logEnabled"] = prefs.getBoolean(VisionSettingsKeys.KEY_LOG_ENABLED, VisionSettingsKeys.DEFAULT_LOG_ENABLED)
         currentValues["debugMode"] = prefs.getBoolean(VisionSettingsKeys.KEY_DEBUG_MODE, VisionSettingsKeys.DEFAULT_DEBUG_MODE)
+        currentValues["logBufferCapacity"] = prefs.getInt(VisionSettingsKeys.KEY_LOG_BUFFER_CAPACITY, VisionSettingsKeys.DEFAULT_LOG_BUFFER_CAPACITY)
     }
 
     // ==================== 参数构建与渲染 ====================
@@ -183,6 +184,12 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         currentValues["detectionPadding"]?.let { editor.putInt(VisionSettingsKeys.KEY_DETECTION_PADDING, it as Int) }
         currentValues["detectMode"]?.let { editor.putInt(VisionSettingsKeys.KEY_DETECT_MODE, it as Int) }
         currentValues["screenshotMethod"]?.let { editor.putInt(VisionSettingsKeys.KEY_SCREENSHOT_METHOD, it as Int) }
+        currentValues["logBufferCapacity"]?.let {
+            val cap = it as Int
+            editor.putInt(VisionSettingsKeys.KEY_LOG_BUFFER_CAPACITY, cap)
+            // 同时应用到内存缓冲区
+            top.azek431.hzzs.core.util.Logger.setCapacity(cap)
+        }
 
         // SeekBarFloat 参数
         currentValues["drawAlpha"]?.let { editor.putFloat(VisionSettingsKeys.KEY_DRAW_ALPHA, it as Float) }

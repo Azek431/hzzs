@@ -183,6 +183,7 @@
     <!-- 分区 5：调试选项 -->
     <string name="settings_log_enabled">输出识别日志</string>
     <string name="settings_debug_mode">启用调试模式</string>
+    <string name="settings_log_buffer_capacity">日志缓冲区容量</string>
     <string name="settings_debug_note">调试模式会在 HUD 上绘制额外的调试信息（边界框、中心线、统计面板等），仅用于开发和测试，正式发布前请关闭。</string>
 
 </resources>
