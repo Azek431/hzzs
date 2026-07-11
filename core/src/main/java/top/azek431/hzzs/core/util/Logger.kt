@@ -118,9 +118,10 @@ object Logger {
     fun log(level: Int, tag: String, message: String) {
         if (capacity <= 0) return
 
+        val now = SystemClock.uptimeMillis()
         val entry = LogEntry(
-            timestamp = SystemClock.uptimeMillis(),
-            timeText = timeFormatter.get()?.format(SystemClock.uptimeMillis()) ?: "?",
+            timestamp = now,
+            timeText = timeFormatter.get()?.format(now) ?: "?",
             level = level,
             tag = tag,
             message = message,
