@@ -1,7 +1,7 @@
 // 火崽崽助手（HZZS）悬浮窗 HUD 渲染器。
 //
 // 负责驱动 C++ 分析引擎运行，提供两种执行模式：
-// 1. 循环执行（start）：按固定间隔（50ms）持续生成模拟跑酷帧
+// 1. 循环执行（start）：按固定间隔（100ms）持续生成模拟跑酷帧，直到用户手动停止
 // 2. 单次执行（startSingle）：生成一帧后立即退出
 //
 // 核心职责：
@@ -13,14 +13,16 @@
 // 模拟数据策略：
 // - 玩家矩形：在屏幕中下部缓慢左右移动（正弦波驱动）
 // - 危险物（蛋糕断层）：周期性出现在玩家前方，以世界滚动速度向左移动
-// - 每帧时间戳递增 50ms（模拟 20fps 帧率）
+// - 每帧时间戳递增 100ms（模拟 10fps 帧率）
 // - 危险物类型循环切换：1=蛋糕断层, 2=毒瓶, 3=裱花袋
+// - 循环执行默认无限运行，直到用户点击停止按钮
 //
 // 线程模型：
 // - 模拟帧循环在独立后台线程运行
 // - 使用 volatile 标志（isRunning）控制循环启停
 // - stop() 中调用 thread.join(1000) 等待线程退出，超时强制放弃
-// - onFrameResultListener 回调在主线程执行（通过 postInvalidate 机制）
+// - onFrameResultListener 回调在主线程执行（通过 mainHandler.post）
+// - 视觉识别在独立后台线程池执行（visualRecognitionExecutor），避免阻塞模拟帧循环
 
 package top.azek431.hzzs.ui.overlay
 
@@ -35,6 +37,8 @@ import top.azek431.hzzs.core.model.FrameAnalysisResult
 import top.azek431.hzzs.core.model.RectF
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * HUD 渲染器。
@@ -42,10 +46,15 @@ import java.nio.ByteOrder
  * 负责生成模拟跑酷帧数据并通过 JNI 驱动 C++ 分析引擎运行。
  * 通过 onFrameResultListener 回调将分析结果推送给 UI 层绘制。
  *
+ * 循环执行模式默认无限运行（maxFrames=-1），直到用户点击停止按钮。
+ * 可通过构造参数自定义最大帧数，设置为正数时达到上限自动停止。
+ *
  * @param context 上下文（用于获取 displayMetrics 等系统信息）
+ * @param maxFrames 最大模拟帧数，-1 表示无限运行（默认），正数表示达到该帧数后自动停止
  */
 class OverlayHUDRenderer(
     private val context: Context,
+    private val maxFrames: Int = -1,
 ) {
 
     // ==================== UI 结果回调 ====================
@@ -70,6 +79,13 @@ class OverlayHUDRenderer(
 
     /** 主线程 Handler，用于将后台线程的分析结果切换到主线程执行 UI 回调 */
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** 视觉识别后台线程池（单线程，避免并发截图冲突） */
+    private val visualRecognitionExecutor: ExecutorService by lazy {
+        Executors.newSingleThreadExecutor {
+            Thread(it, "hzzs-vision-recognition").apply { isDaemon = true }
+        }
+    }
 
     // ==================== 视觉识别回调 ====================
 
@@ -96,14 +112,11 @@ class OverlayHUDRenderer(
     companion object {
         private const val TAG = "HZZS-HUD"
 
-        /** 帧间隔（毫秒），模拟 20fps 帧率 */
-        private const val FRAME_INTERVAL_MS = 50L
+        /** 帧间隔（毫秒），模拟 10fps 帧率 */
+        private const val FRAME_INTERVAL_MS = 100L
 
-        /** 模拟帧的最大数量，防止无限运行（600 帧 = 30 秒） */
-        private const val MAX_FRAMES = 600
-
-        /** 危险物出现间隔（帧数），每 40 帧（~2s）出现一个危险物 */
-        private const val HAZARD_INTERVAL = 40
+        /** 危险物出现间隔（帧数），每 10 帧（~1s）出现一个危险物 */
+        private const val HAZARD_INTERVAL = 10
 
         /** 世界滚动速度（归一化坐标/秒），向左为负值 */
         private const val WORLD_SCROLL_SPEED = -0.45f
@@ -121,6 +134,15 @@ class OverlayHUDRenderer(
 
     /** 后台模拟帧循环线程，在 start() 时创建，stop() 时 join 等待退出 */
     private var simulationThread: Thread? = null
+
+    /**
+     * 是否已达到最大帧数限制。
+     *
+     * 当 maxFrames > 0 时，达到该帧数后自动停止循环。
+     * maxFrames <= 0 时永不自动停止，必须由用户手动点击停止。
+     */
+    @Volatile
+    private var reachedMaxFrames = false
 
     /**
      * 单次执行是否已完成。
@@ -164,7 +186,9 @@ class OverlayHUDRenderer(
      * 1. 重置所有状态（frameCount/playerXOffset/currentHazardLeft 等）
      * 2. 创建后台线程并启动 simulationLoop
      * 3. 线程以 FRAME_INTERVAL_MS 间隔生成模拟帧
+     * 4. 循环条件：isRunning == true 且（maxFrames <= 0 或 frameCount < maxFrames）
      *
+     * 默认无限运行，必须由用户手动点击停止按钮才会退出。
      * 幂等性：如果已经在运行，调用此方法会被忽略。
      */
     fun start() {
@@ -175,6 +199,7 @@ class OverlayHUDRenderer(
 
         isRunning = true
         frameCount = 0
+        reachedMaxFrames = false
         playerXOffset = 0f
         currentHazardLeft = null
         lastHazardFrame = -HAZARD_INTERVAL
@@ -185,7 +210,7 @@ class OverlayHUDRenderer(
             start()
         }
 
-        Log.i(TAG, "[HUD] simulation started.")
+        Log.i(TAG, "[HUD] simulation started. maxFrames=$maxFrames")
     }
 
     /**
@@ -277,12 +302,13 @@ class OverlayHUDRenderer(
      * 3. 构建玩家矩形和危险物矩形
      * 4. 调用 C++ 引擎分析（NativeEngineFacade.analyzeFrame）
      * 5. 更新危险物位置（向左移动，移出屏幕后销毁）
-     * 6. 休眠 FRAME_INTERVAL_MS（50ms）
+     * 6. 休眠 FRAME_INTERVAL_MS（100ms）
      *
-     * 循环条件：isRunning == true 且 frameCount < MAX_FRAMES
+     * 循环条件：isRunning == true 且（maxFrames <= 0 或 frameCount < maxFrames）
+     * 默认无限运行，必须由用户手动点击停止按钮才会退出。
      */
     private fun simulationLoop() {
-        while (isRunning && frameCount < MAX_FRAMES) {
+        while (isRunning && (maxFrames <= 0 || frameCount < maxFrames)) {
             val timestampMs = frameCount * FRAME_INTERVAL_MS
 
             // 更新玩家位置（正弦波左右移动）
@@ -336,8 +362,8 @@ class OverlayHUDRenderer(
                     mainHandler.post { listener(result) }
                 }
 
-                // 同时调用视觉识别（绿瓶 + 坑位检测）
-                mainHandler.post {
+                // 视觉识别在后台线程执行（避免阻塞主线程和模拟帧循环）
+                visualRecognitionExecutor.execute {
                     runVisualRecognition(result)
                 }
             }
@@ -355,7 +381,8 @@ class OverlayHUDRenderer(
             Thread.sleep(FRAME_INTERVAL_MS)
         }
 
-        Log.d(TAG, "[HUD] simulation loop exited after $frameCount frames.")
+        val reason = if (maxFrames > 0 && frameCount >= maxFrames) "reached max frames" else "stopped by user"
+        Log.d(TAG, "[HUD] simulation loop exited after $frameCount frames ($reason).")
     }
 
     /**
@@ -414,8 +441,8 @@ class OverlayHUDRenderer(
                     mainHandler.post { listener(result) }
                 }
 
-                // 同时调用视觉识别（绿瓶 + 坑位检测）
-                mainHandler.post {
+                // 视觉识别在后台线程执行（避免阻塞主线程和模拟帧循环）
+                visualRecognitionExecutor.execute {
                     runVisualRecognition(result)
                 }
             }
@@ -464,12 +491,13 @@ class OverlayHUDRenderer(
      *
      * 流程：
      * 1. 尝试截取当前屏幕（ScreenshotCapture.takeScreenshot）
-     * 2. 如果截图成功，调用 C++ 视觉算法（VisionBridge.detectGreenBottle / detectPit）
-     * 3. 解析 C++ 返回的 byte[] 结果，通过 onVisualRecognitionListener 回调推送
-     * 4. 如果截图失败，回退到模拟像素（空数组 → 未检测到）
+     * 2. 如果截图失败，直接跳过视觉识别（不调用 C++ 算法）
+     * 3. 如果截图成功，调用 C++ 视觉算法（VisionBridge.detectGreenBottle / detectPit）
+     * 4. 解析 C++ 返回的 byte[] 结果，通过 onVisualRecognitionListener 回调推送
      *
-     * 线程模型：此方法在主线程调用（由 mainHandler.post 触发），
-     * ScreenshotCapture.takeScreenshot 内部会阻塞等待截图完成。
+     * 线程模型：此方法在后台线程调用（由 visualRecognitionExecutor 调度），
+     * 回调结果通过 onVisualRecognitionListener 推送回主线程消费。
+     * 截图失败时静默跳过，不阻塞也不崩溃。
      */
     private fun runVisualRecognition(result: FrameAnalysisResult) {
         val pb = result.playerBounds ?: return
@@ -477,16 +505,19 @@ class OverlayHUDRenderer(
         val metrics = (context as? android.content.Context)?.let {
             android.content.ContextWrapper(it).resources?.displayMetrics
         } ?: appContext.resources.displayMetrics
-        val w = metrics.widthPixels
-        val h = metrics.heightPixels
 
         // 1. 尝试真实截图
         val capture = ScreenshotCapture.takeScreenshot(appContext)
 
-        // 2. 构建像素数组（真实截图优先，失败则用空数组让 C++ 检测返回未找到）
-        val pixelArray = capture?.pixels ?: intArrayOf()
-        val actualW = capture?.width ?: w
-        val actualH = capture?.height ?: h
+        // 2. 截图失败时直接跳过视觉识别（不再传入空数组）
+        if (capture == null) {
+            Log.d(TAG, "[HUD] screenshot unavailable, skipping visual recognition.")
+            return
+        }
+
+        val pixelArray = capture.pixels
+        val actualW = capture.width
+        val actualH = capture.height
 
         // 3. 调用 C++ 视觉算法
         try {
