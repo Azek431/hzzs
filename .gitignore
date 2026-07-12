@@ -353,3 +353,8 @@ app/.cxx/
 # C++ 共享库编译产物（.so 文件），由 Gradle/NDK 自动生成。
 # 不同平台/ABI 产物不同，不应提交到 Git。
 *.so
+
+.env.hzzs.local
+local-diagnostics/
+test-output/
+.hzzs-migration-state.json

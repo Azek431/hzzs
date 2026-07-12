@@ -1,0 +1,10 @@
+HZZS 迁移前审计
+生成时间：2026-07-12T13:03:32.0208923+08:00
+HEAD：1b0c3e7c1ac0a6944eb68e39b968fad051d48c4b
+
+已知高风险项：
+- 旧/新视觉链路并存；本补丁新增唯一 vision2 原生入口。
+- 旧 GestureInjector 把 SLIDE/DOUBLE_JUMP 当短点击；阶段 3 使用独立到期动作队列修复。
+- Android 7–10 无 AccessibilityService.takeScreenshot；阶段 4 自动回退 MediaProjection。
+- 真实 ImageReader 必须处理 rowStride/pixelStride；阶段 4 已实现。
+- HUD 持久绘制使用安全色和单快照替换。
