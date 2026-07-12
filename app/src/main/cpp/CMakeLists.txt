@@ -78,3 +78,18 @@ target_link_libraries(
     PRIVATE
     ${log-lib}
 )
+
+# HZZS-MIGRATION-BEGIN vision-v2
+target_sources(hzzs_native PRIVATE
+    vision2/HzzsVisionCore.cpp
+    vision2/HzzsVisionJni.cpp
+)
+target_include_directories(hzzs_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vision2)
+target_compile_features(hzzs_native PRIVATE cxx_std_17)
+# 仅限制本次新增的视觉源文件，不把 -fno-exceptions/-fno-rtti 污染现有原生模块。
+set_source_files_properties(
+    vision2/HzzsVisionCore.cpp
+    vision2/HzzsVisionJni.cpp
+    PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti"
+)
+# HZZS-MIGRATION-END vision-v2
