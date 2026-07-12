@@ -339,3 +339,11 @@ $RECYCLE.BIN/
 gradle/gradle-daemon-jvm.properties.backup-*
 # Android CMake / NDK build intermediates
 app/.cxx/
+
+# ============================================================
+# 14. 原生库编译产物
+# ============================================================
+
+# C++ 共享库编译产物（.so 文件），由 Gradle/NDK 自动生成。
+# 不同平台/ABI 产物不同，不应提交到 Git。
+*.so
