@@ -192,6 +192,12 @@ output-metadata.json
 /.claude/*.local.md
 /CLAUDE.local.md
 
+# Claude Code 本地设置文件（用户偏好，不共享）
+.claude/settings.json
+
+# Skills 锁文件（自动生成，不共享）
+skills-lock.json
+
 # 常见编辑器本地历史记录目录。
 /.history/
 
