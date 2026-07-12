@@ -51,3 +51,8 @@
 # - 不要为了"保险"而 keep 所有 Activity / Service / Receiver；
 #   Android Gradle Plugin 会根据 Manifest 自动处理 Android 组件。
 # ============================================================
+
+# HZZS-MIGRATION-BEGIN jni-keep
+-keep class top.azek431.hzzs.runtime.vision.HzzsVisionBridge { native <methods>; }
+-keepclasseswithmembernames class * { native <methods>; }
+# HZZS-MIGRATION-END jni-keep
