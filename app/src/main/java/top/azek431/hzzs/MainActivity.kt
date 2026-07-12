@@ -15,6 +15,7 @@
 
 package top.azek431.hzzs
 
+import top.azek431.hzzs.runtime.settings.VisionRuntimeBootstrap
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -83,6 +84,11 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
         dialogController = MainDialogController(this)
         permissionController = OverlayPermissionController(this)
 
+        // HZZS-MIGRATION-BEGIN runtime-bootstrap
+        VisionRuntimeBootstrap.initialize(this)
+        VisionRuntimeBootstrap.maybeLaunchFirstRun(this)
+        // HZZS-MIGRATION-END runtime-bootstrap
+
         // 初始化日志缓冲区容量（从 SharedPreferences 读取配置）
         val capacity = getSharedPreferences(VisionSettingsKeys.PREFS_NAME, MODE_PRIVATE)
             .getInt(VisionSettingsKeys.KEY_LOG_BUFFER_CAPACITY, VisionSettingsKeys.DEFAULT_LOG_BUFFER_CAPACITY)
@@ -123,7 +129,13 @@ class MainActivity : AppCompatActivity(), HomeActionCallbacks {
             .commit()
 
         val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
+        val visionSettingsMenuId = android.view.View.generateViewId()
+        bottomNav.menu.add(0, visionSettingsMenuId, 90, "视觉").setIcon(R.drawable.ic_stat_hzzs)
         bottomNav.setOnItemSelectedListener { item ->
+            if (item.itemId == visionSettingsMenuId) {
+                startActivity(android.content.Intent(this, top.azek431.hzzs.runtime.settings.VisionRuntimeSettingsActivity::class.java))
+                return@setOnItemSelectedListener false
+            }
             when (item.itemId) {
                 R.id.nav_home -> {
                     supportFragmentManager.beginTransaction()

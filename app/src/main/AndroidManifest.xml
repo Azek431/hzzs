@@ -13,7 +13,7 @@
     - 当前不需要 INTERNET 权限（QQ/Telegram 链接通过系统浏览器打开）
     - 不需要 RECORD_AUDIO、CAMERA 等敏感权限
     - 不需要 STORAGE 权限（Android 13+ 已废弃）
-    - 不需要 MEDIA_PROJECTION 权限（当前未接入屏幕采集）
+    - 屏幕采集由用户授权的 MediaProjection 会话或 Android 11+ 无障碍截图提供
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -28,8 +28,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- 屏幕截图权限：MediaProjection 需要 FOREGROUND_SERVICE 即可（Android 10+） -->
-    <!-- 不需要额外的 MEDIA_PROJECTION 权限（该权限仅系统/签名应用可用） -->
+    <!-- 普通应用不声明系统级 MEDIA_PROJECTION 权限；Android 14+ 使用 FOREGROUND_SERVICE_MEDIA_PROJECTION -->
 
+<!-- HZZS-MIGRATION-BEGIN runtime-permissions -->
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+<!-- HZZS-MIGRATION-END runtime-permissions -->
 <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -65,10 +68,11 @@
             android:windowSoftInputMode="adjustResize" />
 
         <!-- 前台通知服务：保持悬浮窗不被系统回收 -->
-        <service
-            android:name=".service.OverlayNotificationService"
+        <service android:name=".service.OverlayNotificationService"
             android:foregroundServiceType="specialUse"
-            android:exported="false" />
+            android:exported="false">
+        <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Keeps the user-started HZZS overlay visible during local analysis." />
+    </service>
 
         <!-- 无障碍自动操作服务 -->
         <service
@@ -84,6 +88,15 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-    </application>
+    <!-- HZZS-MIGRATION-BEGIN runtime-components -->
+<activity android:name=".runtime.capture.CapturePermissionActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+<activity android:name=".runtime.settings.ViewportCalibrationActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+<activity android:name=".runtime.settings.VisionRuntimeSettingsActivity" android:exported="true" />
+<service android:name=".runtime.capture.MediaProjectionCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
+<service android:name=".runtime.vision.VisionRuntimeService" android:exported="false" android:foregroundServiceType="specialUse">
+    <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local game-frame analysis overlay and optional accessibility action scheduling." />
+</service>
+<!-- HZZS-MIGRATION-END runtime-components -->
+</application>
 
 </manifest>
