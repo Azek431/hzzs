@@ -8,10 +8,4 @@
     - canRetrieveWindowContent=false：不读取窗口内容（安全考虑，减少权限范围）
     - settingsActivity：用户可从此 Activity 跳转到无障碍服务设置页面
 -->
-<accessibility-service
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
-    android:accessibilityFeedbackType="feedbackGeneric"
-    android:canRetrieveWindowContent="false"
-    android:settingsActivity="top.azek431.hzzs.MainActivity"
-    android:description="@string/accessibility_service_description" />
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android" android:accessibilityEventTypes="typeAllMask" android:accessibilityFeedbackType="feedbackGeneric" android:canPerformGestures="true" android:canTakeScreenshot="true" android:notificationTimeout="100" android:canRetrieveWindowContent="false" android:settingsActivity="top.azek431.hzzs.runtime.settings.VisionRuntimeSettingsActivity" android:description="@string/accessibility_service_description" />

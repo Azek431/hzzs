@@ -47,6 +47,18 @@ class AutoOperationService : AccessibilityService() {
          */
         internal fun getInstance(): AutoOperationService? = instance
 
+        /** 供截图模式和设置页判断现有无障碍服务是否已连接。 */
+        fun isConnected(): Boolean = instance != null
+        // HZZS-MIGRATION-BEGIN package-guard
+        private val defaultAllowedActionPackages = setOf(
+            "com.smile.gifmaker",
+            "com.kuaishou.nebula",
+        )
+        @Volatile private var foregroundPackageName: String? = null
+        fun foregroundPackageName(): String? = foregroundPackageName
+        fun isActionTargetAllowed(): Boolean = foregroundPackageName in defaultAllowedActionPackages
+        // HZZS-MIGRATION-END package-guard
+
         /**
          * 请求截屏（静态代理）。
          *
@@ -63,6 +75,7 @@ class AutoOperationService : AccessibilityService() {
             executor: java.util.concurrent.Executor,
             callback: AccessibilityService.TakeScreenshotCallback,
         ): Boolean {
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return false
             val svc = instance ?: run {
                 Log.w(TAG, "[Screenshot] proxy failed: service instance not available")
                 return false
@@ -92,8 +105,12 @@ class AutoOperationService : AccessibilityService() {
      */
     private val processRunnable = object : Runnable {
         override fun run() {
+            // HZZS-MIGRATION-BEGIN runtime-action-loop
+            processRuntimeAction()
             processNextAction()
-            handler.postDelayed(this, AutoActionQueue.getDelay().toLong())
+            val oldQueueDelay = AutoActionQueue.getDelay().toLong().coerceAtLeast(8L)
+            handler.postDelayed(this, minOf(oldQueueDelay, top.azek431.hzzs.runtime.action.RuntimeActionQueue.nextDelay()))
+            // HZZS-MIGRATION-END runtime-action-loop
         }
     }
 
@@ -104,6 +121,7 @@ class AutoOperationService : AccessibilityService() {
      * 立即启动 processRunnable，开始处理队列中的操作。
      */
     override fun onServiceConnected() {
+        super.onServiceConnected()
         instance = this
         Log.i(TAG, "[Service] connected, starting processing loop.")
         handler.post(processRunnable)
@@ -119,6 +137,10 @@ class AutoOperationService : AccessibilityService() {
      */
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         handler.removeCallbacks(processRunnable)
+        // HZZS-MIGRATION-BEGIN runtime-action-cleanup
+        top.azek431.hzzs.runtime.action.RuntimeActionQueue.clear()
+        foregroundPackageName = null
+        // HZZS-MIGRATION-END runtime-action-cleanup
         instance = null
         Log.d(TAG, "[Service] disconnected, processing loop stopped.")
         return super.onUnbind(intent)
@@ -144,14 +166,36 @@ class AutoOperationService : AccessibilityService() {
         Log.d(TAG, "[Service] executed action: ${action.type} at (${action.targetX}, ${action.targetY})")
     }
 
-    // ==================== 无障碍回调（当前不使用） ====================
+        /** 执行 C++ 实时视觉队列；dispatchGesture 临时拒绝时进行一次短延迟重试。 */
+    private fun processRuntimeAction() {
+        val action = top.azek431.hzzs.runtime.action.RuntimeActionQueue.pollDue() ?: return
+        val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+            override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription) {
+                top.azek431.hzzs.runtime.action.RuntimeActionQueue.retry(action)
+            }
+        }
+        val accepted = top.azek431.hzzs.runtime.action.GestureInjectorV2.inject(
+            this,
+            action,
+            resources.displayMetrics,
+            callback,
+        )
+        if (!accepted) {
+            top.azek431.hzzs.runtime.action.RuntimeActionQueue.retry(action)
+        }
+    }
+// ==================== 无障碍回调（当前不使用） ====================
 
     /**
      * 无障碍事件回调。
      *
      * 当前未使用，留作未来扩展（如监听屏幕内容变化）。
      */
-    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
+        // HZZS-MIGRATION-BEGIN foreground-package-tracking
+        event?.packageName?.toString()?.takeIf { it.isNotBlank() }?.let { foregroundPackageName = it }
+        // HZZS-MIGRATION-END foreground-package-tracking
+    }
 
     /**
      * 无障碍中断回调。
