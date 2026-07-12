@@ -1,0 +1,1385 @@
+{
+  "total": 127,
+  "passed": 127,
+  "failed": 0,
+  "mean_ms": 0.24495979527559056,
+  "p95_ms": 0.447563,
+  "rows": [
+    {
+      "filename": "frame_0018.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.914145,
+      "samples": 28269
+    },
+    {
+      "filename": "frame_0019.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.251323,
+      "samples": 28904
+    },
+    {
+      "filename": "frame_0020.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.213339,
+      "samples": 28904
+    },
+    {
+      "filename": "frame_0021.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.195986,
+      "samples": 28749
+    },
+    {
+      "filename": "frame_0058.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.18167,
+      "samples": 24141
+    },
+    {
+      "filename": "frame_0059.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.159647,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0060.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.199196,
+      "samples": 30834
+    },
+    {
+      "filename": "frame_0061.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.211283,
+      "samples": 33644
+    },
+    {
+      "filename": "frame_0062.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.324609,
+      "samples": 40388
+    },
+    {
+      "filename": "frame_0063.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.272056,
+      "samples": 46570
+    },
+    {
+      "filename": "frame_0064.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.324999,
+      "samples": 52752
+    },
+    {
+      "filename": "frame_0065.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.344311,
+      "samples": 58934
+    },
+    {
+      "filename": "frame_0066.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.387299,
+      "samples": 63368
+    },
+    {
+      "filename": "frame_0067.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.365351,
+      "samples": 63181
+    },
+    {
+      "filename": "frame_0068.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.42152,
+      "samples": 63181
+    },
+    {
+      "filename": "frame_0069.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.355391,
+      "samples": 63181
+    },
+    {
+      "filename": "frame_0070.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.428688,
+      "samples": 63181
+    },
+    {
+      "filename": "frame_0071.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.447563,
+      "samples": 63181
+    },
+    {
+      "filename": "frame_0072.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.460764,
+      "samples": 56811
+    },
+    {
+      "filename": "frame_0073.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.288136,
+      "samples": 50629
+    },
+    {
+      "filename": "frame_0074.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.428432,
+      "samples": 43885
+    },
+    {
+      "filename": "frame_0075.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.225274,
+      "samples": 37703
+    },
+    {
+      "filename": "frame_0104.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.149342,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0105.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.152853,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0106.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.152122,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0107.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.168008,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0108.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.151784,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0109.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.148547,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0110.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.223515,
+      "samples": 31958
+    },
+    {
+      "filename": "frame_0111.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.251545,
+      "samples": 39826
+    },
+    {
+      "filename": "frame_0112.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.30615,
+      "samples": 47694
+    },
+    {
+      "filename": "frame_0113.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.476171,
+      "samples": 55562
+    },
+    {
+      "filename": "frame_0114.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.34777,
+      "samples": 63430
+    },
+    {
+      "filename": "frame_0115.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.641767,
+      "samples": 71298
+    },
+    {
+      "filename": "frame_0119.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.337995,
+      "samples": 60932
+    },
+    {
+      "filename": "frame_0120.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.318043,
+      "samples": 54563
+    },
+    {
+      "filename": "frame_0121.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.348598,
+      "samples": 46695
+    },
+    {
+      "filename": "frame_0122.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.252535,
+      "samples": 38827
+    },
+    {
+      "filename": "frame_0123.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.14982,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0124.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.345549,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0154.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.147603,
+      "samples": 23749
+    },
+    {
+      "filename": "frame_0155.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.161333,
+      "samples": 24994
+    },
+    {
+      "filename": "frame_0156.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.180364,
+      "samples": 28093
+    },
+    {
+      "filename": "frame_0157.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.204503,
+      "samples": 28564
+    },
+    {
+      "filename": "frame_0158.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.314808,
+      "samples": 28567
+    },
+    {
+      "filename": "frame_0159.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.179551,
+      "samples": 28567
+    },
+    {
+      "filename": "frame_0160.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.227059,
+      "samples": 28567
+    },
+    {
+      "filename": "frame_0168.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.203571,
+      "samples": 31941
+    },
+    {
+      "filename": "frame_0169.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.262431,
+      "samples": 40053
+    },
+    {
+      "filename": "frame_0170.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.279271,
+      "samples": 46279
+    },
+    {
+      "filename": "frame_0171.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.46785,
+      "samples": 53637
+    },
+    {
+      "filename": "frame_0172.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.343848,
+      "samples": 61561
+    },
+    {
+      "filename": "frame_0173.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.37223,
+      "samples": 68919
+    },
+    {
+      "filename": "frame_0174.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.42339,
+      "samples": 76843
+    },
+    {
+      "filename": "frame_0175.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.455605,
+      "samples": 84201
+    },
+    {
+      "filename": "frame_0178.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.149075,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0179.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.14942,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0180.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.15347,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0181.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.155535,
+      "samples": 25197
+    },
+    {
+      "filename": "frame_0182.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.170819,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0183.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.171786,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0184.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.187218,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0185.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.17754,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0186.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.193541,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0187.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.175708,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0188.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.169442,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0189.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.158232,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0190.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.147933,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0191.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.220437,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0192.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.148959,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0193.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.1517,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0194.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.166337,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0195.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.18205,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0196.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.151933,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0197.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.157176,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0198.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.153326,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0199.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.151687,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0200.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.156985,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_0219.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.163655,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0220.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.166058,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0221.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.165781,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0222.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.15983,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0223.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.16734,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_0224.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.168474,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0225.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.162876,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_0226.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.165822,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_3903.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.162057,
+      "samples": 25610
+    },
+    {
+      "filename": "frame_3904.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.166311,
+      "samples": 25601
+    },
+    {
+      "filename": "frame_3905.jpg",
+      "expected": [
+        "BOTTLE"
+      ],
+      "actual": [
+        "BOTTLE"
+      ],
+      "passed": true,
+      "cost_ms": 0.176415,
+      "samples": 26236
+    },
+    {
+      "filename": "frame_3932.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.165569,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3933.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.151306,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3934.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.172184,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3935.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.169832,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_3936.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.181235,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3937.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.165083,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3938.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.177092,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3939.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.164028,
+      "samples": 26835
+    },
+    {
+      "filename": "frame_3940.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.169922,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3941.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.16934,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3942.jpg",
+      "expected": [
+        "SPIKE"
+      ],
+      "actual": [
+        "SPIKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.166269,
+      "samples": 27069
+    },
+    {
+      "filename": "frame_3943.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.148368,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3944.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.152028,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3945.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.152949,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3946.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.149714,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_3947.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.174293,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_4140.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.150166,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_4141.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.214627,
+      "samples": 31958
+    },
+    {
+      "filename": "frame_4142.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.27311,
+      "samples": 39264
+    },
+    {
+      "filename": "frame_4143.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.28737,
+      "samples": 46008
+    },
+    {
+      "filename": "frame_4144.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.295426,
+      "samples": 52377
+    },
+    {
+      "filename": "frame_4145.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.341363,
+      "samples": 59121
+    },
+    {
+      "filename": "frame_4146.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.361254,
+      "samples": 66240
+    },
+    {
+      "filename": "frame_4147.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.403181,
+      "samples": 72984
+    },
+    {
+      "filename": "frame_4148.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.414289,
+      "samples": 79728
+    },
+    {
+      "filename": "frame_4149.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.440203,
+      "samples": 86659
+    },
+    {
+      "filename": "frame_4150.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.470742,
+      "samples": 82663
+    },
+    {
+      "filename": "frame_4151.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.289038,
+      "samples": 75357
+    },
+    {
+      "filename": "frame_4152.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.352999,
+      "samples": 68613
+    },
+    {
+      "filename": "frame_4153.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.345331,
+      "samples": 61307
+    },
+    {
+      "filename": "frame_4154.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.309013,
+      "samples": 54001
+    },
+    {
+      "filename": "frame_4155.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.287285,
+      "samples": 46133
+    },
+    {
+      "filename": "frame_4156.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.224154,
+      "samples": 38827
+    },
+    {
+      "filename": "frame_4157.jpg",
+      "expected": [
+        "CAKE"
+      ],
+      "actual": [
+        "CAKE"
+      ],
+      "passed": true,
+      "cost_ms": 0.199854,
+      "samples": 31521
+    },
+    {
+      "filename": "frame_4158.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.17518,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_4159.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.153982,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_4160.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.168462,
+      "samples": 24027
+    },
+    {
+      "filename": "frame_4161.jpg",
+      "expected": [],
+      "actual": [],
+      "passed": true,
+      "cost_ms": 0.152212,
+      "samples": 24027
+    }
+  ]
+}
