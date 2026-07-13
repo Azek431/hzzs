@@ -4,10 +4,15 @@
         <exclude domain="file" path="diagnostics/" />
         <exclude domain="file" path="screenshots/" />
         <exclude domain="file" path="vision-frames/" />
+        <exclude domain="sharedpref" path="hzzs_feature_flags.xml" />
+        <exclude domain="sharedpref" path="hzzs_runtime_v2.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="diagnostics/" />
         <exclude domain="file" path="screenshots/" />
         <exclude domain="file" path="vision-frames/" />
+        <!-- 设备迁移同样不能静默恢复免责声明记录或自动操作授权。 -->
+        <exclude domain="sharedpref" path="hzzs_feature_flags.xml" />
+        <exclude domain="sharedpref" path="hzzs_runtime_v2.xml" />
     </device-transfer>
 </data-extraction-rules>
