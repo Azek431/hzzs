@@ -24,7 +24,7 @@ import top.azek431.hzzs.runtime.capture.CaptureMode
 import top.azek431.hzzs.runtime.capture.CapturePermissionActivity
 import top.azek431.hzzs.runtime.capture.CapturePreferences
 import top.azek431.hzzs.runtime.capture.MediaProjectionCaptureService
-import top.azek431.hzzs.service.AutoOperationService
+import top.azek431.hzzs.features.service.AutoOperationService
 import top.azek431.hzzs.runtime.vision.VisionRuntimeService
 
 class VisionRuntimeSettingsActivity : AppCompatActivity() {

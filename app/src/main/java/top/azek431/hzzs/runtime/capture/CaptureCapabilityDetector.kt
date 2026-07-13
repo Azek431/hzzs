@@ -2,7 +2,7 @@ package top.azek431.hzzs.runtime.capture
 
 import android.content.Context
 import android.os.Build
-import top.azek431.hzzs.service.AutoOperationService
+import top.azek431.hzzs.features.service.AutoOperationService
 
 data class CaptureCapabilities(
     val androidApi: Int,

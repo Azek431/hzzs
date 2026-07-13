@@ -76,7 +76,7 @@
 
         <!-- 无障碍自动操作服务 -->
         <service
-            android:name=".service.AutoOperationService"
+            android:name="top.azek431.hzzs.features.service.AutoOperationService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="false"
             android:label="火崽崽助手自动操作">
