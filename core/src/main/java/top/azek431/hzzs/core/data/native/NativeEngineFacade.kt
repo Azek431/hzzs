@@ -44,11 +44,11 @@ object NativeEngineFacade {
      * @return 引擎信息，或库不可用时的错误消息
      */
     fun engineInfo(): String {
-        return if (NativeLibraryLoader.isAvailable) {
-            nativeGetEngineInfo()
-        } else {
-            String.format(UNAVAILABLE_TEMPLATE, "library not loaded")
+        if (!NativeLibraryLoader.isAvailable) {
+            return String.format(UNAVAILABLE_TEMPLATE, "library not loaded")
         }
+        return runCatching(::nativeGetEngineInfo)
+            .getOrElse { String.format(UNAVAILABLE_TEMPLATE, it.javaClass.simpleName) }
     }
 
     /**
@@ -63,11 +63,11 @@ object NativeEngineFacade {
      * @return 自检结果字符串，或库不可用时的错误消息
      */
     fun runSelfCheck(): String {
-        return if (NativeLibraryLoader.isAvailable) {
-            nativeRunSelfCheck()
-        } else {
-            String.format(UNAVAILABLE_TEMPLATE, "library not loaded")
+        if (!NativeLibraryLoader.isAvailable) {
+            return String.format(UNAVAILABLE_TEMPLATE, "library not loaded")
         }
+        return runCatching(::nativeRunSelfCheck)
+            .getOrElse { String.format(UNAVAILABLE_TEMPLATE, it.javaClass.simpleName) }
     }
 
     /**
@@ -103,20 +103,22 @@ object NativeEngineFacade {
         if (!NativeLibraryLoader.isAvailable) return null
 
         // 调用 JNI 原生方法，将归一化坐标展开为独立参数
-        val json = nativeAnalyzeFrame(
-            timestampMs,
-            playerBounds.left, playerBounds.top,
-            playerBounds.right, playerBounds.bottom,
-            playerConfidence,
-            hazardType,
-            hazardBounds?.left ?: 0f,
-            hazardBounds?.top ?: 0f,
-            hazardBounds?.right ?: 0f,
-            hazardBounds?.bottom ?: 0f,
-            hazardConfidence,
-            hazardVelocityX,
-            worldScrollSpeed,
-        )
+        val json = runCatching {
+            nativeAnalyzeFrame(
+                timestampMs,
+                playerBounds.left, playerBounds.top,
+                playerBounds.right, playerBounds.bottom,
+                playerConfidence,
+                hazardType,
+                hazardBounds?.left ?: 0f,
+                hazardBounds?.top ?: 0f,
+                hazardBounds?.right ?: 0f,
+                hazardBounds?.bottom ?: 0f,
+                hazardConfidence,
+                hazardVelocityX,
+                worldScrollSpeed,
+            )
+        }.getOrNull() ?: return null
 
         // 将 JSON 字符串解析为 FrameAnalysisResult
         return NativeJsonParser.parse(json)
@@ -132,7 +134,7 @@ object NativeEngineFacade {
      */
     fun serializeDrawingData(): String? {
         if (!NativeLibraryLoader.isAvailable) return null
-        return nativeSerializeDrawingData()
+        return runCatching(::nativeSerializeDrawingData).getOrNull()
     }
 
     /** 重置分析引擎状态 */
@@ -145,7 +147,7 @@ object NativeEngineFacade {
      */
     fun resetEngine() {
         if (NativeLibraryLoader.isAvailable) {
-            nativeResetEngine()
+            runCatching(::nativeResetEngine)
         }
     }
 
@@ -160,7 +162,7 @@ object NativeEngineFacade {
     /**
      * 分析单帧模拟数据并返回结构化 JSON 结果。
      *
-     * 对应 C++ 端的 Java_top_azek431_hzzs_NativeAnalysisBridge_nativeAnalyzeFrame。
+     * 对应 C++ 端的 Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame。
      * 参数按 C++ 端 JNI 签名顺序排列，与 FrameDetections 结构体字段对应。
      */
     private external fun nativeAnalyzeFrame(
