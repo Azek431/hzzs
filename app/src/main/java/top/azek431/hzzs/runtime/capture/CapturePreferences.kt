@@ -7,6 +7,7 @@ object CapturePreferences {
     private const val PREFS = "hzzs_runtime_v2"
     private const val KEY_MODE = "capture_mode"
     private const val KEY_INITIALIZED = "first_run_optimized"
+    private const val KEY_SAFETY_DEFAULTS_V1 = "safety_defaults_v1"
     private const val KEY_AUTO_ACTION = "auto_action"
     private const val KEY_DRAW = "draw_overlay"
     private const val KEY_DETAILED = "detailed_overlay"
@@ -18,16 +19,27 @@ object CapturePreferences {
      */
     fun ensureOptimizedDefaults(context: Context): CaptureMode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        var changed = false
         if (!prefs.getBoolean(KEY_INITIALIZED, false)) {
-            prefs.edit()
+            editor
                 .putString(KEY_MODE, CaptureMode.AUTO.name)
-                .putBoolean(KEY_AUTO_ACTION, true)
                 .putBoolean(KEY_DRAW, true)
                 .putBoolean(KEY_DETAILED, true)
                 .putBoolean(KEY_INITIALIZED, true)
-                .apply()
-            return CaptureMode.AUTO
+            changed = true
         }
+
+        // 安全迁移：历史版本曾把自动操作默认设为开启。升级后强制关闭一次，
+        // 后续只有用户在设置页主动开启才会恢复，避免旧默认值继续产生触摸注入。
+        if (!prefs.getBoolean(KEY_SAFETY_DEFAULTS_V1, false)) {
+            editor
+                .putBoolean(KEY_AUTO_ACTION, false)
+                .putBoolean(KEY_SAFETY_DEFAULTS_V1, true)
+            changed = true
+        }
+
+        if (changed) editor.apply()
         return mode(context)
     }
 
@@ -41,10 +53,13 @@ object CapturePreferences {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_MODE, mode.name).apply()
 
     fun autoAction(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AUTO_ACTION, true)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AUTO_ACTION, false)
 
     fun setAutoAction(context: Context, value: Boolean) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_AUTO_ACTION, value).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_AUTO_ACTION, value)
+            .putBoolean(KEY_SAFETY_DEFAULTS_V1, true)
+            .apply()
 
     fun draw(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DRAW, true)
