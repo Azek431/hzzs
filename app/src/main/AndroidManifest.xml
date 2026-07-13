@@ -7,7 +7,7 @@
 
     应用配置：
     - 主题：Theme.HuoZaiZaiAssistant（Material 3 浅色无操作栏主题）
-    - 入口 Activity：MainActivity（唯一 Activity）
+    - 入口 Activity：MainActivity
 
     注意：
     - 当前不需要 INTERNET 权限（QQ/Telegram 链接通过系统浏览器打开）
@@ -91,7 +91,7 @@
     <!-- HZZS-MIGRATION-BEGIN runtime-components -->
 <activity android:name=".runtime.capture.CapturePermissionActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 <activity android:name=".runtime.settings.ViewportCalibrationActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-<activity android:name=".runtime.settings.VisionRuntimeSettingsActivity" android:exported="true" />
+<activity android:name=".runtime.settings.VisionRuntimeSettingsActivity" android:exported="false" />
 <service android:name=".runtime.capture.MediaProjectionCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
 <service android:name=".runtime.vision.VisionRuntimeService" android:exported="false" android:foregroundServiceType="specialUse">
     <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local game-frame analysis overlay and optional accessibility action scheduling." />
