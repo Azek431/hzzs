@@ -6,10 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: '构建 Debug APK 并运行单元测试'
+    name: '构建、测试、Lint 与原生视觉回归'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: '检出代码'
@@ -24,9 +28,6 @@ jobs:
       - name: '赋予 gradlew 执行权限'
         run: 'chmod +x ./gradlew'
 
-      - name: '验证 Gradle Wrapper'
-        run: './gradlew wrapper --dry-run'
-
       - name: '缓存 Gradle 依赖'
         uses: actions/cache@v4
         with:
@@ -37,8 +38,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: '验证 Gradle Wrapper'
+        run: './gradlew wrapper --dry-run'
+
+      - name: '运行宿主机 C++ 合成视觉回归'
+        run: 'python3 tools/hzzs-vision-tests/synthetic_regression.py'
+
       - name: '构建 Debug APK'
         run: './gradlew :app:assembleDebug --no-daemon'
 
       - name: '运行单元测试'
         run: './gradlew testDebugUnitTest --no-daemon'
+
+      - name: '运行 Android Lint'
+        run: './gradlew lintDebug --no-daemon'
