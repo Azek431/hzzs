@@ -3,25 +3,10 @@
 # ============================================================
 
 # ---------------------------------------------------------------------------
-# JNI / Native 方法 Keep Rules
-# ---------------------------------------------------------------------------
-# NativeAnalysisBridge.kt 声明了 private external fun，R8 可能混淆类名。
-# 保留整个 NativeAnalysisBridge object 不被混淆，确保 JNI 符号名匹配：
-# C++ 端导出 Java_top_azek431_hzzs_NativeAnalysisBridge_*，
-# Kotlin 端需要类名 top.azek431.hzzs.NativeAnalysisBridge 保持不变。
--keep class top.azek431.hzzs.NativeAnalysisBridge {
-    private native java.lang.String nativeGetEngineInfo();
-    private native java.lang.String nativeRunSelfCheck();
-}
-
-# ---------------------------------------------------------------------------
 # JNI 门面层：NativeEngineFacade — 可能因 R8 混淆导致符号名不匹配
 # ---------------------------------------------------------------------------
 -keep class top.azek431.hzzs.core.data.native.NativeEngineFacade {
-    private native java.lang.String nativeGetEngineInfo();
-    private native java.lang.String nativeRunSelfCheck();
-    private native java.lang.String nativeAnalyzeFrame(long,float,float,float,float,float,int,float,float,float,float,float,float);
-    private native void nativeResetEngine();
+    native <methods>;
 }
 
 # ---------------------------------------------------------------------------

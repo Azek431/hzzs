@@ -1,19 +1,20 @@
 // 火崽崽助手（HZZS）JNI 桥接层 — C++ 分析引擎与 Kotlin UI 层的桥梁。
 //
-// 此文件包含三个 JNI 导出函数：
+// 此文件包含五个 JNI 导出函数：
 // 1. nativeAnalyzeFrame — 分析单帧数据，返回 JSON 格式的 AnalysisResult
 // 2. nativeGetEngineInfo — 返回引擎版本和特性描述
 // 3. nativeRunSelfCheck — 执行自检程序，验证引擎核心逻辑正确性
 // 4. nativeResetEngine — 重置引擎状态机（停止分析时调用）
+// 5. nativeSerializeDrawingData — 返回最后一次分析的 HUD 绘制数据
 //
 // 关键设计决策：
-// - 使用 static 引擎实例（nativeAnalyzeFrame 中），确保跨帧状态持久化
-//   这对于 SceneStateMachine 的连续确认机制至关重要
+// - 所有有状态 JNI 方法共享同一个加锁引擎实例，确保跨帧状态持久化且可安全重置
 // - JSON 序列化采用手动拼接而非 nlohmann/json 库，减少 APK 体积
 // - 所有浮点数直接输出为原生精度，Kotlin 端通过正则提取
 
 #include <jni.h>
 #include <android/log.h>
+#include <mutex>
 #include <sstream>
 #include <string>
 
@@ -24,12 +25,23 @@ namespace {
 /** 日志标签，用于 Android logcat 中过滤 HZZS 相关日志 */
 constexpr const char* kLogTag = "HZZS-Native";
 
-/** 参数数量常量：nativeAnalyzeFrame 共 15 个参数（timestamp + 4 player + 6 hazard + 2 scroll） */
-constexpr int kAnalyzeParamCount = 15;
+/**
+ * 主分析引擎的唯一运行状态。
+ *
+ * analyze/reset/serialize 可能来自不同线程，因此引擎和最后结果必须由同一把锁保护。
+ * 使用函数内静态对象可避免多个 JNI 方法各自持有一个互不相干的引擎实例。
+ */
+struct EngineState {
+    std::mutex mutex;
+    hzzs::analysis::NativeAnalysisEngine engine{};
+    hzzs::analysis::AnalysisResult last_result{};
+    bool has_last_result = false;
+};
 
-/** 最后一次分析结果（供 nativeSerializeDrawingData 使用） */
-hzzs::analysis::AnalysisResult g_lastAnalysisResult{};
-bool g_hasLastResult = false;
+EngineState& GetEngineState() {
+    static EngineState state{};
+    return state;
+}
 
 /**
  * 将 C++ std::string 转换为 JNI jstring。
@@ -90,9 +102,6 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
     jfloat hazard_velocity_x,
     jfloat world_scroll_speed
 ) {
-    // 使用静态引擎实例，跨帧保持状态（场景确认、姿态基线、跳跃阶段等）
-    static hzzs::analysis::NativeAnalysisEngine engine{};
-
     // 构造帧数据
     hzzs::analysis::FrameDetections frame{};
     frame.timestamp_ms = static_cast<std::int64_t>(timestamp_ms);
@@ -124,12 +133,15 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeAnalyzeFrame(
         frame.objects.push_back(hazard);
     }
 
-    // 执行分析
-    const hzzs::analysis::AnalysisResult result = engine.Analyze(frame);
-
-    // 保存最后一次分析结果（供 serializeDrawingData 使用）
-    g_lastAnalysisResult = result;
-    g_hasLastResult = true;
+    // 单一引擎实例跨帧保持状态；同时保护 reset/serialize 不与分析并发访问。
+    hzzs::analysis::AnalysisResult result{};
+    {
+        EngineState& state = GetEngineState();
+        const std::lock_guard<std::mutex> lock(state.mutex);
+        result = state.engine.Analyze(frame);
+        state.last_result = result;
+        state.has_last_result = true;
+    }
 
     // 序列化结果为 JSON 字符串（包含绘制数据）
     std::ostringstream json;
@@ -241,7 +253,7 @@ hzzs::analysis::FrameDetections CreateGroundFrame(
 /**
  * JNI 导出方法：获取引擎信息字符串。
  *
- * 由 Kotlin 端 NativeAnalysisBridge.engineInfo() 调用。
+ * 由 Kotlin 端 NativeEngineFacade.engineInfo() 调用。
  * 返回引擎名称、C++ 标准和功能列表的描述字符串。
  *
  * @param env JNI 环境指针
@@ -250,7 +262,7 @@ hzzs::analysis::FrameDetections CreateGroundFrame(
  */
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
+Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeGetEngineInfo(
     JNIEnv* env,
     jobject
 ) {
@@ -271,7 +283,7 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
 /**
  * JNI 导出方法：执行引擎自检。
  *
- * 由 Kotlin 端 NativeAnalysisBridge.runSelfCheck() 调用。
+ * 由 Kotlin 端 NativeEngineFacade.runSelfCheck() 调用。
  * 自检流程：
  * 1. 创建 NativeAnalysisEngine 实例
  * 2. 注入两帧模拟地面跑酷数据（时间戳 16ms 和 32ms）
@@ -289,7 +301,7 @@ Java_top_azek431_hzzs_NativeAnalysisBridge_nativeGetEngineInfo(
  */
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_top_azek431_hzzs_NativeAnalysisBridge_nativeRunSelfCheck(
+Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeRunSelfCheck(
     JNIEnv* env,
     jobject
 ) {
@@ -336,9 +348,11 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeResetEngine(
     JNIEnv*,
     jobject
 ) {
-    static hzzs::analysis::NativeAnalysisEngine engine{};
-    engine.Reset();
-    g_hasLastResult = false;
+    EngineState& state = GetEngineState();
+    const std::lock_guard<std::mutex> lock(state.mutex);
+    state.engine.Reset();
+    state.last_result = {};
+    state.has_last_result = false;
     __android_log_print(ANDROID_LOG_DEBUG, kLogTag, "[JNI] engine reset.");
 }
 
@@ -358,10 +372,11 @@ Java_top_azek431_hzzs_core_data_native_NativeEngineFacade_nativeSerializeDrawing
     JNIEnv* env,
     jobject
 ) {
-    // 直接返回上次 analyzeFrame 保存的结果
-    if (!g_hasLastResult) {
+    EngineState& state = GetEngineState();
+    const std::lock_guard<std::mutex> lock(state.mutex);
+    if (!state.has_last_result) {
         return env->NewStringUTF("{}");
     }
 
-    return ToJString(env, g_lastAnalysisResult.serializeDrawingData());
+    return ToJString(env, state.last_result.serializeDrawingData());
 }
