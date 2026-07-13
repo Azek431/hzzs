@@ -6,7 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.ColorSpace
 import android.os.Build
 import android.view.Display
-import top.azek431.hzzs.service.AutoOperationService
+import top.azek431.hzzs.features.service.AutoOperationService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit

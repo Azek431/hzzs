@@ -1,8 +1,8 @@
 package top.azek431.hzzs.runtime.vision
 
 import android.os.SystemClock
-import top.azek431.hzzs.runtime.action.RuntimeAction
-import top.azek431.hzzs.runtime.action.RuntimeActionType
+import top.azek431.hzzs.features.service.RuntimeAction
+import top.azek431.hzzs.features.service.RuntimeActionType
 import kotlin.random.Random
 
 /**

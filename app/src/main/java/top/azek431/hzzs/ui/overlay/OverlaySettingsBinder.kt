@@ -35,7 +35,7 @@ import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import kotlin.math.roundToInt
 import top.azek431.hzzs.R
-import top.azek431.hzzs.service.AutoActionQueue
+import top.azek431.hzzs.features.service.AutoActionQueue
 import top.azek431.hzzs.core.util.FeatureFlags
 
 /**

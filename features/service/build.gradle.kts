@@ -1,9 +1,10 @@
 // features/service 模块 — 自动操作服务
 //
 // 包含：
-// - AutoOperationService（无障碍服务入口）
-// - AutoActionQueue（操作队列管理）
-// - GestureInjector（手势注入）
+// - AutoOperationService（项目唯一无障碍服务入口）
+// - AutoActionQueue（旧版坐标动作兼容队列）
+// - RuntimeActionQueue（实时视觉动作队列）
+// - GestureInjector / RuntimeGestureInjector（手势注入）
 //
 // 特点：
 // - 包含 Android Service 代码

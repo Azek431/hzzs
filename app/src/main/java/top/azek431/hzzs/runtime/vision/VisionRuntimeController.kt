@@ -3,12 +3,12 @@ package top.azek431.hzzs.runtime.vision
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import top.azek431.hzzs.runtime.action.RuntimeActionQueue
+import top.azek431.hzzs.features.service.AutoOperationService
+import top.azek431.hzzs.features.service.RuntimeActionQueue
 import top.azek431.hzzs.runtime.capture.CapturePreferences
 import top.azek431.hzzs.runtime.capture.FrameCaptureCoordinator
 import top.azek431.hzzs.runtime.overlay.VisionOverlayManager
 import top.azek431.hzzs.runtime.overlay.VisionOverlayState
-import top.azek431.hzzs.service.AutoOperationService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit

@@ -1,4 +1,4 @@
-package top.azek431.hzzs.runtime.action
+package top.azek431.hzzs.features.service
 
 import android.os.SystemClock
 import java.util.PriorityQueue
@@ -23,12 +23,7 @@ data class RuntimeAction(
     }
 }
 
-/**
- * C++ 实时视觉专用的绝对到期动作队列。
- *
- * 组动作采用原子入队：大瓶双跳或宽结构补跳要么全部进入队列，要么全部拒绝，
- * 防止只接受第一跳却提前把 Track 标记为已触发。
- */
+/** 视觉运行时使用的绝对到期动作队列。 */
 object RuntimeActionQueue {
     private val queue = PriorityQueue<RuntimeAction>(
         compareBy<RuntimeAction> { it.dueAtMs }.thenByDescending { it.priority },
@@ -51,13 +46,13 @@ object RuntimeActionQueue {
         paused = value
     }
 
-    /** 返回接受数量；组内任意冲突或容量不足时返回 0，不产生部分入队。 */
+    /** 组内任意冲突或容量不足时整体拒绝，不产生部分入队。 */
     @Synchronized
     fun enqueueAll(actions: Collection<RuntimeAction>): Int {
         if (!enabled || paused || actions.isEmpty()) return 0
         val now = SystemClock.uptimeMillis()
         val candidates = actions
-            .filter { it.expiresAtMs > now }
+            .filter { it.expiresAtMs > now && it.dedupeKey.isNotBlank() }
             .sortedWith(compareBy<RuntimeAction> { it.dueAtMs }.thenByDescending { it.priority })
         if (candidates.isEmpty()) return 0
 
@@ -76,7 +71,7 @@ object RuntimeActionQueue {
     @Synchronized
     fun pollDue(now: Long = SystemClock.uptimeMillis()): RuntimeAction? {
         if (!enabled || paused) return null
-        while (queue.isNotEmpty() && queue.peek().expiresAtMs < now) {
+        while (queue.isNotEmpty() && queue.peek().expiresAtMs <= now) {
             queue.poll()?.let { keys.remove(it.dedupeKey) }
         }
         val next = queue.peek() ?: return null
@@ -86,12 +81,10 @@ object RuntimeActionQueue {
         return next
     }
 
-    /** dispatchGesture 被拒绝或稍后取消时，在原过期时间内短延迟重试。 */
     @Synchronized
     fun retry(action: RuntimeAction, delayMs: Long = 40L): Boolean {
         if (!enabled || paused) return false
-        val now = SystemClock.uptimeMillis()
-        val due = now + delayMs.coerceIn(16L, 120L)
+        val due = SystemClock.uptimeMillis() + delayMs.coerceIn(16L, 120L)
         if (due >= action.expiresAtMs || !keys.add(action.dedupeKey)) return false
         queue.offer(action.copy(dueAtMs = due))
         return true
