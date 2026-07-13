@@ -22,6 +22,7 @@ object FeatureFlags {
     const val KEY_AUTO_OPERATION_ENABLED = "auto_operation_enabled"
     const val KEY_AUTO_OPERATION_DELAY_MS = "auto_operation_delay_ms"
     const val KEY_LAST_VERSION_CODE = "last_version_code"
+    private const val KEY_AUTO_OPERATION_SAFETY_V1 = "auto_operation_safety_v1"
 
     // === 默认值 ===
     const val DEFAULT_AUTO_OPERATION_DELAY_MS = 100
@@ -43,12 +44,25 @@ object FeatureFlags {
     // --- 自动操作开关 ---
 
     /** 检查自动操作是否启用 */
-    fun isAutoOperationEnabled(ctx: Context): Boolean =
-        getPrefs(ctx).getBoolean(KEY_AUTO_OPERATION_ENABLED, false)
+    fun isAutoOperationEnabled(ctx: Context): Boolean {
+        val prefs = getPrefs(ctx)
+        if (!prefs.getBoolean(KEY_AUTO_OPERATION_SAFETY_V1, false)) {
+            // 历史版本可能在没有明确操作的情况下留下开启值；升级后安全关闭一次。
+            prefs.edit()
+                .putBoolean(KEY_AUTO_OPERATION_ENABLED, false)
+                .putBoolean(KEY_AUTO_OPERATION_SAFETY_V1, true)
+                .apply()
+            return false
+        }
+        return prefs.getBoolean(KEY_AUTO_OPERATION_ENABLED, false)
+    }
 
     /** 设置自动操作开关 */
     fun setAutoOperationEnabled(ctx: Context, enabled: Boolean) {
-        getPrefs(ctx).edit().putBoolean(KEY_AUTO_OPERATION_ENABLED, enabled).apply()
+        getPrefs(ctx).edit()
+            .putBoolean(KEY_AUTO_OPERATION_ENABLED, enabled)
+            .putBoolean(KEY_AUTO_OPERATION_SAFETY_V1, true)
+            .apply()
     }
 
     // --- 自动操作延迟 ---
