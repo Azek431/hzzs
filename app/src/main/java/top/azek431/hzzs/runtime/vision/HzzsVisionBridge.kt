@@ -17,12 +17,32 @@ object HzzsVisionBridge {
         spikeStep: Int,
     ): IntArray?
 
-    fun analyze(frame: NormalizedFrame, coarseStep: Int = 3, spikeStep: Int = 2): VisionFrameResult? {
+    private external fun nativeAnalyzeBamboo(
+        pixels: IntArray,
+        width: Int,
+        height: Int,
+    ): IntArray?
+
+    fun analyze(
+        frame: NormalizedFrame,
+        coarseStep: Int = 3,
+        spikeStep: Int = 2,
+        algorithm: VisionAlgorithm = VisionAlgorithm.DEFAULT,
+    ): VisionFrameResult? {
         if (!NativeLibraryLoader.isAvailable) return null
         if (frame.width <= 0 || frame.height <= 0 || frame.pixels.size < frame.width * frame.height) return null
         val started = SystemClock.elapsedRealtimeNanos()
-        val raw = runCatching { nativeAnalyze(frame.pixels, frame.width, frame.height, coarseStep, spikeStep) }
-            .onFailure { Log.e(TAG, "nativeAnalyze failed", it) }.getOrNull() ?: return null
+        val raw = runCatching {
+            when (algorithm) {
+                VisionAlgorithm.BAMBOO_STUDY ->
+                    nativeAnalyzeBamboo(frame.pixels, frame.width, frame.height)
+
+                VisionAlgorithm.SWEET_FACTORY_LEGACY ->
+                    nativeAnalyze(frame.pixels, frame.width, frame.height, coarseStep, spikeStep)
+            }
+        }
+            .onFailure { Log.e(TAG, "nativeAnalyze failed: ${algorithm.name}", it) }
+            .getOrNull() ?: return null
         if (raw.size < RESULT_SIZE || raw[0] != RESULT_VERSION) {
             Log.e(TAG, "native result mismatch: size=${raw.size}, version=${raw.getOrNull(0)}")
             return null

@@ -28,6 +28,7 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
     private var lastFpsAt = SystemClock.uptimeMillis()
     private var frameCount = 0
     private var fps = 0f
+    private var lastAlgorithm: VisionAlgorithm? = null
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
@@ -74,13 +75,20 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
                 return
             }
 
+            val algorithm = CapturePreferences.algorithm(app)
+            if (algorithm != lastAlgorithm) {
+                RuntimeActionQueue.clear()
+                tracker.reset()
+                lastAlgorithm = algorithm
+            }
+
             val normalized = try {
-                FrameNormalizer.normalize(app, bitmap)
+                FrameNormalizer.normalize(app, bitmap, maxWorkWidth = algorithm.workWidth)
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
 
-            val result = HzzsVisionBridge.analyze(normalized)?.let(tracker::update)
+            val result = HzzsVisionBridge.analyze(normalized, algorithm = algorithm)?.let(tracker::update)
             if (result == null) {
                 VisionOverlayManager.update(
                     VisionOverlayState(
@@ -164,6 +172,7 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
         future = null
         RuntimeActionQueue.setEnabled(false)
         tracker.reset()
+        lastAlgorithm = null
         VisionOverlayManager.hide()
     }
 

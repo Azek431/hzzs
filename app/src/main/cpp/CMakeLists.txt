@@ -83,13 +83,23 @@ target_link_libraries(
 target_sources(hzzs_native PRIVATE
     vision2/HzzsVisionCore.cpp
     vision2/HzzsVisionJni.cpp
+    vision_bamboo/BambooVisionEngine.cpp
+    vision_bamboo/BambooVisionCore.cpp
+    vision_bamboo/BambooVisionJni.cpp
 )
-target_include_directories(hzzs_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vision2)
+
+target_include_directories(hzzs_native PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/vision2
+    ${CMAKE_CURRENT_SOURCE_DIR}/vision_bamboo
+)
 target_compile_features(hzzs_native PRIVATE cxx_std_17)
 # 仅限制本次新增的视觉源文件，不把 -fno-exceptions/-fno-rtti 污染现有原生模块。
 set_source_files_properties(
     vision2/HzzsVisionCore.cpp
     vision2/HzzsVisionJni.cpp
+    vision_bamboo/BambooVisionEngine.cpp
+    vision_bamboo/BambooVisionCore.cpp
+    vision_bamboo/BambooVisionJni.cpp
     PROPERTIES COMPILE_OPTIONS "-fno-exceptions;-fno-rtti"
 )
 # HZZS-MIGRATION-END vision-v2

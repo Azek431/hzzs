@@ -25,13 +25,18 @@ import top.azek431.hzzs.runtime.capture.CapturePermissionActivity
 import top.azek431.hzzs.runtime.capture.CapturePreferences
 import top.azek431.hzzs.runtime.capture.MediaProjectionCaptureService
 import top.azek431.hzzs.features.service.AutoOperationService
+import top.azek431.hzzs.features.service.RuntimeActionQueue
+import top.azek431.hzzs.runtime.vision.VisionAlgorithm
 import top.azek431.hzzs.runtime.vision.VisionRuntimeService
 
 class VisionRuntimeSettingsActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var modeSpinner: Spinner
+    private lateinit var algorithmSpinner: Spinner
     private lateinit var modes: List<CaptureMode>
+    private lateinit var algorithms: List<VisionAlgorithm>
     private var initializingSpinner = true
+    private var initializingAlgorithmSpinner = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +82,50 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             }
         }
         root.addView(modeSpinner)
+
+        root.addView(TextView(this).apply {
+            text = "识别算法"
+            textSize = 18f
+        })
+        root.addView(TextView(this).apply {
+            text = "竹影书屋为新赛季默认算法；甜品工厂保留原算法。切换会停止运行并关闭自动操作。"
+            textSize = 13f
+        })
+        algorithms = VisionAlgorithm.entries.toList()
+        algorithmSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@VisionRuntimeSettingsActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                algorithms.map { it.displayName },
+            )
+            setSelection(
+                algorithms.indexOf(CapturePreferences.algorithm(this@VisionRuntimeSettingsActivity))
+                    .coerceAtLeast(0),
+            )
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    if (initializingAlgorithmSpinner) {
+                        initializingAlgorithmSpinner = false
+                        return
+                    }
+                    val selected = algorithms[position]
+                    if (selected == CapturePreferences.algorithm(this@VisionRuntimeSettingsActivity)) return
+                    VisionRuntimeService.stop(this@VisionRuntimeSettingsActivity)
+                    RuntimeActionQueue.clear()
+                    CapturePreferences.setAutoAction(this@VisionRuntimeSettingsActivity, false)
+                    CapturePreferences.setAlgorithm(this@VisionRuntimeSettingsActivity, selected)
+                    Toast.makeText(
+                        this@VisionRuntimeSettingsActivity,
+                        "已切换到${selected.displayName}；自动操作已关闭",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    refresh()
+                }
+            }
+        }
+        root.addView(algorithmSpinner)
 
         fun button(text: String, action: () -> Unit): Button = Button(this).apply {
             this.text = text
@@ -179,6 +228,7 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
         status.text = buildString {
             appendLine("Android API ${capabilities.androidApi}")
             appendLine("推荐：${modeLabel(capabilities.recommended)}")
+            appendLine("识别算法：${CapturePreferences.algorithm(this@VisionRuntimeSettingsActivity).displayName}")
             appendLine("无障碍截图支持：${capabilities.accessibilityScreenshotSupported}")
             appendLine("无障碍已连接：${capabilities.accessibilityConnected}")
             appendLine("当前前台包名：${AutoOperationService.foregroundPackageName() ?: "--"}")
