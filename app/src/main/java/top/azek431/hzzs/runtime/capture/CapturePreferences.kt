@@ -2,10 +2,12 @@ package top.azek431.hzzs.runtime.capture
 
 import android.content.Context
 import android.graphics.RectF
+import top.azek431.hzzs.runtime.vision.VisionAlgorithm
 
 object CapturePreferences {
     private const val PREFS = "hzzs_runtime_v2"
     private const val KEY_MODE = "capture_mode"
+    private const val KEY_VISION_ALGORITHM = "vision_algorithm"
     private const val KEY_INITIALIZED = "first_run_optimized"
     private const val KEY_SAFETY_DEFAULTS_V1 = "safety_defaults_v1"
     private const val KEY_AUTO_ACTION = "auto_action"
@@ -30,6 +32,11 @@ object CapturePreferences {
             changed = true
         }
 
+        if (!prefs.contains(KEY_VISION_ALGORITHM)) {
+            editor.putString(KEY_VISION_ALGORITHM, VisionAlgorithm.DEFAULT.preferenceValue)
+            changed = true
+        }
+
         // 安全迁移：历史版本曾把自动操作默认设为开启。升级后强制关闭一次，
         // 后续只有用户在设置页主动开启才会恢复，避免旧默认值继续产生触摸注入。
         if (!prefs.getBoolean(KEY_SAFETY_DEFAULTS_V1, false)) {
@@ -51,6 +58,17 @@ object CapturePreferences {
 
     fun setMode(context: Context, mode: CaptureMode) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_MODE, mode.name).apply()
+
+    fun algorithm(context: Context): VisionAlgorithm = VisionAlgorithm.fromPreference(
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_VISION_ALGORITHM, VisionAlgorithm.DEFAULT.preferenceValue),
+    )
+
+    fun setAlgorithm(context: Context, algorithm: VisionAlgorithm) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_VISION_ALGORITHM, algorithm.preferenceValue)
+            .apply()
 
     fun autoAction(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AUTO_ACTION, false)
