@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(skills find *)",
+      "Bash(dir \".agents\\\\skills\" /b)",
+      "Bash(dir \"~\\\\.agents\\\\skills\" /b)",
+      "Bash(git add *)"
+    ]
+  },
+  "promptFiles": [],
+  "statusBar": {
+    "location": "right",
+    "items": [
+      {
+        "text": "$(workspace-root) 当前目录: $projectRootPath",
+        "when": "true"
+      },
+      {
+        "text": "$(comment-discussion) 模型: $modelName",
+        "when": "true"
+      },
+      {
+        "text": "$(circle-half) 上下文剩余: $remainingContextPercent%",
+        "when": "true"
+      }
+    ]
+  }
+}
