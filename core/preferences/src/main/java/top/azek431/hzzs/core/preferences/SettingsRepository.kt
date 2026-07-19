@@ -88,8 +88,8 @@ class DataStoreSettingsRepository @Inject constructor(
      * The historic auto_action flag is deliberately ignored: an upgrade can never
      * arm automation or make it persistent.
      */
-    private suspend fun migrateLegacyOnce() = migrationMutex.withLock {
-        if (context.settingsDataStore.data.first()[legacyMigratedKey] == true) return
+    private suspend fun migrateLegacyOnce(): Unit = migrationMutex.withLock {
+        if (context.settingsDataStore.data.first()[legacyMigratedKey] == true) return@withLock
         val legacy = context.getSharedPreferences("hzzs_runtime_v2", Context.MODE_PRIVATE)
         val migrated = if (legacy.all.isEmpty()) {
             null
