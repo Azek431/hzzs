@@ -139,7 +139,7 @@ class SettingsEditSession(
     original: AppConfig,
     private val onPreview: suspend (AppConfig) -> Unit,
     private val onPersist: suspend (AppConfig) -> Unit,
-    private val onClearPreview: suspend () -> Unit = {},
+    private val onClearPreview: suspend () -> Unit,
 ) {
     private val mutex = Mutex()
     private val baseline = original.validated()
@@ -170,10 +170,24 @@ class SettingsEditSession(
     }
 
     suspend fun discard(): AppConfig {
-        val shouldDiscard = mutex.withLock {
-            if (closed) false else true.also { closed = true }
+        val discardedDraft = mutex.withLock {
+            if (closed) {
+                null
+            } else {
+                draft.also {
+                    draft = baseline
+                    closed = true
+                }
+            }
         }
-        if (shouldDiscard) onClearPreview()
+        if (discardedDraft == null) return baseline
+
+        runCatching { onClearPreview() }.onFailure {
+            mutex.withLock {
+                draft = discardedDraft
+                closed = false
+            }
+        }.getOrThrow()
         return baseline
     }
 

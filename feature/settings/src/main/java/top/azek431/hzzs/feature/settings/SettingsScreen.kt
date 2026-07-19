@@ -41,12 +41,23 @@ class SettingsViewModel @Inject constructor(private val repository: SettingsRepo
     private suspend fun open() {
         val original = repository.snapshot()
         _draft.value = original
-        session = SettingsEditSession(original, onPreview = { config -> _draft.value = config; repository.preview(config) }, onPersist = repository::save)
+        session = SettingsEditSession(
+            original = original,
+            onPreview = { config ->
+                _draft.value = config
+                repository.preview(config)
+            },
+            onPersist = repository::save,
+            onClearPreview = {
+                repository.clearPreview()
+                _draft.value = original
+            },
+        )
     }
     fun update(transform: (AppConfig) -> AppConfig) = viewModelScope.launch { session?.update(transform) }
     fun save(onDone: () -> Unit) = viewModelScope.launch { session?.save(); onDone() }
-    fun discard(onDone: () -> Unit) = viewModelScope.launch { session?.discard(); repository.clearPreview(); onDone() }
-    fun discardSilently() = viewModelScope.launch { session?.discard(); repository.clearPreview() }
+    fun discard(onDone: () -> Unit) = viewModelScope.launch { session?.discard(); onDone() }
+    fun discardSilently() = viewModelScope.launch { session?.discard() }
     fun export(): String = repository.exportJson(_draft.value)
     fun import(json: String) = viewModelScope.launch { runCatching { repository.importJson(json) }.onSuccess { config -> session?.update { config } } }
 }
