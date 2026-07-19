@@ -1,4 +1,0 @@
-<resources>
-    <string name="hzzs_runtime_accessibility_description">用于用户主动启用的跳跃、滑铲和 Android 11+ 本地截图分析；不会读取或上传文本内容。</string>
-    <string name="hzzs_runtime_settings_title">视觉、权限与自动操作</string>
-</resources>

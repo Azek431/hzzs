@@ -1,53 +1,20 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-    主题资源文件：HZZS 应用 Material Design 3 浅色主题配置。
-
-    主题名称：Theme.HuoZaiZaiAssistant
-    父主题：Theme.Material3.Light.NoActionBar（无操作栏的 Material 3 浅色主题）
-
-    关键配置说明：
-    - windowBackground / colorBackground：使用 surface_background (#FFF8F6) 暖白色背景
-    - colorPrimary：品牌珊瑚红 (#C73650)，用于主按钮、 FAB 等
-    - statusBarColor / navigationBarColor：透明，配合 Edge-to-Edge 模式实现沉浸式全屏
-    - windowLightStatusBar / windowLightNavigationBar：true，启用深色状态栏图标（适配浅色背景）
-    - windowActionModeOverlay：true，允许 ActionMode 覆盖在窗口之上
--->
-<resources>
-
-    <style name="Theme.HuoZaiZaiAssistant" parent="Theme.Material3.Light.NoActionBar">
-        <item name="android:windowBackground">@color/surface_background</item>
-        <item name="android:colorBackground">@color/surface_background</item>
-
-        <item name="colorPrimary">@color/brand_primary</item>
-        <item name="colorOnPrimary">@color/brand_on_primary</item>
-        <item name="colorPrimaryContainer">@color/brand_primary_container</item>
-        <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
-
-        <item name="colorSecondary">@color/brand_primary</item>
-        <item name="colorOnSecondary">@color/brand_on_primary</item>
-
-        <item name="colorSurface">@color/surface</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        <item name="colorSurfaceVariant">@color/surface_container_high</item>
-        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
-
-        <item name="colorOutline">@color/outline</item>
-        <item name="colorOutlineVariant">@color/outline_variant</item>
-
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Hzzs" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
-
-    <!-- 设置页面 TabLayout 文字样式 -->
-    <style name="SettingsTabTextAppearance" parent="TextAppearance.Material3.LabelLarge">
-        <item name="android:textSize">13sp</item>
+    <style name="Theme.Hzzs.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_flame</item>
+        <item name="postSplashScreenTheme">@style/Theme.Hzzs</item>
     </style>
-
-    <!-- 顶部标题栏文字样式 -->
-    <style name="TopAppBarTitle" parent="TextAppearance.Material3.TitleMedium">
-        <item name="fontWeight">500</item>
+    <style name="Theme.Hzzs.Transparent" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorAccent">@color/launcher_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
     </style>
-
 </resources>

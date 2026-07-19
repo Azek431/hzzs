@@ -1,225 +1,121 @@
-// 火崽崽助手（HZZS）主 Activity。
-//
-// 这是应用的唯一入口页面，也是整个 UI 层的调度中心。
-//
-// 职责（极简）：
-// 1. 页面生命周期管理（onCreate / onResume）
-// 2. 底部导航栏管理（首页 / 设置 Fragment 切换）
-// 3. 调度业务逻辑（悬浮窗显示/隐藏、免责声明检查）
-// 4. 绑定社区链接（QQ 群、Telegram 频道）
-//
-// 设计原因：
-// - MainActivity 只保留"组装和调度"的职责
-// - 首页和设置页作为 Fragment 共存，切换时保留状态
-// - 符合单一职责原则和依赖倒置原则
-
 package top.azek431.hzzs
 
-import top.azek431.hzzs.runtime.settings.VisionRuntimeBootstrap
-import android.content.Intent
+import android.content.ContentValues
+import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import top.azek431.hzzs.ui.disclaimer.DisclaimerActivity
-import top.azek431.hzzs.ui.home.HomeActionCallbacks
-import top.azek431.hzzs.ui.home.HomeFragment
-import top.azek431.hzzs.ui.main.MainDialogController
-import top.azek431.hzzs.ui.main.OverlayPermissionController
-import top.azek431.hzzs.ui.overlay.OverlayPreviewManager
-import top.azek431.hzzs.ui.settings.SettingsFragmentPage
-import top.azek431.hzzs.ui.settings.VisionSettingsKeys
-import top.azek431.hzzs.core.util.FeatureFlags
-import top.azek431.hzzs.core.util.Logger
+import android.provider.MediaStore
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.*
+import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import top.azek431.hzzs.core.designsystem.HzzsTheme
+import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.preferences.SettingsRepository
+import top.azek431.hzzs.feature.about.AboutScreen
+import top.azek431.hzzs.feature.about.DonationKind
+import top.azek431.hzzs.feature.home.HomeScreen
+import top.azek431.hzzs.feature.runtime.RuntimeScreen
+import top.azek431.hzzs.feature.settings.SettingsScreen
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.inject.Inject
 
-/**
- * 主 Activity，同时也是 HomeActionCallbacks 的实现者。
- *
- * HomeFragment 通过 HomeActionCallbacks 接口调用业务方法，
- * MainActivity 实现该接口完成回调。
- */
-class MainActivity : AppCompatActivity(), HomeActionCallbacks {
-
-    // ==================== Controller 实例 ====================
-
-    /** 对话框控制器 */
-    private lateinit var dialogController: MainDialogController
-
-    /** 悬浮窗权限控制器 */
-    private lateinit var permissionController: OverlayPermissionController
-
-    // ==================== 底部导航栏 ====================
-
-    /** 首页 Fragment */
-    private lateinit var homeFragment: HomeFragment
-
-    /** 设置 Fragment */
-    private lateinit var settingsFragment: SettingsFragmentPage
-
-    // ==================== 生命周期 ====================
-
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
-
-        // 启用 Edge-to-Edge 全屏显示
-        WindowCompat.enableEdgeToEdge(window)
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
-
-        setContentView(R.layout.activity_main)
-
-        // 检查免责声明（首次启动阻塞模式）：
-        // 如果用户未同意声明，直接进入 DisclaimerActivity 并 finish() 自身，
-        // 用户必须阅读并同意后才能进入应用。
-        if (!FeatureFlags.isDisclaimerAccepted(this)) {
-            startActivity(Intent(this, DisclaimerActivity::class.java).apply {
-                putExtra(DisclaimerActivity.EXTRA_RETURN_TO_MAIN, false)
-            })
-            finish()
-            return
-        }
-
-        // 初始化 Controller
-        dialogController = MainDialogController(this)
-        permissionController = OverlayPermissionController(this)
-
-        // HZZS-MIGRATION-BEGIN runtime-bootstrap
-        VisionRuntimeBootstrap.initialize(this)
-        VisionRuntimeBootstrap.maybeLaunchFirstRun(this)
-        // HZZS-MIGRATION-END runtime-bootstrap
-
-        // 初始化日志缓冲区容量（从 SharedPreferences 读取配置）
-        val capacity = getSharedPreferences(VisionSettingsKeys.PREFS_NAME, MODE_PRIVATE)
-            .getInt(VisionSettingsKeys.KEY_LOG_BUFFER_CAPACITY, VisionSettingsKeys.DEFAULT_LOG_BUFFER_CAPACITY)
-        Logger.setCapacity(capacity)
-
-        // 执行页面初始化流程
-        refreshOverlayButton()
-        setupBottomNavigation()
+        setContent { HzzsRoot(onSaveDonation = ::saveDonationImage) }
     }
 
-    /**
-     * 每次回到前台时刷新悬浮窗按钮状态。
-     */
-    override fun onResume() {
-        super.onResume()
-        refreshOverlayButton()
+    private fun saveDonationImage(kind: DonationKind) {
+        val resId = if (kind == DonationKind.WECHAT) top.azek431.hzzs.feature.about.R.drawable.donation_wechat else top.azek431.hzzs.feature.about.R.drawable.donation_alipay
+        val extension = if (kind == DonationKind.WECHAT) "png" else "jpg"
+        val mime = if (extension == "png") "image/png" else "image/jpeg"
+        val name = "Azek_${kind.name.lowercase()}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.$extension"
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, name)
+            put(MediaStore.Images.Media.MIME_TYPE, mime)
+            if (Build.VERSION.SDK_INT >= 29) put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/HZZS")
+        }
+        contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)?.let { uri ->
+            contentResolver.openOutputStream(uri)?.use { output -> resources.openRawResource(resId).use { it.copyTo(output) } }
+        }
     }
+}
 
-    // ==================== 页面初始化流程 ====================
+@HiltViewModel
+class AppViewModel @Inject constructor(repository: SettingsRepository) : ViewModel() {
+    val config: StateFlow<AppConfig> = repository.config.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppConfig())
+}
 
-    // ==================== 底部导航栏 ====================
+private enum class Destination(val route: String, val label: String) {
+    HOME("home", "首页"), RUNTIME("runtime", "运行"), SETTINGS("settings", "设置"), ABOUT("about", "关于")
+}
 
-    /**
-     * 设置底部导航栏。
-     *
-     * 创建首页和设置 Fragment，注册导航栏切换监听。
-     * 默认显示首页。
-     */
-    private fun setupBottomNavigation() {
-        homeFragment = HomeFragment.newInstance(MainActivity::class.java)
-        settingsFragment = SettingsFragmentPage()
-
-        // 默认显示首页
-        supportFragmentManager.beginTransaction()
-            .add(R.id.fragmentContainer, homeFragment, "home")
-            .add(R.id.fragmentContainer, settingsFragment, "settings")
-            .hide(settingsFragment)
-            .commit()
-
-        val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
-        val visionSettingsMenuId = android.view.View.generateViewId()
-        bottomNav.menu.add(0, visionSettingsMenuId, 90, "视觉").setIcon(R.drawable.ic_stat_hzzs)
-        bottomNav.setOnItemSelectedListener { item ->
-            if (item.itemId == visionSettingsMenuId) {
-                startActivity(android.content.Intent(this, top.azek431.hzzs.runtime.settings.VisionRuntimeSettingsActivity::class.java))
-                return@setOnItemSelectedListener false
-            }
-            when (item.itemId) {
-                R.id.nav_home -> {
-                    supportFragmentManager.beginTransaction()
-                        .hide(settingsFragment)
-                        .show(homeFragment)
-                        .commit()
-                    true
+@Composable
+private fun HzzsRoot(onSaveDonation: (DonationKind) -> Unit, vm: AppViewModel = hiltViewModel()) {
+    val config by vm.config.collectAsState()
+    HzzsTheme(config.theme) {
+        val nav = rememberNavController()
+        val entry by nav.currentBackStackEntryAsState()
+        val current = entry?.destination?.route
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val wide = maxWidth >= 720.dp
+            if (wide) {
+                Row {
+                    NavigationRail {
+                        Spacer(Modifier.height(12.dp))
+                        Destination.entries.forEach { destination ->
+                            NavigationRailItem(selected = current == destination.route, onClick = { nav.navigate(destination.route) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } }, icon = { Icon(icon(destination), null) }, label = { Text(destination.label) })
+                        }
+                    }
+                    HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
+                    AppNavHost(nav, onSaveDonation, Modifier.weight(1f))
                 }
-                R.id.nav_settings -> {
-                    supportFragmentManager.beginTransaction()
-                        .hide(homeFragment)
-                        .show(settingsFragment)
-                        .commit()
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    // ==================== 悬浮窗管理 ====================
-
-    private fun refreshOverlayButton() {
-        // 悬浮窗按钮在 HomeFragment 内，通过主页面更新
-        val homeFrag = supportFragmentManager.findFragmentByTag("home") as? HomeFragment
-        homeFrag?.let {
-            val btn = it.requireView().findViewById<com.google.android.material.button.MaterialButton>(R.id.btnOverlayExecution)
-            btn?.text = if (OverlayPreviewManager.isShowing()) {
-                getString(R.string.overlay_preview_close)
             } else {
-                getString(R.string.action_start_overlay_execution)
+                Scaffold(bottomBar = {
+                    NavigationBar {
+                        Destination.entries.forEach { destination ->
+                            NavigationBarItem(selected = current == destination.route, onClick = { nav.navigate(destination.route) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } }, icon = { Icon(icon(destination), null) }, label = { Text(destination.label) })
+                        }
+                    }
+                }) { padding -> AppNavHost(nav, onSaveDonation, Modifier.padding(padding)) }
             }
         }
     }
+}
 
-    // ==================== 业务回调 ====================
-
-    /** 点击了"查看开发计划"按钮 */
-    override fun onDevelopmentPlanClicked() {
-        dialogController.showDevelopmentPlan()
+@Composable private fun AppNavHost(nav: androidx.navigation.NavHostController, onSaveDonation: (DonationKind) -> Unit, modifier: Modifier) {
+    NavHost(navController = nav, startDestination = Destination.HOME.route, modifier = modifier) {
+        composable(Destination.HOME.route) { HomeScreen(onOpenRuntime = { nav.navigate(Destination.RUNTIME.route) }, onOpenSettings = { nav.navigate(Destination.SETTINGS.route) }) }
+        composable(Destination.RUNTIME.route) { RuntimeScreen() }
+        composable(Destination.SETTINGS.route) { SettingsScreen(onExit = { nav.popBackStack() }) }
+        composable(Destination.ABOUT.route) { AboutScreen(onSaveQr = onSaveDonation) }
     }
+}
 
-    /** 点击了"悬浮窗开关"按钮 */
-    override fun onOverlayToggleClicked() {
-        handleOverlayPreview()
-    }
-
-    /** 点击了"免责声明"按钮 */
-    override fun onDisclaimerClicked() {
-        startActivity(Intent(this, DisclaimerActivity::class.java))
-    }
-
-    private fun handleOverlayPreview() {
-        if (!permissionController.hasPermission()) {
-            dialogController.showOverlayPermissionExplanation(
-                onGoToSettings = { permissionController.openSettings() },
-                onCancel = {},
-            )
-            return
-        }
-
-        if (OverlayPreviewManager.isShowing()) {
-            OverlayPreviewManager.hide()
-            refreshOverlayButton()
-            return
-        }
-
-        val opened = OverlayPreviewManager.show(this)
-        refreshOverlayButton()
-
-        if (!opened) {
-            android.widget.Toast.makeText(
-                this,
-                stringOrFallback(
-                    "overlay_preview_open_failed",
-                    getString(R.string.overlay_preview_open_failed),
-                ),
-                android.widget.Toast.LENGTH_SHORT,
-            ).show()
-        }
-    }
-
-    private fun stringOrFallback(name: String, fallback: String): String {
-        val id = resources.getIdentifier(name, "string", packageName)
-        return if (id == 0) fallback else getString(id)
-    }
+private fun icon(destination: Destination) = when (destination) {
+    Destination.HOME -> Icons.Rounded.Home
+    Destination.RUNTIME -> Icons.Rounded.PlayCircle
+    Destination.SETTINGS -> Icons.Rounded.Settings
+    Destination.ABOUT -> Icons.Rounded.Info
 }
