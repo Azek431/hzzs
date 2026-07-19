@@ -4,9 +4,20 @@ enum class VisionAlgorithm(
     val preferenceValue: String,
     val displayName: String,
     val workWidth: Int,
+    val automaticActionCalibrated: Boolean,
 ) {
-    BAMBOO_STUDY("bamboo_study", "竹影书屋（新赛季，默认）", 320),
-    SWEET_FACTORY_LEGACY("sweet_factory_legacy", "甜品工厂（原算法）", 480),
+    BAMBOO_STUDY(
+        preferenceValue = "bamboo_study",
+        displayName = "竹影书屋（新赛季，默认）",
+        workWidth = 320,
+        automaticActionCalibrated = false,
+    ),
+    SWEET_FACTORY_LEGACY(
+        preferenceValue = "sweet_factory_legacy",
+        displayName = "甜品工厂（原算法）",
+        workWidth = 480,
+        automaticActionCalibrated = true,
+    ),
     ;
 
     companion object {

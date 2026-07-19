@@ -275,12 +275,13 @@ class DisclaimerActivity : AppCompatActivity() {
      * 在超高 DPI 设备（如 2800×1840）上也能准确工作。
      */
     private fun calculateAndUpdateProgress() {
-        val scrollRange = scrollView.computeVerticalScrollRange()          // 内容总高度（px）
-        val scrollOffset = scrollView.scrollY                               // 当前滚动偏移（px）
-        val scrollExtent = scrollView.computeVerticalScrollExtent()         // 可见区域高度（px）
-
-        // 可滚动范围 = 内容总高度 - 可见区域高度
-        val scrollRangePx = scrollRange - scrollExtent
+        // NestedScrollView.computeVerticalScrollRange/Extent are restricted AndroidX APIs.
+        // The laid-out child height and public scrollY/height values provide the same result.
+        val contentHeight = scrollView.getChildAt(0)?.height ?: 0
+        val scrollExtent = (scrollView.height - scrollView.paddingTop - scrollView.paddingBottom)
+            .coerceAtLeast(0)
+        val scrollRangePx = (contentHeight - scrollExtent).coerceAtLeast(0)
+        val scrollOffset = scrollView.scrollY.coerceIn(0, scrollRangePx)
         val progress = if (scrollRangePx > 0) scrollOffset.toFloat() / scrollRangePx else 1f
 
         // 更新百分比显示

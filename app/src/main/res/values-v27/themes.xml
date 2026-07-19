@@ -1,20 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    主题资源文件：HZZS 应用 Material Design 3 浅色主题配置。
-
-    主题名称：Theme.HuoZaiZaiAssistant
-    父主题：Theme.Material3.Light.NoActionBar（无操作栏的 Material 3 浅色主题）
-
-    关键配置说明：
-    - windowBackground / colorBackground：使用 surface_background (#FFF8F6) 暖白色背景
-    - colorPrimary：品牌珊瑚红 (#C73650)，用于主按钮、 FAB 等
-    - statusBarColor / navigationBarColor：透明，配合 Edge-to-Edge 模式实现沉浸式全屏
-    - windowLightStatusBar / windowLightNavigationBar：true，启用深色状态栏图标（适配浅色背景）
-    - windowActionModeOverlay：true，允许 ActionMode 覆盖在窗口之上
--->
 <resources>
-
-    <style name="Theme.HuoZaiZaiAssistant" parent="Theme.Material3.Light.NoActionBar">
+<style name="Theme.HuoZaiZaiAssistant" parent="Theme.Material3.Light.NoActionBar">
         <item name="android:windowBackground">@color/surface_background</item>
         <item name="android:colorBackground">@color/surface_background</item>
 
@@ -37,17 +23,7 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
-
-    <!-- 设置页面 TabLayout 文字样式 -->
-    <style name="SettingsTabTextAppearance" parent="TextAppearance.Material3.LabelLarge">
-        <item name="android:textSize">13sp</item>
-    </style>
-
-    <!-- 顶部标题栏文字样式 -->
-    <style name="TopAppBarTitle" parent="TextAppearance.Material3.TitleMedium">
-        <item name="fontWeight">500</item>
-    </style>
-
 </resources>

@@ -2,25 +2,30 @@
 #include "BambooVisionEngine.h"
 
 #include <algorithm>
-#include <array>
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <vector>
 
 namespace hzzs::vision_bamboo {
 namespace {
-
 constexpr int kGroundOffset = 12;
 constexpr int kGapOffset = 28;
 constexpr int kOverheadOffset = 44;
+constexpr float kMinimumPlayerConfidence = 0.45f;
+constexpr int kMaximumFrameDimension = 8192;
 
 Detection convertObject(
     const HzzsObject& object,
     int targetKind,
+    int playerLeft,
     int playerRight,
     int playerWidth) noexcept {
     Detection out{};
+    const int objectRightExclusive = object.x + std::max(0, object.width);
+    // 已完全位于角色身后的目标仅属于历史画面，不得进入动作协议。
+    if (objectRightExclusive <= playerLeft) return out;
+
     out.found = 1;
     out.kind = targetKind;
     out.left = object.x;
@@ -34,8 +39,11 @@ Detection convertObject(
     out.heightPx = object.height;
     out.widthMilliP = object.width * 1000 / std::max(1, playerWidth);
     out.heightMilliP = object.height * 1000 / std::max(1, playerWidth);
-    out.scorePermille = std::clamp(static_cast<int>(object.confidence * 1000.0f + 0.5f), 0, 1000);
-    out.samples = object.width * object.height;
+    out.scorePermille = std::clamp(
+        static_cast<int>(object.confidence * 1000.0f + 0.5f),
+        0,
+        1000);
+    out.samples = std::max(0, object.width) * std::max(0, object.height);
     return out;
 }
 
@@ -46,37 +54,42 @@ bool isBetter(const Detection& current, const Detection& candidate) noexcept {
     return candidate.scorePermille > current.scorePermille;
 }
 
-void writeDetection(const Detection& d, std::int32_t* out, int offset) noexcept {
-    out[offset] = d.found;
-    out[offset + 1] = d.kind;
-    out[offset + 2] = d.left;
-    out[offset + 3] = d.top;
-    out[offset + 4] = d.right;
-    out[offset + 5] = d.bottom;
-    out[offset + 6] = d.centerX;
-    out[offset + 7] = d.centerY;
-    out[offset + 8] = d.edgeGapPx;
-    out[offset + 9] = d.widthPx;
-    out[offset + 10] = d.heightPx;
-    out[offset + 11] = d.widthMilliP;
-    out[offset + 12] = d.heightMilliP;
-    out[offset + 13] = d.sizeClass;
-    out[offset + 14] = d.scorePermille;
-    out[offset + 15] = d.samples;
+void writeDetection(const Detection& detection, std::int32_t* out, int offset) noexcept {
+    out[offset] = detection.found;
+    out[offset + 1] = detection.kind;
+    out[offset + 2] = detection.left;
+    out[offset + 3] = detection.top;
+    out[offset + 4] = detection.right;
+    out[offset + 5] = detection.bottom;
+    out[offset + 6] = detection.centerX;
+    out[offset + 7] = detection.centerY;
+    out[offset + 8] = detection.edgeGapPx;
+    out[offset + 9] = detection.widthPx;
+    out[offset + 10] = detection.heightPx;
+    out[offset + 11] = detection.widthMilliP;
+    out[offset + 12] = detection.heightMilliP;
+    out[offset + 13] = detection.sizeClass;
+    out[offset + 14] = detection.scorePermille;
+    out[offset + 15] = detection.samples;
 }
-
 } // namespace
 
 AnalysisResult analyze(const FrameView& frame) noexcept {
     AnalysisResult out{};
     out.width = frame.width;
     out.height = frame.height;
-    if (frame.pixels == nullptr || frame.width < 32 || frame.height < 64 || frame.stride < frame.width) return out;
+    out.sceneState = HZZS_SCENE_UNSAFE;
 
-    // The engine uses packed RGB. Keep a thread-local scratch buffer so Android frames do
-    // not allocate after the first frame or after a work-size change.
+    if (frame.pixels == nullptr || frame.width < 32 || frame.height < 64 || frame.stride < frame.width ||
+        frame.width > kMaximumFrameDimension || frame.height > kMaximumFrameDimension) {
+        return out;
+    }
+
+    const std::size_t pixelCount = static_cast<std::size_t>(frame.width) * static_cast<std::size_t>(frame.height);
+    if (pixelCount > std::numeric_limits<std::size_t>::max() / 3U) return out;
+
     thread_local std::vector<std::uint8_t> rgb;
-    const std::size_t needed = static_cast<std::size_t>(frame.width) * frame.height * 3U;
+    const std::size_t needed = pixelCount * 3U;
     if (rgb.size() != needed) rgb.resize(needed);
 
     std::size_t dst = 0;
@@ -92,42 +105,71 @@ AnalysisResult analyze(const FrameView& frame) noexcept {
 
     HzzsFrameResult engine{};
     const int rc = hzzs_bamboo_analyze_rgb_internal(
-        rgb.data(), frame.width, frame.height, frame.width * 3, &engine);
-    if (rc != 0 || engine.scene_state != HZZS_SCENE_RUNNING) return out;
+        rgb.data(),
+        frame.width,
+        frame.height,
+        frame.width * 3,
+        &engine);
+    out.sceneState = engine.scene_state;
+    out.playerConfidencePermille = std::clamp(
+        static_cast<int>(engine.player_confidence * 1000.0f + 0.5f),
+        0,
+        1000);
 
-    // Dynamic player detection first; use the legacy fixed ratios only as a fail-safe.
-    out.playerWidth = engine.player_width > 0 ? engine.player_width : std::max(1, frame.width * 107 / 691);
-    out.playerLeft = engine.player_width > 0 ? engine.player_x : frame.width * 108 / 691;
+    if (rc != 0 || engine.scene_state != HZZS_SCENE_RUNNING) return out;
+    if (engine.player_width <= 0 || engine.player_height <= 0 ||
+        engine.player_confidence < kMinimumPlayerConfidence) {
+        out.sceneState = HZZS_SCENE_UNSAFE;
+        return out;
+    }
+
+    out.playerWidth = engine.player_width;
+    out.playerLeft = engine.player_x;
     out.playerRight = out.playerLeft + out.playerWidth;
     out.playerCenterX = out.playerLeft + out.playerWidth / 2;
-    out.playerCenterY = engine.player_height > 0
-        ? engine.player_y + engine.player_height / 2
-        : frame.height * 894 / 1536;
+    out.playerCenterY = engine.player_y + engine.player_height / 2;
 
     for (int i = 0; i < engine.object_count; ++i) {
         const auto& object = engine.objects[i];
         Detection candidate{};
         if (object.kind == HZZS_OBJECT_GROUND && object.appearance == HZZS_APPEARANCE_PANDA_STATUE) {
-            candidate = convertObject(object, kKindGround, out.playerRight, out.playerWidth);
-            candidate.sizeClass = object.size_class == HZZS_SIZE_LARGE ? kSizeLargeOrWide : kSizeSmallOrNarrow;
+            candidate = convertObject(
+                object,
+                kKindGround,
+                out.playerLeft,
+                out.playerRight,
+                out.playerWidth);
+            candidate.sizeClass =
+                object.size_class == HZZS_SIZE_LARGE ? kSizeLargeOrWide : kSizeSmallOrNarrow;
             if (isBetter(out.ground, candidate)) out.ground = candidate;
         } else if (object.kind == HZZS_OBJECT_GAP && object.appearance == HZZS_APPEARANCE_BAMBOO_GAP) {
-            candidate = convertObject(object, kKindGap, out.playerRight, out.playerWidth);
-            candidate.sizeClass = object.size_class == HZZS_SIZE_WIDE ? kSizeLargeOrWide : kSizeSmallOrNarrow;
+            candidate = convertObject(
+                object,
+                kKindGap,
+                out.playerLeft,
+                out.playerRight,
+                out.playerWidth);
+            candidate.sizeClass =
+                object.size_class == HZZS_SIZE_WIDE ? kSizeLargeOrWide : kSizeSmallOrNarrow;
             if (isBetter(out.gap, candidate)) out.gap = candidate;
         } else if (object.kind == HZZS_OBJECT_OVERHEAD && object.appearance == HZZS_APPEARANCE_BRUSH) {
-            candidate = convertObject(object, kKindOverhead, out.playerRight, out.playerWidth);
+            candidate = convertObject(
+                object,
+                kKindOverhead,
+                out.playerLeft,
+                out.playerRight,
+                out.playerWidth);
             candidate.sizeClass = kSizeHanging;
             if (isBetter(out.overhead, candidate)) out.overhead = candidate;
         }
     }
 
     int bestGap = std::numeric_limits<int>::max();
-    for (const Detection* d : {&out.ground, &out.gap, &out.overhead}) {
-        out.totalSamples += d->samples;
-        if (d->found && d->edgeGapPx < bestGap) {
-            bestGap = d->edgeGapPx;
-            out.primaryKind = d->kind;
+    for (const Detection* detection : {&out.ground, &out.gap, &out.overhead}) {
+        out.totalSamples += detection->samples;
+        if (detection->found && detection->edgeGapPx < bestGap) {
+            bestGap = detection->edgeGapPx;
+            out.primaryKind = detection->kind;
         }
     }
     return out;
@@ -146,6 +188,8 @@ int pack(const AnalysisResult& result, std::int32_t* out, int capacity) noexcept
     out[7] = result.playerWidth;
     out[8] = result.primaryKind;
     out[9] = result.totalSamples;
+    out[10] = result.sceneState;
+    out[11] = result.playerConfidencePermille;
     writeDetection(result.ground, out, kGroundOffset);
     writeDetection(result.gap, out, kGapOffset);
     writeDetection(result.overhead, out, kOverheadOffset);

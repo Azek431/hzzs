@@ -45,6 +45,8 @@ import top.azek431.hzzs.core.NativeAnalysisBridge
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.util.Logger
 import top.azek431.hzzs.service.OverlayNotificationService
+import top.azek431.hzzs.runtime.overlay.VisionOverlayManager
+import top.azek431.hzzs.runtime.vision.VisionRuntimeService
 import top.azek431.hzzs.ui.community.CommunityLinks
 
 /**
@@ -157,6 +159,13 @@ object OverlayPreviewManager {
     @Synchronized
     fun show(context: Context): Boolean {
         val appContext = context.applicationContext
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.e(TAG, "[Overlay] show must be called on the main thread.")
+            return false
+        }
+        // Only one full-screen overlay Surface may exist at a time.
+        VisionRuntimeService.stop(appContext)
+        VisionOverlayManager.hide()
 
         // 权限检查
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
@@ -304,7 +313,8 @@ object OverlayPreviewManager {
                 }
                 flags = (WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_SECURE)
                 format = android.graphics.PixelFormat.TRANSLUCENT
                 gravity = android.view.Gravity.TOP or android.view.Gravity.START
             }
@@ -314,30 +324,29 @@ object OverlayPreviewManager {
             hudRenderer?.setOnFrameResultListener { result ->
                 overlayView.updateResult(result)
             }
-
             // 连接视觉识别结果 → 叠加视图
             hudRenderer?.setOnVisualRecognitionListener {
                 bottleFound, bottleLeft, bottleRight, bottleCenterX, bottleScanY, bottleWidth, bottleConfidence, bottleCostMs,
                 pitFound, pitLeft, pitRight, pitCenterX, pitScanY, pitWidth, pitEdgeGap, pitConfidence ->
 
-                overlayView.bottleFound = bottleFound
-                overlayView.bottleLeft = bottleLeft
-                overlayView.bottleRight = bottleRight
-                overlayView.bottleCenterX = bottleCenterX
-                overlayView.bottleCenterY = bottleScanY
-                overlayView.bottleWidth = bottleWidth
-                overlayView.bottleScanY = bottleScanY
-                overlayView.bottleConfidence = bottleConfidence
-                overlayView.bottleCostMs = bottleCostMs
-
-                overlayView.pitFound = pitFound
-                overlayView.pitLeft = pitLeft
-                overlayView.pitRight = pitRight
-                overlayView.pitCenterX = pitCenterX
-                overlayView.pitScanY = pitScanY
-                overlayView.pitWidth = pitWidth
-                overlayView.pitEdgeGap = pitEdgeGap
-                overlayView.pitConfidence = pitConfidence
+                overlayView.updateVisualRecognition(
+                    bottleFound = bottleFound,
+                    bottleLeft = bottleLeft,
+                    bottleRight = bottleRight,
+                    bottleCenterX = bottleCenterX,
+                    bottleScanY = bottleScanY,
+                    bottleWidth = bottleWidth,
+                    bottleConfidence = bottleConfidence,
+                    bottleCostMs = bottleCostMs,
+                    pitFound = pitFound,
+                    pitLeft = pitLeft,
+                    pitRight = pitRight,
+                    pitCenterX = pitCenterX,
+                    pitScanY = pitScanY,
+                    pitWidth = pitWidth,
+                    pitEdgeGap = pitEdgeGap,
+                    pitConfidence = pitConfidence,
+                )
             }
 
             // 添加到 WindowManager（在悬浮窗之后）
@@ -372,6 +381,8 @@ object OverlayPreviewManager {
             } catch (cleanupError: Exception) {
                 Log.w(TAG, "[Overlay] cleanup after show failure also failed.", cleanupError)
             }
+            hudRenderer?.dispose()
+            hudRenderer = null
             activeSession = null
             analysisUiState = AnalysisUiState.IDLE
             singleHandler.removeCallbacksAndMessages(null)
@@ -398,36 +409,58 @@ object OverlayPreviewManager {
      */
     @Synchronized
     fun hide(reason: String = "(none)"): Boolean {
-        val session = activeSession
-        if (session == null) {
-            Log.d(TAG, "[Overlay] hide ignored. reason=$reason, no session.")
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.e(TAG, "[Overlay] hide must be called on the main thread. reason=$reason")
             return false
         }
 
-        activeSession = null
+        val session = activeSession
+        val overlay = screenOverlay
+        val overlayManager = screenOverlayManager
+        val renderer = hudRenderer
+        if (session == null && overlay == null && renderer == null) {
+            Log.d(TAG, "[Overlay] hide ignored. reason=$reason, no resources.")
+            return false
+        }
+
         analysisUiState = AnalysisUiState.IDLE
         singleHandler.removeCallbacksAndMessages(null)
+        renderer?.dispose()
 
-        // 清理屏幕叠加视图
-        screenOverlay?.let { ov ->
-            screenOverlayManager?.removeView(ov)
-            screenOverlayManager = null
-            screenOverlay = null
-            screenOverlayParams = null
+        var success = true
+        if (overlay != null && overlayManager != null) {
+            runCatching {
+                if (overlay.isAttachedToWindow) overlayManager.removeViewImmediate(overlay)
+            }.onFailure {
+                success = false
+                Log.w(TAG, "[Overlay] unable to remove screen overlay. reason=$reason", it)
+            }
+        }
+        if (session != null) {
+            runCatching {
+                if (session.rootView.isAttachedToWindow) session.manager.removeViewImmediate(session.rootView)
+            }.onFailure {
+                success = false
+                Log.w(TAG, "[Overlay] unable to remove panel. reason=$reason", it)
+            }
+            runCatching { OverlayNotificationService.stop(session.rootView.context.applicationContext) }
+                .onFailure { Log.w(TAG, "[Overlay] unable to stop notification service.", it) }
+        } else {
+            overlay?.context?.applicationContext?.let { context ->
+                runCatching { OverlayNotificationService.stop(context) }
+            }
         }
 
-        return try {
-            session.manager.removeView(session.rootView)
-            OverlayNotificationService.stop(session.rootView.context)
-            Log.i(TAG, "[Overlay] window removed. reason=$reason")
-            Logger.i("Overlay", "悬浮窗已移除，原因=$reason")
-            true
-        } catch (error: IllegalArgumentException) {
-            Log.w(TAG, "[Overlay] window was already detached. reason=$reason", error)
-            false
-        } catch (error: Exception) {
-            Log.e(TAG, "[Overlay] unable to remove window. reason=$reason", error)
-            false
-        }
+        // References are cleared only after all independent cleanup attempts have run.
+        activeSession = null
+        hudRenderer = null
+        screenOverlay = null
+        screenOverlayManager = null
+        screenOverlayParams = null
+        NativeAnalysisBridge.resetEngine()
+
+        Log.i(TAG, "[Overlay] resources released. reason=$reason, success=$success")
+        Logger.i("Overlay", "悬浮窗已释放，原因=$reason，成功=$success")
+        return success
     }
 }

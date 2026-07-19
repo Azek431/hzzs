@@ -82,11 +82,12 @@ class OverlayHUDRenderer(
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** 视觉识别后台线程池（单线程，避免并发截图冲突） */
-    private val visualRecognitionExecutor: ExecutorService by lazy {
+    private val visualRecognitionExecutorDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         Executors.newSingleThreadExecutor {
             Thread(it, "hzzs-vision-recognition").apply { isDaemon = true }
         }
     }
+    private val visualRecognitionExecutor: ExecutorService by visualRecognitionExecutorDelegate
 
     // ==================== 视觉识别回调 ====================
 
@@ -108,6 +109,15 @@ class OverlayHUDRenderer(
     fun setOnVisualRecognitionListener(listener: (Boolean, Int, Int, Int, Int, Int, Float, Double,
                                                    Boolean, Int, Int, Int, Int, Int, Int, Float) -> Unit) {
         onVisualRecognitionListener = listener
+    }
+    /** Releases all threads and callbacks. A disposed renderer must not be reused. */
+    fun dispose() {
+        stop()
+        onFrameResultListener = null
+        onVisualRecognitionListener = null
+        if (visualRecognitionExecutorDelegate.isInitialized()) {
+            visualRecognitionExecutorDelegate.value.shutdownNow()
+        }
     }
 
     companion object {
@@ -226,15 +236,15 @@ class OverlayHUDRenderer(
      * 幂等性：如果未在运行，调用此方法会被忽略。
      */
     fun stop() {
-        if (!isRunning) {
-            Log.w(TAG, "[HUD] not running, ignoring stop.")
-            return
-        }
-
         isRunning = false
-        simulationThread?.join(1000)
+        val thread = simulationThread
+        thread?.interrupt()
+        if (thread != null && thread !== Thread.currentThread()) {
+            runCatching { thread.join(1_000L) }
+                .onFailure { Log.w(TAG, "[HUD] interrupted while joining simulation thread.", it) }
+        }
         simulationThread = null
-
+        mainHandler.removeCallbacksAndMessages(null)
         Log.i(TAG, "[HUD] simulation stopped.")
         Logger.i("HUD", "循环执行已停止，共处理 $frameCount 帧")
     }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
 import android.os.Build
+import android.os.SystemClock
 import android.view.Display
 import top.azek431.hzzs.features.service.AutoOperationService
 import java.util.concurrent.CountDownLatch
@@ -16,22 +17,29 @@ class FrameCaptureCoordinator(private val context: Context) {
         Thread(runnable, "hzzs-accessibility-screenshot").apply { isDaemon = true }
     }
 
+    private var accessibilityFailures = 0
+    private var accessibilityBlockedUntilMs = 0L
+
     fun capture(): Bitmap? = when (CapturePreferences.mode(context)) {
         CaptureMode.DISABLED -> null
-        CaptureMode.ACCESSIBILITY -> accessibilityCapture()
+        CaptureMode.ACCESSIBILITY -> accessibilityCapture(recordFailure = true)
         CaptureMode.MEDIA_PROJECTION -> MediaProjectionCaptureService.latestCopy()
         CaptureMode.ROOT_EXPERIMENTAL -> RootFrameSource.capture()
-        CaptureMode.AUTO -> accessibilityCapture() ?: MediaProjectionCaptureService.latestCopy()
+        CaptureMode.AUTO -> {
+            if (SystemClock.uptimeMillis() >= accessibilityBlockedUntilMs) {
+                accessibilityCapture(recordFailure = true) ?: MediaProjectionCaptureService.latestCopy()
+            } else {
+                MediaProjectionCaptureService.latestCopy()
+            }
+        }
     }
 
-    private fun accessibilityCapture(): Bitmap? {
+    private fun accessibilityCapture(recordFailure: Boolean): Bitmap? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !AutoOperationService.isConnected()) return null
-
         val latch = CountDownLatch(1)
         val lock = Any()
         var accepting = true
         var captured: Bitmap? = null
-
         val requested = AutoOperationService.proxyTakeScreenshot(
             Display.DEFAULT_DISPLAY,
             executor,
@@ -47,11 +55,7 @@ class FrameCaptureCoordinator(private val context: Context) {
                         hardware.close()
                     }
                     synchronized(lock) {
-                        if (accepting) {
-                            captured = copy
-                        } else {
-                            copy?.takeUnless(Bitmap::isRecycled)?.recycle()
-                        }
+                        if (accepting) captured = copy else copy?.takeUnless(Bitmap::isRecycled)?.recycle()
                     }
                     latch.countDown()
                 }
@@ -61,18 +65,41 @@ class FrameCaptureCoordinator(private val context: Context) {
                 }
             },
         )
-        if (!requested) return null
+        if (!requested) {
+            if (recordFailure) recordAccessibilityFailure()
+            return null
+        }
 
-        latch.await(850L, TimeUnit.MILLISECONDS)
-        return synchronized(lock) {
+        latch.await(ACCESSIBILITY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        val result = synchronized(lock) {
             accepting = false
             captured.also { captured = null }
+        }
+        if (result != null) {
+            accessibilityFailures = 0
+            accessibilityBlockedUntilMs = 0L
+        } else if (recordFailure) {
+            recordAccessibilityFailure()
+        }
+        return result
+    }
+
+    private fun recordAccessibilityFailure() {
+        accessibilityFailures++
+        if (accessibilityFailures >= FAILURE_LIMIT) {
+            accessibilityBlockedUntilMs = SystemClock.uptimeMillis() + FAILURE_COOLDOWN_MS
+            accessibilityFailures = 0
         }
     }
 
     fun suggestedIntervalMs(): Long = when (CapturePreferences.mode(context)) {
         CaptureMode.ACCESSIBILITY -> 260L
-        CaptureMode.AUTO -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && AutoOperationService.isConnected()) 260L else 75L
+        CaptureMode.AUTO -> {
+            val accessibilityUsable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                AutoOperationService.isConnected() &&
+                SystemClock.uptimeMillis() >= accessibilityBlockedUntilMs
+            if (accessibilityUsable) 260L else 75L
+        }
         CaptureMode.MEDIA_PROJECTION -> 75L
         CaptureMode.ROOT_EXPERIMENTAL -> 650L
         CaptureMode.DISABLED -> 500L
@@ -80,5 +107,11 @@ class FrameCaptureCoordinator(private val context: Context) {
 
     fun close() {
         executor.shutdownNow()
+    }
+
+    private companion object {
+        const val ACCESSIBILITY_TIMEOUT_MS = 550L
+        const val FAILURE_LIMIT = 3
+        const val FAILURE_COOLDOWN_MS = 5_000L
     }
 }

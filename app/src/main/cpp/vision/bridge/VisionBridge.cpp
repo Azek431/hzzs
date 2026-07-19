@@ -22,11 +22,6 @@
 // 辅助函数
 // ============================================================
 
-/** 将 Java int[] 数组拷贝到 C++ 数组 */
-static void getIntArray(jintArray arr, int* out, int len, JNIEnv* env) {
-    env->GetIntArrayRegion(arr, 0, len, out);
-}
-
 /** 将 C++ 结构体序列化为 Java byte[] */
 static jbyteArray structToByteArray(JNIEnv* env, const void* data, size_t size) {
     if (data == nullptr || size == 0) {
