@@ -4,10 +4,16 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.azek431.hzzs.core.model.SceneConfig
 import top.azek431.hzzs.core.model.ViewportConfig
+import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.domain.vision.Avoidance
 import top.azek431.hzzs.domain.vision.Detection
 import top.azek431.hzzs.domain.vision.NormalizedRect
@@ -17,7 +23,9 @@ import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
 import top.azek431.hzzs.domain.vision.VisionResultValidator
 import top.azek431.hzzs.nativevision.NativeVision
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.system.measureNanoTime
 
 class NativeVisionEngine @Inject constructor(
@@ -91,10 +99,41 @@ class NativeVisionEngine @Inject constructor(
 }
 
 /** Keeps the hot JNI call independent from DataStore reads. */
-interface VisionViewportProvider { fun current(): ViewportConfig }
+interface VisionViewportProvider {
+    fun current(): ViewportConfig
+}
+
+/**
+ * Mirrors the effective settings flow, including non-persistent previews, into
+ * an atomic snapshot so the per-frame JNI path never performs DataStore I/O.
+ */
+@Singleton
+class SettingsVisionViewportProvider @Inject constructor(
+    settingsRepository: SettingsRepository,
+) : VisionViewportProvider {
+    private val viewport = AtomicReference(ViewportConfig())
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    init {
+        scope.launch {
+            settingsRepository.config
+                .map { it.viewport }
+                .distinctUntilChanged()
+                .collect(viewport::set)
+        }
+    }
+
+    override fun current(): ViewportConfig = viewport.get()
+}
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class VisionEngineBindings {
-    @Binds abstract fun bindVisionEngine(impl: NativeVisionEngine): VisionEngine
+    @Binds
+    abstract fun bindVisionEngine(impl: NativeVisionEngine): VisionEngine
+
+    @Binds
+    abstract fun bindVisionViewportProvider(
+        impl: SettingsVisionViewportProvider,
+    ): VisionViewportProvider
 }
