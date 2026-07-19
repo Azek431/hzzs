@@ -51,10 +51,18 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             return DispatchReceipt(action, DispatchOutcome.REJECTED, "当前页面不在允许范围")
         }
         val metrics = resources.displayMetrics
+        val endX = action.gesture.endX
+        val endY = action.gesture.endY
         val path = Path().apply {
-            moveTo(action.gesture.startX.coerceIn(0f, 1f) * (metrics.widthPixels - 1), action.gesture.startY.coerceIn(0f, 1f) * (metrics.heightPixels - 1))
-            if (action.gesture.endX != null && action.gesture.endY != null) {
-                lineTo(action.gesture.endX.coerceIn(0f, 1f) * (metrics.widthPixels - 1), action.gesture.endY.coerceIn(0f, 1f) * (metrics.heightPixels - 1))
+            moveTo(
+                action.gesture.startX.coerceIn(0f, 1f) * (metrics.widthPixels - 1),
+                action.gesture.startY.coerceIn(0f, 1f) * (metrics.heightPixels - 1),
+            )
+            if (endX != null && endY != null) {
+                lineTo(
+                    endX.coerceIn(0f, 1f) * (metrics.widthPixels - 1),
+                    endY.coerceIn(0f, 1f) * (metrics.heightPixels - 1),
+                )
             }
         }
         val gesture = GestureDescription.Builder()
