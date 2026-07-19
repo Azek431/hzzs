@@ -7,51 +7,72 @@ import kotlin.random.Random
 
 /**
  * 只负责提出动作，不提前修改 Track 状态。
- * 只有动作队列真正接受至少一个动作后，调用 commit() 才标记已触发，避免关闭自动操作时
- * 目标被错误锁死、重新开启后也不再执行。
+ * 竹影书屋参数仍属于实验配置，必须由用户单独确认后才允许进入本规划器。
  */
 class VisionActionPlanner(
     private val tracker: VisionTracker,
-    private val triggerDistanceP: Float = 1.50f,
 ) {
-    fun plan(result: VisionFrameResult): List<RuntimeAction> {
+    fun plan(
+        result: VisionFrameResult,
+        bambooExperimentalEnabled: Boolean = false,
+    ): List<RuntimeAction> {
+        if (result.sceneState != VisionSceneState.RUNNING) return emptyList()
+        if (result.algorithm == VisionAlgorithm.BAMBOO_STUDY && !bambooExperimentalEnabled) return emptyList()
+
         val detection = result.primary ?: return emptyList()
+        if (!detection.actionable || detection.trackId <= 0L) return emptyList()
+
+        val triggerDistanceP = when (result.algorithm) {
+            VisionAlgorithm.SWEET_FACTORY_LEGACY -> SWEET_TRIGGER_DISTANCE_P
+            VisionAlgorithm.BAMBOO_STUDY -> BAMBOO_TRIGGER_DISTANCE_P
+        }
         if (detection.distanceP > triggerDistanceP || tracker.wasTriggered(detection)) return emptyList()
 
         val now = SystemClock.uptimeMillis()
-        val baseKey = "${detection.type}:${detection.trackId}"
+        val baseKey = "${result.algorithm}:${detection.type}:${detection.trackId}"
         return when (detection.type) {
-            VisionObjectType.POISON_BOTTLE -> {
+            VisionObjectType.GROUND_OBSTACLE -> {
                 val large = tracker.maxHeightP(detection) >= 1.585f ||
                     detection.sizeClass == VisionSizeClass.LARGE
                 if (large) {
+                    val secondDelay = when (result.algorithm) {
+                        VisionAlgorithm.SWEET_FACTORY_LEGACY -> Random.nextLong(50L, 101L)
+                        VisionAlgorithm.BAMBOO_STUDY -> 80L
+                    }
                     listOf(
                         RuntimeAction.jump(now, "$baseKey:1", priority = 10),
-                        RuntimeAction.jump(now + Random.nextLong(50L, 101L), "$baseKey:2", priority = 9),
+                        RuntimeAction.jump(now + secondDelay, "$baseKey:2", priority = 9),
                     )
                 } else {
                     listOf(RuntimeAction.jump(now, baseKey, priority = 10))
                 }
             }
 
-            VisionObjectType.CAKE_STRUCTURE -> {
+            VisionObjectType.GAP -> {
                 val wide = tracker.maxWidthP(detection) >= 3.60f ||
                     detection.sizeClass == VisionSizeClass.WIDE
                 if (wide) {
+                    val secondDelay = when (result.algorithm) {
+                        VisionAlgorithm.SWEET_FACTORY_LEGACY -> 300L
+                        VisionAlgorithm.BAMBOO_STUDY -> 250L
+                    }
                     listOf(
                         RuntimeAction.jump(now, "$baseKey:1", priority = 10),
-                        RuntimeAction.jump(now + 300L, "$baseKey:2", priority = 8),
+                        RuntimeAction.jump(now + secondDelay, "$baseKey:2", priority = 8),
                     )
                 } else {
                     listOf(RuntimeAction.jump(now, baseKey, priority = 10))
                 }
             }
 
-            VisionObjectType.HANGING_SPIKE -> listOf(
+            VisionObjectType.OVERHEAD_OBSTACLE -> listOf(
                 RuntimeAction(
                     type = RuntimeActionType.SLIDE,
                     dueAtMs = now,
-                    expiresAtMs = now + 650L,
+                    expiresAtMs = now + when (result.algorithm) {
+                        VisionAlgorithm.SWEET_FACTORY_LEGACY -> 650L
+                        VisionAlgorithm.BAMBOO_STUDY -> 600L
+                    },
                     dedupeKey = baseKey,
                     priority = 10,
                 ),
@@ -63,5 +84,10 @@ class VisionActionPlanner(
 
     fun commit(detection: VisionDetection) {
         tracker.markTriggered(detection)
+    }
+
+    private companion object {
+        const val SWEET_TRIGGER_DISTANCE_P = 1.50f
+        const val BAMBOO_TRIGGER_DISTANCE_P = 1.35f
     }
 }

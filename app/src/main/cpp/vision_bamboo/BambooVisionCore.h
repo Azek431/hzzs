@@ -1,24 +1,25 @@
 #pragma once
+
 #include <cstdint>
 
 namespace hzzs::vision_bamboo {
 
-constexpr int kResultVersion = 3;
+constexpr int kResultVersion = 4;
 constexpr int kResultInts = 64;
 constexpr int kKindNone = 0;
-constexpr int kKindGround = 1;       // Reuses the legacy bottle semantic slot.
-constexpr int kKindGap = 2;          // Reuses the legacy cake/gap semantic slot.
-constexpr int kKindOverhead = 3;     // Reuses the legacy hanging-spike semantic slot.
+constexpr int kKindGround = 1;
+constexpr int kKindGap = 2;
+constexpr int kKindOverhead = 3;
 constexpr int kSizeUnknown = 0;
 constexpr int kSizeSmallOrNarrow = 1;
 constexpr int kSizeLargeOrWide = 2;
 constexpr int kSizeHanging = 3;
 
 struct FrameView {
-    const std::uint32_t* pixels = nullptr; // Android ARGB_8888 ints (0xAARRGGBB)
+    const std::uint32_t* pixels = nullptr;
     int width = 0;
     int height = 0;
-    int stride = 0; // pixels, not bytes
+    int stride = 0;
 };
 
 struct Detection {
@@ -50,6 +51,8 @@ struct AnalysisResult {
     int playerWidth = 0;
     int primaryKind = 0;
     int totalSamples = 0;
+    int sceneState = 0;
+    int playerConfidencePermille = 0;
     Detection ground;
     Detection gap;
     Detection overhead;

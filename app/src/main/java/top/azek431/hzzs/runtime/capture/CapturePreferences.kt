@@ -10,19 +10,18 @@ object CapturePreferences {
     private const val KEY_VISION_ALGORITHM = "vision_algorithm"
     private const val KEY_INITIALIZED = "first_run_optimized"
     private const val KEY_SAFETY_DEFAULTS_V1 = "safety_defaults_v1"
+    private const val KEY_BAMBOO_SAFETY_V1 = "bamboo_safety_v1"
     private const val KEY_AUTO_ACTION = "auto_action"
+    private const val KEY_BAMBOO_EXPERIMENTAL_AUTO = "bamboo_experimental_auto"
     private const val KEY_DRAW = "draw_overlay"
     private const val KEY_DETAILED = "detailed_overlay"
     private const val KEY_VIEWPORT = "viewport"
 
-    /**
-     * 首次启动保存 AUTO，而不是把当时尚未授权的能力永久固定成 MediaProjection。
-     * AUTO 每次运行都会按“Android 11+ 无障碍截图 → MediaProjection”动态选择；Root 永不自动启用。
-     */
     fun ensureOptimizedDefaults(context: Context): CaptureMode {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val editor = prefs.edit()
         var changed = false
+
         if (!prefs.getBoolean(KEY_INITIALIZED, false)) {
             editor
                 .putString(KEY_MODE, CaptureMode.AUTO.name)
@@ -31,18 +30,21 @@ object CapturePreferences {
                 .putBoolean(KEY_INITIALIZED, true)
             changed = true
         }
-
         if (!prefs.contains(KEY_VISION_ALGORITHM)) {
             editor.putString(KEY_VISION_ALGORITHM, VisionAlgorithm.DEFAULT.preferenceValue)
             changed = true
         }
-
-        // 安全迁移：历史版本曾把自动操作默认设为开启。升级后强制关闭一次，
-        // 后续只有用户在设置页主动开启才会恢复，避免旧默认值继续产生触摸注入。
         if (!prefs.getBoolean(KEY_SAFETY_DEFAULTS_V1, false)) {
             editor
                 .putBoolean(KEY_AUTO_ACTION, false)
                 .putBoolean(KEY_SAFETY_DEFAULTS_V1, true)
+            changed = true
+        }
+        // 竹影书屋首次升级后必须重新手动确认实验自动操作。
+        if (!prefs.getBoolean(KEY_BAMBOO_SAFETY_V1, false)) {
+            editor
+                .putBoolean(KEY_BAMBOO_EXPERIMENTAL_AUTO, false)
+                .putBoolean(KEY_BAMBOO_SAFETY_V1, true)
             changed = true
         }
 
@@ -57,7 +59,10 @@ object CapturePreferences {
     }.getOrDefault(CaptureMode.AUTO)
 
     fun setMode(context: Context, mode: CaptureMode) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_MODE, mode.name).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_MODE, mode.name)
+            .apply()
 
     fun algorithm(context: Context): VisionAlgorithm = VisionAlgorithm.fromPreference(
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -74,10 +79,25 @@ object CapturePreferences {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AUTO_ACTION, false)
 
     fun setAutoAction(context: Context, value: Boolean) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
             .putBoolean(KEY_AUTO_ACTION, value)
             .putBoolean(KEY_SAFETY_DEFAULTS_V1, true)
             .apply()
+
+    fun bambooExperimentalAutoAction(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_BAMBOO_EXPERIMENTAL_AUTO, false)
+
+    fun setBambooExperimentalAutoAction(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_BAMBOO_EXPERIMENTAL_AUTO, value)
+            .putBoolean(KEY_BAMBOO_SAFETY_V1, true)
+            .apply()
+
+    fun actionAllowedByAlgorithm(context: Context, algorithm: VisionAlgorithm = algorithm(context)): Boolean =
+        algorithm.automaticActionCalibrated || bambooExperimentalAutoAction(context)
 
     fun draw(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DRAW, true)
@@ -108,7 +128,8 @@ object CapturePreferences {
     }
 
     fun setViewport(context: Context, rect: RectF) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
             .putString(KEY_VIEWPORT, "${rect.left},${rect.top},${rect.right},${rect.bottom}")
             .apply()
 

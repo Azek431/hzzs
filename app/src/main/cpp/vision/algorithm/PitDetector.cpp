@@ -225,10 +225,11 @@ void detectPit(
 
     // 7. 构建平滑地面 mask
     auto smoothed_ground_mask = buildMaskFromSegments(width, merged_ground_segments);
-
-    // 7. 缺口 = 非地面
+    // 8. 缺口 = 非地面。旧实现误把地面片段再次当成缺口片段。
+    auto gap_mask = smoothed_ground_mask;
+    for (auto& value : gap_mask) value = value ? 0 : 1;
     auto gap_segments = collectTrueSegments(
-        const_cast<char*>(smoothed_ground_mask.data()), scan_start_x, scan_end_x
+        gap_mask.data(), scan_start_x, scan_end_x
     );
 
     // 9. 过滤缺口，收集候选

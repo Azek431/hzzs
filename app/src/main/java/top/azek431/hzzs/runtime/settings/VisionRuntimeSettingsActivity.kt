@@ -1,8 +1,6 @@
 package top.azek431.hzzs.runtime.settings
 
 import android.Manifest
-import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -19,13 +17,15 @@ import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import top.azek431.hzzs.features.service.AutoOperationService
+import top.azek431.hzzs.features.service.RuntimeActionQueue
 import top.azek431.hzzs.runtime.capture.CaptureCapabilityDetector
 import top.azek431.hzzs.runtime.capture.CaptureMode
 import top.azek431.hzzs.runtime.capture.CapturePermissionActivity
 import top.azek431.hzzs.runtime.capture.CapturePreferences
 import top.azek431.hzzs.runtime.capture.MediaProjectionCaptureService
-import top.azek431.hzzs.features.service.AutoOperationService
-import top.azek431.hzzs.features.service.RuntimeActionQueue
 import top.azek431.hzzs.runtime.vision.VisionAlgorithm
 import top.azek431.hzzs.runtime.vision.VisionRuntimeService
 
@@ -33,10 +33,16 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var modeSpinner: Spinner
     private lateinit var algorithmSpinner: Spinner
+    private lateinit var autoActionSwitch: Switch
+    private lateinit var bambooExperimentalSwitch: Switch
+    private lateinit var drawSwitch: Switch
+    private lateinit var detailedSwitch: Switch
+
     private lateinit var modes: List<CaptureMode>
     private lateinit var algorithms: List<VisionAlgorithm>
-    private var initializingSpinner = true
+    private var initializingModeSpinner = true
     private var initializingAlgorithmSpinner = true
+    private var synchronizingUi = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +53,13 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             setPadding(32, 32, 32, 48)
         }
         val scroll = ScrollView(this).apply {
-            addView(root, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(
+                root,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
         }
         setContentView(scroll)
 
@@ -56,12 +68,12 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             textSize = 24f
         })
         root.addView(TextView(this).apply {
-            text = "首次启动默认使用 AUTO：Android 11+ 已连接无障碍时优先无障碍截图，否则使用 MediaProjection；Root 永不自动启用。"
+            text = "AUTO 会动态选择截图后端；Root 永不自动启用。竹影书屋自动操作仍为实验功能。"
             textSize = 14f
         })
         status = TextView(this).also(root::addView)
 
-        modes = CaptureMode.values().toList()
+        modes = CaptureMode.entries.toList()
         modeSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(
                 this@VisionRuntimeSettingsActivity,
@@ -71,12 +83,16 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             setSelection(modes.indexOf(CapturePreferences.mode(this@VisionRuntimeSettingsActivity)).coerceAtLeast(0))
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+
                 override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (initializingSpinner) {
-                        initializingSpinner = false
+                    if (initializingModeSpinner) {
+                        initializingModeSpinner = false
                         return
                     }
-                    CapturePreferences.setMode(this@VisionRuntimeSettingsActivity, modes[position])
+                    val selected = modes[position]
+                    if (selected == CapturePreferences.mode(this@VisionRuntimeSettingsActivity)) return
+                    stopAndClearRuntime()
+                    CapturePreferences.setMode(this@VisionRuntimeSettingsActivity, selected)
                     refresh()
                 }
             }
@@ -86,10 +102,6 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
         root.addView(TextView(this).apply {
             text = "识别算法"
             textSize = 18f
-        })
-        root.addView(TextView(this).apply {
-            text = "竹影书屋为新赛季默认算法；甜品工厂保留原算法。切换会停止运行并关闭自动操作。"
-            textSize = 13f
         })
         algorithms = VisionAlgorithm.entries.toList()
         algorithmSpinner = Spinner(this).apply {
@@ -112,8 +124,7 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
                     }
                     val selected = algorithms[position]
                     if (selected == CapturePreferences.algorithm(this@VisionRuntimeSettingsActivity)) return
-                    VisionRuntimeService.stop(this@VisionRuntimeSettingsActivity)
-                    RuntimeActionQueue.clear()
+                    stopAndClearRuntime()
                     CapturePreferences.setAutoAction(this@VisionRuntimeSettingsActivity, false)
                     CapturePreferences.setAlgorithm(this@VisionRuntimeSettingsActivity, selected)
                     Toast.makeText(
@@ -136,27 +147,67 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             root.addView(this)
         }
 
-        fun toggle(text: String, initial: Boolean, action: (Boolean) -> Unit): Switch = Switch(this).apply {
-            this.text = text
-            isChecked = initial
+        autoActionSwitch = Switch(this).apply {
+            text = "启用自动操作"
             setOnCheckedChangeListener { _, value ->
-                action(value)
+                if (synchronizingUi) return@setOnCheckedChangeListener
+                if (value && !CapturePreferences.actionAllowedByAlgorithm(this@VisionRuntimeSettingsActivity)) {
+                    Toast.makeText(
+                        this@VisionRuntimeSettingsActivity,
+                        "竹影书屋需要先单独确认实验自动操作",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    refresh()
+                    return@setOnCheckedChangeListener
+                }
+                CapturePreferences.setAutoAction(this@VisionRuntimeSettingsActivity, value)
                 refresh()
             }
-            root.addView(this)
         }
+        root.addView(autoActionSwitch)
 
-        toggle("启用自动操作", CapturePreferences.autoAction(this)) {
-            CapturePreferences.setAutoAction(this, it)
+        bambooExperimentalSwitch = Switch(this).apply {
+            text = "允许竹影书屋实验自动操作（未完成真机校准）"
+            setOnCheckedChangeListener { _, value ->
+                if (synchronizingUi) return@setOnCheckedChangeListener
+                if (value) {
+                    AlertDialog.Builder(this@VisionRuntimeSettingsActivity)
+                        .setTitle("确认实验自动操作")
+                        .setMessage("竹影书屋的点击次数、触发距离和滑铲时长尚未完成完整真机校准。建议只使用 HUD。是否仍然启用？")
+                        .setNegativeButton("取消") { _, _ -> refresh() }
+                        .setPositiveButton("我已了解风险") { _, _ ->
+                            CapturePreferences.setBambooExperimentalAutoAction(this@VisionRuntimeSettingsActivity, true)
+                            refresh()
+                        }
+                        .show()
+                } else {
+                    CapturePreferences.setBambooExperimentalAutoAction(this@VisionRuntimeSettingsActivity, false)
+                    CapturePreferences.setAutoAction(this@VisionRuntimeSettingsActivity, false)
+                    RuntimeActionQueue.clear()
+                    refresh()
+                }
+            }
         }
-        toggle("显示持久 HUD", CapturePreferences.draw(this)) {
-            CapturePreferences.setDraw(this, it)
+        root.addView(bambooExperimentalSwitch)
+
+        drawSwitch = Switch(this).apply {
+            text = "显示持久 HUD"
+            setOnCheckedChangeListener { _, value ->
+                if (!synchronizingUi) CapturePreferences.setDraw(this@VisionRuntimeSettingsActivity, value)
+            }
         }
-        toggle("显示详细数据", CapturePreferences.detailed(this)) {
-            CapturePreferences.setDetailed(this, it)
+        root.addView(drawSwitch)
+
+        detailedSwitch = Switch(this).apply {
+            text = "显示详细数据"
+            setOnCheckedChangeListener { _, value ->
+                if (!synchronizingUi) CapturePreferences.setDetailed(this@VisionRuntimeSettingsActivity, value)
+            }
         }
+        root.addView(detailedSwitch)
 
         button("使用自动最优模式") {
+            stopAndClearRuntime()
             CapturePreferences.setMode(this, CaptureMode.AUTO)
             modeSpinner.setSelection(modes.indexOf(CaptureMode.AUTO))
         }
@@ -186,8 +237,9 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
             startRuntimeWithSafetyCheck()
         }
         button("停止运行") {
-            VisionRuntimeService.stop(this)
+            stopAndClearRuntime()
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             button("允许通知") {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
@@ -202,9 +254,11 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
     }
 
     private fun startRuntimeWithSafetyCheck() {
-        val selected = modes[modeSpinner.selectedItemPosition]
-        CapturePreferences.setMode(this, selected)
-        if (selected == CaptureMode.ROOT_EXPERIMENTAL) {
+        val selectedMode = modes[modeSpinner.selectedItemPosition]
+        val algorithm = CapturePreferences.algorithm(this)
+        CapturePreferences.setMode(this, selectedMode)
+
+        if (selectedMode == CaptureMode.ROOT_EXPERIMENTAL) {
             AlertDialog.Builder(this)
                 .setTitle("确认启用 Root 实验截图")
                 .setMessage("Root 模式会执行 su -c screencap，仅在你主动选择时使用，不参与 AUTO 回退。是否继续？")
@@ -213,22 +267,50 @@ class VisionRuntimeSettingsActivity : AppCompatActivity() {
                 .show()
             return
         }
-        if (CapturePreferences.autoAction(this) && !isExistingAccessibilityServiceConnected()) {
-            Toast.makeText(this, "自动操作需要先开启现有 HZZS 无障碍服务", Toast.LENGTH_LONG).show()
+
+        if (CapturePreferences.autoAction(this)) {
+            if (!CapturePreferences.actionAllowedByAlgorithm(this, algorithm)) {
+                CapturePreferences.setAutoAction(this, false)
+                Toast.makeText(this, "当前算法未允许自动操作，已保持关闭", Toast.LENGTH_LONG).show()
+                refresh()
+                return
+            }
+            if (!AutoOperationService.isConnected()) {
+                Toast.makeText(this, "自动操作需要先开启 HZZS 无障碍服务", Toast.LENGTH_LONG).show()
+                return
+            }
         }
         VisionRuntimeService.start(this)
     }
 
-    private fun isExistingAccessibilityServiceConnected(): Boolean =
-        AutoOperationService.isConnected()
+    private fun stopAndClearRuntime() {
+        VisionRuntimeService.stop(this)
+        RuntimeActionQueue.clear()
+    }
 
     private fun refresh() {
         if (!::status.isInitialized) return
         val capabilities = CaptureCapabilityDetector.detect(this)
+        val algorithm = CapturePreferences.algorithm(this)
+        synchronizingUi = true
+        try {
+            autoActionSwitch.isEnabled = CapturePreferences.actionAllowedByAlgorithm(this, algorithm)
+            autoActionSwitch.isChecked = CapturePreferences.autoAction(this) && autoActionSwitch.isEnabled
+            bambooExperimentalSwitch.visibility =
+                if (algorithm == VisionAlgorithm.BAMBOO_STUDY) View.VISIBLE else View.GONE
+            bambooExperimentalSwitch.isChecked = CapturePreferences.bambooExperimentalAutoAction(this)
+            drawSwitch.isChecked = CapturePreferences.draw(this)
+            detailedSwitch.isChecked = CapturePreferences.detailed(this)
+        } finally {
+            synchronizingUi = false
+        }
+
         status.text = buildString {
             appendLine("Android API ${capabilities.androidApi}")
-            appendLine("推荐：${modeLabel(capabilities.recommended)}")
-            appendLine("识别算法：${CapturePreferences.algorithm(this@VisionRuntimeSettingsActivity).displayName}")
+            appendLine("推荐截图：${modeLabel(capabilities.recommended)}")
+            appendLine("识别算法：${algorithm.displayName}")
+            appendLine("自动操作已校准：${algorithm.automaticActionCalibrated}")
+            appendLine("竹影实验操作：${CapturePreferences.bambooExperimentalAutoAction(this@VisionRuntimeSettingsActivity)}")
             appendLine("无障碍截图支持：${capabilities.accessibilityScreenshotSupported}")
             appendLine("无障碍已连接：${capabilities.accessibilityConnected}")
             appendLine("当前前台包名：${AutoOperationService.foregroundPackageName() ?: "--"}")

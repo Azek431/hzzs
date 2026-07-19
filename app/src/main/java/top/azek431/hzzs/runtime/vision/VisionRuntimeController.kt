@@ -32,7 +32,6 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
-        synchronizeRuntimePreferences()
         schedule(0L)
     }
 
@@ -41,45 +40,32 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
         future = executor.schedule(::cycle, delayMs.coerceAtLeast(0L), TimeUnit.MILLISECONDS)
     }
 
-    private fun synchronizeRuntimePreferences() {
-        val actionReady = CapturePreferences.autoAction(app) &&
-            AutoOperationService.isConnected() &&
-            AutoOperationService.isActionTargetAllowed()
-        RuntimeActionQueue.setEnabled(actionReady)
-
-        if (CapturePreferences.draw(app)) {
-            VisionOverlayManager.show(app)
-        } else {
-            VisionOverlayManager.hide()
-        }
-    }
-
     private fun cycle() {
         if (!running.get()) return
         val started = SystemClock.elapsedRealtimeNanos()
         var nextDelay = capture.suggestedIntervalMs()
-
         try {
-            synchronizeRuntimePreferences()
-            val bitmap = capture.capture()
-            if (bitmap == null) {
-                VisionOverlayManager.update(
-                    VisionOverlayState(
-                        captureMode = CapturePreferences.mode(app).name,
-                        fps = fps,
-                        status = "WAITING_CAPTURE_PERMISSION",
-                        detailed = CapturePreferences.detailed(app),
-                    ),
-                )
-                schedule(nextDelay)
-                return
-            }
-
             val algorithm = CapturePreferences.algorithm(app)
             if (algorithm != lastAlgorithm) {
                 RuntimeActionQueue.clear()
                 tracker.reset()
                 lastAlgorithm = algorithm
+            }
+
+            // 先截图，后更新悬浮层；悬浮窗口同时使用 FLAG_SECURE，避免 HUD 被捕获回算法。
+            val bitmap = capture.capture()
+            synchronizeRuntimePreferences(algorithm)
+            if (bitmap == null) {
+                VisionOverlayManager.update(
+                    VisionOverlayState(
+                        captureMode = CapturePreferences.mode(app).name,
+                        algorithm = algorithm,
+                        fps = fps,
+                        status = "WAITING_CAPTURE_PERMISSION",
+                        detailed = CapturePreferences.detailed(app),
+                    ),
+                )
+                return
             }
 
             val normalized = try {
@@ -88,36 +74,58 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
 
-            val result = HzzsVisionBridge.analyze(normalized, algorithm = algorithm)?.let(tracker::update)
-            if (result == null) {
+            val nativeResult = HzzsVisionBridge.analyze(normalized, algorithm = algorithm)
+            if (nativeResult == null) {
+                RuntimeActionQueue.clear()
+                tracker.reset()
                 VisionOverlayManager.update(
                     VisionOverlayState(
                         frame = normalized.mapping,
                         captureMode = CapturePreferences.mode(app).name,
+                        algorithm = algorithm,
                         fps = fps,
                         status = "NATIVE_RESULT_UNAVAILABLE",
                         detailed = CapturePreferences.detailed(app),
                     ),
                 )
-                schedule(nextDelay)
                 return
             }
 
+            val result = if (nativeResult.sceneState == VisionSceneState.RUNNING) {
+                tracker.update(nativeResult)
+            } else {
+                RuntimeActionQueue.clear()
+                tracker.reset()
+                nativeResult.copy(detections = emptyList(), primary = null)
+            }
+
             val autoRequested = CapturePreferences.autoAction(app)
+            val algorithmAllowsAction = CapturePreferences.actionAllowedByAlgorithm(app, algorithm)
             val accessibilityReady = AutoOperationService.isConnected()
             val targetAllowed = AutoOperationService.isActionTargetAllowed()
-            val actionReady = autoRequested && accessibilityReady && targetAllowed
-            val actions = if (actionReady) planner.plan(result) else emptyList()
+            val actionReady = autoRequested && algorithmAllowsAction && accessibilityReady && targetAllowed
+            RuntimeActionQueue.setEnabled(actionReady)
+
+            val actions = if (actionReady) {
+                planner.plan(
+                    result,
+                    bambooExperimentalEnabled = CapturePreferences.bambooExperimentalAutoAction(app),
+                )
+            } else {
+                emptyList()
+            }
             val accepted = if (actions.isNotEmpty()) RuntimeActionQueue.enqueueAll(actions) else 0
             if (accepted == actions.size && accepted > 0) result.primary?.let(planner::commit)
 
             val status = when {
+                result.sceneState != VisionSceneState.RUNNING -> "UNSAFE_SCENE"
+                result.playerConfidence < MIN_PLAYER_CONFIDENCE -> "PLAYER_NOT_CONFIDENT"
                 accepted > 0 -> "TRIGGERED"
                 result.primary == null -> "SEARCHING"
                 !autoRequested -> "AUTO_ACTION_OFF"
+                !algorithmAllowsAction -> "ALGORITHM_ACTION_LOCKED"
                 !accessibilityReady -> "WAITING_ACCESSIBILITY"
                 !targetAllowed -> "WAITING_ALLOWED_APP"
-                result.primary.distanceP <= 1.50f -> "DANGER_WAITING_QUEUE"
                 else -> "APPROACHING"
             }
             val actionText = if (accepted > 0) {
@@ -132,6 +140,7 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
                     result = result,
                     frame = normalized.mapping,
                     captureMode = CapturePreferences.mode(app).name,
+                    algorithm = algorithm,
                     fps = fps,
                     totalCostMs = (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000f,
                     status = status,
@@ -141,18 +150,35 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
             )
         } catch (throwable: Throwable) {
             Log.e(TAG, "vision cycle failed", throwable)
+            RuntimeActionQueue.clear()
+            tracker.reset()
             VisionOverlayManager.update(
                 VisionOverlayState(
                     captureMode = CapturePreferences.mode(app).name,
+                    algorithm = CapturePreferences.algorithm(app),
                     fps = fps,
                     status = "ERROR:${throwable.javaClass.simpleName}",
                     detailed = CapturePreferences.detailed(app),
                 ),
             )
             nextDelay = 180L
+        } finally {
+            schedule(nextDelay)
         }
+    }
 
-        schedule(nextDelay)
+    private fun synchronizeRuntimePreferences(algorithm: VisionAlgorithm) {
+        val actionReady = CapturePreferences.autoAction(app) &&
+            CapturePreferences.actionAllowedByAlgorithm(app, algorithm) &&
+            AutoOperationService.isConnected() &&
+            AutoOperationService.isActionTargetAllowed()
+        RuntimeActionQueue.setEnabled(actionReady)
+
+        if (CapturePreferences.draw(app)) {
+            VisionOverlayManager.show(app)
+        } else {
+            VisionOverlayManager.hide()
+        }
     }
 
     private fun updateFps() {
@@ -170,6 +196,7 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
         running.set(false)
         future?.cancel(true)
         future = null
+        RuntimeActionQueue.clear()
         RuntimeActionQueue.setEnabled(false)
         tracker.reset()
         lastAlgorithm = null
@@ -184,5 +211,6 @@ class VisionRuntimeController(context: Context) : AutoCloseable {
 
     private companion object {
         const val TAG = "HZZS-Runtime"
+        const val MIN_PLAYER_CONFIDENCE = 0.45f
     }
 }

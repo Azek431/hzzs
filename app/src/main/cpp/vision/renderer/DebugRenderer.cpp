@@ -162,8 +162,8 @@ void renderDebugImage(
     const VisionFrameResult* result,
     uint8_t* rgba_output
 ) {
+    (void)rgb_input;
     std::memcpy(rgba_output, rgba_input, width * height * 4);
-
     // 1. 玩家参考框
     drawPlayerBox(rgba_output, width, height, result->player);
 
