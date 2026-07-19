@@ -1,8 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Transparent foreground artwork. The previous file drew an opaque white card above the logo. -->
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_launcher_art"
-    android:insetLeft="18dp"
-    android:insetTop="18dp"
-    android:insetRight="18dp"
-    android:insetBottom="18dp" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M55,20 C62,32 76,38 76,55 C76,72 67,85 53,89 C36,86 27,75 27,60 C27,47 35,39 44,31 C45,41 48,47 53,50 C58,42 60,32 55,20 Z"/>
+    <path android:fillColor="#FFC73650" android:pathData="M53,55 C61,62 62,70 58,76 C55,81 50,82 45,79 C40,75 41,68 45,62 C47,59 50,57 53,55 Z"/>
+</vector>
