@@ -7,10 +7,9 @@ pluginManagement {
                 includeGroupByRegex("androidx.*")
             }
         }
-
+        // Mirrors improve dependency availability for users in mainland China.
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
-
         mavenCentral()
         gradlePluginPortal()
     }
@@ -18,7 +17,6 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-
     repositories {
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
@@ -29,6 +27,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "hzzs"
 include(":app")
-include(":core")
-include(":features:overlay")
-include(":features:service")

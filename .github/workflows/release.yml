@@ -1,0 +1,225 @@
+name: Publish GitHub and Gitee release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub release tag
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  GITEE_OWNER: Azek431
+  GITEE_REPO: hzzs
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve tag
+        id: meta
+        shell: bash
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([A-Za-z0-9.-]+))?$ ]]; then
+            echo "Tag must use semantic versioning, for example v0.2.0 or v0.2.0-beta.1" >&2
+            exit 1
+          fi
+          MAJOR="${BASH_REMATCH[1]}"; MINOR="${BASH_REMATCH[2]}"; PATCH="${BASH_REMATCH[3]}"
+          SUFFIX="${BASH_REMATCH[5]}"
+          if [[ -n "$SUFFIX" ]]; then
+            CHANNEL=beta
+            PRERELEASE_NUMBER=$(grep -oE '[0-9]+$' <<<"$SUFFIX" || true)
+            PRERELEASE_NUMBER=${PRERELEASE_NUMBER:-1}
+            if (( PRERELEASE_NUMBER < 1 || PRERELEASE_NUMBER > 98 )); then
+              echo "Prerelease number must be between 1 and 98" >&2
+              exit 1
+            fi
+            RELEASE_SLOT=$PRERELEASE_NUMBER
+          else
+            CHANNEL=stable
+            RELEASE_SLOT=99
+          fi
+          VERSION_CODE=$(( MAJOR * 10000000 + MINOR * 100000 + PATCH * 100 + RELEASE_SLOT ))
+          if (( VERSION_CODE <= 0 || VERSION_CODE > 2100000000 )); then
+            echo "Derived Android versionCode is out of range" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "version_name=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Install Android native toolchain
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Install release tooling dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet cryptography requests
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          echo '${{ secrets.ANDROID_KEYSTORE_BASE64 }}' | base64 --decode > "$RUNNER_TEMP/hzzs-release.p12"
+          chmod 600 "$RUNNER_TEMP/hzzs-release.p12"
+      - name: Build signed release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hzzs-release.p12
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          HZZS_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          HZZS_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+        run: ./gradlew --no-daemon clean testReleaseUnitTest lintRelease assembleRelease
+      - name: Verify APK and metadata
+        id: apk
+        shell: bash
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          OUT="hzzs-${{ steps.meta.outputs.tag }}-universal.apk"
+          cp "$APK" "$OUT"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee certificate.txt
+          CERT=$(sed -n 's/.*certificate SHA-256 digest: //p' certificate.txt | head -1 | tr -d ':')
+          VERSION_CODE=$(apkanalyzer manifest version-code "$OUT")
+          VERSION_NAME=$(apkanalyzer manifest version-name "$OUT")
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+      - name: Download recent released APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p previous patches
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" > releases.json
+          python3 - <<'PY'
+          import json, os, subprocess
+          channel='${{ steps.meta.outputs.channel }}'; current='${{ steps.meta.outputs.tag }}'; releases=json.load(open('releases.json'))
+          candidates=[]
+          for r in releases:
+              tag=r['tag_name']; is_beta='-' in tag
+              if tag==current or (channel=='stable' and is_beta) or (channel=='beta' and not is_beta): continue
+              assets=[a for a in r.get('assets',[]) if a['name'].endswith('-universal.apk')]
+              if assets: candidates.append((r['published_at'],r,assets[0]))
+          limit=3 if channel=='stable' else 1
+          for _,r,a in sorted(candidates,reverse=True)[:limit]:
+              path=f"previous/{r['tag_name']}.apk"
+              subprocess.check_call(['gh','api',a['url'],'-H','Accept: application/octet-stream','--output',path])
+              open(path+'.version','w').write(str(r.get('id',0)))
+          PY
+      - name: Generate and verify incremental patches
+        shell: bash
+        run: |
+          : > patches.tsv
+          NEW='${{ steps.apk.outputs.file }}'
+          for OLD in previous/*.apk; do
+            [ -e "$OLD" ] || continue
+            TAG=$(basename "$OLD" .apk)
+            PATCH="patches/${TAG}-to-${{ steps.meta.outputs.tag }}.hzzsdelta"
+            python3 tools/release/make_patch.py "$OLD" "$NEW" "$PATCH"
+            python3 tools/release/apply_patch.py "$OLD" "$PATCH" patches/reconstructed.apk
+            cmp --silent "$NEW" patches/reconstructed.apk
+            OLD_SIZE=$(stat -c%s "$OLD"); PATCH_SIZE=$(stat -c%s "$PATCH"); NEW_SIZE=$(stat -c%s "$NEW")
+            if [ "$PATCH_SIZE" -lt $(( NEW_SIZE * 70 / 100 )) ]; then
+              OLD_SHA=$(sha256sum "$OLD" | cut -d' ' -f1)
+              # Version code is read from the old APK itself, never inferred from a release ID.
+              OLD_CODE=$(apkanalyzer manifest version-code "$OLD")
+              printf '%s\t%s\t%s\n' "$OLD_CODE" "$OLD_SHA" "$PATCH" >> patches.tsv
+            else rm -f "$PATCH"; fi
+          done
+          rm -f patches/reconstructed.apk
+      - name: Build and sign update manifest
+        shell: bash
+        run: |
+          gh release view '${{ steps.meta.outputs.tag }}' --json body --jq .body > release-notes.md
+          python3 tools/release/build_manifest.py \
+            --tag '${{ steps.meta.outputs.tag }}' --version-name '${{ steps.apk.outputs.version_name }}' --version-code '${{ steps.apk.outputs.version_code }}' \
+            --channel '${{ steps.meta.outputs.channel }}' --package-name top.azek431.hzzs --certificate-sha256 '${{ steps.apk.outputs.cert }}' \
+            --apk '${{ steps.apk.outputs.file }}' --notes "$(cat release-notes.md)" --patch-list patches.tsv --output payload.json
+          python3 tools/release/sign_manifest.py --payload payload.json --keystore "$RUNNER_TEMP/hzzs-release.p12" --password '${{ secrets.ANDROID_STORE_PASSWORD }}' \
+            --output '${{ steps.meta.outputs.channel }}.json' --public-key-output update-public-key.der.b64
+          shopt -s nullglob
+          CHECKSUM_FILES=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            update-public-key.der.b64
+          )
+          sha256sum "${CHECKSUM_FILES[@]}" > SHA256SUMS
+      - name: Upload GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          ASSETS=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            SHA256SUMS
+            update-public-key.der.b64
+          )
+          gh release upload '${{ steps.meta.outputs.tag }}' "${ASSETS[@]}" --clobber
+      - name: Mirror release refs to Gitee without rewriting history
+        shell: bash
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee "https://oauth2:${GITEE_TOKEN}@gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
+          git fetch origin main:refs/remotes/origin/main
+          git push gitee refs/remotes/origin/main:refs/heads/main
+          git push gitee 'refs/tags/${{ steps.meta.outputs.tag }}:refs/tags/${{ steps.meta.outputs.tag }}'
+          if git fetch origin release-index:refs/remotes/origin/release-index; then
+            git push gitee refs/remotes/origin/release-index:refs/heads/release-index
+          elif ! git ls-remote --exit-code gitee refs/heads/release-index >/dev/null 2>&1; then
+            git push gitee refs/remotes/origin/main:refs/heads/release-index
+          fi
+      - name: Sync release and all attachments to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          ASSETS=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            SHA256SUMS
+            update-public-key.der.b64
+          )
+          PRERELEASE=()
+          if [[ '${{ steps.meta.outputs.channel }}' == 'beta' ]]; then PRERELEASE=(--prerelease); fi
+          python3 tools/release/sync_gitee_release.py --owner "$GITEE_OWNER" --repo "$GITEE_REPO" --tag '${{ steps.meta.outputs.tag }}' \
+            --name '${{ steps.meta.outputs.tag }}' --body-file release-notes.md "${PRERELEASE[@]}" \
+            --assets "${ASSETS[@]}"
+      - name: Publish Gitee-first channel index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: python3 tools/release/publish_index.py --owner "$GITEE_OWNER" --repo "$GITEE_REPO" --channel '${{ steps.meta.outputs.channel }}' --file '${{ steps.meta.outputs.channel }}.json'
+      - name: Anonymous download verification
+        shell: bash
+        run: |
+          for BASE in "https://github.com/Azek431/hzzs/releases/download/${{ steps.meta.outputs.tag }}" "https://gitee.com/Azek431/hzzs/releases/download/${{ steps.meta.outputs.tag }}"; do
+            curl --fail --location --retry 3 --output verify.apk "$BASE/${{ steps.apk.outputs.file }}"
+            test "$(sha256sum verify.apk | cut -d' ' -f1)" = "$(sha256sum '${{ steps.apk.outputs.file }}' | cut -d' ' -f1)"
+          done
+      - name: Remove temporary keystore
+        if: always()
+        run: shred -u "$RUNNER_TEMP/hzzs-release.p12" || rm -f "$RUNNER_TEMP/hzzs-release.p12"

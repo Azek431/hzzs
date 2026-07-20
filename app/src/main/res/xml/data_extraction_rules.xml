@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="file" path="diagnostics/" />
-        <exclude domain="file" path="screenshots/" />
-        <exclude domain="file" path="vision-frames/" />
-        <exclude domain="sharedpref" path="hzzs_feature_flags.xml" />
-        <exclude domain="sharedpref" path="hzzs_runtime_v2.xml" />
+        <exclude domain="file" path="datastore/hzzs_settings_v5.preferences_pb" />
+        <exclude domain="file" path="captures/" />
+        <exclude domain="file" path="logs/" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="diagnostics/" />
-        <exclude domain="file" path="screenshots/" />
-        <exclude domain="file" path="vision-frames/" />
-        <!-- 设备迁移同样不能静默恢复免责声明记录或自动操作授权。 -->
-        <exclude domain="sharedpref" path="hzzs_feature_flags.xml" />
-        <exclude domain="sharedpref" path="hzzs_runtime_v2.xml" />
+        <exclude domain="file" path="datastore/hzzs_settings_v5.preferences_pb" />
+        <exclude domain="file" path="captures/" />
+        <exclude domain="file" path="logs/" />
     </device-transfer>
 </data-extraction-rules>

@@ -1,39 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    AndroidManifest.xml：HZZS 应用清单文件。
-
-    权限声明：
-    - SYSTEM_ALERT_WINDOW：悬浮窗权限，用于在系统顶层显示控制面板
-
-    应用配置：
-    - 主题：Theme.HuoZaiZaiAssistant（Material 3 浅色无操作栏主题）
-    - 入口 Activity：MainActivity
-
-    注意：
-    - 当前不需要 INTERNET 权限（QQ/Telegram 链接通过系统浏览器打开）
-    - 不需要 RECORD_AUDIO、CAMERA 等敏感权限
-    - 不需要 STORAGE 权限（Android 13+ 已废弃）
-    - 屏幕采集由用户授权的 MediaProjection 会话或 Android 11+ 无障碍截图提供
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <!-- 悬浮窗权限：用于在系统顶层显示控制面板 -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- 前台服务权限 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-
-    <!-- 通知权限（Android 13+） -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
-    <!-- 屏幕截图权限：MediaProjection 需要 FOREGROUND_SERVICE 即可（Android 10+） -->
-    <!-- 普通应用不声明系统级 MEDIA_PROJECTION 权限；Android 14+ 使用 FOREGROUND_SERVICE_MEDIA_PROJECTION -->
-
-<!-- HZZS-MIGRATION-BEGIN runtime-permissions -->
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-<!-- HZZS-MIGRATION-END runtime-permissions -->
-<application
+    <application
+        android:name=".HzzsApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -41,62 +19,60 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.HuoZaiZaiAssistant">
+        android:usesCleartextTraffic="false"
+        android:theme="@style/Theme.Hzzs.Starting">
 
-        <!-- 主 Activity：应用的唯一入口页面 -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 免责声明 Activity -->
         <activity
-            android:name=".ui.disclaimer.DisclaimerActivity"
+            android:name="top.azek431.hzzs.service.capture.CapturePermissionActivity"
             android:exported="false"
-            android:theme="@style/Theme.HuoZaiZaiAssistant"
-            android:windowSoftInputMode="adjustResize" />
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Hzzs.Transparent" />
 
-        <!-- 视觉识别设置 Activity -->
-        <activity
-            android:name=".ui.settings.VisionSettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.HuoZaiZaiAssistant"
-            android:windowSoftInputMode="adjustResize" />
-
-        <!-- 前台通知服务：保持悬浮窗不被系统回收 -->
-        <service android:name=".service.OverlayNotificationService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-        <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Keeps the user-started HZZS overlay visible during local analysis." />
-    </service>
-
-        <!-- 无障碍自动操作服务 -->
         <service
-            android:name="top.azek431.hzzs.features.service.AutoOperationService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:name="top.azek431.hzzs.service.capture.MediaProjectionCaptureService"
             android:exported="false"
-            android:label="火崽崽助手自动操作">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
+            android:foregroundServiceType="mediaProjection"
+            android:stopWithTask="true" />
+
+        <service
+            android:name="top.azek431.hzzs.mcp.McpForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="true">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled loopback MCP bridge for local AI control and diagnostics" />
         </service>
 
-    <!-- HZZS-MIGRATION-BEGIN runtime-components -->
-<activity android:name=".runtime.capture.CapturePermissionActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-<activity android:name=".runtime.settings.ViewportCalibrationActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-<activity android:name=".runtime.settings.VisionRuntimeSettingsActivity" android:exported="false" />
-<service android:name=".runtime.capture.MediaProjectionCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
-<service android:name=".runtime.vision.VisionRuntimeService" android:exported="false" android:foregroundServiceType="specialUse">
-    <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local game-frame analysis overlay and optional accessibility action scheduling." />
-</service>
-<!-- HZZS-MIGRATION-END runtime-components -->
-</application>
+        <service
+            android:name="top.azek431.hzzs.service.automation.HzzsAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
+        </service>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+    </application>
 </manifest>

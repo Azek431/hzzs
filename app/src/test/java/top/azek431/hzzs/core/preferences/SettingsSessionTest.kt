@@ -1,0 +1,82 @@
+package top.azek431.hzzs.core.preferences
+
+import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.model.AutomationConfig
+import top.azek431.hzzs.core.model.SceneId
+
+class SettingsSessionTest {
+    @Test
+    fun discardRestoresBaselineAndClearsPreviewOnce() = runTest {
+        val original = AppConfig()
+        var effective = original
+        var clearCount = 0
+        val session = SettingsEditSession(
+            original = original,
+            onPreview = { effective = it },
+            onPersist = {},
+            onClearPreview = {
+                clearCount += 1
+                effective = original
+            },
+        )
+
+        session.update { it.copy(selectedScene = SceneId.SWEET_FACTORY) }
+        assertEquals(SceneId.SWEET_FACTORY, effective.selectedScene)
+        assertTrue(session.hasChanges())
+
+        assertEquals(original, session.discard())
+        assertEquals(original, effective)
+        assertEquals(original, session.current())
+        assertFalse(session.hasChanges())
+        assertEquals(1, clearCount)
+
+        session.discard()
+        assertEquals(1, clearCount)
+    }
+
+    @Test
+    fun automationDefaultsToOffAndPersistsOnlyAfterRiskAcceptance() {
+        val defaults = ConfigJson.decode(ConfigJson.encode(AppConfig()))
+        assertFalse(defaults.automation.enabled)
+
+        val accepted = AppConfig().copy(
+            automation = AppConfig().automation.copy(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+        )
+        assertTrue(ConfigJson.decode(ConfigJson.encode(accepted)).automation.enabled)
+    }
+
+    @Test
+    fun importedAutomationPackagesAreRestrictedToKnownGameHosts() {
+        val imported = JSONObject(ConfigJson.encode(AppConfig())).apply {
+            getJSONObject("automation").put(
+                "allowedPackages",
+                org.json.JSONArray(listOf("com.example.untrusted", "com.smile.gifmaker")),
+            )
+        }
+
+        val decoded = ConfigJson.decode(imported.toString())
+        assertEquals(setOf("com.smile.gifmaker"), decoded.automation.allowedPackages)
+        assertTrue(decoded.automation.allowedPackages.all { it in AutomationConfig.DEFAULT_ALLOWED_PACKAGES })
+    }
+
+    @Test
+    fun importedAutomationWithoutCurrentDisclaimerFailsClosed() {
+        val imported = JSONObject(ConfigJson.encode(AppConfig())).apply {
+            getJSONObject("automation")
+                .put("enabled", true)
+                .put("disclaimerAcceptedVersion", 0)
+        }.toString()
+
+        assertFalse(ConfigJson.decode(imported).automation.enabled)
+    }
+
+}

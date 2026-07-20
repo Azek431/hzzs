@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- features/overlay 模块的 AndroidManifest -->
-<!-- 此模块不含 Service/Activity，仅声明模块存在 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-</manifest>
