@@ -12,6 +12,7 @@ import kotlin.math.hypot
 class MultiObjectTracker(
     private val maxCenterDistance: Float = 0.18f,
     private val maxMissedFrames: Int = 4,
+    private val maxTracks: Int = 32,
 ) {
     data class TrackedDetection(
         val trackId: Long,
@@ -57,6 +58,11 @@ class MultiObjectTracker(
         }
         available.forEach { it.missed++ }
         tracks.removeAll { it.missed > maxMissedFrames }
+        // 防止极端场景轨道无限增长。
+        if (tracks.size > maxTracks) {
+            tracks.sortByDescending { it.lastSequence }
+            while (tracks.size > maxTracks) tracks.removeAt(tracks.lastIndex)
+        }
         return output
     }
 

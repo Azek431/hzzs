@@ -54,6 +54,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 
@@ -404,7 +405,7 @@ class MediaProjectionCaptureService : Service() {
     }
 
     private fun notification() = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_menu_view)
+        .setSmallIcon(R.drawable.ic_splash_flame)
         .setContentTitle("火崽崽视觉分析")
         .setContentText("正在本机读取屏幕帧，不会上传截图")
         .setOngoing(true)
@@ -435,6 +436,7 @@ class AccessibilityFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
     override val state: StateFlow<CaptureState> = mutableState
     private val sequencer = FrameSequencer()
+    private val pool = IntFramePool(3)
     private var lastCaptureAtNanos = 0L
 
     override suspend fun start() {
@@ -460,16 +462,27 @@ class AccessibilityFrameSource @Inject constructor() : FrameSource {
         }
         return try {
             val size = safePixelCount(bitmap.width, bitmap.height) ?: return null
-            val pixels = IntArray(size)
-            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-            val (sequence, timestamp) = sequencer.next()
-            if (sequence <= afterSequence) null else CapturedFrame(
-                sequence,
-                timestamp,
-                bitmap.width,
-                bitmap.height,
-                pixels,
-            )
+            val lease = pool.tryAcquire(size) ?: return null
+            try {
+                bitmap.getPixels(lease.pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                val (sequence, timestamp) = sequencer.next()
+                if (sequence <= afterSequence) {
+                    lease.close()
+                    null
+                } else {
+                    CapturedFrame(
+                        sequence,
+                        timestamp,
+                        bitmap.width,
+                        bitmap.height,
+                        lease.pixels,
+                        releaseLease = { lease.close() },
+                    )
+                }
+            } catch (error: Throwable) {
+                lease.close()
+                throw error
+            }
         } finally {
             bitmap.recycle()
         }
@@ -490,6 +503,7 @@ class ShizukuFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
     override val state: StateFlow<CaptureState> = mutableState
     private val sequencer = FrameSequencer()
+    private val pool = IntFramePool(3)
     private var lastCaptureAtNanos = 0L
     private val permissionLock = Any()
     private var permissionListener: Shizuku.OnRequestPermissionResultListener? = null
@@ -518,13 +532,26 @@ class ShizukuFrameSource @Inject constructor() : FrameSource {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
         return try {
             val size = safePixelCount(bitmap.width, bitmap.height) ?: return null
-            val pixels = IntArray(size)
-            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-            val (sequence, timestamp) = sequencer.next()
-            if (sequence <= afterSequence) {
-                null
-            } else {
-                CapturedFrame(sequence, timestamp, bitmap.width, bitmap.height, pixels)
+            val lease = pool.tryAcquire(size) ?: return null
+            try {
+                bitmap.getPixels(lease.pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                val (sequence, timestamp) = sequencer.next()
+                if (sequence <= afterSequence) {
+                    lease.close()
+                    null
+                } else {
+                    CapturedFrame(
+                        sequence,
+                        timestamp,
+                        bitmap.width,
+                        bitmap.height,
+                        lease.pixels,
+                        releaseLease = { lease.close() },
+                    )
+                }
+            } catch (error: Throwable) {
+                lease.close()
+                throw error
             }
         } finally {
             bitmap.recycle()
@@ -640,6 +667,7 @@ class RootFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
     override val state: StateFlow<CaptureState> = mutableState
     private val sequencer = FrameSequencer()
+    private val pool = IntFramePool(2)
     private var lastCaptureAtNanos = 0L
 
     override suspend fun start() {
@@ -664,16 +692,27 @@ class RootFrameSource @Inject constructor() : FrameSource {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
         return try {
             val size = safePixelCount(bitmap.width, bitmap.height) ?: return null
-            val pixels = IntArray(size)
-            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-            val (sequence, timestamp) = sequencer.next()
-            if (sequence <= afterSequence) null else CapturedFrame(
-                sequence,
-                timestamp,
-                bitmap.width,
-                bitmap.height,
-                pixels,
-            )
+            val lease = pool.tryAcquire(size) ?: return null
+            try {
+                bitmap.getPixels(lease.pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                val (sequence, timestamp) = sequencer.next()
+                if (sequence <= afterSequence) {
+                    lease.close()
+                    null
+                } else {
+                    CapturedFrame(
+                        sequence,
+                        timestamp,
+                        bitmap.width,
+                        bitmap.height,
+                        lease.pixels,
+                        releaseLease = { lease.close() },
+                    )
+                }
+            } catch (error: Throwable) {
+                lease.close()
+                throw error
+            }
         } finally {
             bitmap.recycle()
         }

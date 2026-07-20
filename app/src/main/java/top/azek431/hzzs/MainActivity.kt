@@ -372,7 +372,7 @@ private fun syncMcpService(context: Context, enabled: Boolean) {
         if (enabled) McpForegroundService.ACTION_START else McpForegroundService.ACTION_STOP,
     )
     if (enabled) {
-        context.stopService(Intent(context, McpForegroundService::class.java))
+        // 已运行时用 START 幂等拉起，避免先 stop 再 start 造成短时断连。
         ContextCompat.startForegroundService(context, intent)
     } else {
         context.stopService(Intent(context, McpForegroundService::class.java))

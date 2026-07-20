@@ -86,12 +86,17 @@ class VisionRuntimeController @Inject constructor(
     private var runtimeJob: Job? = null
 
     @Volatile
+    private var actionJob: Job? = null
+
+    @Volatile
     private var activeSource: FrameSource? = null
 
     private val armedWindowClass = AtomicReference<String?>(null)
     private val actionIds = AtomicLong(1)
     private val recentActionTimes = ArrayDeque<Long>()
     private val detectedPlayerReference = AtomicReference<Detection?>(null)
+    private val actionMutex = Mutex()
+    private val trackRetryCounts = mutableMapOf<Long, Int>()
 
     init {
         scope.launch {
@@ -357,7 +362,13 @@ class VisionRuntimeController @Inject constructor(
                             activeBackend = startedBackend,
                         )
                     }
-                    maybeDispatch(config, trackedResult, tracked)
+                    maybeDispatch(
+                        token = token,
+                        config = config,
+                        result = trackedResult,
+                        tracked = tracked,
+                        frameTimestampNanos = frame.elapsedRealtimeNanos,
+                    )
 
                     frameCount++
                     val now = SystemClock.elapsedRealtime()
@@ -396,24 +407,25 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
-    private suspend fun maybeDispatch(
+    private fun maybeDispatch(
+        token: Long,
         config: AppConfig,
         result: VisionResult,
         tracked: List<MultiObjectTracker.TrackedDetection>,
+        frameTimestampNanos: Long,
     ) {
         if (!config.automation.enabled) {
             disarmAutomation()
             return
         }
         val requiredClass = armedWindowClass.get() ?: return
-        if (config.automation.requireSessionArm && !mutableStatus.value.automationArmed) return
-        if (!config.automation.requireSessionArm && !mutableStatus.value.automationArmed) {
-            // 即使关闭 requireSessionArm，仍要求至少完成一次 arm 以绑定窗口类。
-            return
-        }
+        if (!mutableStatus.value.automationArmed) return
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
 
-        // 竹影实验锁：对齐 main 的 bambooExperimentalAutoAction。
+        // 帧龄门控：过旧的分析结果不再触发动作。
+        val frameAgeMs = (SystemClock.elapsedRealtimeNanos() - frameTimestampNanos) / 1_000_000L
+        if (frameAgeMs < 0L || frameAgeMs > MAX_FRAME_AGE_MS) return
+
         if (
             config.selectedScene == SceneId.BAMBOO_BOOKSTORE &&
             !config.automation.bambooExperimentalAutoAction
@@ -421,18 +433,8 @@ class VisionRuntimeController @Inject constructor(
             return
         }
 
-        val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
-            disarmAutomation()
-            return
-        }
-        if (
-            SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
-            foreground.packageName !in config.automation.allowedPackages ||
-            !foreground.className.startsWith(requiredClass)
-        ) {
-            disarmAutomation()
-            return
-        }
+        // 已有动作在执行时，不在帧循环里再排队，避免堆积过期手势。
+        if (actionJob?.isActive == true) return
 
         val sceneConfig = config.scenes.getValue(config.selectedScene)
         val player = result.player ?: return
@@ -459,44 +461,115 @@ class VisionRuntimeController @Inject constructor(
             .minByOrNull { (_, gap) -> gap }
             ?.first
             ?: return
-        if (!ledger.canPlan(candidate.trackId)) return
 
+        val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
-        while (
-            recentActionTimes.isNotEmpty() &&
-            now - recentActionTimes.first() >= ACTION_RATE_WINDOW_MS
-        ) {
-            recentActionTimes.removeFirst()
-        }
-
-        val plan = planGestures(config.selectedScene, candidate.detection.avoidance, now)
-        if (plan.isEmpty()) return
-        if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return
-
-        for ((index, stroke) in plan.withIndex()) {
-            if (index > 0) {
-                val wait = (stroke.dueAt - SystemClock.uptimeMillis()).coerceAtLeast(0L)
-                if (wait > 0L) delay(wait)
-            }
-            val created = SystemClock.uptimeMillis()
-            val action = AutomationAction(
-                id = actionIds.getAndIncrement(),
-                trackId = candidate.trackId,
-                avoidance = candidate.detection.avoidance,
-                gesture = stroke.gesture,
-                createdAtUptimeMs = created,
-                expiresAtUptimeMs = created + stroke.ttlMs,
-                allowedPackages = config.automation.allowedPackages,
-                requiredWindowClassPrefixes = setOf(requiredClass),
+        actionJob = scope.launch {
+            dispatchPlan(
+                token = token,
+                config = config,
+                requiredClass = requiredClass,
+                candidate = candidate,
+                spatialKey = spatialKey,
+                plannedAt = now,
             )
-            val receipt = arbiter.dispatch(action)
-            if (receipt.outcome != DispatchOutcome.COMPLETED) {
+        }
+    }
+
+    private suspend fun dispatchPlan(
+        token: Long,
+        config: AppConfig,
+        requiredClass: String,
+        candidate: MultiObjectTracker.TrackedDetection,
+        spatialKey: String,
+        plannedAt: Long,
+    ) {
+        if (generation.get() != token) return
+        actionMutex.withLock {
+            if (generation.get() != token) return
+            if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) return
+
+            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
                 disarmAutomation()
                 return
             }
-            ledger.commit(receipt)
-            recentActionTimes.addLast(SystemClock.uptimeMillis())
+            if (
+                SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
+                foreground.packageName !in config.automation.allowedPackages ||
+                !foreground.className.startsWith(requiredClass)
+            ) {
+                disarmAutomation()
+                return
+            }
+
+            val now = SystemClock.uptimeMillis()
+            while (
+                recentActionTimes.isNotEmpty() &&
+                now - recentActionTimes.first() >= ACTION_RATE_WINDOW_MS
+            ) {
+                recentActionTimes.removeFirst()
+            }
+
+            val plan = planGestures(config.selectedScene, candidate.detection.avoidance, now)
+            if (plan.isEmpty()) return
+            if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return
+
+            for ((index, stroke) in plan.withIndex()) {
+                if (generation.get() != token) return
+                if (index > 0) {
+                    val wait = (stroke.dueAt - SystemClock.uptimeMillis()).coerceAtLeast(0L)
+                    if (wait > 0L) delay(wait)
+                }
+                if (generation.get() != token) return
+
+                var attempt = 0
+                var completed = false
+                while (attempt <= config.automation.retryLimit && !completed) {
+                    if (generation.get() != token) return
+                    val created = SystemClock.uptimeMillis()
+                    val action = AutomationAction(
+                        id = actionIds.getAndIncrement(),
+                        trackId = candidate.trackId,
+                        avoidance = candidate.detection.avoidance,
+                        gesture = stroke.gesture,
+                        createdAtUptimeMs = created,
+                        expiresAtUptimeMs = created + stroke.ttlMs,
+                        allowedPackages = config.automation.allowedPackages,
+                        requiredWindowClassPrefixes = setOf(requiredClass),
+                        retryCount = attempt,
+                    )
+                    val receipt = arbiter.dispatch(action)
+                    when (receipt.outcome) {
+                        DispatchOutcome.COMPLETED -> {
+                            ledger.commit(receipt, spatialKey)
+                            recentActionTimes.addLast(SystemClock.uptimeMillis())
+                            trackRetryCounts.remove(candidate.trackId)
+                            completed = true
+                        }
+                        DispatchOutcome.EXPIRED,
+                        DispatchOutcome.CANCELLED,
+                        DispatchOutcome.REJECTED,
+                        -> {
+                            attempt++
+                            val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
+                            trackRetryCounts[candidate.trackId] = retriesUsed
+                            if (attempt > config.automation.retryLimit) {
+                                disarmAutomation()
+                                return
+                            }
+                            delay(RETRY_BACKOFF_MS)
+                        }
+                    }
+                }
+                if (!completed) return
+            }
         }
+    }
+
+    private fun spatialKeyOf(detection: Detection): String {
+        val cx = ((detection.bounds.left + detection.bounds.right) * 0.5f * 20f).toInt()
+        val cy = ((detection.bounds.top + detection.bounds.bottom) * 0.5f * 20f).toInt()
+        return "${detection.kind.name}:$cx:$cy"
     }
 
     private data class PlannedStroke(
@@ -540,7 +613,6 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
-
     /** Resolves the player baseline without forcing continuous player detection. */
     private fun VisionResult.withPlayerReference(sceneConfig: SceneConfig): VisionResult {
         val thresholds = sceneConfig.thresholds
@@ -573,6 +645,8 @@ class VisionRuntimeController @Inject constructor(
     }
 
     private suspend fun resetPipeline() {
+        actionJob?.cancel()
+        actionJob = null
         tracker.reset()
         ledger.reset()
         engine.reset()
@@ -580,6 +654,7 @@ class VisionRuntimeController @Inject constructor(
         detectedPlayerReference.set(null)
         armedWindowClass.set(null)
         recentActionTimes.clear()
+        trackRetryCounts.clear()
     }
 
     private class CaptureUnavailable(message: String) : IllegalStateException(message)
@@ -600,6 +675,8 @@ class VisionRuntimeController @Inject constructor(
         const val DOUBLE_JUMP_GAP_BAMBOO_MS = 80L
         const val SLIDE_TTL_SWEET_MS = 650L
         const val SLIDE_TTL_BAMBOO_MS = 600L
+        const val MAX_FRAME_AGE_MS = 120L
+        const val RETRY_BACKOFF_MS = 40L
         const val PERMISSION_BACKOFF_MS = 80L
         const val READY_NULL_FRAME_BACKOFF_MS = 12L
         const val IDLE_BACKOFF_MS = 80L

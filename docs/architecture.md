@@ -64,12 +64,13 @@ DataStore 存储 schema v5。`SettingsRepository` 合并持久配置和内存预
 
 ```text
 armAutomation() 门控
-  → 规划 Avoidance / GestureSpec
-  → GestureArbiter（串行、TTL、回执校验）
+  → 帧龄校验（默认 ≤120ms）
+  → 独立 actionJob 规划/执行（不阻塞取帧）
+  → GestureArbiter（串行、TTL、回执、retryLimit）
   → HzzsAccessibilityService.dispatchGesture
 ```
 
-门控包括：设置开关、免责声明版本、视觉运行中、无障碍前台包白名单、窗口类、场景置信度、帧时效与动作速率。
+门控包括：设置开关、免责声明版本、视觉运行中、无障碍前台包白名单、窗口类、场景置信度、帧时效、竹影实验锁、空间去重与动作速率。
 
 ## MCP
 
@@ -77,13 +78,14 @@ armAutomation() 门控
 
 ## C++ 视觉
 
-扁平目录 `app/src/main/cpp/`，库名 `hzzs_vision`：
+目录 `app/src/main/cpp/`，库名 `hzzs_vision`：
 
-- `sweet_factory` / `bamboo_bookstore` 场景检测
-- 共享 `scene_geometry` / `color_components`
-- `jni_bridge` 边界校验与结果编码
+- **主路径**：`legacy_main/vision2`（甜甜圈）与 `legacy_main/vision_bamboo`（竹影书屋），经 `vision_engine.cpp` 映射为统一 `Detection` / 位掩码协议。
+- **回退路径**：`sweet_factory.cpp` / `bamboo_bookstore.cpp`，仅在主路径场景置信度过低且检测过少时启用。
+- 共享几何与连通域：`scene_geometry.h` / `color_components.h`
+- JNI 边界：`jni_bridge.cpp`（校验、视口裁剪、结果编码）
 
-跨帧状态在 Kotlin，不在 C++ 状态机中。
+跨帧状态在 Kotlin tracker / runtime，不在 C++ 状态机中。
 
 ## 更新
 
