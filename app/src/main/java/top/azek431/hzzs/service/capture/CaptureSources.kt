@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -37,6 +38,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +53,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import rikka.shizuku.Shizuku
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 
@@ -479,26 +482,156 @@ class AccessibilityFrameSource @Inject constructor() : FrameSource {
 
 
 /**
- * Shizuku/ADB placeholder capability. The app does not bundle or silently start
- * a Shell daemon. A future optional Shizuku adapter can implement this source
- * without changing the vision pipeline.
+ * 通过 Shizuku 执行 `screencap -p` 的可选截图后端。
+ * 不会在 AUTO 路径启用；需要用户显式选择，并已安装/授权 Shizuku。
  */
 @Singleton
 class ShizukuFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
     override val state: StateFlow<CaptureState> = mutableState
+    private val sequencer = FrameSequencer()
+    private var lastCaptureAtNanos = 0L
+    private val permissionLock = Any()
+    private var permissionListener: Shizuku.OnRequestPermissionResultListener? = null
 
     override suspend fun start() {
-        mutableState.value = CaptureState.Failed(
-            "Shizuku 截图适配器尚未安装。请使用屏幕录制，或在开发者设置中安装兼容适配器。",
-            false,
-        )
+        val ready = ensureShizukuPermission()
+        mutableState.value = if (ready) {
+            CaptureState.Ready
+        } else {
+            CaptureState.Failed(
+                "Shizuku 不可用：请安装并启动 Shizuku，并授予本应用权限。",
+                true,
+            )
+        }
     }
 
-    override suspend fun nextFrame(afterSequence: Long): CapturedFrame? = null
+    override suspend fun nextFrame(afterSequence: Long): CapturedFrame? {
+        if (state.value != CaptureState.Ready) return null
+        if (!isShizukuAuthorized()) {
+            mutableState.value = CaptureState.Failed("Shizuku 权限已失效", true)
+            return null
+        }
+        throttle(MIN_SHIZUKU_CAPTURE_INTERVAL_MS, lastCaptureAtNanos)
+        lastCaptureAtNanos = SystemClock.elapsedRealtimeNanos()
+        val bytes = runShizukuScreencap() ?: return null
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        return try {
+            val size = safePixelCount(bitmap.width, bitmap.height) ?: return null
+            val pixels = IntArray(size)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            val (sequence, timestamp) = sequencer.next()
+            if (sequence <= afterSequence) {
+                null
+            } else {
+                CapturedFrame(sequence, timestamp, bitmap.width, bitmap.height, pixels)
+            }
+        } finally {
+            bitmap.recycle()
+        }
+    }
 
     override suspend fun stop() {
+        clearPermissionListener()
         mutableState.value = CaptureState.Idle
+    }
+
+    private suspend fun ensureShizukuPermission(): Boolean = withContext(Dispatchers.Main) {
+        if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return@withContext false
+        if (isShizukuAuthorized()) return@withContext true
+        if (Shizuku.isPreV11()) return@withContext false
+        val deferred = CompletableDeferred<Boolean>()
+        val listener = Shizuku.OnRequestPermissionResultListener { _, grantResult ->
+            deferred.complete(grantResult == PackageManager.PERMISSION_GRANTED)
+        }
+        synchronized(permissionLock) {
+            clearPermissionListener()
+            permissionListener = listener
+            Shizuku.addRequestPermissionResultListener(listener)
+        }
+        return@withContext try {
+            Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+            withTimeoutOrNull(15_000L) { deferred.await() } == true
+        } catch (_: Throwable) {
+            false
+        } finally {
+            clearPermissionListener()
+        }
+    }
+
+    private fun clearPermissionListener() {
+        synchronized(permissionLock) {
+            permissionListener?.let { Shizuku.removeRequestPermissionResultListener(it) }
+            permissionListener = null
+        }
+    }
+
+    private fun isShizukuAuthorized(): Boolean = runCatching {
+        Shizuku.pingBinder() &&
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    }.getOrDefault(false)
+
+    /**
+     * Shizuku 13+ 将 `newProcess` 标为 private。这里用反射调用同一实现，
+     * 避免引入完整 UserService 绑定复杂度；失败时返回 null 并保持 fail-closed。
+     */
+    private fun openShizukuProcess(command: Array<String>): java.lang.Process? = runCatching {
+        val method = Shizuku::class.java.getDeclaredMethod(
+            "newProcess",
+            Array<String>::class.java,
+            Array<String>::class.java,
+            String::class.java,
+        )
+        method.isAccessible = true
+        method.invoke(null, command, null, null) as java.lang.Process
+    }.getOrNull()
+
+    private suspend fun runShizukuScreencap(): ByteArray? = withContext(Dispatchers.IO) {
+        val process = openShizukuProcess(arrayOf("screencap", "-p")) ?: return@withContext null
+        try {
+            coroutineScope {
+                val stdout = async(Dispatchers.IO) {
+                    runCatching { readLimited(process.inputStream, MAX_SCREENSHOT_BYTES) }
+                        .onFailure { process.destroyCompat() }
+                        .getOrNull()
+                }
+                val stderr = async(Dispatchers.IO) {
+                    runCatching { readLimited(process.errorStream, MAX_ROOT_STDERR_BYTES) }
+                        .onFailure { process.destroyCompat() }
+                        .getOrNull()
+                }
+                val exited = waitForExit(process, 4_000L)
+                if (!exited) process.destroyCompat()
+                val streams = withTimeoutOrNull(1_000L) { stdout.await() to stderr.await() }
+                val exitCode = if (exited) runCatching { process.exitValue() }.getOrNull() else null
+                if (exitCode != 0 || streams == null) null else streams.first
+            }
+        } finally {
+            process.destroyCompat()
+        }
+    }
+
+    private fun readLimited(input: InputStream, maxBytes: Int): ByteArray {
+        input.use { stream ->
+            val output = ByteArrayOutputStream(minOf(maxBytes, 1024 * 1024))
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                if (output.size().toLong() + count.toLong() > maxBytes.toLong()) {
+                    throw IllegalStateException("Shizuku command output exceeds $maxBytes bytes")
+                }
+                output.write(buffer, 0, count)
+            }
+            return output.toByteArray()
+        }
+    }
+
+    private companion object {
+        const val SHIZUKU_PERMISSION_REQUEST_CODE = 0x53485A4B // 'SHZK'
+        const val MIN_SHIZUKU_CAPTURE_INTERVAL_MS = 120L
+        const val MAX_SCREENSHOT_BYTES = 32 * 1024 * 1024
+        const val MAX_ROOT_STDERR_BYTES = 64 * 1024
     }
 }
 

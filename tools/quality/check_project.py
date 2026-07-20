@@ -51,7 +51,12 @@ if application is not None:
         for node in application.findall(tag):
             if node.attrib.get(ANDROID_NS + "exported") == "true":
                 exported.append(node.attrib.get(ANDROID_NS + "name", ""))
-    check(exported == [".MainActivity"], "manifest:minimal-exported-surface", f"exported={exported}")
+    allowed_exported = {".MainActivity", "rikka.shizuku.ShizukuProvider"}
+    check(
+        set(exported) <= allowed_exported and ".MainActivity" in exported,
+        "manifest:minimal-exported-surface",
+        f"exported={exported}",
+    )
 manifest_text = read("app/src/main/AndroidManifest.xml")
 for token in (
     "FOREGROUND_SERVICE_MEDIA_PROJECTION",
