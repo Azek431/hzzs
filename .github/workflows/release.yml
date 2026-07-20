@@ -1,7 +1,7 @@
 name: Publish GitHub and Gitee release
 on:
   release:
-    types: [published, edited]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -29,8 +29,34 @@ jobs:
         shell: bash
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([A-Za-z0-9.-]+))?$ ]]; then
+            echo "Tag must use semantic versioning, for example v0.2.0 or v0.2.0-beta.1" >&2
+            exit 1
+          fi
+          MAJOR="${BASH_REMATCH[1]}"; MINOR="${BASH_REMATCH[2]}"; PATCH="${BASH_REMATCH[3]}"
+          SUFFIX="${BASH_REMATCH[5]}"
+          if [[ -n "$SUFFIX" ]]; then
+            CHANNEL=beta
+            PRERELEASE_NUMBER=$(grep -oE '[0-9]+$' <<<"$SUFFIX" || true)
+            PRERELEASE_NUMBER=${PRERELEASE_NUMBER:-1}
+            if (( PRERELEASE_NUMBER < 1 || PRERELEASE_NUMBER > 98 )); then
+              echo "Prerelease number must be between 1 and 98" >&2
+              exit 1
+            fi
+            RELEASE_SLOT=$PRERELEASE_NUMBER
+          else
+            CHANNEL=stable
+            RELEASE_SLOT=99
+          fi
+          VERSION_CODE=$(( MAJOR * 10000000 + MINOR * 100000 + PATCH * 100 + RELEASE_SLOT ))
+          if (( VERSION_CODE <= 0 || VERSION_CODE > 2100000000 )); then
+            echo "Derived Android versionCode is out of range" >&2
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" == *-* ]]; then echo "channel=beta" >> "$GITHUB_OUTPUT"; else echo "channel=stable" >> "$GITHUB_OUTPUT"; fi
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "version_name=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.meta.outputs.tag }}
@@ -41,6 +67,10 @@ jobs:
           java-version: '17'
           cache: gradle
       - uses: android-actions/setup-android@v3
+      - name: Install Android native toolchain
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Install release tooling dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet cryptography requests
       - name: Restore release keystore
         shell: bash
         run: |
@@ -52,6 +82,8 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          HZZS_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          HZZS_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
         run: ./gradlew --no-daemon clean testReleaseUnitTest lintRelease assembleRelease
       - name: Verify APK and metadata
         id: apk
@@ -122,29 +154,60 @@ jobs:
             --apk '${{ steps.apk.outputs.file }}' --notes "$(cat release-notes.md)" --patch-list patches.tsv --output payload.json
           python3 tools/release/sign_manifest.py --payload payload.json --keystore "$RUNNER_TEMP/hzzs-release.p12" --password '${{ secrets.ANDROID_STORE_PASSWORD }}' \
             --output '${{ steps.meta.outputs.channel }}.json' --public-key-output update-public-key.der.b64
-          sha256sum '${{ steps.apk.outputs.file }}' patches/*.hzzsdelta '${{ steps.meta.outputs.channel }}.json' 2>/dev/null > SHA256SUMS
+          shopt -s nullglob
+          CHECKSUM_FILES=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            update-public-key.der.b64
+          )
+          sha256sum "${CHECKSUM_FILES[@]}" > SHA256SUMS
       - name: Upload GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: gh release upload '${{ steps.meta.outputs.tag }}' '${{ steps.apk.outputs.file }}' patches/*.hzzsdelta '${{ steps.meta.outputs.channel }}.json' SHA256SUMS update-public-key.der.b64 --clobber
-      - name: Mirror Git refs to Gitee
+        run: |
+          shopt -s nullglob
+          ASSETS=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            SHA256SUMS
+            update-public-key.der.b64
+          )
+          gh release upload '${{ steps.meta.outputs.tag }}' "${ASSETS[@]}" --clobber
+      - name: Mirror release refs to Gitee without rewriting history
         shell: bash
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           git remote add gitee "https://oauth2:${GITEE_TOKEN}@gitee.com/${GITEE_OWNER}/${GITEE_REPO}.git"
-          git push gitee --force --all
-          git push gitee --force --tags
+          git fetch origin main:refs/remotes/origin/main
+          git push gitee refs/remotes/origin/main:refs/heads/main
+          git push gitee 'refs/tags/${{ steps.meta.outputs.tag }}:refs/tags/${{ steps.meta.outputs.tag }}'
+          if git fetch origin release-index:refs/remotes/origin/release-index; then
+            git push gitee refs/remotes/origin/release-index:refs/heads/release-index
+          elif ! git ls-remote --exit-code gitee refs/heads/release-index >/dev/null 2>&1; then
+            git push gitee refs/remotes/origin/main:refs/heads/release-index
+          fi
       - name: Sync release and all attachments to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         shell: bash
         run: |
-          python3 -m pip install --quiet requests
+          shopt -s nullglob
+          ASSETS=(
+            '${{ steps.apk.outputs.file }}'
+            patches/*.hzzsdelta
+            '${{ steps.meta.outputs.channel }}.json'
+            SHA256SUMS
+            update-public-key.der.b64
+          )
+          PRERELEASE=()
+          if [[ '${{ steps.meta.outputs.channel }}' == 'beta' ]]; then PRERELEASE=(--prerelease); fi
           python3 tools/release/sync_gitee_release.py --owner "$GITEE_OWNER" --repo "$GITEE_REPO" --tag '${{ steps.meta.outputs.tag }}' \
-            --name '${{ steps.meta.outputs.tag }}' --body-file release-notes.md ${{ steps.meta.outputs.channel == 'beta' && '--prerelease' || '' }} \
-            --assets '${{ steps.apk.outputs.file }}' patches/*.hzzsdelta '${{ steps.meta.outputs.channel }}.json' SHA256SUMS update-public-key.der.b64
+            --name '${{ steps.meta.outputs.tag }}' --body-file release-notes.md "${PRERELEASE[@]}" \
+            --assets "${ASSETS[@]}"
       - name: Publish Gitee-first channel index
         env:
           GH_TOKEN: ${{ github.token }}

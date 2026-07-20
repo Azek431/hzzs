@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-CPP="$ROOT/native/vision/src/main/cpp"
+CPP="$ROOT/app/src/main/cpp"
 mkdir -p "$ROOT/build/host"
 g++ -std=c++17 -O3 -DNDEBUG -fPIC -shared \
   -I"$CPP" \
