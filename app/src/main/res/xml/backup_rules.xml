@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <exclude domain="file" path="datastore/hzzs_settings_v5.preferences_pb" />
     <exclude domain="file" path="captures/" />
