@@ -4,6 +4,8 @@
 
 HZZS 是“火崽崽奇妙屋”的本地 Android 画面分析工具。主要能力是截图、C++ 障碍识别、可选悬浮窗、配置预览和受控自动操作。最低系统为 Android 7.0（API 24）。
 
+首发版本目标：**0.1.0** / `versionCode = 1`。默认赛季：**竹影书屋**。
+
 ## 结构约束
 
 - 所有 Android、Kotlin、Compose、JNI 与 C++ 产品源码必须位于 `app/`。
@@ -23,11 +25,12 @@ HZZS 是“火崽崽奇妙屋”的本地 Android 画面分析工具。主要能
 
 ## 修改流程
 
-1. 阅读目标目录的 `README.md` 与 `CLAUDE.md`。
+1. 阅读目标目录的 `README.md` 与 `CLAUDE.md`，以及 `docs/PROGRESS.md`。
 2. 修改代码后同步职责、数据流或不变量文档，避免只更新表面说明。
 3. 运行 `python tools/quality/check_resources.py` 和 `python tools/quality/check_project.py`。
 4. 运行 Native 测试和 Android Gradle 门禁。
-5. 不提交密钥、签名文件、`local.properties`、本地备份或生成的二进制。
+5. 更新 `CHANGELOG.md` 的 `[Unreleased]`（若用户可见行为变化）。
+6. 不提交密钥、签名文件、`local.properties`、本地备份或生成的二进制。
 
 ## 坐标与线程
 
@@ -35,3 +38,13 @@ HZZS 是“火崽崽奇妙屋”的本地 Android 画面分析工具。主要能
 - 截图帧拥有明确的 `close()` 生命周期，不得跨帧保存底层缓冲引用。
 - WindowManager、View 与 Accessibility 回调必须在主线程协调。
 - C++ 输入缓冲只在 JNI 调用期间借用，Native 不得持有 Java 数组地址。
+
+## 文档真相源
+
+- 产品与架构：`README.md`、`docs/ARCHITECTURE.md`、`docs/SECURITY.md`
+- 进度：`docs/PROGRESS.md`
+- 代理导航：`AGENTS.md`（须与源码同步，不得再描述旧多模块 Views 骨架）
+
+## 语言
+
+与用户沟通、新增用户可见文案与文档默认使用中文。

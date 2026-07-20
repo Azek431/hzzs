@@ -1,6 +1,6 @@
 val configuredVersionCode = providers.environmentVariable("HZZS_VERSION_CODE").orNull?.toIntOrNull()
     ?: providers.gradleProperty("hzzsVersionCode").orNull?.toIntOrNull()
-    ?: 100
+    ?: 1
 val configuredVersionName = providers.environmentVariable("HZZS_VERSION_NAME").orNull
     ?: providers.gradleProperty("hzzsVersionName").orNull
     ?: "0.1.0"
@@ -143,6 +143,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     testImplementation(libs.junit)
     testImplementation(libs.json)

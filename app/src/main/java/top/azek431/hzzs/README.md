@@ -6,4 +6,4 @@
 
 配置主路径：`SettingsScreen -> SettingsRepository preview/save -> AppConfig Flow -> Theme / Runtime / MCP`。
 
-AI 查错时先从状态所有者开始，不要从 UI 文案反推业务状态。
+默认 `AppConfig.selectedScene = BAMBOO_BOOKSTORE`。AI 查错时先从状态所有者开始，不要从 UI 文案反推业务状态。
