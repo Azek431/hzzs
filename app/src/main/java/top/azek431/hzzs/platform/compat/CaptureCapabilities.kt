@@ -1,8 +1,10 @@
 package top.azek431.hzzs.platform.compat
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
+import rikka.shizuku.Shizuku
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import javax.inject.Inject
@@ -11,9 +13,8 @@ import javax.inject.Singleton
 
 /** Version-level availability only. Permission/connection readiness is evaluated separately. */
 fun CaptureBackend.isSupportedOnThisDevice(): Boolean = when (this) {
-    CaptureBackend.AUTO, CaptureBackend.MEDIA_PROJECTION, CaptureBackend.ROOT -> true
+    CaptureBackend.AUTO, CaptureBackend.MEDIA_PROJECTION, CaptureBackend.ROOT, CaptureBackend.SHIZUKU -> true
     CaptureBackend.ACCESSIBILITY -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-    CaptureBackend.SHIZUKU -> false
 }
 
 data class CaptureCapability(
@@ -61,14 +62,20 @@ class CaptureCapabilityResolver @Inject constructor(
         ),
         CaptureCapability(
             backend = CaptureBackend.SHIZUKU,
-            supported = false,
-            ready = false,
+            supported = true,
+            ready = isShizukuReady(),
             recommended = false,
             title = "Shizuku / ADB",
-            summary = if (hasPackage("moe.shizuku.privileged.api")) {
-                "已检测到 Shizuku，但当前版本未内置安全的 UserService 截图适配器。"
-            } else {
-                "当前版本未内置 Shizuku UserService 截图适配器。"
+            summary = when {
+                !hasPackage("moe.shizuku.privileged.api") ->
+                    "需安装并启动 Shizuku。将通过 Shizuku 执行 screencap，不会在 AUTO 路径自动启用。"
+                !runCatching { Shizuku.pingBinder() }.getOrDefault(false) ->
+                    "已安装 Shizuku，但服务未运行。请先在 Shizuku 应用中启动。"
+                runCatching { Shizuku.checkSelfPermission() }.getOrDefault(PackageManager.PERMISSION_DENIED) !=
+                    PackageManager.PERMISSION_GRANTED ->
+                    "Shizuku 已运行，请在首次使用时授予本应用 Shizuku 权限。"
+                else ->
+                    "Shizuku 可用。通过受限 shell 截图，延迟通常高于屏幕录制。"
             },
         ),
         CaptureCapability(
@@ -80,6 +87,12 @@ class CaptureCapabilityResolver @Inject constructor(
             summary = "最高权限实验后端。每帧 PNG 截图不一定比屏幕录制更快，且兼容风险最高。",
         ),
     )
+
+    private fun isShizukuReady(): Boolean = runCatching {
+        hasPackage("moe.shizuku.privileged.api") &&
+            Shizuku.pingBinder() &&
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    }.getOrDefault(false)
 
     private fun hasPackage(packageName: String): Boolean = runCatching {
         @Suppress("DEPRECATION")
