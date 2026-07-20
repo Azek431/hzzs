@@ -3,6 +3,10 @@ package top.azek431.hzzs.feature.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -22,6 +26,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,20 +38,37 @@ import top.azek431.hzzs.core.model.*
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.core.theme.HzzsThemePackage
 import top.azek431.hzzs.core.theme.ThemePackageCodec
+import top.azek431.hzzs.core.update.ApkInstaller
+import top.azek431.hzzs.core.update.DeltaPatchApplier
+import top.azek431.hzzs.core.update.SourceResult
+import top.azek431.hzzs.core.update.UpdateRepository
 import top.azek431.hzzs.platform.compat.CaptureCapabilityResolver
+import java.io.File
 import javax.inject.Inject
+
+data class UpdateUiState(
+    val busy: Boolean = false,
+    val message: String? = null,
+    val available: SourceResult? = null,
+    val localApk: File? = null,
+)
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
     private val repository: SettingsRepository,
     private val capabilityResolver: CaptureCapabilityResolver,
+    private val updateRepository: UpdateRepository,
 ) : ViewModel() {
     private val mutableDraft = MutableStateFlow(AppConfig())
     val draft: StateFlow<AppConfig> = mutableDraft.asStateFlow()
     private val mutableBaseline = MutableStateFlow(AppConfig())
     val baseline: StateFlow<AppConfig> = mutableBaseline.asStateFlow()
     val capabilities = capabilityResolver.all()
+    private val mutableUpdate = MutableStateFlow(UpdateUiState())
+    val updateState: StateFlow<UpdateUiState> = mutableUpdate.asStateFlow()
     private var previewJob: Job? = null
+    private var updateJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -114,6 +136,139 @@ class SettingsViewModel @Inject constructor(
             mutableDraft.value = mutableBaseline.value
         }
     }
+
+    fun checkForUpdates() {
+        if (updateJob?.isActive == true) return
+        updateJob = viewModelScope.launch {
+            val config = mutableBaseline.value
+            mutableUpdate.value = UpdateUiState(busy = true, message = "正在检查更新…")
+            runCatching {
+                if (config.update.wifiOnly && !isOnUnmeteredNetwork()) {
+                    error("当前设置要求仅在 Wi‑Fi 下检查/下载更新")
+                }
+                val result = updateRepository.check(beta = config.update.channel == UpdateChannel.BETA)
+                val installed = installedVersionCode()
+                if (result.manifest.versionCode <= installed) {
+                    UpdateUiState(
+                        busy = false,
+                        message = "已是最新（远端 ${result.manifest.versionName} / ${result.manifest.versionCode}）",
+                    )
+                } else if (config.update.ignoredVersionCode == result.manifest.versionCode) {
+                    UpdateUiState(
+                        busy = false,
+                        message = "已忽略版本 ${result.manifest.versionName}",
+                        available = result,
+                    )
+                } else {
+                    UpdateUiState(
+                        busy = false,
+                        message = "发现 ${result.manifest.versionName}（${result.source.name}）",
+                        available = result,
+                    )
+                }
+            }.onSuccess { mutableUpdate.value = it }
+                .onFailure { error ->
+                    mutableUpdate.value = UpdateUiState(
+                        busy = false,
+                        message = "检查失败：${error.message ?: error.javaClass.simpleName}",
+                    )
+                }
+        }
+    }
+
+    fun downloadAvailableUpdate() {
+        val available = mutableUpdate.value.available ?: return
+        if (updateJob?.isActive == true) return
+        updateJob = viewModelScope.launch {
+            val config = mutableBaseline.value
+            mutableUpdate.value = mutableUpdate.value.copy(busy = true, message = "正在下载更新…")
+            runCatching {
+                if (config.update.wifiOnly && !isOnUnmeteredNetwork()) {
+                    error("当前设置要求仅在 Wi‑Fi 下下载更新")
+                }
+                val dir = File(appContext.cacheDir, "updates").apply { mkdirs() }
+                val fullApk = File(dir, available.manifest.fullApk.name)
+                val patch = available.manifest.patches.firstOrNull {
+                    it.fromVersionCode == installedVersionCode()
+                }
+                if (patch != null) {
+                    val patchFile = File(dir, patch.patch.name)
+                    updateRepository.download(available.source, available.manifest, patch.patch, patchFile)
+                    val oldApk = File(appContext.applicationInfo.sourceDir)
+                    DeltaPatchApplier.apply(oldApk, patchFile, fullApk)
+                    patchFile.delete()
+                } else {
+                    updateRepository.download(
+                        available.source,
+                        available.manifest,
+                        available.manifest.fullApk,
+                        fullApk,
+                    )
+                }
+                UpdateUiState(
+                    busy = false,
+                    message = "下载完成，可安装 ${available.manifest.versionName}",
+                    available = available,
+                    localApk = fullApk,
+                )
+            }.onSuccess { mutableUpdate.value = it }
+                .onFailure { error ->
+                    mutableUpdate.value = mutableUpdate.value.copy(
+                        busy = false,
+                        message = "下载失败：${error.message ?: error.javaClass.simpleName}",
+                        localApk = null,
+                    )
+                }
+        }
+    }
+
+    fun installDownloadedUpdate() {
+        val apk = mutableUpdate.value.localApk ?: return
+        runCatching { ApkInstaller.launch(appContext, apk) }
+            .onFailure { error ->
+                mutableUpdate.value = mutableUpdate.value.copy(
+                    message = "无法启动安装：${error.message ?: error.javaClass.simpleName}",
+                )
+            }
+    }
+
+    fun ignoreAvailableUpdate() {
+        val code = mutableUpdate.value.available?.manifest?.versionCode ?: return
+        viewModelScope.launch {
+            val current = repository.snapshot()
+            val next = current.copy(update = current.update.copy(ignoredVersionCode = code))
+            repository.save(next)
+            mutableBaseline.value = next
+            mutableDraft.value = mutableDraft.value.copy(update = next.update)
+            mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本")
+        }
+    }
+
+    private fun installedVersionCode(): Long {
+        val packageInfo = if (Build.VERSION.SDK_INT >= 28) {
+            appContext.packageManager.getPackageInfo(
+                appContext.packageName,
+                PackageManager.GET_META_DATA,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        }
+        return if (Build.VERSION.SDK_INT >= 28) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
+    }
+
+    private fun isOnUnmeteredNetwork(): Boolean {
+        val cm = appContext.getSystemService(ConnectivityManager::class.java) ?: return false
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -124,6 +279,7 @@ fun SettingsScreen(
 ) {
     val config by vm.draft.collectAsState()
     val baseline by vm.baseline.collectAsState()
+    val updateState by vm.updateState.collectAsState()
     val context = LocalContext.current
     var automationDialog by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -186,9 +342,28 @@ fun SettingsScreen(
             item { OverlaySection(config, vm::update) }
             item { CaptureSection(config, vm.capabilities, vm::update) }
             item { VisionSection(config, vm::update) }
-            item { AutomationSection(config, onEnableRequested = { automationDialog = true }, onDisable = { vm.update { it.copy(automation = it.automation.copy(enabled = false)) } }) }
+            item {
+                AutomationSection(
+                    config = config,
+                    update = vm::update,
+                    onEnableRequested = { automationDialog = true },
+                    onDisable = {
+                        vm.update { it.copy(automation = it.automation.copy(enabled = false)) }
+                    },
+                )
+            }
             item { McpSection(config, vm::update) }
-            item { UpdateSection(config, vm::update) }
+            item {
+                UpdateSection(
+                    config = config,
+                    updateState = updateState,
+                    update = vm::update,
+                    onCheck = vm::checkForUpdates,
+                    onDownload = vm::downloadAvailableUpdate,
+                    onInstall = vm::installDownloadedUpdate,
+                    onIgnore = vm::ignoreAvailableUpdate,
+                )
+            }
             item { Spacer(Modifier.height(72.dp)) }
         }
     }
@@ -363,10 +538,34 @@ private fun VisionSection(config: AppConfig, update: ((AppConfig) -> AppConfig) 
 }
 
 @Composable
-private fun AutomationSection(config: AppConfig, onEnableRequested: () -> Unit, onDisable: () -> Unit) {
+private fun AutomationSection(
+    config: AppConfig,
+    update: ((AppConfig) -> AppConfig) -> Unit,
+    onEnableRequested: () -> Unit,
+    onDisable: () -> Unit,
+) {
     HzzsSection("自动操作", "默认关闭。开启后仍需在每次运行会话中手动解锁。") {
-        SettingSwitch("启用自动操作", config.automation.enabled) { enabled -> if (enabled) onEnableRequested() else onDisable() }
-        Text("自动操作依赖无障碍手势，可能因游戏更新、网络延迟或识别误差产生错误操作。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        SettingSwitch("启用自动操作", config.automation.enabled) { enabled ->
+            if (enabled) onEnableRequested() else onDisable()
+        }
+        SettingSwitch(
+            "允许竹影书屋实验性自动操作",
+            config.automation.bambooExperimentalAutoAction,
+        ) { value ->
+            update {
+                it.copy(automation = it.automation.copy(bambooExperimentalAutoAction = value))
+            }
+        }
+        Text(
+            "竹影书屋动作阈值仍属实验配置：即使已解锁会话，也需单独打开上方开关。甜甜圈使用历史标定距离 ${"%.2f".format(config.automation.sweetTriggerDistancePlayerWidths)} 倍玩家宽度触发。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "自动操作依赖无障碍手势，可能因游戏更新、网络延迟或识别误差产生错误操作。",
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -397,10 +596,62 @@ private fun McpSection(config: AppConfig, update: ((AppConfig) -> AppConfig) -> 
 }
 
 @Composable
-private fun UpdateSection(config: AppConfig, update: ((AppConfig) -> AppConfig) -> Unit) {
-    HzzsSection("更新") {
-        SettingSwitch("自动检查更新", config.update.autoCheck) { value -> update { it.copy(update = it.update.copy(autoCheck = value)) } }
-        SettingSwitch("仅 Wi-Fi 下载", config.update.wifiOnly) { value -> update { it.copy(update = it.update.copy(wifiOnly = value)) } }
+private fun UpdateSection(
+    config: AppConfig,
+    updateState: UpdateUiState,
+    update: ((AppConfig) -> AppConfig) -> Unit,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onIgnore: () -> Unit,
+) {
+    HzzsSection("更新", "Gitee 优先、GitHub 校验的签名更新源。未发布正式索引时检查失败是预期行为。") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            UpdateChannel.entries.forEach { channel ->
+                FilterChip(
+                    selected = config.update.channel == channel,
+                    onClick = { update { it.copy(update = it.update.copy(channel = channel)) } },
+                    label = {
+                        Text(
+                            when (channel) {
+                                UpdateChannel.STABLE -> "稳定"
+                                UpdateChannel.BETA -> "测试"
+                            },
+                        )
+                    },
+                )
+            }
+        }
+        SettingSwitch("自动检查更新", config.update.autoCheck) { value ->
+            update { it.copy(update = it.update.copy(autoCheck = value)) }
+        }
+        SettingSwitch("仅 Wi-Fi 下载", config.update.wifiOnly) { value ->
+            update { it.copy(update = it.update.copy(wifiOnly = value)) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onCheck, enabled = !updateState.busy) {
+                Text(if (updateState.busy) "处理中…" else "检查更新")
+            }
+            if (updateState.available != null) {
+                OutlinedButton(onClick = onDownload, enabled = !updateState.busy) { Text("下载") }
+            }
+            if (updateState.localApk != null) {
+                Button(onClick = onInstall, enabled = !updateState.busy) { Text("安装") }
+            }
+            if (updateState.available != null) {
+                TextButton(onClick = onIgnore, enabled = !updateState.busy) { Text("忽略此版本") }
+            }
+        }
+        updateState.available?.let { available ->
+            Text(
+                "远端 ${available.manifest.versionName}（code ${available.manifest.versionCode}，来源 ${available.source.name}）\n${available.manifest.releaseNotes.take(240)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        updateState.message?.let { text ->
+            Text(text, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

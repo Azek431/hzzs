@@ -171,12 +171,24 @@ class MainActivity : ComponentActivity() {
 class AppViewModel @Inject constructor(
     private val repository: SettingsRepository,
     val mcpUiBridge: McpUiBridge,
+    private val updateRepository: top.azek431.hzzs.core.update.UpdateRepository,
 ) : ViewModel() {
     val config: StateFlow<AppConfig> = repository.config.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         AppConfig(),
     )
+
+    /** 启动后按配置尝试静默检查更新；失败只写日志，不打扰用户。 */
+    fun maybeAutoCheckUpdates() {
+        viewModelScope.launch {
+            val snapshot = repository.snapshot()
+            if (!snapshot.update.autoCheck) return@launch
+            runCatching {
+                updateRepository.check(beta = snapshot.update.channel == top.azek431.hzzs.core.model.UpdateChannel.BETA)
+            }
+        }
+    }
     val approval: StateFlow<McpApprovalRequest?> = mcpUiBridge.approval
     val mcpNavigation: StateFlow<String?> = mcpUiBridge.navigation
 
@@ -216,6 +228,9 @@ private fun HzzsRoot(
 
     LaunchedEffect(config.mcp.enabled, config.mcp.port, config.mcp.permissionLevel) {
         syncMcpService(context, config.mcp.enabled)
+    }
+    LaunchedEffect(Unit) {
+        vm.maybeAutoCheckUpdates()
     }
 
     HzzsTheme(config.theme) {
