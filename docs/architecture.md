@@ -1,33 +1,24 @@
-# 架构说明
+# HZZS 架构
 
-HZZS 重构版采用分层、单向依赖的多模块结构。应用界面使用 Jetpack Compose 与 Material 3，视觉热路径保留在 C++，Android 系统能力通过独立服务模块封装。
+## 单模块、强分层
 
-## 模块边界
+HZZS 使用单一 `app` Gradle 模块，减少 AI 和开发者跨模块追踪成本。包级依赖方向为：
 
-- `app`：应用入口、导航与 Hilt 组装。
-- `core:model`：跨模块不可变模型。
-- `core:designsystem`：Material 3 主题、组件与悬浮窗视觉令牌。
-- `core:preferences`：DataStore 永久配置、编辑草稿和配置迁移。
-- `core:update`：稳定版/测试版、完整包和差分包模型。
-- `domain:vision`：视觉领域协议、场景与对象语义。
-- `domain:automation`：动作、手势状态机和安全门控。
-- `data:vision`：JNI 适配、目标追踪与视觉运行时。
-- `feature:*`：首页、运行、设置与关于页面。
-- `service:capture`：MediaProjection、Accessibility 与 Root 截图后端。
-- `service:automation`：唯一的无障碍手势提交入口。
-- `service:overlay`：持久悬浮窗与调试绘制。
-- `native:vision`：C++17 多目标视觉引擎与 JNI 边界。
+`feature -> data/service -> domain/core`，平台层只通过接口向运行时暴露能力。
 
-## 关键数据流
+## 运行时
 
-```text
-FrameSource
-  -> viewport normalization
-  -> NativeVisionEngine
-  -> immutable detections
-  -> MultiObjectTracker
-  -> automation policy
-  -> GestureArbiter / Overlay
-```
+1. `FrameSourceFactory` 根据已保存后端创建截图源。
+2. `VisionRuntimeController` 获取帧、校验视口与配置并调用 JNI。
+3. `NativeVisionEngine` 将 C++ 结果转换成领域模型。
+4. `VisionResultValidator` 应用类别过滤、置信度与坐标不变量。
+5. `MultiObjectTracker` 做跨帧稳定。
+6. 结果进入持久 Canvas 悬浮窗；自动操作只有通过全部门控后才进入 `GestureArbiter`。
 
-设置页使用三层状态：永久配置、编辑草稿、运行时预览。草稿可立即作用于当前算法，但只有用户点击保存后才原子写入 DataStore。
+## 配置
+
+DataStore 存储 schema v5。`SettingsRepository` 合并持久配置和内存预览。权限型配置只在保存后生效，避免浏览设置页时意外启动敏感能力。
+
+## MCP
+
+MCP 服务仅监听 `127.0.0.1`，每次启动生成令牌。权限分为只读、每次确认、会话信任、完整访问。工具调用进入统一动作注册表，不能直接触摸 Compose 内部状态。
