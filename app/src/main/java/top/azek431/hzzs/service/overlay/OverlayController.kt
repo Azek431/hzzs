@@ -19,6 +19,8 @@ import top.azek431.hzzs.core.model.OverlayConfig
 import top.azek431.hzzs.core.model.OverlayOrientation
 import top.azek431.hzzs.core.model.OverlayStyle
 import top.azek431.hzzs.core.model.OverlayTheme
+import top.azek431.hzzs.core.model.detectionKindDisplayName
+import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.domain.vision.Detection
 import top.azek431.hzzs.domain.vision.VisionResult
 import javax.inject.Inject
@@ -251,7 +253,13 @@ private class VisionOverlayView(
                 .filter { config.showDiagnostics || !it.diagnosticOnly }
                 .forEach { detection ->
                     val color = if (detection.actionable) accent else withAlpha(accent, 145)
-                    drawDetection(canvas, detection, color, strokeWidth, detection.kind.name)
+                    drawDetection(
+                        canvas,
+                        detection,
+                        color,
+                        strokeWidth,
+                        detectionKindDisplayName(detection.kind.name),
+                    )
                 }
         }
 
@@ -284,36 +292,52 @@ private class VisionOverlayView(
     }
 
     private fun drawMinimalHud(canvas: Canvas, result: VisionResult, accent: Int, scale: Float) {
+        val padding = 8f * density * scale
+        val left = 8f * density * scale
+        val top = 8f * density * scale
+        val height = 28f * density * scale
         val radius = 7f * density * scale
-        val x = 16f * density * scale
-        val y = 20f * density * scale
+        val label = "障碍 ${result.detections.size}"
+        text.textSize = 12f * density * config.textScale * scale
+        val width = if (config.showText) {
+            text.measureText(label) + radius * 3.2f + padding * 2f
+        } else {
+            radius * 3.2f + padding * 2f
+        }
+        fill.color = panelColor(config)
+        canvas.drawRoundRect(left, top, left + width, top + height, 14f * density, 14f * density, fill)
         fill.color = accent
-        canvas.drawCircle(x, y, radius, fill)
+        canvas.drawCircle(left + padding + radius, top + height / 2f, radius, fill)
         if (config.showText) {
             text.color = readableTextColor()
-            canvas.drawText("${result.detections.size}", x + radius * 1.8f, y + text.textSize * 0.35f, text)
+            canvas.drawText(
+                label,
+                left + padding + radius * 2.4f,
+                top + height / 2f + text.textSize * 0.35f,
+                text,
+            )
         }
     }
 
     private fun drawCompactHud(canvas: Canvas, result: VisionResult, accent: Int, scale: Float) {
-        val scene = if (result.scene.name.contains("BAMBOO")) "竹影书屋" else "甜甜圈"
+        val scene = result.scene.displayName()
         val parts = mutableListOf(scene, "障碍 ${result.detections.size}")
         if (config.showConfidence) parts += "置信度 ${(result.sceneConfidence * 100f).toInt()}%"
         if (config.showFps && result.processingNanos > 0) {
             val nativeFps = (1_000_000_000.0 / result.processingNanos).coerceAtMost(999.0)
-            parts += "Native ${"%.0f".format(nativeFps)} fps"
+            parts += "识别 ${"%.0f".format(nativeFps)} fps"
         }
         drawHudPanel(canvas, oriented(parts), accent, scale)
     }
 
     private fun drawDebugHud(canvas: Canvas, result: VisionResult, accent: Int, scale: Float) {
         val parts = mutableListOf(
-            result.scene.name,
-            "objects=${result.detections.size}",
-            "confidence=${(result.sceneConfidence * 100f).toInt()}%",
-            "native=${"%.2f".format(result.processingNanos / 1_000_000.0)}ms",
+            result.scene.displayName(),
+            "障碍 ${result.detections.size}",
+            "置信度 ${(result.sceneConfidence * 100f).toInt()}%",
+            "耗时 ${"%.2f".format(result.processingNanos / 1_000_000.0)} ms",
         )
-        result.error?.takeIf(String::isNotBlank)?.let { parts += "error=${it.take(48)}" }
+        result.error?.takeIf(String::isNotBlank)?.let { parts += "错误 ${it.take(48)}" }
         drawHudPanel(canvas, oriented(parts), accent, scale)
     }
 
@@ -322,20 +346,29 @@ private class VisionOverlayView(
 
     private fun drawHudPanel(canvas: Canvas, lines: List<String>, accent: Int, scale: Float) {
         if (!config.showText || lines.isEmpty()) return
-        val padding = 8f * density * scale
+        val padding = 10f * density * scale
         val left = 10f * density * scale
         val top = 10f * density * scale
-        val lineGap = 4f * density * scale
-        val width = lines.maxOf { line -> text.measureText(line) } + padding * 2f
+        val lineGap = 5f * density * scale
+        text.textSize = 12f * density * config.textScale * scale
+        val width = lines.maxOf { line -> text.measureText(line) } + padding * 2f + 6f * density
         val height = lines.size * text.textSize + (lines.size - 1) * lineGap + padding * 2f
         fill.color = panelColor(config)
-        canvas.drawRoundRect(left, top, left + width, top + height, 12f * density, 12f * density, fill)
+        canvas.drawRoundRect(left, top, left + width, top + height, 14f * density, 14f * density, fill)
         fill.color = accent
-        canvas.drawRoundRect(left, top, left + 4f * density, top + height, 4f * density, 4f * density, fill)
+        canvas.drawRoundRect(
+            left,
+            top + 4f * density,
+            left + 4f * density,
+            top + height - 4f * density,
+            4f * density,
+            4f * density,
+            fill,
+        )
         text.color = readableTextColor()
         lines.forEachIndexed { index, line ->
             val baseline = top + padding + text.textSize + index * (text.textSize + lineGap)
-            canvas.drawText(line, left + padding, baseline, text)
+            canvas.drawText(line, left + padding + 4f * density, baseline, text)
         }
     }
 
