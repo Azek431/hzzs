@@ -26,8 +26,8 @@ class SettingsSessionTest {
             },
         )
 
-        session.update { it.copy(selectedScene = SceneId.BAMBOO_BOOKSTORE) }
-        assertEquals(SceneId.BAMBOO_BOOKSTORE, effective.selectedScene)
+        session.update { it.copy(selectedScene = SceneId.SWEET_FACTORY) }
+        assertEquals(SceneId.SWEET_FACTORY, effective.selectedScene)
         assertTrue(session.hasChanges())
 
         assertEquals(original, session.discard())

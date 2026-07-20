@@ -139,10 +139,19 @@ data class AutomationConfig(
     val enabled: Boolean = false,
     val disclaimerAcceptedVersion: Int = 0,
     val requireSessionArm: Boolean = true,
+    /**
+     * 竹影书屋自动操作在历史 main 线中默认锁定，需用户单独确认实验风险。
+     * 与会话 arm 叠加：即使已 arm，未开启本开关时也不对竹影场景规划动作。
+     */
+    val bambooExperimentalAutoAction: Boolean = false,
     val allowedPackages: Set<String> = DEFAULT_ALLOWED_PACKAGES,
     val maxActionsPerSecond: Int = 4,
     val minimumSceneConfidence: Float = 0.82f,
     val retryLimit: Int = 1,
+    /** 相对玩家宽度的触发距离（甜甜圈，对齐 main VisionActionPlanner）。 */
+    val sweetTriggerDistancePlayerWidths: Float = 1.50f,
+    /** 相对玩家宽度的触发距离（竹影）。 */
+    val bambooTriggerDistancePlayerWidths: Float = 1.35f,
 ) {
     companion object {
         val DEFAULT_ALLOWED_PACKAGES: Set<String> = setOf(
@@ -186,7 +195,7 @@ data class AppConfig(
     val theme: ThemeConfig = ThemeConfig(),
     val overlay: OverlayConfig = OverlayConfig(),
     val gameProfile: GameProfileId = GameProfileId.HUO_ZAI_ZAI_WONDER_HOUSE,
-    val selectedScene: SceneId = SceneId.SWEET_FACTORY,
+    val selectedScene: SceneId = SceneId.BAMBOO_BOOKSTORE,
     val captureBackend: CaptureBackend = CaptureBackend.AUTO,
     val viewport: ViewportConfig = ViewportConfig(),
     val scenes: Map<SceneId, SceneConfig> = SceneId.entries.associateWith { SceneConfig(it) },
@@ -207,7 +216,7 @@ data class RuntimeStatus(
     val captureReady: Boolean = false,
     val overlayVisible: Boolean = false,
     val automationArmed: Boolean = false,
-    val activeScene: SceneId = SceneId.SWEET_FACTORY,
+    val activeScene: SceneId = SceneId.BAMBOO_BOOKSTORE,
     val activeBackend: CaptureBackend = CaptureBackend.AUTO,
     val fps: Float = 0f,
     val processingMs: Float = 0f,
