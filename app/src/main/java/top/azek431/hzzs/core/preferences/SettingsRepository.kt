@@ -264,6 +264,13 @@ fun AppConfig.validated(): AppConfig {
             minimumSceneConfidence = automation.minimumSceneConfidence.finiteOr(0.82f).coerceIn(0.5f, 1f),
             retryLimit = automation.retryLimit.coerceIn(0, 2),
             disclaimerAcceptedVersion = automation.disclaimerAcceptedVersion.coerceAtLeast(0),
+            bambooExperimentalAutoAction = automation.bambooExperimentalAutoAction,
+            sweetTriggerDistancePlayerWidths = automation.sweetTriggerDistancePlayerWidths
+                .finiteOr(1.50f)
+                .coerceIn(0.5f, 4f),
+            bambooTriggerDistancePlayerWidths = automation.bambooTriggerDistancePlayerWidths
+                .finiteOr(1.35f)
+                .coerceIn(0.5f, 4f),
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
@@ -319,10 +326,19 @@ object ConfigJson {
                 put("enabled", safe.automation.enabled)
                 put("disclaimerAcceptedVersion", safe.automation.disclaimerAcceptedVersion)
                 put("requireSessionArm", safe.automation.requireSessionArm)
+                put("bambooExperimentalAutoAction", safe.automation.bambooExperimentalAutoAction)
                 put("allowedPackages", JSONArray(safe.automation.allowedPackages.sorted()))
                 put("maxActionsPerSecond", safe.automation.maxActionsPerSecond)
                 put("minimumSceneConfidence", safe.automation.minimumSceneConfidence.toDouble())
                 put("retryLimit", safe.automation.retryLimit)
+                put(
+                    "sweetTriggerDistancePlayerWidths",
+                    safe.automation.sweetTriggerDistancePlayerWidths.toDouble(),
+                )
+                put(
+                    "bambooTriggerDistancePlayerWidths",
+                    safe.automation.bambooTriggerDistancePlayerWidths.toDouble(),
+                )
             })
             put("mcp", JSONObject().apply {
                 put("enabled", safe.mcp.enabled)
@@ -434,11 +450,17 @@ object ConfigJson {
                 enabled = automation?.optBoolean("enabled", false) ?: false,
                 disclaimerAcceptedVersion = automation?.optInt("disclaimerAcceptedVersion", 0) ?: 0,
                 requireSessionArm = automation?.optBoolean("requireSessionArm", true) ?: true,
+                bambooExperimentalAutoAction =
+                    automation?.optBoolean("bambooExperimentalAutoAction", false) ?: false,
                 allowedPackages = automation?.optJSONArray("allowedPackages").toStringSet()
                     .ifEmpty { defaults.automation.allowedPackages },
                 maxActionsPerSecond = automation?.optInt("maxActionsPerSecond", 4) ?: 4,
                 minimumSceneConfidence = automation?.optDouble("minimumSceneConfidence", 0.82)?.toFloat() ?: 0.82f,
                 retryLimit = automation?.optInt("retryLimit", 1) ?: 1,
+                sweetTriggerDistancePlayerWidths =
+                    automation?.optDouble("sweetTriggerDistancePlayerWidths", 1.50)?.toFloat() ?: 1.50f,
+                bambooTriggerDistancePlayerWidths =
+                    automation?.optDouble("bambooTriggerDistancePlayerWidths", 1.35)?.toFloat() ?: 1.35f,
             ),
             mcp = defaults.mcp.copy(
                 enabled = mcp?.optBoolean("enabled", false) ?: false,

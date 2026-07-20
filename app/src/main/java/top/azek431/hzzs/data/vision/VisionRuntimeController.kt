@@ -406,8 +406,20 @@ class VisionRuntimeController @Inject constructor(
             return
         }
         val requiredClass = armedWindowClass.get() ?: return
-        if (!mutableStatus.value.automationArmed) return
+        if (config.automation.requireSessionArm && !mutableStatus.value.automationArmed) return
+        if (!config.automation.requireSessionArm && !mutableStatus.value.automationArmed) {
+            // 即使关闭 requireSessionArm，仍要求至少完成一次 arm 以绑定窗口类。
+            return
+        }
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
+
+        // 竹影实验锁：对齐 main 的 bambooExperimentalAutoAction。
+        if (
+            config.selectedScene == SceneId.BAMBOO_BOOKSTORE &&
+            !config.automation.bambooExperimentalAutoAction
+        ) {
+            return
+        }
 
         val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
             disarmAutomation()
@@ -424,6 +436,12 @@ class VisionRuntimeController @Inject constructor(
 
         val sceneConfig = config.scenes.getValue(config.selectedScene)
         val player = result.player ?: return
+        val playerWidth = player.bounds.width.coerceAtLeast(0.01f)
+        val triggerDistance = when (config.selectedScene) {
+            SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
+            SceneId.BAMBOO_BOOKSTORE -> config.automation.bambooTriggerDistancePlayerWidths
+        } * playerWidth
+
         val candidate = tracked
             .asSequence()
             .filter { it.stableFrames >= sceneConfig.thresholds.stableFrames }
@@ -433,7 +451,13 @@ class VisionRuntimeController @Inject constructor(
                 it.detection.bounds.left >=
                     player.bounds.right - sceneConfig.thresholds.behindPlayerMarginRatio
             }
-            .minByOrNull { it.detection.bounds.left - player.bounds.right }
+            .map { trackedDetection ->
+                val gap = trackedDetection.detection.bounds.left - player.bounds.right
+                trackedDetection to gap
+            }
+            .filter { (_, gap) -> gap <= triggerDistance }
+            .minByOrNull { (_, gap) -> gap }
+            ?.first
             ?: return
         if (!ledger.canPlan(candidate.trackId)) return
 
@@ -444,19 +468,24 @@ class VisionRuntimeController @Inject constructor(
         ) {
             recentActionTimes.removeFirst()
         }
-        val strokes = if (candidate.detection.avoidance == Avoidance.DOUBLE_JUMP) 2 else 1
-        if (recentActionTimes.size + strokes > config.automation.maxActionsPerSecond) return
 
-        repeat(strokes) { index ->
-            if (index > 0) delay(DOUBLE_JUMP_GAP_MS)
+        val plan = planGestures(config.selectedScene, candidate.detection.avoidance, now)
+        if (plan.isEmpty()) return
+        if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return
+
+        for ((index, stroke) in plan.withIndex()) {
+            if (index > 0) {
+                val wait = (stroke.dueAt - SystemClock.uptimeMillis()).coerceAtLeast(0L)
+                if (wait > 0L) delay(wait)
+            }
             val created = SystemClock.uptimeMillis()
             val action = AutomationAction(
                 id = actionIds.getAndIncrement(),
                 trackId = candidate.trackId,
                 avoidance = candidate.detection.avoidance,
-                gesture = gestureFor(candidate.detection.avoidance),
+                gesture = stroke.gesture,
                 createdAtUptimeMs = created,
-                expiresAtUptimeMs = created + ACTION_TTL_MS,
+                expiresAtUptimeMs = created + stroke.ttlMs,
                 allowedPackages = config.automation.allowedPackages,
                 requiredWindowClassPrefixes = setOf(requiredClass),
             )
@@ -467,6 +496,47 @@ class VisionRuntimeController @Inject constructor(
             }
             ledger.commit(receipt)
             recentActionTimes.addLast(SystemClock.uptimeMillis())
+        }
+    }
+
+    private data class PlannedStroke(
+        val gesture: GestureSpec,
+        val dueAt: Long,
+        val ttlMs: Long,
+    )
+
+    /**
+     * 对齐历史 main VisionActionPlanner 的时序：
+     * - 地面大障碍 / 宽坑：双跳，间隔随赛季变化
+     * - 头顶障碍：下滑，TTL 更长
+     */
+    private fun planGestures(
+        scene: SceneId,
+        avoidance: Avoidance,
+        now: Long,
+    ): List<PlannedStroke> {
+        val jump = GestureSpec(0.82f, 0.72f, durationMs = 24L)
+        val slide = GestureSpec(0.82f, 0.68f, 0.82f, 0.88f, 220L)
+        return when (avoidance) {
+            Avoidance.NONE -> emptyList()
+            Avoidance.JUMP -> listOf(PlannedStroke(jump, now, ACTION_TTL_MS))
+            Avoidance.DOUBLE_JUMP -> {
+                val gap = when (scene) {
+                    SceneId.SWEET_FACTORY -> DOUBLE_JUMP_GAP_SWEET_MS
+                    SceneId.BAMBOO_BOOKSTORE -> DOUBLE_JUMP_GAP_BAMBOO_MS
+                }
+                listOf(
+                    PlannedStroke(jump, now, ACTION_TTL_MS),
+                    PlannedStroke(jump, now + gap, ACTION_TTL_MS),
+                )
+            }
+            Avoidance.SLIDE -> {
+                val ttl = when (scene) {
+                    SceneId.SWEET_FACTORY -> SLIDE_TTL_SWEET_MS
+                    SceneId.BAMBOO_BOOKSTORE -> SLIDE_TTL_BAMBOO_MS
+                }
+                listOf(PlannedStroke(slide, now, ttl))
+            }
         }
     }
 
@@ -502,13 +572,6 @@ class VisionRuntimeController @Inject constructor(
         )
     }
 
-    private fun gestureFor(avoidance: Avoidance): GestureSpec = when (avoidance) {
-        Avoidance.SLIDE -> GestureSpec(.82f, .68f, .82f, .88f, 220L)
-        Avoidance.DOUBLE_JUMP,
-        Avoidance.JUMP,
-        Avoidance.NONE -> GestureSpec(.82f, .72f, durationMs = 24L)
-    }
-
     private suspend fun resetPipeline() {
         tracker.reset()
         ledger.reset()
@@ -533,7 +596,10 @@ class VisionRuntimeController @Inject constructor(
         const val DEFAULT_FRAME_RATE_LIMIT = 60
         const val ACTION_RATE_WINDOW_MS = 1_000L
         const val ACTION_TTL_MS = 650L
-        const val DOUBLE_JUMP_GAP_MS = 72L
+        const val DOUBLE_JUMP_GAP_SWEET_MS = 75L
+        const val DOUBLE_JUMP_GAP_BAMBOO_MS = 80L
+        const val SLIDE_TTL_SWEET_MS = 650L
+        const val SLIDE_TTL_BAMBOO_MS = 600L
         const val PERMISSION_BACKOFF_MS = 80L
         const val READY_NULL_FRAME_BACKOFF_MS = 12L
         const val IDLE_BACKOFF_MS = 80L
