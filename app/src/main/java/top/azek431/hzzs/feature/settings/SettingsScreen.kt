@@ -335,9 +335,25 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "在这里调整外观、截图、识别与安全相关选项。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (config != baseline) {
+                        Text(
+                            "当前有未保存改动：主题/悬浮窗/识别参数已临时预览，权限类设置仍要保存后才生效。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
             item { ThemeSection(config, vm::update, onImport = { importTheme.launch(arrayOf("application/json", "text/plain")) }, onExport = { exportTheme.launch("hzzs-theme.hzzstheme") }, onCopy = { copyTheme(context, vm.exportTheme()); message = "主题 JSON 已复制" }) }
             item { OverlaySection(config, vm::update) }
             item { CaptureSection(config, vm.capabilities, vm::update) }
@@ -364,7 +380,7 @@ fun SettingsScreen(
                     onIgnore = vm::ignoreAvailableUpdate,
                 )
             }
-            item { Spacer(Modifier.height(72.dp)) }
+            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 

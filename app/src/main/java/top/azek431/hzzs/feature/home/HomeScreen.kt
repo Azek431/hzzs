@@ -1,14 +1,32 @@
 package top.azek431.hzzs.feature.home
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -17,54 +35,152 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import top.azek431.hzzs.core.designsystem.HeroCard
 import top.azek431.hzzs.core.designsystem.HzzsSection
-import top.azek431.hzzs.core.designsystem.StatusCard
+import top.azek431.hzzs.core.designsystem.MetricTile
+import top.azek431.hzzs.core.designsystem.PageHeader
+import top.azek431.hzzs.core.designsystem.SectionCard
+import top.azek431.hzzs.core.designsystem.StatusChip
 import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(repo: SettingsRepository) : ViewModel() {
-    val config: StateFlow<AppConfig> = repo.config.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppConfig())
+    val config: StateFlow<AppConfig> = repo.config.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        AppConfig(),
+    )
 }
 
 @Composable
-fun HomeScreen(onOpenRuntime: () -> Unit, onOpenSettings: () -> Unit, vm: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    onOpenRuntime: () -> Unit,
+    onOpenSettings: () -> Unit,
+    vm: HomeViewModel = hiltViewModel(),
+) {
     val config by vm.config.collectAsState()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            Text("火崽崽奇妙屋", style = MaterialTheme.typography.headlineMedium)
-            Text("轻量、本地、可解释的视觉辅助", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PageHeader(
+                title = "火崽崽奇妙屋",
+                subtitle = "轻量、本地、可解释的画面分析助手",
+            )
         }
+
         item {
-            ElevatedCard {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Security, null)
-                        Spacer(Modifier.width(10.dp))
-                        Text("自动操作默认关闭", style = MaterialTheme.typography.titleMedium)
-                    }
-                    Text("只有本次会话明确启用、场景稳定且前台页面匹配时，动作系统才会工作。")
-                    Button(onClick = onOpenRuntime, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Rounded.PlayArrow, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("进入运行控制")
-                    }
+            HeroCard(
+                title = "准备开始分析",
+                subtitle = "默认低权限截图 · 自动操作需会话解锁",
+                icon = Icons.Rounded.Visibility,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusChip("本地处理", active = true)
+                    StatusChip(
+                        if (config.automation.enabled) "自动操作已配置" else "自动操作关闭",
+                        active = config.automation.enabled,
+                    )
+                    StatusChip(
+                        if (config.mcp.enabled) "MCP 开启" else "MCP 关闭",
+                        active = config.mcp.enabled,
+                    )
+                }
+                Text(
+                    "识别结果只在本机完成。只有你明确授权的会话，才会向当前游戏窗口发送手势。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onOpenRuntime, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("进入运行控制")
                 }
             }
         }
+
         item {
-            HzzsSection("当前配置") {
-                StatusCard("主题场景", if (config.selectedScene.name == "SWEET_FACTORY") "甜甜圈赛季" else "竹影书屋赛季")
-                StatusCard("截图后端", config.captureBackend.name)
-                StatusCard("MCP", if (config.mcp.enabled) config.mcp.permissionLevel.name else "关闭")
-                StatusCard("自动操作", if (config.automation.enabled) "已配置，仍需会话授权" else "关闭")
+            HzzsSection(
+                title = "当前配置速览",
+                description = "这些是已保存的生效配置，不是设置页里的临时预览。",
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    MetricTile(
+                        label = "赛季",
+                        value = config.selectedScene.displayName(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    MetricTile(
+                        label = "截图",
+                        value = config.captureBackend.displayName(),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    MetricTile(
+                        label = "MCP",
+                        value = if (config.mcp.enabled) {
+                            config.mcp.permissionLevel.displayName()
+                        } else {
+                            "关闭"
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    MetricTile(
+                        label = "自动操作",
+                        value = if (config.automation.enabled) "待解锁" else "关闭",
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
-        item { OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("调整设置") } }
+
+        item {
+            SectionCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.Security,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "安全提示",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Text(
+                    "自动操作默认关闭。开启后仍需在运行页确认当前游戏页面，并会在切页、失败或停分析时自动解除。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilledTonalButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Settings, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("调整设置")
+                }
+                OutlinedButton(onClick = onOpenRuntime, modifier = Modifier.fillMaxWidth()) {
+                    Text("直接去运行")
+                }
+            }
+        }
     }
 }
