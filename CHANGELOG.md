@@ -41,7 +41,10 @@
 - 接入历史 main 的 vision2 / bamboo 检测核心，并映射到统一归一化 Detection 协议。
 - 自动操作加入 main 风格触发距离、双跳时序、下滑 TTL 与竹影实验锁。
 - 设置页补齐更新检查 / 下载 / 安装与忽略版本。
-- Shizuku 截图后端：`screencap -p`（用户显式选择，AUTO 仍不升权）。
+- Shizuku 截图后端：`screencap -p`（用户显式选择，AUTO 仍不升权；需真机授权验证）。
+- 宽 cake / 竹隙不再双写 PIT，避免同一障碍触发两次动作。
+- 动作执行移出帧循环，增加帧龄门控、空间去重与 `retryLimit`。
+- 设置页接入 `SettingsEditSession`；高级截图后端复用帧池；悬浮窗内容未变时跳过重绘。
 
 ### 已知限制
 

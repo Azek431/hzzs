@@ -158,6 +158,7 @@ private class VisionOverlayView(
     private var config = OverlayConfig()
     private var result: VisionResult? = null
     private var showCoordinateGrid = false
+    private var lastContentSignature = Int.MIN_VALUE
     private var lastRawX = 0f
     private var lastRawY = 0f
 
@@ -167,11 +168,44 @@ private class VisionOverlayView(
             this.config.scale != config.scale ||
             this.config.textScale != config.textScale ||
             this.config.clickThrough != config.clickThrough
+        val contentSignature = contentSignature(config, result, showCoordinateGrid)
+        val unchanged = !sizeMayChange && contentSignature == lastContentSignature
         this.config = config
         this.result = result
         this.showCoordinateGrid = showCoordinateGrid
         if (sizeMayChange) requestLayout()
-        invalidate()
+        if (!unchanged) {
+            lastContentSignature = contentSignature
+            invalidate()
+        }
+    }
+
+    private fun contentSignature(
+        config: OverlayConfig,
+        result: VisionResult?,
+        showCoordinateGrid: Boolean,
+    ): Int {
+        var hash = config.style.hashCode()
+        hash = 31 * hash + config.showBoxes.hashCode()
+        hash = 31 * hash + config.showText.hashCode()
+        hash = 31 * hash + config.showConfidence.hashCode()
+        hash = 31 * hash + config.showFps.hashCode()
+        hash = 31 * hash + config.showDiagnostics.hashCode()
+        hash = 31 * hash + showCoordinateGrid.hashCode()
+        hash = 31 * hash + (result?.detections?.size ?: -1)
+        hash = 31 * hash + ((result?.sceneConfidence ?: -1f) * 1000f).toInt()
+        result?.detections?.forEach { detection ->
+            hash = 31 * hash + detection.kind.hashCode()
+            hash = 31 * hash + detection.id.hashCode()
+            hash = 31 * hash + (detection.bounds.left * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.top * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.right * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.bottom * 1000f).toInt()
+            hash = 31 * hash + (detection.confidence * 100f).toInt()
+            hash = 31 * hash + detection.actionable.hashCode()
+        }
+        hash = 31 * hash + (result?.error?.hashCode() ?: 0)
+        return hash
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

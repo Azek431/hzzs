@@ -23,6 +23,7 @@
 
 ## 与历史 main
 
-- `legacy_main/vision2` 与 `legacy_main/vision_bamboo` 为历史 main 检测核心（无旧 JNI 类名）。
-- `vision_engine.cpp` 优先调用上述引擎，再映射到统一 `Detection` / 位掩码协议；失败时回退 `sweet_factory.cpp` / `bamboo_bookstore.cpp`。
+- `legacy_main/vision2` 与 `legacy_main/vision_bamboo` 为**当前主检测路径**（历史 main 核心，无旧 JNI 类名）。
+- `vision_engine.cpp` 优先调用主路径，并映射到统一 `Detection` / 位掩码协议；仅当场景置信度很低且检测过少时，回退 `sweet_factory.cpp` / `bamboo_bookstore.cpp`。
+- 宽 cake 输出 `PIT`，窄 cake 输出 `CAKE_STRUCTURE`；竹隙优先 `BAMBOO_GAP`，仅在关闭该类别时退化为 `PIT`，避免同一框双写导致双动作。
 - 历史 `main` 的 analysis 状态机与模拟 HUD 路径不再编译。

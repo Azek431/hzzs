@@ -553,7 +553,9 @@ fun AppConfig.diff(other: AppConfig): List<String> = buildList {
     if (selectedScene != other.selectedScene) add("赛季")
     if (captureBackend != other.captureBackend) add("截图方式")
     if (viewport != other.viewport) add("游戏画面区域")
-    SceneId.entries.forEach { id -> if (scenes[id] != other.scenes[id]) add("${id.name} 识别参数") }
+    SceneId.entries.forEach { id ->
+        if (scenes[id] != other.scenes[id]) add("${id.displayName()} 识别参数")
+    }
     if (automation != other.automation) add("自动操作")
     if (mcp != other.mcp) add("MCP 服务")
     if (developer != other.developer) add("开发者设置")

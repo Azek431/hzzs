@@ -141,10 +141,12 @@ Result analyze_sweet_main(
     }
     if (raw.cake.found) {
         const bool wide = raw.cake.sizeClass == hzzs::vision2::kSizeLargeOrWide;
+        // 宽 cake 语义上更接近断层/坑：优先 PIT；否则输出蛋糕结构。避免同一框双写导致双动作。
+        const Kind cake_kind = wide ? Kind::PIT : Kind::CAKE_STRUCTURE;
         push_if_enabled(
             out,
             enabled_kind_mask,
-            Kind::CAKE_STRUCTURE,
+            cake_kind,
             wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
             hint++,
             raw.cake.left,
@@ -155,23 +157,6 @@ Result analyze_sweet_main(
             frame.height,
             raw.cake.scorePermille / 1000.0f,
             true);
-        // 甜品“坑/断层”在 main 中并入 cake 结构；同时暴露 PIT 位以便设置关闭。
-        if (kind_enabled(enabled_kind_mask, Kind::PIT) && wide) {
-            push_if_enabled(
-                out,
-                enabled_kind_mask,
-                Kind::PIT,
-                Avoidance::DOUBLE_JUMP,
-                hint++,
-                raw.cake.left,
-                raw.cake.top,
-                raw.cake.right,
-                raw.cake.bottom,
-                frame.width,
-                frame.height,
-                raw.cake.scorePermille / 1000.0f * 0.95f,
-                true);
-        }
     }
     if (raw.spike.found) {
         push_if_enabled(
@@ -264,10 +249,14 @@ Result analyze_bamboo_main(
     }
     if (raw.gap.found) {
         const bool wide = raw.gap.sizeClass == hzzs::vision_bamboo::kSizeLargeOrWide;
+        // 竹隙为主语义；仅当 BAMBOO_GAP 被用户关闭时才退化为 PIT，避免双写。
+        const Kind gap_kind = kind_enabled(enabled_kind_mask, Kind::BAMBOO_GAP)
+            ? Kind::BAMBOO_GAP
+            : Kind::PIT;
         push_if_enabled(
             out,
             enabled_kind_mask,
-            Kind::BAMBOO_GAP,
+            gap_kind,
             wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
             hint++,
             raw.gap.left,
@@ -277,21 +266,6 @@ Result analyze_bamboo_main(
             frame.width,
             frame.height,
             raw.gap.scorePermille / 1000.0f,
-            true);
-        // 同步映射 PIT，便于设置页与历史语义对齐。
-        push_if_enabled(
-            out,
-            enabled_kind_mask,
-            Kind::PIT,
-            wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
-            hint++,
-            raw.gap.left,
-            raw.gap.top,
-            raw.gap.right,
-            raw.gap.bottom,
-            frame.width,
-            frame.height,
-            raw.gap.scorePermille / 1000.0f * 0.98f,
             true);
     }
     if (raw.overhead.found) {

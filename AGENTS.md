@@ -49,7 +49,7 @@ top.azek431.hzzs/
 ├─ mcp/            McpService、ActionRegistry
 └─ nativevision/   NativeVision JNI 边界
 
-app/src/main/cpp/  vision_engine、sweet_factory、bamboo_bookstore、jni_bridge
+app/src/main/cpp/  jni_bridge、vision_engine、legacy_main/{vision2,vision_bamboo}（主路径）、sweet_factory/bamboo_bookstore（回退）、scene_geometry/color_components
 app/src/test/      JVM 单测 + cpp/native_tests.cpp
 ```
 
@@ -59,7 +59,7 @@ app/src/test/      JVM 单测 + cpp/native_tests.cpp
 FrameSource → VisionRuntimeController → NativeVisionEngine (JNI)
   → VisionResultValidator → MultiObjectTracker
   → OverlayController
-  → (arm 后) GestureArbiter → HzzsAccessibilityService
+  → (arm 后，独立 actionJob) GestureArbiter → HzzsAccessibilityService
 ```
 
 ### 配置流

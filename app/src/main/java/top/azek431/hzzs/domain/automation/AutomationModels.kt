@@ -89,16 +89,34 @@ class GestureArbiter(
 class ActionCommitLedger {
     private val mutex = Mutex()
     private val completedTracks = mutableSetOf<Long>()
+    /** 空间去重键：同一位置附近成功过的动作，短时间内不再规划。 */
+    private val recentSpatialKeys = mutableMapOf<String, Long>()
 
-    suspend fun canPlan(trackId: Long): Boolean = mutex.withLock {
-        trackId > 0 && trackId !in completedTracks
-    }
+    suspend fun canPlan(trackId: Long, spatialKey: String? = null, nowMs: Long = 0L): Boolean =
+        mutex.withLock {
+            if (trackId <= 0 || trackId in completedTracks) return@withLock false
+            if (spatialKey != null) {
+                val previous = recentSpatialKeys[spatialKey]
+                if (previous != null && nowMs - previous < SPATIAL_COOLDOWN_MS) return@withLock false
+            }
+            true
+        }
 
-    suspend fun commit(receipt: DispatchReceipt) = mutex.withLock {
+    suspend fun commit(receipt: DispatchReceipt, spatialKey: String? = null) = mutex.withLock {
         if (receipt.outcome == DispatchOutcome.COMPLETED) {
             completedTracks += receipt.action.trackId
+            if (spatialKey != null) {
+                recentSpatialKeys[spatialKey] = receipt.action.createdAtUptimeMs
+            }
         }
     }
 
-    suspend fun reset() = mutex.withLock { completedTracks.clear() }
+    suspend fun reset() = mutex.withLock {
+        completedTracks.clear()
+        recentSpatialKeys.clear()
+    }
+
+    private companion object {
+        const val SPATIAL_COOLDOWN_MS = 700L
+    }
 }

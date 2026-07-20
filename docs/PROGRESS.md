@@ -23,10 +23,14 @@
 | --- | --- | --- |
 | P0 | 从 main 移植 vision2/bamboo 检测核心并映射统一协议 | 已落地（含启发式回退） |
 | P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地 |
-| P0 | PIT / GAP 映射到检测输出（随 cake/gap） | 已落地 |
+| P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
+| P0 | 动作执行移出帧循环 + 帧龄门控 + retryLimit | 已落地 |
+| P1 | SettingsEditSession 接入设置页 | 已落地 |
+| P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
-| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 已落地 |
+| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中 |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
+| P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |
 | P2 | 数据集人工真值与召回评估 | 未完成 |
 

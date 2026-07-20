@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import top.azek431.hzzs.core.designsystem.HzzsSection
 import top.azek431.hzzs.core.model.*
+import top.azek431.hzzs.core.preferences.SettingsEditSession
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.core.theme.HzzsThemePackage
 import top.azek431.hzzs.core.theme.ThemePackageCodec
@@ -67,48 +68,71 @@ class SettingsViewModel @Inject constructor(
     val capabilities = capabilityResolver.all()
     private val mutableUpdate = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = mutableUpdate.asStateFlow()
+    private var session: SettingsEditSession? = null
     private var previewJob: Job? = null
     private var updateJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            val snapshot = repository.snapshot()
-            mutableBaseline.value = snapshot
-            mutableDraft.value = snapshot
-        }
+        viewModelScope.launch { openSession(repository.snapshot()) }
+    }
+
+    private fun openSession(original: AppConfig) {
+        mutableBaseline.value = original
+        mutableDraft.value = original
+        session = SettingsEditSession(
+            original = original,
+            onPreview = { candidate ->
+                // 权限型配置只在保存后生效，预览阶段强制保留 baseline。
+                val baseline = mutableBaseline.value
+                repository.preview(
+                    candidate.copy(
+                        captureBackend = baseline.captureBackend,
+                        automation = baseline.automation,
+                        mcp = baseline.mcp,
+                        developer = baseline.developer,
+                        update = baseline.update,
+                    ),
+                )
+            },
+            onPersist = { safe ->
+                repository.save(safe)
+                openSession(safe)
+            },
+            onClearPreview = {
+                repository.clearPreview()
+            },
+        )
     }
 
     fun update(transform: (AppConfig) -> AppConfig) {
-        val next = transform(mutableDraft.value)
-        mutableDraft.value = next
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             delay(40)
-            // Visual and algorithm parameters may preview live. Privilege-bearing
-            // controls only become effective after Save, so merely browsing away
-            // cannot start MCP, Root, Shell or automatic operation.
-            val baseline = mutableBaseline.value
-            repository.preview(
-                next.copy(
-                    captureBackend = baseline.captureBackend,
-                    automation = baseline.automation,
-                    mcp = baseline.mcp,
-                    developer = baseline.developer,
-                    update = baseline.update,
-                ),
-            )
+            val active = session ?: return@launch
+            val next = active.update(transform)
+            mutableDraft.value = next
         }
     }
 
     fun save(onDone: () -> Unit = {}) = viewModelScope.launch {
-        repository.save(mutableDraft.value)
-        mutableBaseline.value = mutableDraft.value
+        val active = session ?: return@launch
+        val saved = active.save()
+        mutableDraft.value = saved
+        mutableBaseline.value = saved
         onDone()
     }
 
     fun discard(onDone: () -> Unit = {}) = viewModelScope.launch {
-        repository.clearPreview()
-        mutableDraft.value = mutableBaseline.value
+        val active = session
+        if (active != null) {
+            val restored = active.discard()
+            mutableDraft.value = restored
+            mutableBaseline.value = restored
+            openSession(restored)
+        } else {
+            repository.clearPreview()
+            mutableDraft.value = mutableBaseline.value
+        }
         onDone()
     }
 
@@ -132,8 +156,16 @@ class SettingsViewModel @Inject constructor(
     fun discardSilently() {
         previewJob?.cancel()
         viewModelScope.launch {
-            repository.clearPreview()
-            mutableDraft.value = mutableBaseline.value
+            val active = session
+            if (active != null) {
+                val restored = active.discard()
+                mutableDraft.value = restored
+                mutableBaseline.value = restored
+                openSession(restored)
+            } else {
+                repository.clearPreview()
+                mutableDraft.value = mutableBaseline.value
+            }
         }
     }
 
