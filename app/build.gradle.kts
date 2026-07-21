@@ -1,3 +1,5 @@
+import java.util.Properties
+
 val configuredVersionCode = providers.environmentVariable("HZZS_VERSION_CODE").orNull?.toIntOrNull()
     ?: providers.gradleProperty("hzzsVersionCode").orNull?.toIntOrNull()
     ?: 1
@@ -8,6 +10,67 @@ require(configuredVersionCode > 0) { "HZZS versionCode must be positive" }
 require(configuredVersionName.isNotBlank() && configuredVersionName.length <= 64) {
     "HZZS versionName is invalid"
 }
+
+/**
+ * Release 签名解析顺序（后者仅在前者缺失时生效）：
+ * 1. 当前环境变量 ANDROID_KEYSTORE_*（CI / 推荐）
+ * 2. 历史环境变量 AZEK431_RELEASE_*（本机旧脚本兼容）
+ * 3. 仓库根目录 gitignore 的本地文件：keystore.properties / signing.properties / local.secrets.properties
+ *
+ * 密钥库文件本身永不入库；见 keystore.properties.example。
+ */
+val localSigningProperties = Properties().apply {
+    listOf("keystore.properties", "signing.properties", "local.secrets.properties").forEach { name ->
+        val file = rootProject.file(name)
+        if (file.isFile) {
+            file.inputStream().use { load(it) }
+        }
+    }
+}
+
+fun envFirst(vararg names: String): String? {
+    for (name in names) {
+        val value = providers.environmentVariable(name).orNull
+        if (!value.isNullOrBlank()) return value.trim()
+    }
+    return null
+}
+
+fun signingValue(propertyKeys: List<String>, vararg envNames: String): String? {
+    envFirst(*envNames)?.let { return it }
+    for (key in propertyKeys + envNames) {
+        val value = localSigningProperties.getProperty(key)?.trim()
+        if (!value.isNullOrBlank()) return value
+    }
+    return null
+}
+
+val releaseStoreFilePath = signingValue(
+    listOf("storeFile", "store.file", "keystore.path"),
+    "ANDROID_KEYSTORE_PATH",
+    "AZEK431_RELEASE_STORE_FILE",
+)
+val releaseStorePassword = signingValue(
+    listOf("storePassword", "store.password"),
+    "ANDROID_STORE_PASSWORD",
+    "AZEK431_RELEASE_STORE_PASSWORD",
+)
+val releaseKeyAlias = signingValue(
+    listOf("keyAlias", "key.alias"),
+    "ANDROID_KEY_ALIAS",
+    "AZEK431_RELEASE_KEY_ALIAS",
+)
+val releaseKeyPassword = signingValue(
+    listOf("keyPassword", "key.password"),
+    "ANDROID_KEY_PASSWORD",
+    "AZEK431_RELEASE_KEY_PASSWORD",
+)
+val releaseSigningConfigured = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
 
 plugins {
     alias(libs.plugins.android.application)
@@ -46,13 +109,19 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val storeFilePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
-            if (!storeFilePath.isNullOrBlank()) storeFile = file(storeFilePath)
-            storePassword = providers.environmentVariable("ANDROID_STORE_PASSWORD").orNull
-            keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
-            keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
-            storeType = "PKCS12"
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "PKCS12"
+                // minSdk 24：不需要 V1；启用 V2/V3 以覆盖现代设备与签名轮换能力
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
+            }
         }
     }
 
@@ -65,7 +134,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -103,15 +174,30 @@ tasks.matching {
         it.name.contains("assemble", ignoreCase = true)
 }.configureEach {
     doFirst {
-        val required = listOf(
-            "ANDROID_KEYSTORE_PATH",
-            "ANDROID_STORE_PASSWORD",
-            "ANDROID_KEY_ALIAS",
-            "ANDROID_KEY_PASSWORD",
-        )
-        val missing = required.filter { System.getenv(it).isNullOrBlank() }
+        val missing = buildList {
+            if (releaseStoreFilePath.isNullOrBlank()) {
+                add("storeFile (ANDROID_KEYSTORE_PATH / AZEK431_RELEASE_STORE_FILE / keystore.properties)")
+            }
+            if (releaseStorePassword.isNullOrBlank()) {
+                add("storePassword (ANDROID_STORE_PASSWORD / AZEK431_RELEASE_STORE_PASSWORD)")
+            }
+            if (releaseKeyAlias.isNullOrBlank()) {
+                add("keyAlias (ANDROID_KEY_ALIAS / AZEK431_RELEASE_KEY_ALIAS)")
+            }
+            if (releaseKeyPassword.isNullOrBlank()) {
+                add("keyPassword (ANDROID_KEY_PASSWORD / AZEK431_RELEASE_KEY_PASSWORD)")
+            }
+        }
         if (missing.isNotEmpty()) {
-            throw GradleException("Release signing configuration missing: ${missing.joinToString()}")
+            throw GradleException(
+                "Release signing incomplete: ${missing.joinToString()}. " +
+                    "See README「Release 构建与签名」or keystore.properties.example. " +
+                    "Never commit the real keystore or passwords.",
+            )
+        }
+        val store = file(releaseStoreFilePath!!)
+        if (!store.isFile) {
+            throw GradleException("Release keystore not found: ${store.absolutePath}")
         }
     }
 }

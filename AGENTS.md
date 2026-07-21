@@ -28,7 +28,17 @@ python tools/quality/check_project.py
 .\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
 
-Debug APK：`app/build/outputs/apk/debug/app-debug.apk`
+Debug APK：`app/build/outputs/apk/debug/app-debug.apk`（包名 `top.azek431.hzzs.debug`）
+
+Release 需完整签名配置（见 README「Release 构建与签名」）：
+
+```powershell
+# 环境变量 ANDROID_KEYSTORE_* 或本机 keystore.properties（gitignore）
+.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+```
+
+Release APK：`app/build/outputs/apk/release/app-release.apk`  
+签名解析：`ANDROID_KEYSTORE_*` → 历史 `AZEK431_RELEASE_*` → 根目录 `keystore.properties`。密钥库文件本身不在仓库。
 
 ## 架构（当前）
 
@@ -117,7 +127,8 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 - 与用户沟通默认使用**中文**。
 - 执行任务前识别模糊需求；不确定处先提问（用户明确授权自行决定除外）。
 - 改代码后同步相关 README/CLAUDE/docs，并跑质量门禁。
-- 不提交密钥、签名文件、`local.properties`、本地备份与生成二进制。
+- 不提交密钥、签名文件、`keystore.properties`、`local.properties`、本地备份与生成二进制。
+- Release 签名只从环境变量或 gitignore 的本地 properties 读取；**不要**把真实路径/密码写进会提交的文档。
 - **不要**根据过期的“无测试 / 仅模拟 HUD / MediaProjection 未接入”描述做决策。
 
 ## 游戏素材（可选参考）
