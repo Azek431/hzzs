@@ -71,7 +71,8 @@ class SettingsViewModel @Inject constructor(
     private var session: SettingsEditSession? = null
     private var previewJob: Job? = null
     private var updateJob: Job? = null
-    private var pendingTransform: ((AppConfig) -> AppConfig)? = null
+    /** 完整 UI 草稿快照；flush 时整份写回 session，避免连续修改丢字段。 */
+    private var pendingDraft: AppConfig? = null
 
     init {
         viewModelScope.launch { openSession(repository.snapshot()) }
@@ -80,6 +81,7 @@ class SettingsViewModel @Inject constructor(
     private fun openSession(original: AppConfig) {
         mutableBaseline.value = original
         mutableDraft.value = original
+        pendingDraft = null
         session = SettingsEditSession(
             original = original,
             onPreview = { candidate ->
@@ -105,30 +107,30 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun update(transform: (AppConfig) -> AppConfig) {
-        // 先本地合成 draft，保证 UI 立刻反映；preview 写入 session 可 debounce。
+        // 先本地合成完整 draft，保证 UI 立刻反映且不丢连续改动。
         val optimistic = transform(mutableDraft.value)
         mutableDraft.value = optimistic
-        pendingTransform = transform
+        pendingDraft = optimistic
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             delay(40)
-            flushPendingTransform()
+            flushPendingDraft()
         }
     }
 
-    private suspend fun flushPendingTransform() {
-        val transform = pendingTransform ?: return
-        pendingTransform = null
+    private suspend fun flushPendingDraft() {
+        val draft = pendingDraft ?: return
+        pendingDraft = null
         val active = session ?: return
         runCatching {
-            val next = active.update(transform)
+            val next = active.replace(draft)
             mutableDraft.value = next
         }
     }
 
     fun save(onDone: () -> Unit = {}) = viewModelScope.launch {
         previewJob?.cancel()
-        flushPendingTransform()
+        flushPendingDraft()
         val active = session ?: return@launch
         val saved = active.save()
         openSession(saved)
@@ -137,7 +139,7 @@ class SettingsViewModel @Inject constructor(
 
     fun discard(onDone: () -> Unit = {}) = viewModelScope.launch {
         previewJob?.cancel()
-        pendingTransform = null
+        pendingDraft = null
         val active = session
         if (active != null) {
             val restored = active.discard()
@@ -168,7 +170,7 @@ class SettingsViewModel @Inject constructor(
     /** Clears an unsaved preview when navigation removes this screen. */
     fun discardSilently() {
         previewJob?.cancel()
-        pendingTransform = null
+        pendingDraft = null
         viewModelScope.launch {
             val active = session
             if (active != null) {
@@ -280,7 +282,7 @@ class SettingsViewModel @Inject constructor(
         val code = mutableUpdate.value.available?.manifest?.versionCode ?: return
         viewModelScope.launch {
             previewJob?.cancel()
-            flushPendingTransform()
+            flushPendingDraft()
             // 忽略版本走 session，避免旁路 save 与未保存草稿互相覆盖。
             val active = session
             if (active != null) {
