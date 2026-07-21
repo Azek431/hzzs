@@ -3,19 +3,33 @@ package top.azek431.hzzs.domain.vision
 import top.azek431.hzzs.core.model.SceneId
 
 /**
- * 声明式视觉算法运行时快照（CC-1）。
+ * 声明式算法运行时（CC-1）领域模型。
  *
- * 第一版算法包只允许调整视觉参数，不得携带可执行代码。
- * 本结构在激活时解析一次并校验，帧循环只读当前 generation 对应的不可变副本。
+ * 第一版算法包只允许调整视觉参数，不得携带可执行代码
+ *（禁止动态加载 .so / Dex / Jar / 脚本）。
+ *
+ * 生命周期：
+ * 1. 激活时解析并 [AlgorithmProfileValidator] 校验一次
+ * 2. 通过 JNI `configureAlgorithm` 写入 Native 不可变快照
+ * 3. 帧循环只读当前 generation 对应快照，禁止每帧解析 JSON
  *
  * 安全边界：不得包含手势、点击、Root、包名白名单或自动化门禁字段。
+ */
+
+/**
+ * 算法运行时快照。
+ *
+ * @property algorithmId 包 ID，如 `builtin.hzzs.v1`
+ * @property version 语义化版本字符串
+ * @property schemaVersion 固定为 [SCHEMA_VERSION]
+ * @property isBuiltin 是否内置回退算法
+ * @property scenes 两赛季独立参数；必须覆盖全部 [SceneId]
  */
 data class AlgorithmRuntimeProfile(
     val algorithmId: String,
     val version: String,
     val schemaVersion: Int,
     val isBuiltin: Boolean,
-    /** 两赛季独立参数；缺失赛季时由校验器拒绝。 */
     val scenes: Map<SceneId, SceneAlgorithmParams>,
 ) {
     init {
@@ -36,6 +50,7 @@ data class AlgorithmRuntimeProfile(
         require(scenes.size == SceneId.entries.size)
     }
 
+    /** 取指定赛季参数；缺失时由 init 保证不会发生。 */
     fun params(scene: SceneId): SceneAlgorithmParams = scenes.getValue(scene)
 
     companion object {
@@ -48,7 +63,10 @@ data class AlgorithmRuntimeProfile(
         private val ALGORITHM_ID_REGEX = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
         private val VERSION_REGEX = Regex("^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$")
 
-        /** 固化当前 C++ 主路径 + 启发式回退的默认行为。 */
+        /**
+         * 内置算法：固化当前 C++ 主路径 + 启发式回退的默认行为。
+         * 激活失败或包校验失败时回退至此。
+         */
         fun builtin(): AlgorithmRuntimeProfile = AlgorithmRuntimeProfile(
             algorithmId = BUILTIN_ID,
             version = BUILTIN_VERSION,
@@ -63,19 +81,22 @@ data class AlgorithmRuntimeProfile(
 }
 
 /**
- * 单赛季可调视觉参数。所有 Float 必须 finite，范围已在 [validate] 中收紧。
+ * 单赛季可调视觉参数。
+ *
+ * 所有 Float 必须 finite；数值范围在 [AlgorithmProfileValidator] 中收紧。
+ * 尺寸类字段均为相对视口的比例，禁止写死屏幕像素。
  */
 data class SceneAlgorithmParams(
-    /** 主路径成功时场景置信度下限（甜甜圈主路径固定置信度亦受此约束）。 */
+    /** 主路径成功时场景置信度下限。 */
     val sceneConfidenceFloor: Float,
     /** 竹影：玩家置信度低于此值时 fail-closed。 */
     val playerConfidenceFloor: Float,
-    /** 固定玩家参考框在视口归一化坐标中的 top/bottom。 */
+    /** 固定玩家参考框在视口归一化坐标中的 top / bottom。 */
     val fixedPlayerTop: Float,
     val fixedPlayerBottom: Float,
     /** 固定玩家宽度约为视口宽度的 1/N（N 限制在合理范围）。 */
     val fixedPlayerWidthDivisor: Int,
-    /** 主路径结果过弱时启用启发式回退的场景置信度阈值。 */
+    /** 主路径结果过弱时启用启发式回退的场景置信度上限。 */
     val fallbackSceneConfidenceMax: Float,
     /** 主路径结果过弱时，检测数（含玩家）不超过该值才回退。 */
     val fallbackMaxDetections: Int,
@@ -84,7 +105,7 @@ data class SceneAlgorithmParams(
     val groundSearchBottom: Float,
     /** 启发式：最低地面置信度。 */
     val groundConfidenceMin: Float,
-    /** 障碍尺寸比例窗口（相对视口宽/高）。 */
+    /** 各类障碍尺寸比例窗口（相对视口宽/高）。 */
     val bottleWidthMin: Float,
     val bottleWidthMax: Float,
     val bottleHeightMin: Float,
@@ -109,10 +130,11 @@ data class SceneAlgorithmParams(
     val spikeWidthMax: Float,
     val spikeHeightMin: Float,
     val spikeHeightMax: Float,
-    /** 颜色通道阈值（0..255）。 */
+    /** 颜色通道阈值（0..255 或比值）。 */
     val colors: SceneColorThresholds,
 ) {
     companion object {
+        /** 甜甜圈赛季内置默认参数。 */
         fun sweetBuiltin() = SceneAlgorithmParams(
             sceneConfidenceFloor = 0.92f,
             playerConfidenceFloor = 0.45f,
@@ -151,6 +173,7 @@ data class SceneAlgorithmParams(
             colors = SceneColorThresholds.sweetBuiltin(),
         )
 
+        /** 竹影书屋赛季内置默认参数。 */
         fun bambooBuiltin() = SceneAlgorithmParams(
             sceneConfidenceFloor = 0.82f,
             playerConfidenceFloor = 0.45f,
@@ -191,7 +214,11 @@ data class SceneAlgorithmParams(
     }
 }
 
-/** RGB 通道阈值；仅用于启发式颜色判定，不参与自动化门禁。 */
+/**
+ * RGB 通道阈值。
+ *
+ * 仅用于启发式颜色判定，不参与自动化门禁。
+ */
 data class SceneColorThresholds(
     val bottleGreenMin: Int,
     val bottleGreenOverRed: Float,
@@ -252,7 +279,9 @@ data class SceneColorThresholds(
 }
 
 /**
- * 严格校验算法配置。失败时返回可读错误，调用方必须回退内置算法。
+ * 严格校验算法配置。
+ *
+ * 失败返回可读错误；调用方必须回退内置算法，不得带着脏参数进 Native。
  */
 object AlgorithmProfileValidator {
     fun validate(profile: AlgorithmRuntimeProfile): Result<AlgorithmRuntimeProfile> = runCatching {
@@ -266,6 +295,9 @@ object AlgorithmProfileValidator {
         onFailure = { Result.failure(IllegalArgumentException(it.message ?: "invalid algorithm profile")) },
     )
 
+    /**
+     * 校验单赛季参数：finite、有序区间、通道 0..255、比例落在安全窗。
+     */
     fun validateScene(scene: SceneId, params: SceneAlgorithmParams): Result<Unit> = runCatching {
         fun requireFinite(name: String, value: Float) {
             require(value.isFinite()) { "$scene.$name 必须为 finite" }
@@ -375,7 +407,13 @@ object AlgorithmProfileValidator {
     )
 }
 
-/** 当前激活算法的不可变视图。 */
+/**
+ * 当前激活算法的不可变视图。
+ *
+ * @property generation 单调递增代数；帧循环用其检测切换
+ * @property usingBuiltinFallback 是否处于内置回退
+ * @property loadError 最近加载错误摘要（可空，长度受限）
+ */
 data class AlgorithmActivation(
     val profile: AlgorithmRuntimeProfile,
     val generation: Long,
@@ -389,18 +427,23 @@ data class AlgorithmActivation(
 }
 
 /**
- * 算法激活契约（CC-1）。实现必须：
+ * 算法激活契约（CC-1）。
+ *
+ * 实现必须：
  * - 激活时解析并校验一次
- * - 失败回退内置
- * - 递增 generation
- * - 不在帧路径解析 JSON
+ * - 失败回退内置（或按参数保留旧激活）
+ * - 成功时递增 generation
+ * - 不在帧路径解析 JSON / 读文件
  */
 interface ActiveAlgorithmProvider {
     fun current(): AlgorithmActivation
 
     /**
-     * 尝试激活 profile。校验失败时保留旧激活并返回 failure，
-     * 或在 [fallbackToBuiltinOnError] 时切换内置并返回 success（带 loadError）。
+     * 尝试激活 profile。
+     *
+     * 校验失败时：
+     * - [fallbackToBuiltinOnError] 为 true：切内置并返回 success（可带 loadError）
+     * - 否则：保留旧激活并返回 failure
      */
     fun activate(
         profile: AlgorithmRuntimeProfile,
