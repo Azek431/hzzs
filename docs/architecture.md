@@ -45,10 +45,12 @@ platform 仅通过接口向运行时暴露能力
 
 ## 配置
 
-DataStore 存储 schema v5。`SettingsRepository` 合并持久配置和内存预览。
+DataStore 存储 schema **v6**。`SettingsRepository` 合并持久配置和内存预览。
 
 - 主题、悬浮窗、视觉阈值：可临时预览。
-- 截图后端、MCP、自动操作、开发者、更新：预览时强制保留 baseline，**仅保存后生效**。
+- 截图后端、MCP、自动操作、开发者、更新、算法选择：预览时强制保留 baseline，**仅保存后生效**。
+- 设置 UI 为首页 + 分类子页，共享同一 `SettingsViewModel` 草稿；返回首页不丢草稿，离开设置模块时才保存/丢弃。
+- `AlgorithmCatalogController` 以 StateFlow 暴露算法目录、下载进度与镜像状态；网络刷新/下载为即时任务，不属于视觉预览。
 
 默认 `selectedScene = BAMBOO_BOOKSTORE`（竹影书屋）。`SceneId` 枚举序：`SWEET_FACTORY = 0`、`BAMBOO_BOOKSTORE = 1`，与 C++ `scene` 参数一致。
 
@@ -83,9 +85,29 @@ armAutomation() 门控
 - **主路径**：`legacy_main/vision2`（甜甜圈）与 `legacy_main/vision_bamboo`（竹影书屋），经 `vision_engine.cpp` 映射为统一 `Detection` / 位掩码协议。
 - **回退路径**：`sweet_factory.cpp` / `bamboo_bookstore.cpp`，仅在主路径场景置信度过低且检测过少时启用。
 - 共享几何与连通域：`scene_geometry.h` / `color_components.h`
-- JNI 边界：`jni_bridge.cpp`（校验、视口裁剪、结果编码）
+- 算法运行时快照：`algorithm_runtime.{h,cpp}`（`AlgorithmRuntimeProfile` 不可变 generation）
+- JNI 边界：`jni_bridge.cpp`（校验、视口裁剪、结果编码、`configureAlgorithm`）
 
 跨帧状态在 Kotlin tracker / runtime，不在 C++ 状态机中。
+
+### 算法运行时（CC-1）
+
+第一版算法包是**声明式视觉参数**，不是任意代码。不得动态加载 `.so` / Dex / Jar / APK / Python / JavaScript / Shell。
+
+```text
+ActiveAlgorithmProvider.activate(profile)
+  → AlgorithmProfileValidator（finite / 范围 / 白名单 / schema）
+  → NativeVision.configureAlgorithm(profile)   // 安全切换点，与 analyze 串行
+  → AlgorithmRuntime 替换不可变快照，generation++
+  → 清空 MultiObjectTracker / 动作去重 / 稳定帧
+analyze(frame) 只读当前 generation 对应快照
+失败 → 保留旧配置或回退 builtin.hzzs.v1，NativeVision 保持可用
+```
+
+网络算法配置**不能**控制手势、点击、Root、包名白名单或安全门禁。  
+结果诊断字段：`activeAlgorithmId` / `activeAlgorithmVersion` / `algorithmGeneration` / `usingBuiltinFallback` / `algorithmLoadError`。
+
+每帧禁止：读文件、解析 JSON、分配大型规则对象。
 
 ## 更新
 

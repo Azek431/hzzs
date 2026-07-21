@@ -31,7 +31,7 @@
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
-| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录 StateFlow；远端 so 激活待算法仓库） |
+| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录 StateFlow；安装器/下载器待接真实 `.hzzsalg`） |
 | P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中 |
 | P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（安装器/下载器未接） |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |

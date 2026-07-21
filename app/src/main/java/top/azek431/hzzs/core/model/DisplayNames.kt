@@ -21,6 +21,82 @@ fun McpPermissionLevel.displayName(): String = when (this) {
     McpPermissionLevel.FULL_ACCESS -> "完整访问"
 }
 
+fun AlgorithmSelectionMode.displayName(): String = when (this) {
+    AlgorithmSelectionMode.AUTO -> "自动选择"
+    AlgorithmSelectionMode.MANUAL -> "手动选择"
+}
+
+fun AlgorithmChannel.displayName(): String = when (this) {
+    AlgorithmChannel.STABLE -> "稳定"
+    AlgorithmChannel.BETA -> "测试"
+}
+
+fun UpdateSourcePreference.displayName(): String = when (this) {
+    UpdateSourcePreference.AUTO -> "自动选择"
+    UpdateSourcePreference.PREFER_GITEE -> "优先 Gitee"
+    UpdateSourcePreference.PREFER_GITHUB -> "优先 GitHub"
+}
+
+fun UpdateChannel.displayName(): String = when (this) {
+    UpdateChannel.STABLE -> "稳定"
+    UpdateChannel.BETA -> "测试"
+}
+
+fun AppThemeMode.displayName(): String = when (this) {
+    AppThemeMode.SYSTEM -> "跟随系统"
+    AppThemeMode.LIGHT -> "浅色"
+    AppThemeMode.DARK -> "深色"
+    AppThemeMode.AMOLED -> "纯黑"
+}
+
+fun ThemePreset.displayName(): String = when (this) {
+    ThemePreset.DYNAMIC -> "动态取色"
+    ThemePreset.FIRE_ORANGE -> "焰火橙"
+    ThemePreset.CORAL -> "珊瑚红"
+    ThemePreset.BAMBOO -> "竹影青"
+    ThemePreset.OCEAN -> "深海蓝"
+    ThemePreset.INDIGO -> "靛青"
+    ThemePreset.LAVENDER -> "紫晶夜"
+    ThemePreset.BLACK_GOLD -> "黑金"
+    ThemePreset.HIGH_CONTRAST -> "高对比"
+    ThemePreset.CUSTOM -> "自定义"
+}
+
+fun OverlayStyle.displayName(): String = when (this) {
+    OverlayStyle.MINIMAL -> "极简"
+    OverlayStyle.COMPACT -> "紧凑"
+    OverlayStyle.DEBUG_HUD -> "调试 HUD"
+}
+
+fun OverlayTheme.displayName(): String = when (this) {
+    OverlayTheme.FOLLOW_APP -> "跟随应用"
+    OverlayTheme.AUTO_CONTRAST -> "自动对比"
+    OverlayTheme.DARK_GLASS -> "深色玻璃"
+    OverlayTheme.LIGHT_GLASS -> "浅色玻璃"
+    OverlayTheme.AMOLED -> "纯黑"
+    OverlayTheme.FIRE_ORANGE -> "焰火橙"
+    OverlayTheme.BAMBOO -> "竹影青"
+    OverlayTheme.NEON_GREEN -> "霓虹绿"
+    OverlayTheme.WARNING_ORANGE -> "警示橙"
+    OverlayTheme.CUSTOM -> "自定义"
+}
+
+fun PlayerReferenceMode.displayName(): String = when (this) {
+    PlayerReferenceMode.FIXED_RATIO -> "固定比例"
+    PlayerReferenceMode.DETECT_ONCE -> "启动检测一次"
+    PlayerReferenceMode.CONTINUOUS -> "持续检测"
+}
+
+fun ObstacleKind.displayName(): String = when (this) {
+    ObstacleKind.POISON_BOTTLE -> "毒药瓶"
+    ObstacleKind.CAKE_STRUCTURE -> "蛋糕结构"
+    ObstacleKind.HANGING_SPIKE -> "悬挂尖刺"
+    ObstacleKind.PIT -> "地坑"
+    ObstacleKind.PANDA_STATUE -> "熊猫摆件"
+    ObstacleKind.BAMBOO_GAP -> "竹林缺口"
+    ObstacleKind.HANGING_BRUSH -> "悬挂毛笔"
+}
+
 fun detectionKindDisplayName(kindName: String): String = when (kindName) {
     "PLAYER" -> "玩家"
     "POISON_BOTTLE" -> "毒药瓶"
