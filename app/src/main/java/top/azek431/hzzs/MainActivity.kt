@@ -376,8 +376,12 @@ private var lastMcpFingerprint: String? = null
 private fun syncMcpService(context: Context, enabled: Boolean, fingerprint: String) {
     if (enabled) {
         if (lastMcpFingerprint == fingerprint) return
-        // 端口/权限变化时先停再启，确保真正重绑。
+        // 端口/权限变化：先发 ACTION_STOP，确保旧 socket 关闭后再 START。
         if (lastMcpFingerprint != null) {
+            context.startService(
+                Intent(context, McpForegroundService::class.java)
+                    .setAction(McpForegroundService.ACTION_STOP),
+            )
             context.stopService(Intent(context, McpForegroundService::class.java))
         }
         val intent = Intent(context, McpForegroundService::class.java)
@@ -385,6 +389,10 @@ private fun syncMcpService(context: Context, enabled: Boolean, fingerprint: Stri
         ContextCompat.startForegroundService(context, intent)
         lastMcpFingerprint = fingerprint
     } else {
+        context.startService(
+            Intent(context, McpForegroundService::class.java)
+                .setAction(McpForegroundService.ACTION_STOP),
+        )
         context.stopService(Intent(context, McpForegroundService::class.java))
         lastMcpFingerprint = null
     }
