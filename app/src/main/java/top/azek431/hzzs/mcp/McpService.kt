@@ -561,7 +561,10 @@ private fun isAllowedLoopbackOrigin(origin: String?): Boolean {
     }.getOrDefault(false)
 }
 
-/** Bearer 恒时比较，避免通过时序泄漏首个不匹配字符。 */
+/**
+ * 校验 HTTP Authorization 头中的 Bearer 与服务端令牌。
+ * 使用恒时比较，避免通过时序泄漏首个不匹配字符。
+ */
 private fun constantTimeBearerMatches(authorization: String?, token: String): Boolean {
     val provided = authorization?.removePrefix("Bearer ")
         ?.takeIf { authorization.startsWith("Bearer ") }
