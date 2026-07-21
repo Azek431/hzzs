@@ -54,11 +54,24 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Serialized capture -> native vision -> tracking -> overlay -> optional action pipeline.
+ * 视觉运行时控制器：帧循环的唯一所有者。
  *
- * The frame loop is the sole owner of the native engine and tracker. Settings collectors only
- * replace immutable snapshots, which prevents reset/analyze races. A generation token prevents
- * stale frames from a stopped session from becoming visible in a later session.
+ * 职责：
+ * - 串行编排「截图 → Native 分析 → 跨帧追踪 → 悬浮窗 → 可选自动动作」；
+ * - 持有 [MultiObjectTracker]、动作账本与手势仲裁器，避免多入口并发 reset/analyze；
+ * - 通过 [generation] 令牌丢弃已停止会话的陈旧帧与动作结果。
+ *
+ * 线程与所有权：
+ * - 生命周期（start/stop/restart）在 [lifecycleMutex] 下串行；
+ * - 帧循环运行于 [scope]（Default）；动作在独立 [actionJob] 中执行，与分析解耦；
+ * - [CapturedFrame] 仅在 `frame.use { }` 内借用，循环不跨帧持有像素缓冲。
+ *
+ * 安全不变量：
+ * - 自动操作默认关闭；需当前免责声明版本，并受 arm / 前台白名单 / 帧龄门控；
+ * - 场景或算法 generation 变化时必须进入安全点：取消动作、清空 tracker 与去重缓存、disarm；
+ * - 设置收集器只替换不可变配置快照，不直接操作引擎。
+ *
+ * 坐标：视觉结果与手势规划使用视口归一化坐标 `[0,1]`。
  */
 @Singleton
 class VisionRuntimeController @Inject constructor(
@@ -70,6 +83,7 @@ class VisionRuntimeController @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lifecycleMutex = Mutex()
+    /** 会话代数：stop/start 递增，用于 fail-closed 丢弃陈旧帧与动作。 */
     private val generation = AtomicLong(0)
     private val latestConfig = AtomicReference(AppConfig())
     private val tracker = MultiObjectTracker()
@@ -86,6 +100,7 @@ class VisionRuntimeController @Inject constructor(
     @Volatile
     private var runtimeJob: Job? = null
 
+    /** 与帧循环解耦的动作协程；场景/算法切换或 stop 时必须取消。 */
     @Volatile
     private var actionJob: Job? = null
 
@@ -111,20 +126,26 @@ class VisionRuntimeController @Inject constructor(
                     previous.selectedScene != next.selectedScene ||
                         previousBackend != nextBackend ||
                         previous.automation.allowedPackages != next.automation.allowedPackages
+                // 安全边界变化：立即解除 arm，防止旧会话权限延续到新场景/后端。
                 if (safetyBoundaryChanged) disarmAutomation()
                 mutableStatus.update { it.copy(activeScene = next.selectedScene) }
                 if (
                     previousBackend != nextBackend &&
                     mutableStatus.value.running
                 ) {
-                    // Capture changes are preview-suppressed by SettingsScreen,
-                    // so reaching this branch means a saved configuration changed.
+                    // 设置页预览阶段会抑制截图后端切换；能走到这里说明已落盘配置变更。
                     launch { restart() }
                 }
             }
         }
     }
 
+    /**
+     * 启动帧循环。
+     *
+     * 输入：当前设置中的截图后端与场景；输出：更新 [status]/[latestResult]。
+     * 在 [lifecycleMutex] 内推进 [generation] 并 [resetPipeline]，保证单会话独占引擎与 tracker。
+     */
     suspend fun start() {
         lifecycleMutex.withLock {
             if (runtimeJob?.isActive == true) return@withLock
@@ -166,11 +187,17 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
+    /** 停止后重新启动；用于截图后端等需要换源的配置变更。 */
     suspend fun restart() {
         stop()
         start()
     }
 
+    /**
+     * 停止帧循环并释放截图源。
+     *
+     * 先递增 [generation] 使进行中的循环/动作 fail-closed，再 cancelAndJoin、隐藏悬浮窗并重置管线。
+     */
     suspend fun stop() = lifecycleMutex.withLock {
         generation.incrementAndGet()
         runtimeJob?.cancelAndJoin()
@@ -189,6 +216,13 @@ class VisionRuntimeController @Inject constructor(
         )
     }
 
+    /**
+     * 会话级解锁自动操作（arm 门控）。
+     *
+     * 失败条件（fail-closed）：未启用自动操作、免责声明版本不足、视觉未运行、
+     * 无障碍未连接/前台过期、包名不在白名单、无法确认窗口类名。
+     * 成功时绑定当前前台 [armedWindowClass]。
+     */
     suspend fun armAutomation(): Result<Unit> {
         val config = latestConfig.get()
         if (!config.automation.enabled) {
@@ -216,11 +250,21 @@ class VisionRuntimeController @Inject constructor(
         return Result.success(Unit)
     }
 
+    /** 解除自动操作会话绑定；配置/场景/算法边界变化时也应调用。 */
     fun disarmAutomation() {
         armedWindowClass.set(null)
         mutableStatus.update { it.copy(automationArmed = false) }
     }
 
+    /**
+     * 帧循环主体：在 [token] 与 [generation] 一致期间持续取帧分析。
+     *
+     * 关键分支：
+     * - 截图后端与启动时不一致 → 抛错要求重启；
+     * - 场景禁用 → disarm、藏悬浮窗并退避；
+     * - 场景或算法 generation 变化 → 安全点：停 [actionJob]、清 tracker/ledger/去重、disarm；
+     * - 帧在 [frame.use] 内处理完即释放，分析前后再次校验 [generation]。
+     */
     private suspend fun runLoop(
         token: Long,
         source: FrameSource,
@@ -311,6 +355,7 @@ class VisionRuntimeController @Inject constructor(
                     continue
                 }
 
+                // 帧所有权：仅在 use 块内借用像素；退出后必须已 close，禁止跨帧缓存。
                 frame.use {
                     if (frame.sequence <= lastSequence || generation.get() != token) return@use
                     lastSequence = frame.sequence
@@ -341,6 +386,7 @@ class VisionRuntimeController @Inject constructor(
                         sceneConfig,
                         config.viewport,
                     )
+                    // 分析可能耗时；返回后若会话已停，丢弃结果避免污染新会话。
                     if (generation.get() != token) return@use
 
                     if (result.error != null) {
@@ -403,6 +449,7 @@ class VisionRuntimeController @Inject constructor(
             stateJob.cancel()
             runCatching { source.stop() }
             overlay.hide()
+            // 仅当仍是本会话 token 时写终态，避免覆盖已启动的新会话状态。
             if (generation.get() == token) {
                 activeSource = null
                 mutableStatus.update {
@@ -418,6 +465,12 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
+    /**
+     * 在帧路径上评估是否派发自动动作。
+     *
+     * 门控：自动操作开关、场景置信度、帧龄、实验开关、窗口类名、CAS [actionInFlight]。
+     * 真正手势在独立 [actionJob] 中执行，避免阻塞分析循环。
+     */
     private fun maybeDispatch(
         token: Long,
         config: AppConfig,
@@ -500,8 +553,10 @@ class VisionRuntimeController @Inject constructor(
     }
 
     /**
-     * requireSessionArm=true：必须先 arm 绑定窗口。
-     * requireSessionArm=false：每次用当前前台窗口（仍校验白名单），无需手动 arm。
+     * 解析动作所需的前台窗口类名前缀。
+     *
+     * - requireSessionArm=true：必须先 [armAutomation] 绑定窗口；
+     * - requireSessionArm=false：每次读当前前台（仍校验白名单与时效），无需手动 arm。
      */
     private fun resolveRequiredWindowClass(config: AppConfig): String? {
         if (config.automation.requireSessionArm) {
@@ -515,6 +570,12 @@ class VisionRuntimeController @Inject constructor(
         return foreground.className
     }
 
+    /**
+     * 在 [actionMutex] 下规划并提交手势序列。
+     *
+     * 再次校验 [generation]、账本去重、前台包/窗口与速率上限；
+     * 单次 stroke 失败可按 retryLimit 退避重试，耗尽后可选 disarm。
+     */
     private suspend fun dispatchPlan(
         token: Long,
         config: AppConfig,
@@ -605,6 +666,10 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
+    /**
+     * 发布悬浮窗；非 force 时用签名跳过无变化刷新。
+     * 悬浮窗绘制侧负责将归一化坐标转为像素。
+     */
     private suspend fun publishOverlay(
         overlayConfig: top.azek431.hzzs.core.model.OverlayConfig,
         result: VisionResult?,
@@ -624,6 +689,7 @@ class VisionRuntimeController @Inject constructor(
         return visible
     }
 
+    /** 粗粒度签名：用于抑制重复 overlay 刷新，非密码学哈希。 */
     private fun overlaySignature(
         config: top.azek431.hzzs.core.model.OverlayConfig,
         result: VisionResult?,
@@ -647,6 +713,7 @@ class VisionRuntimeController @Inject constructor(
         return hash
     }
 
+    /** 空间去重键：按 kind + 量化中心，配合 trackId 防止重复提交同一障碍。 */
     private fun spatialKeyOf(detection: Detection): String {
         val cx = ((detection.bounds.left + detection.bounds.right) * 0.5f * 20f).toInt()
         val cy = ((detection.bounds.top + detection.bounds.bottom) * 0.5f * 20f).toInt()
@@ -660,9 +727,11 @@ class VisionRuntimeController @Inject constructor(
     )
 
     /**
-     * 对齐历史 main VisionActionPlanner 的时序：
-     * - 地面大障碍 / 宽坑：双跳，间隔随赛季变化
-     * - 头顶障碍：下滑，TTL 更长
+     * 按避障类型规划归一化手势时序。
+     *
+     * - 地面大障碍 / 宽坑：双跳，间隔随赛季变化；
+     * - 头顶障碍：下滑，TTL 更长；
+     * - 手势坐标为归一化视口比例，由无障碍分发层转像素。
      */
     private fun planGestures(
         scene: SceneId,
@@ -694,7 +763,11 @@ class VisionRuntimeController @Inject constructor(
         }
     }
 
-    /** Resolves the player baseline without forcing continuous player detection. */
+    /**
+     * 解析玩家参考框，不必每帧都跑玩家检测。
+     *
+     * CONTINUOUS / DETECT_ONCE / FIXED_RATIO 三种模式；FIXED_RATIO 直接合成归一化框。
+     */
     private fun VisionResult.withPlayerReference(sceneConfig: SceneConfig): VisionResult {
         val thresholds = sceneConfig.thresholds
         val reference = when (thresholds.playerReferenceMode) {
@@ -725,6 +798,10 @@ class VisionRuntimeController @Inject constructor(
         )
     }
 
+    /**
+     * 清空运行时管线状态：取消动作、重置 tracker/ledger/引擎分析侧、解除 arm。
+     * 不切换算法 profile；算法回退由引擎 [VisionEngine.configureAlgorithm] 负责。
+     */
     private suspend fun resetPipeline() {
         actionJob?.cancelAndJoin()
         actionJob = null
