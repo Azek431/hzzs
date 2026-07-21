@@ -21,8 +21,20 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
 /**
- * The only production owner of dispatchGesture(). Every caller goes through
- * GestureArbiter, so gestures cannot cancel each other by racing.
+ * 生产环境唯一的 [dispatchGesture] 持有者。
+ *
+ * 职责：
+ * - 主线程协调手势分发与前台窗口快照；
+ * - 将归一化手势坐标换算为屏幕像素后投递系统；
+ * - 可选 Android 11+ 无障碍截图（硬件缓冲立即拷贝后关闭）。
+ *
+ * 安全不变量：
+ * - 前台包名/类名快照超过约 1.5s 视为过期，拒绝分发；
+ * - 仅允许 [AutomationAction.allowedPackages] 与窗口匹配的动作；
+ * - 调用方须经 GestureArbiter，避免并发手势互相取消；
+ * - 服务未连接时 companion 入口 fail-closed。
+ *
+ * 线程：Accessibility 回调与 dispatch 使用主线程；截图回调在专用守护线程，结果回主线程续体。
  */
 class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
     private val foreground = AtomicReference<ForegroundWindow?>(null)
@@ -44,6 +56,7 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
         super.onDestroy()
     }
 
+    /** 刷新前台包名/类名快照，供手势门禁使用。 */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
         val cls = event.className?.toString().orEmpty()
@@ -52,6 +65,10 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
 
     override fun onInterrupt() = Unit
 
+    /**
+     * 主线程分发手势：校验前台快照与允许包，路径坐标 clamp 到 [0,1] 后映射像素。
+     * 系统拒绝、取消或前台不匹配均返回明确 [DispatchOutcome]，不抛异常。
+     */
     override suspend fun dispatch(action: AutomationAction): DispatchReceipt =
         withContext(Dispatchers.Main.immediate) {
             val window = foreground.get()
@@ -92,6 +109,7 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             result.await()
         }
 
+    /** 最近观察到的前台窗口；[observedAtMs] 用于过期门禁。 */
     data class ForegroundWindow(val packageName: String, val className: String, val observedAtMs: Long)
 
     companion object {
@@ -102,6 +120,7 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
 
         fun isConnected(): Boolean = current.get() != null
 
+        /** 只读前台快照；服务未连接返回 null。 */
         fun foregroundSnapshot(): ForegroundWindow? = current.get()?.foreground?.get()
 
         suspend fun dispatchCurrent(action: AutomationAction): DispatchReceipt {
@@ -110,6 +129,11 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             return service.dispatch(action)
         }
 
+        /**
+         * Android 11+ 无障碍截图。
+         * 硬件缓冲包装后立即拷贝为软件 ARGB_8888 并 close 硬件缓冲；
+         * 协程已取消时回收软件图，避免泄漏。
+         */
         suspend fun captureBitmap(): Bitmap? {
             if (Build.VERSION.SDK_INT < 30) return null
             val service = current.get() ?: return null

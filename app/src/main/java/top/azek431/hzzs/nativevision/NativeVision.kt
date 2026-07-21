@@ -3,28 +3,33 @@ package top.azek431.hzzs.nativevision
 import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
 
 /**
- * Thin, failure-contained JNI boundary for the C++ vision engine.
+ * C++ 视觉引擎的薄 JNI 边界；加载失败不得拖垮进程。
  *
- * Loading a native library may fail on unsupported ABIs, damaged installs, or
- * devices whose linker rejects a dependency. The process must still be able to
- * open Settings and export diagnostics, so library loading is recorded instead
- * of crashing the application during class initialization.
+ * 加载与可用性：
+ * - 不支持 ABI、安装损坏或 linker 拒依赖时 [System.loadLibrary] 可能失败；
+ * - 失败记录在 [loadFailure]，类初始化不抛出，应用仍可打开设置与导出诊断；
+ * - 调用方必须先检查 [isAvailable] 再调 native 方法。
+ *
+ * 所有权与线程：
+ * - [analyze] 仅在 JNI 调用期间借用 Java 像素数组，Native 不得持有数组地址；
+ * - 返回边界相对配置视口归一化；字段视为不可信 JNI 输入，上层需再校验。
  *
  * 算法配置：
- * - [configureAlgorithm] 在安全切换点解析一次 profile
- * - [analyze] 只读当前 generation 对应的不可变快照
- * - 不在每帧解析 JSON
+ * - [configureAlgorithm] 仅在安全切换点解析一次 profile；
+ * - [analyze] 只读当前 generation 对应的不可变快照；
+ * - 不在每帧解析 JSON；配置失败保留旧配置，调用方应回退内置。
+ * - JNI 与 analyze 串行，禁止分析过程中半热切换。
  */
 object NativeVision {
     private val loadFailure: Throwable? = runCatching {
         System.loadLibrary("hzzs_vision")
     }.exceptionOrNull()
 
-    /** True only when the linker accepted the packaged native library. */
+    /** 仅当打包的 native 库被 linker 接受时为 true。 */
     val isAvailable: Boolean
         get() = loadFailure == null
 
-    /** Sanitized diagnostic text. It never exposes a full native stack trace. */
+    /** 净化后的诊断文案，不暴露完整 native 堆栈。 */
     val loadFailureMessage: String?
         get() = loadFailure?.let { error ->
             error.message?.take(240) ?: error.javaClass.simpleName
@@ -57,9 +62,8 @@ object NativeVision {
     )
 
     /**
-     * Copies only the configured viewport into native memory and returns bounds
-     * normalized to that crop. Callers must check [isAvailable] first and must
-     * treat every returned field as untrusted JNI input.
+     * 将配置视口内的像素拷入 native 并返回相对该裁剪区的归一化边界。
+     * 调用前必须检查 [isAvailable]；返回字段一律按不可信 JNI 输入处理。
      */
     external fun analyze(
         scene: Int,

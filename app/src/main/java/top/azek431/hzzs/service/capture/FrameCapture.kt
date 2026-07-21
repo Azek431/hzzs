@@ -8,9 +8,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * A frame owns its pixel lease. Call [close] after analysis so the source can
- * reuse the buffer. This is intentionally not a data class: copying a leased
- * frame could return the same mutable buffer to the pool more than once.
+ * 单帧像素租约：分析完成后必须 [close]，以便缓冲回池复用。
+ *
+ * 所有权与安全不变量：
+ * - 持有可复用 [pixels] 缓冲，禁止跨帧保存底层数组引用。
+ * - 刻意不是 data class：拷贝同一租约会把同一缓冲二次归还。
+ * - [close] 幂等；仅首次关闭触发 [releaseLease]。
+ * - 尺寸与像素数在构造时边界校验，防止异常帧撑爆内存。
  */
 class CapturedFrame(
     val sequence: Long,
@@ -35,6 +39,7 @@ class CapturedFrame(
     }
 }
 
+/** 截图源对外状态机：空闲 / 申请授权 / 就绪 / 失败。 */
 sealed interface CaptureState {
     data object Idle : CaptureState
     data object RequestingPermission : CaptureState
@@ -42,6 +47,10 @@ sealed interface CaptureState {
     data class Failed(val message: String, val recoverable: Boolean) : CaptureState
 }
 
+/**
+ * 帧源抽象：生命周期由调用方驱动。
+ * [nextFrame] 返回的 [CapturedFrame] 由调用方负责 close，超时/跳过的旧帧必须就地释放。
+ */
 interface FrameSource {
     val state: StateFlow<CaptureState>
     suspend fun start()
@@ -50,8 +59,11 @@ interface FrameSource {
 }
 
 /**
- * Bounded, generation-aware pool. Buffers leased before a resolution change
- * can never re-enter a later generation, even when the old resolution returns.
+ * 有界、分代感知的 Int 像素池。
+ *
+ * - 分辨率变化会递增 generation，旧租约关闭后不得回池。
+ * - 容量耗尽时 [tryAcquire] 返回 null，调用方应丢帧而非阻塞。
+ * - [Lease] 与 [CapturedFrame] 同样要求 close 归还。
  */
 class IntFramePool(private val capacity: Int = 3) {
     init { require(capacity >= 2) }
@@ -63,6 +75,7 @@ class IntFramePool(private val capacity: Int = 3) {
     private var activeSize = 0
     private var generation = 0L
 
+    /** 池缓冲租约；关闭后按 generation 条件回池。 */
     class Lease internal constructor(
         val pixels: IntArray,
         private val releaseBlock: () -> Unit,
@@ -109,8 +122,10 @@ class IntFramePool(private val capacity: Int = 3) {
 }
 
 /**
- * Copies RGBA_8888 Image.Plane row by row without assuming that the final row
- * contains trailing padding. All arithmetic is widened before bounds checks.
+ * 按行拷贝 RGBA_8888 [Image] 平面到 ARGB Int 缓冲。
+ *
+ * 线程：可在截图工作线程调用；使用 ThreadLocal 行缓冲避免每帧分配。
+ * 不假设最后一行含尾部 padding；算术先扩宽再做边界检查，防止溢出。
  */
 object PlaneRgbaReader {
     private val rowScratch = ThreadLocal<ByteArray>()
@@ -158,6 +173,7 @@ object PlaneRgbaReader {
     }
 }
 
+/** 单调递增帧序号与 elapsedRealtime 时间戳生成器。 */
 class FrameSequencer(
     private val clockNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
 ) {
