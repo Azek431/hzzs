@@ -25,6 +25,18 @@ import java.util.zip.ZipFile
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 应用内双源签名更新。
+ *
+ * 安全模型：
+ * - 仅 HTTPS
+ * - 清单签名绑定**本安装包证书**公钥；仅改 URL / 偏好无法伪造信任
+ * - Debug 包故意无法认证生产发行清单
+ * - 资产有体积、文件名与哈希边界
+ *
+ * 未正式发布索引时，[UpdateRepository.check] 失败属预期。
+ */
+
 private const val MAX_MANIFEST_BYTES = 1L * 1024L * 1024L
 private const val MAX_ARTIFACT_BYTES = 1L * 1024L * 1024L * 1024L
 private const val MAX_PATCH_MANIFEST_BYTES = 4L * 1024L * 1024L
@@ -33,13 +45,22 @@ private val SHA256_PATTERN = Regex("^[0-9a-fA-F]{64}$")
 private val SAFE_ASSET_NAME = Regex("^[A-Za-z0-9._+-]{1,160}$")
 private val SAFE_TAG = Regex("^[A-Za-z0-9._+-]{1,96}$")
 
+/** 清单中的单个可下载资产。 */
 data class Artifact(val name: String, val sha256: String, val size: Long)
+
+/** 从旧 versionCode / 旧 APK 哈希 到 差分包 的映射。 */
 data class PatchArtifact(
     val fromVersionCode: Long,
     val fromApkSha256: String,
     val patch: Artifact,
 )
 
+/**
+ * 已解析的更新清单。
+ *
+ * [signedPayload] + [signature] 用于证书绑定验签；
+ * 客户端还须校验 packageName、versionCode、certificateSha256 与本安装一致策略。
+ */
 data class UpdateManifest(
     val schemaVersion: Int,
     val tag: String,
@@ -56,15 +77,17 @@ data class UpdateManifest(
     val signature: String,
 )
 
+/** 更新源标识。 */
 enum class UpdateSourceId { GITEE, GITHUB }
+
+/** 某次成功拉取的源 + 清单。 */
 data class SourceResult(val source: UpdateSourceId, val manifest: UpdateManifest)
 
 /**
- * Signed, HTTPS-only dual-source repository.
+ * 签名、仅 HTTPS 的双源更新仓库。
  *
- * The update index is verified with the public key from this installed APK's signing
- * certificate. Therefore a release index cannot be trusted by merely changing a URL or a
- * bundled preference. Debug builds intentionally cannot authenticate production releases.
+ * [check] 优先 Gitee，必要时 GitHub；双源均成功时要求 signedPayload 一致。
+ * 下载后校验 SHA-256，差分补丁回放通过后才可安装。
  */
 @Singleton
 class UpdateRepository @Inject constructor(
@@ -81,6 +104,12 @@ class UpdateRepository @Inject constructor(
             "https://raw.githubusercontent.com/Azek431/hzzs/release-index/updates/beta.json"
     }
 
+    /**
+     * 检查更新索引。
+     *
+     * @param beta true 读 beta 通道，否则 stable
+     * @throws IllegalStateException 双源均不可用或签名无效；双源 payload 不一致
+     */
     suspend fun check(beta: Boolean): SourceResult = withContext(Dispatchers.IO) {
         val primaryUrl = if (beta) GITEE_BETA else GITEE_STABLE
         val secondaryUrl = if (beta) GITHUB_BETA else GITHUB_STABLE
@@ -99,6 +128,10 @@ class UpdateRepository @Inject constructor(
         }
     }
 
+    /**
+     * 由源 + tag + 资产名拼装下载 URL。
+     * 资产必须属于已签名清单，且名称/tag 通过安全正则。
+     */
     fun artifactUrl(
         source: UpdateSourceId,
         manifest: UpdateManifest,
@@ -117,6 +150,10 @@ class UpdateRepository @Inject constructor(
         }
     }
 
+    /**
+     * HTTPS 下载资产到 [target]，完成后校验 SHA-256。
+     * 使用 `.part` 临时文件，失败清理，避免半包残留。
+     */
     suspend fun download(
         source: UpdateSourceId,
         manifest: UpdateManifest,

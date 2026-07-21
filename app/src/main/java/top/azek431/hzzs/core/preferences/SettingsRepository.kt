@@ -25,34 +25,66 @@ import top.azek431.hzzs.core.model.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 配置持久化与校验。
+ *
+ * 职责：
+ * - DataStore 读写 [AppConfig]
+ * - 内存预览层（可立即作用于主题/悬浮窗）
+ * - 导入导出 JSON、旧版 SharedPreferences 安全迁移
+ * - 所有写入前执行 [AppConfig.validated]
+ *
+ * 安全：迁移与导入不得静默开启自动操作 / Root；MCP 强制 loopback。
+ *
+ * 注意：DataStore 文件名仍为 `hzzs_settings_v5`（历史命名），schema 版本见 [AppConfig.CURRENT_SCHEMA]。
+ */
 private val Context.settingsDataStore by preferencesDataStore(name = "hzzs_settings_v5")
 
 /**
- * Single source of truth for application configuration.
+ * 应用配置的唯一真相源。
  *
- * The repository deliberately separates a non-persistent preview from the saved
- * configuration. Theme and overlay editors can therefore preview immediately,
- * while navigation away from the editor reliably restores the saved baseline.
+ * 将**非持久预览**与**已保存配置**分离：主题/悬浮窗可即时预览，
+ * 离开编辑器时清除预览即可恢复 baseline。权限型字段应由 UI 在预览阶段强制保留 baseline。
  */
 interface SettingsRepository {
+    /** 当前生效配置（预览优先，否则已保存）。 */
     val config: Flow<AppConfig>
+
+    /** 读取已保存快照（不含预览）。 */
     suspend fun snapshot(): AppConfig
+
+    /** 设置内存预览；不写盘。 */
     suspend fun preview(config: AppConfig)
+
+    /** 丢弃预览，回到已保存配置。 */
     suspend fun clearPreview()
+
+    /** 校验后持久化，并清空预览。 */
     suspend fun save(config: AppConfig)
+
+    /** 解析外部 JSON 并校验，不自动保存。 */
     suspend fun importJson(json: String): AppConfig
+
+    /** 导出已校验配置的 JSON 文本。 */
     fun exportJson(config: AppConfig): String
 }
 
+/**
+ * DataStore 实现：单例，进程内共享。
+ *
+ * 线程：DataStore 自身串行；预览用 [MutableStateFlow] 即时覆盖。
+ */
 @Singleton
 class DataStoreSettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) : SettingsRepository {
     private val configKey = stringPreferencesKey("config_json")
     private val legacyMigratedKey = booleanPreferencesKey("legacy_migrated")
+    /** 非空时覆盖 stored，供设置页预览。 */
     private val preview = MutableStateFlow<AppConfig?>(null)
     private val migrationMutex = Mutex()
 
+    /** 磁盘配置流；首次收集时触发一次性旧版迁移。 */
     private val stored: Flow<AppConfig> = flow {
         migrateLegacyOnce()
         emitAll(context.settingsDataStore.data.map { preferences ->
@@ -90,8 +122,10 @@ class DataStoreSettingsRepository @Inject constructor(
     override fun exportJson(config: AppConfig): String = ConfigJson.encode(config.validated())
 
     /**
-     * Migrates only low-risk legacy preferences. Root and automatic operation are
-     * never enabled by migration because upgrades must not silently escalate power.
+     * 一次性迁移旧 SharedPreferences（`hzzs_runtime_v2`）。
+     *
+     * 仅迁移低风险项（截图后端、赛季、视口、悬浮窗开关）。
+     * **永不**通过迁移开启自动操作或 Root，避免升级静默提权。
      */
     private suspend fun migrateLegacyOnce(): Unit = migrationMutex.withLock {
         if (context.settingsDataStore.data.first()[legacyMigratedKey] == true) return@withLock
@@ -135,7 +169,17 @@ class DataStoreSettingsRepository @Inject constructor(
     }
 }
 
-/** Transaction-like settings editor with live preview and explicit commit. */
+/**
+ * 类事务的设置编辑会话：草稿 + 实时预览 + 显式提交/丢弃。
+ *
+ * 生命周期：
+ * 1. 以 [original] 为 baseline 打开
+ * 2. [update] / [replace] 改草稿并触发 [onPreview]
+ * 3. [save] 持久化并关闭；失败则重新打开会话
+ * 4. [discard] 清除预览并关闭
+ *
+ * 线程：内部 Mutex 保护 draft；回调由调用方保证线程安全。
+ */
 class SettingsEditSession(
     original: AppConfig,
     private val onPreview: suspend (AppConfig) -> Unit,
@@ -147,8 +191,13 @@ class SettingsEditSession(
     private var draft = baseline
     private var closed = false
 
+    /** 当前草稿快照。 */
     suspend fun current(): AppConfig = mutex.withLock { draft }
 
+    /**
+     * 基于当前草稿做增量变换并预览。
+     * 适合单字段修改；连续多字段 debounce 请用 [replace] 提交完整草稿。
+     */
     suspend fun update(transform: (AppConfig) -> AppConfig): AppConfig {
         val next = mutex.withLock {
             check(!closed) { "设置编辑会话已关闭" }
@@ -158,7 +207,10 @@ class SettingsEditSession(
         return next
     }
 
-    /** 用完整草稿覆盖会话内容，避免 debounce 只保留最后一个 transform 导致丢改。 */
+    /**
+     * 用完整草稿覆盖会话内容。
+     * 避免 debounce 只保留最后一个 transform 导致中间字段丢失。
+     */
     suspend fun replace(next: AppConfig): AppConfig {
         val safe = mutex.withLock {
             check(!closed) { "设置编辑会话已关闭" }
@@ -168,6 +220,7 @@ class SettingsEditSession(
         return safe
     }
 
+    /** 校验并持久化；成功后会话关闭。持久化失败会重新打开以便重试。 */
     suspend fun save(): AppConfig {
         val safe = mutex.withLock {
             check(!closed) { "设置编辑会话已关闭" }
@@ -180,6 +233,7 @@ class SettingsEditSession(
         return safe
     }
 
+    /** 丢弃草稿、清除预览，恢复 baseline。 */
     suspend fun discard(): AppConfig {
         val discardedDraft = mutex.withLock {
             if (closed) null else draft.also {
@@ -197,9 +251,14 @@ class SettingsEditSession(
         return baseline
     }
 
+    /** 草稿是否相对 baseline 有变化。 */
     suspend fun hasChanges(): Boolean = mutex.withLock { draft != baseline }
 }
 
+/**
+ * 清洗视口矩形：finite、落在合法区间，且宽高至少 5%。
+ * 非法时回退全屏默认。
+ */
 fun ViewportConfig.validated(): ViewportConfig {
     val l = left.finiteOr(0f).coerceIn(0f, 0.95f)
     val t = top.finiteOr(0f).coerceIn(0f, 0.95f)
@@ -212,11 +271,23 @@ fun ViewportConfig.validated(): ViewportConfig {
     }
 }
 
+/**
+ * 将任意 [AppConfig] 清洗为可安全落盘/生效的快照。
+ *
+ * 关键策略：
+ * - 补齐两赛季配置，并过滤掉不属于该赛季的障碍关闭项
+ * - 数值 clamp 到产品允许区间
+ * - 自动操作：免责声明版本不足时强制 `enabled=false`
+ * - 包名与默认白名单求交
+ * - MCP 始终 `bindLocalhostOnly=true`
+ * - schema 写回 [AppConfig.CURRENT_SCHEMA]
+ */
 fun AppConfig.validated(): AppConfig {
     val completeScenes = SceneId.entries.associateWith { id ->
         val scene = scenes[id] ?: SceneConfig(id)
         scene.copy(
             sceneId = id,
+            // 只保留当前赛季合法障碍，防止跨赛季脏数据。
             disabledObstacles = scene.disabledObstacles.filterTo(mutableSetOf()) { obstacle ->
                 when (id) {
                     SceneId.SWEET_FACTORY -> obstacle in setOf(
@@ -244,6 +315,7 @@ fun AppConfig.validated(): AppConfig {
             ),
         )
     }
+    // 用户列表 ∩ 默认白名单；空则回退默认，防止任意包名注入。
     val packages = automation.allowedPackages
         .map(String::trim)
         .filter(String::isNotBlank)
@@ -267,6 +339,7 @@ fun AppConfig.validated(): AppConfig {
         ),
         scenes = completeScenes,
         automation = automation.copy(
+            // 免责声明未达当前版本时强制关闭，导入也走同一路径。
             enabled = automation.enabled &&
                 automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION,
             allowedPackages = packages,
@@ -284,6 +357,7 @@ fun AppConfig.validated(): AppConfig {
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
+            // 安全不变量：禁止绑定非 loopback。
             bindLocalhostOnly = true,
         ),
         developer = developer.copy(
@@ -301,9 +375,15 @@ fun AppConfig.validated(): AppConfig {
     )
 }
 
+/** 非 finite 浮点回退为默认值。 */
 private fun Float.finiteOr(fallback: Float): Float = if (isFinite()) this else fallback
 
-/** Strict, size-limited JSON codec used for backup, import and MCP settings. */
+/**
+ * 严格、有体积上限的配置 JSON 编解码。
+ *
+ * 用于备份、导入与 MCP 设置通道。解码后必经 [AppConfig.validated]。
+ * 体积上限 [MAX_CONFIG_BYTES]，防止超大 payload。
+ */
 object ConfigJson {
     fun encode(config: AppConfig): String {
         val safe = config.validated()
@@ -585,7 +665,10 @@ object ConfigJson {
     private const val MAX_CONFIG_BYTES = 256 * 1024
 }
 
-/** Human-readable differences used by import and MCP audit screens. */
+/**
+ * 生成两份配置的人类可读差异标签（中文）。
+ * 供导入确认与 MCP 审计界面使用，不返回字段级 diff。
+ */
 fun AppConfig.diff(other: AppConfig): List<String> = buildList {
     if (theme != other.theme) add("外观主题")
     if (overlay != other.overlay) add("悬浮窗")

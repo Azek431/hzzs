@@ -28,6 +28,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/**
+ * 跨 feature 复用的轻量 Compose 组件。
+ *
+ * 依赖 [LocalHzzsDimensions] 与 MaterialTheme，不持有业务状态。
+ * feature 层应优先组合这些积木，而不是复制间距与卡片样式。
+ */
+
+/** 带标题与可选说明的设置/页面分区容器。 */
 @Composable
 fun HzzsSection(
     title: String,
@@ -50,6 +58,7 @@ fun HzzsSection(
     }
 }
 
+/** 一行式状态卡：左侧标题、右侧强调值（首页/运行页常用）。 */
 @Composable
 fun StatusCard(
     title: String,
@@ -83,6 +92,7 @@ fun StatusCard(
     }
 }
 
+/** 紧凑指标块：上方标签、下方数值（网格排布用）。 */
 @Composable
 fun MetricTile(
     label: String,
@@ -112,6 +122,7 @@ fun MetricTile(
     }
 }
 
+/** 状态胶囊：圆点 + 文案；[active] 控制主色强调。 */
 @Composable
 fun StatusChip(
     text: String,
@@ -148,6 +159,7 @@ fun StatusChip(
     }
 }
 
+/** 首页主卡片：图标 + 标题副标题 + 可扩展内容区。 */
 @Composable
 fun HeroCard(
     title: String,
@@ -193,6 +205,7 @@ fun HeroCard(
     }
 }
 
+/** 通用内容卡片，统一 surfaceContainerLow 背景与内边距。 */
 @Composable
 fun SectionCard(
     modifier: Modifier = Modifier,
@@ -212,6 +225,7 @@ fun SectionCard(
     }
 }
 
+/** 页面顶部大标题与可选副标题。 */
 @Composable
 fun PageHeader(
     title: String,
