@@ -145,11 +145,62 @@ python3 tools/vision/run_host_tests.py --dataset /path/to/screenshots --max-repr
 python3 tools/vision/evaluate_dataset.py --dataset /path/to/screenshots --output build/vision-results
 ```
 
-## 发布
+## Release 构建与签名
 
-正式 Release 必须提供完整签名环境变量（`ANDROID_KEYSTORE_PATH` 等）。缺少任何签名项时任务会失败，不会生成误签名发布包。发布工作流负责 APK 验签、更新清单签名、增量补丁验证、GitHub/Gitee 资产同步与匿名下载校验。
+Debug APK 使用 Android 调试签名，仅适合本机测试（包名 `top.azek431.hzzs.debug`）。  
+正式 Release APK（包名 `top.azek431.hzzs`）使用开发者本机私有 PKCS12 签名，**密钥库与密码永不入库**。
 
-当前仓库尚未打出正式 `v0.1.0` Release 时，应用内更新检查会因源不可用而失败，这是预期行为。
+### 签名材料从哪里来
+
+| 来源 | 说明 |
+|---|---|
+| 本机密钥库 | 开发者私有保存（例如独立目录下的 `*.p12`），不在本仓库 |
+| CI | GitHub Secrets：`ANDROID_KEYSTORE_BASE64` + 密码 / alias，仅发布工作流使用 |
+| 算法包密钥 | **独立** Ed25519，与 APK keystore 无关 |
+
+`.gitignore` 已忽略 `*.p12` / `*.jks` / `keystore.properties` 等。历史重构**不会**把密钥写进 git；若本机找不到，请查私密备份目录或 CI Secrets，而不是 git 历史。
+
+### 配置方式（任选其一）
+
+#### 推荐：环境变量（与 CI 一致）
+
+```powershell
+$env:ANDROID_KEYSTORE_PATH = 'D:\path\to\azek431-android-release.p12'
+$env:ANDROID_STORE_PASSWORD = '********'
+$env:ANDROID_KEY_ALIAS = 'your-alias'
+$env:ANDROID_KEY_PASSWORD = '********'
+.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+```
+
+仍兼容历史变量名：`AZEK431_RELEASE_STORE_FILE` / `AZEK431_RELEASE_STORE_PASSWORD` / `AZEK431_RELEASE_KEY_ALIAS` / `AZEK431_RELEASE_KEY_PASSWORD`。
+
+#### 本机：交互脚本（推荐）
+
+在仓库根目录执行，按提示输入路径 / 密码 / alias（密码不回显），可选写入 `keystore.properties` 并打包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\release\build_signed_release.ps1
+```
+
+仅配置不构建：加 `-SkipBuild`。已有配置只构建：加 `-BuildOnly`。
+
+#### 本机：属性文件（gitignore）
+
+```powershell
+Copy-Item keystore.properties.example keystore.properties
+# 编辑 keystore.properties 填入路径、alias 与密码
+.\gradlew.bat --no-daemon assembleRelease
+```
+
+解析顺序：`ANDROID_KEYSTORE_*` → `AZEK431_RELEASE_*` → `keystore.properties` / `signing.properties` / `local.secrets.properties`。  
+四项齐全且密钥库文件存在才启用 release 签名；`assembleRelease` 在缺失时会**失败**，不会产出误签名包。
+
+Release APK：`app/build/outputs/apk/release/app-release.apk`
+
+### 发布工作流
+
+正式对外发布由 `.github/workflows/release.yml` 负责：APK 验签、更新清单签名、增量补丁、GitHub/Gitee 资产同步与匿名下载校验。  
+当前仓库尚未打出正式 `v0.1.0` Release 时，应用内更新检查因源不可用而失败是预期行为。
 
 ### 官方算法包
 

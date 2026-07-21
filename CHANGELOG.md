@@ -33,6 +33,7 @@
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
 - Release 签名解析增强：兼容 `ANDROID_KEYSTORE_*` 与历史 `AZEK431_RELEASE_*`，并支持 gitignore 的 `keystore.properties`；恢复 README 本机构建说明与 `keystore.properties.example`；minSdk 24 启用 V2/V3 签名。
+- 新增本机交互脚本 `tools/release/build_signed_release.ps1`（输入签名信息后可选写入 properties 并 assembleRelease）。
 - **设置界面完整重构**：设置首页 + 分类子页面（外观、算法与识别、截图、悬浮窗、自动操作、网络与更新、MCP/开发者）；宽屏双栏；共享 draft 会话，仅离开设置模块时保存/丢弃。
 - 配置 schema **v6**：新增 `AlgorithmConfig`（自动/手动选择、通道、自动检查/下载）与 `UpdateConfig.sourcePreference`（自动 / 优先 Gitee / 优先 GitHub）。
 - 算法与识别页：主卡展示当前算法/版本/模式/场景/来源/更新状态；最新与已安装列表；Loading/Empty/Offline/镜像回退/安全警告/下载/校验/待启用/错误/不兼容状态。

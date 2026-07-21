@@ -11,6 +11,14 @@ python -m compileall -q tools
 
 Windows 可使用 `.\gradlew.bat`。
 
+Release（需签名配置，见 README「Release 构建与签名」）：
+
+```bash
+./gradlew --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+```
+
+缺少 keystore 路径/密码/alias 时 `assembleRelease` 必须失败；不得静默使用 debug 签名发布。
+
 ### 质量脚本
 
 | 脚本 | 作用 |
