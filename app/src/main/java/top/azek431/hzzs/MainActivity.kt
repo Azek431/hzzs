@@ -227,7 +227,11 @@ private fun HzzsRoot(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(config.mcp.enabled, config.mcp.port, config.mcp.permissionLevel) {
-        syncMcpService(context, config.mcp.enabled)
+        syncMcpService(
+            context = context,
+            enabled = config.mcp.enabled,
+            fingerprint = "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}",
+        )
     }
     LaunchedEffect(Unit) {
         vm.maybeAutoCheckUpdates()
@@ -367,14 +371,21 @@ private fun NavHostController.open(route: String) {
     }
 }
 
-private fun syncMcpService(context: Context, enabled: Boolean) {
-    val intent = Intent(context, McpForegroundService::class.java).setAction(
-        if (enabled) McpForegroundService.ACTION_START else McpForegroundService.ACTION_STOP,
-    )
+private var lastMcpFingerprint: String? = null
+
+private fun syncMcpService(context: Context, enabled: Boolean, fingerprint: String) {
     if (enabled) {
-        // 已运行时用 START 幂等拉起，避免先 stop 再 start 造成短时断连。
+        if (lastMcpFingerprint == fingerprint) return
+        // 端口/权限变化时先停再启，确保真正重绑。
+        if (lastMcpFingerprint != null) {
+            context.stopService(Intent(context, McpForegroundService::class.java))
+        }
+        val intent = Intent(context, McpForegroundService::class.java)
+            .setAction(McpForegroundService.ACTION_START)
         ContextCompat.startForegroundService(context, intent)
+        lastMcpFingerprint = fingerprint
     } else {
         context.stopService(Intent(context, McpForegroundService::class.java))
+        lastMcpFingerprint = null
     }
 }

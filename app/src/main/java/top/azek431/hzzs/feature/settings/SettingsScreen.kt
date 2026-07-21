@@ -71,6 +71,7 @@ class SettingsViewModel @Inject constructor(
     private var session: SettingsEditSession? = null
     private var previewJob: Job? = null
     private var updateJob: Job? = null
+    private var pendingTransform: ((AppConfig) -> AppConfig)? = null
 
     init {
         viewModelScope.launch { openSession(repository.snapshot()) }
@@ -96,7 +97,6 @@ class SettingsViewModel @Inject constructor(
             },
             onPersist = { safe ->
                 repository.save(safe)
-                openSession(safe)
             },
             onClearPreview = {
                 repository.clearPreview()
@@ -105,29 +105,42 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun update(transform: (AppConfig) -> AppConfig) {
+        // 先本地合成 draft，保证 UI 立刻反映；preview 写入 session 可 debounce。
+        val optimistic = transform(mutableDraft.value)
+        mutableDraft.value = optimistic
+        pendingTransform = transform
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             delay(40)
-            val active = session ?: return@launch
+            flushPendingTransform()
+        }
+    }
+
+    private suspend fun flushPendingTransform() {
+        val transform = pendingTransform ?: return
+        pendingTransform = null
+        val active = session ?: return
+        runCatching {
             val next = active.update(transform)
             mutableDraft.value = next
         }
     }
 
     fun save(onDone: () -> Unit = {}) = viewModelScope.launch {
+        previewJob?.cancel()
+        flushPendingTransform()
         val active = session ?: return@launch
         val saved = active.save()
-        mutableDraft.value = saved
-        mutableBaseline.value = saved
+        openSession(saved)
         onDone()
     }
 
     fun discard(onDone: () -> Unit = {}) = viewModelScope.launch {
+        previewJob?.cancel()
+        pendingTransform = null
         val active = session
         if (active != null) {
             val restored = active.discard()
-            mutableDraft.value = restored
-            mutableBaseline.value = restored
             openSession(restored)
         } else {
             repository.clearPreview()
@@ -155,12 +168,11 @@ class SettingsViewModel @Inject constructor(
     /** Clears an unsaved preview when navigation removes this screen. */
     fun discardSilently() {
         previewJob?.cancel()
+        pendingTransform = null
         viewModelScope.launch {
             val active = session
             if (active != null) {
                 val restored = active.discard()
-                mutableDraft.value = restored
-                mutableBaseline.value = restored
                 openSession(restored)
             } else {
                 repository.clearPreview()
@@ -267,11 +279,23 @@ class SettingsViewModel @Inject constructor(
     fun ignoreAvailableUpdate() {
         val code = mutableUpdate.value.available?.manifest?.versionCode ?: return
         viewModelScope.launch {
-            val current = repository.snapshot()
-            val next = current.copy(update = current.update.copy(ignoredVersionCode = code))
-            repository.save(next)
-            mutableBaseline.value = next
-            mutableDraft.value = mutableDraft.value.copy(update = next.update)
+            previewJob?.cancel()
+            flushPendingTransform()
+            // 忽略版本走 session，避免旁路 save 与未保存草稿互相覆盖。
+            val active = session
+            if (active != null) {
+                val next = active.update {
+                    it.copy(update = it.update.copy(ignoredVersionCode = code))
+                }
+                mutableDraft.value = next
+                val saved = active.save()
+                openSession(saved)
+            } else {
+                val current = repository.snapshot()
+                val next = current.copy(update = current.update.copy(ignoredVersionCode = code))
+                repository.save(next)
+                openSession(next)
+            }
             mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本")
         }
     }
@@ -592,9 +616,17 @@ private fun AutomationSection(
     onEnableRequested: () -> Unit,
     onDisable: () -> Unit,
 ) {
-    HzzsSection("自动操作", "默认关闭。开启后仍需在每次运行会话中手动解锁。") {
+    HzzsSection("自动操作", "默认关闭。开启后默认仍需在运行页手动解锁当前窗口。") {
         SettingSwitch("启用自动操作", config.automation.enabled) { enabled ->
             if (enabled) onEnableRequested() else onDisable()
+        }
+        SettingSwitch(
+            "每次运行需手动解锁窗口",
+            config.automation.requireSessionArm,
+        ) { value ->
+            update {
+                it.copy(automation = it.automation.copy(requireSessionArm = value))
+            }
         }
         SettingSwitch(
             "允许竹影书屋实验性自动操作",
@@ -604,6 +636,15 @@ private fun AutomationSection(
                 it.copy(automation = it.automation.copy(bambooExperimentalAutoAction = value))
             }
         }
+        Text(
+            if (config.automation.requireSessionArm) {
+                "开启后，需在运行页确认当前游戏页面才会发送手势；切页/失败会自动解除。"
+            } else {
+                "关闭后无需手动解锁：只要分析运行中且前台包名在白名单，就会按当前窗口发送手势。"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(
             "竹影书屋动作阈值仍属实验配置：即使已解锁会话，也需单独打开上方开关。甜甜圈使用历史标定距离 ${"%.2f".format(config.automation.sweetTriggerDistancePlayerWidths)} 倍玩家宽度触发。",
             style = MaterialTheme.typography.bodySmall,
