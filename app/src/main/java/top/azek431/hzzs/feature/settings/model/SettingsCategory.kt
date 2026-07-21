@@ -1,3 +1,9 @@
+/**
+ * 设置分类路由与首页摘要。
+ *
+ * 职责：定义设置子页路由/标题/图标，以及根据草稿配置生成首页一行摘要。
+ * 边界：纯 UI 模型，不读写仓库、不触发预览或权限能力。
+ */
 package top.azek431.hzzs.feature.settings.model
 
 import androidx.compose.material.icons.Icons
@@ -13,6 +19,7 @@ import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.displayName
 
+/** 设置首页分类枚举：路由与展示元数据。 */
 enum class SettingsCategory(
     val route: String,
     val title: String,
@@ -63,6 +70,7 @@ enum class SettingsCategory(
     ),
 }
 
+/** 根据当前草稿配置与算法目录状态生成分类卡摘要文案。 */
 fun SettingsCategory.summary(
     config: AppConfig,
     algorithmState: AlgorithmCatalogState? = null,
@@ -105,6 +113,7 @@ fun SettingsCategory.summary(
     }
 }
 
+/** 设置模块内嵌导航路由常量。 */
 object SettingsRoutes {
     const val HOME = "settings_home"
 }

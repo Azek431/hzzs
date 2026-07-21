@@ -1,3 +1,10 @@
+/**
+ * 外观与显示设置页。
+ *
+ * 职责：编辑主题模式/预设/可读性/动效，以及主题包导入导出。
+ * 数据流：经 [update] 写入共享草稿；主题变更可即时视觉预览，保存后永久生效。
+ * 边界：不改权限型配置；导入仅进入草稿，不直接落盘。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import android.content.ClipData
@@ -210,6 +217,7 @@ fun AppearanceSettingsScreen(
     }
 }
 
+/** 带当前值的滑条行；供外观/识别等设置页复用。 */
 @Composable
 internal fun LabeledSlider(
     title: String,
@@ -227,6 +235,7 @@ internal fun LabeledSlider(
     }
 }
 
+/** 十六进制颜色输入；解析成功即回调，供主题/悬浮窗自定义色使用。 */
 @Composable
 internal fun HexColorField(title: String, color: Int, onColorChange: (Int) -> Unit) {
     var text by remember(color) { mutableStateOf("#%08X".format(color)) }
@@ -256,6 +265,7 @@ internal fun HexColorField(title: String, color: Int, onColorChange: (Int) -> Un
     )
 }
 
+/** 解析 #RRGGBB / #AARRGGBB；非法返回 null。 */
 internal fun parseHexColor(raw: String): Int? {
     val digits = raw.trim().removePrefix("#")
     if (digits.length !in setOf(6, 8) || digits.any { !it.isDigit() && it.uppercaseChar() !in 'A'..'F' }) {

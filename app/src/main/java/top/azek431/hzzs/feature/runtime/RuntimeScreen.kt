@@ -1,3 +1,11 @@
+/**
+ * 运行控制页。
+ *
+ * 职责：启停视觉分析、按 [requireSessionArm] 展示手动解锁/自动窗口文案，并 arm/disarm 自动操作。
+ * 数据流：状态来自 [VisionRuntimeController.status]；配置只读 [SettingsRepository]；
+ * 启停/解锁委托 Controller，本层不直接 JNI、截图或 WindowManager。
+ * 边界：feature 只发意图；权限对话框与平台能力由 Controller/平台层处理。
+ */
 package top.azek431.hzzs.feature.runtime
 
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +68,10 @@ import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import javax.inject.Inject
 
+/**
+ * 运行页 ViewModel：桥接 [VisionRuntimeController] 与已保存配置。
+ * 瞬时错误经 [transientMessage] 交给 Snackbar，不改持久配置。
+ */
 @HiltViewModel
 class RuntimeViewModel @Inject constructor(
     private val controller: VisionRuntimeController,
@@ -88,6 +100,10 @@ class RuntimeViewModel @Inject constructor(
     }
 }
 
+/**
+ * 运行控制 UI。
+ * [requireSessionArm]=true：需手动确认当前窗口；false：自动窗口模式，无需 arm 按钮。
+ */
 @Composable
 fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
     val status by vm.status.collectAsState()

@@ -1,3 +1,9 @@
+/**
+ * 算法目录相关 Compose 组件。
+ *
+ * 职责：算法卡、来源徽标、下载进度；动作经回调交给 SettingsViewModel/目录控制器。
+ * 边界：不直接下载或写仓库；签名不可信仅展示限制提示。
+ */
 package top.azek431.hzzs.feature.settings.components
 
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +39,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * 单条算法包卡片：状态、摘要、场景标签与下载/选用操作。
+ * [manualMode] 决定是否展示“使用此版本”；下载中展示进度与取消。
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlgorithmCard(
@@ -159,6 +169,7 @@ fun AlgorithmCard(
     }
 }
 
+/** 下载来源徽标。 */
 @Composable
 fun AlgorithmSourceBadge(
     info: AlgorithmPackageInfo,
@@ -171,6 +182,7 @@ fun AlgorithmSourceBadge(
     )
 }
 
+/** 算法下载/校验进度与取消。 */
 @Composable
 fun AlgorithmProgressCard(
     title: String,

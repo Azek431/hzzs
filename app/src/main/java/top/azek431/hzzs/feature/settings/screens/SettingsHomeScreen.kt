@@ -1,3 +1,10 @@
+/**
+ * 设置分类首页。
+ *
+ * 职责：按 [SettingsCategory] 列出入口与当前草稿摘要；点击打开子页。
+ * 数据流：只读 [config]/[algorithmState]；不直接改草稿。
+ * 边界：返回本页不丢共享草稿（由模块级 ViewModel 持有）。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +24,7 @@ import top.azek431.hzzs.feature.settings.components.SettingsCategoryCard
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
 import top.azek431.hzzs.feature.settings.model.summary
 
+/** 设置首页列表；[selectedRoute] 供宽屏高亮当前分类。 */
 @Composable
 fun SettingsHomeScreen(
     config: AppConfig,

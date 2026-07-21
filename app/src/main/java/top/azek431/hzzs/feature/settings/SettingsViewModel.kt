@@ -1,3 +1,11 @@
+/**
+ * 设置模块 ViewModel 与更新 UI 状态。
+ *
+ * 职责：维护唯一共享草稿会话；子页共用本 VM；离开模块才保存/丢弃。
+ * 预览约束：视觉预览强制保留 baseline 的 capture/automation/mcp/developer/update/algorithm，
+ * 权限型设置预览不生效；网络刷新与算法下载为即时任务，不属于视觉预览。
+ * 边界：不直接 JNI/Root/WindowManager；算法经 [AlgorithmCatalogController]，更新经 [UpdateRepository]。
+ */
 package top.azek431.hzzs.feature.settings
 
 import android.content.Context
@@ -31,6 +39,7 @@ import top.azek431.hzzs.platform.compat.CaptureCapabilityResolver
 import java.io.File
 import javax.inject.Inject
 
+/** 应用更新检查/下载/安装过程的界面态（即时任务，非草稿字段）。 */
 data class UpdateUiState(
     val busy: Boolean = false,
     val message: String? = null,
@@ -42,6 +51,8 @@ data class UpdateUiState(
  * 设置模块唯一编辑会话。
  *
  * 子页面共享本 ViewModel；返回首页不丢草稿；离开整个设置模块时才保存/丢弃。
+ * [onPreview] 始终用 baseline 覆盖 capture/automation/mcp/developer/update/algorithm，
+ * 保证权限型与算法/更新偏好在预览阶段不生效。
  * 网络刷新与算法下载是即时任务，不属于视觉预览。
  */
 @HiltViewModel
@@ -83,6 +94,7 @@ class SettingsViewModel @Inject constructor(
         session = SettingsEditSession(
             original = original,
             onPreview = { candidate ->
+                // 预览仅放行外观等安全字段；权限型与算法/更新保持 baseline
                 val baseline = mutableBaseline.value
                 repository.preview(
                     candidate.copy(
@@ -100,6 +112,7 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    /** 将草稿中的算法/赛季偏好同步给目录控制器（不触发权限型预览）。 */
     private fun bindAlgorithm(config: AppConfig) {
         algorithmCatalog.bindSettings(
             algorithm = config.algorithm,
@@ -108,6 +121,7 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    /** 更新共享草稿；防抖后写入编辑会话并触发受约束预览。 */
     fun update(transform: (AppConfig) -> AppConfig) {
         val optimistic = transform(mutableDraft.value)
         mutableDraft.value = optimistic
@@ -131,6 +145,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** 持久化草稿并重建会话；成功后 [leaveCommitted] 防止 dispose 再次 discard。 */
     fun save(onDone: () -> Unit = {}) = viewModelScope.launch {
         previewJob?.cancel()
         flushPendingDraft()
@@ -141,6 +156,7 @@ class SettingsViewModel @Inject constructor(
         onDone()
     }
 
+    /** 丢弃草稿、清除预览并回调离开。 */
     fun discard(onDone: () -> Unit = {}) = viewModelScope.launch {
         previewJob?.cancel()
         pendingDraft = null
@@ -157,11 +173,13 @@ class SettingsViewModel @Inject constructor(
         onDone()
     }
 
+    /** 将主题包解码后写入草稿主题/悬浮窗（保留当前悬浮窗开关）。 */
     fun importTheme(raw: String) {
         val pack = ThemePackageCodec.decode(raw)
         update { it.copy(theme = pack.theme, overlay = pack.overlay.copy(enabled = it.overlay.enabled)) }
     }
 
+    /** 从当前草稿导出声明式主题包 JSON。 */
     fun exportTheme(): String {
         val config = mutableDraft.value
         return ThemePackageCodec.encode(
@@ -194,6 +212,7 @@ class SettingsViewModel @Inject constructor(
     fun checkForUpdates() {
         if (updateJob?.isActive == true) return
         updateJob = viewModelScope.launch {
+            // 更新检查读 baseline，避免未保存草稿改变通道/Wi‑Fi 策略
             val config = mutableBaseline.value
             mutableUpdate.value = UpdateUiState(busy = true, message = "正在检查更新…")
             runCatching {
@@ -315,6 +334,7 @@ class SettingsViewModel @Inject constructor(
 
     fun cancelAlgorithmDownload(id: String) = algorithmCatalog.cancelDownload(id)
 
+    /** 将已安装算法钉选为手动选择写入草稿（保存后才真正切换运行时）。 */
     fun selectAlgorithm(id: String) {
         val selected = algorithmCatalog.selectInstalled(id) ?: return
         update {

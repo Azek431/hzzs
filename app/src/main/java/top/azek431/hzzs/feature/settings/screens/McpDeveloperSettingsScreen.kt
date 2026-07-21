@@ -1,3 +1,10 @@
+/**
+ * MCP 与开发者设置页。
+ *
+ * 职责：MCP 开关/权限级/调试帧元数据，以及部分开发者开关。
+ * 数据流：mcp/developer 进草稿但预览不生效，保存后才应用；完整访问仍不能绕过系统权限框。
+ * 边界：不启动 MCP 服务本体；开发者入口亦可从关于页版本号连点开启。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +28,12 @@ import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 
+/**
+ * MCP 与开发者相关设置页。
+ *
+ * MCP 开关/权限为权限型：预览不启停服务，保存后由 MainActivity 同步。
+ * 开发者细项需先在关于页解锁；本页不展示 Bearer Token 明文到日志。
+ */
 @Composable
 fun McpDeveloperSettingsScreen(
     config: AppConfig,

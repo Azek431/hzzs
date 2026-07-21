@@ -1,3 +1,10 @@
+/**
+ * 自动操作与安全设置页。
+ *
+ * 职责：总开关、requireSessionArm、竹影实验开关；开启须风险倒计时对话框。
+ * 数据流：automation 写入草稿但预览不生效；保存后运行页再按会话解锁策略执行。
+ * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启（由模型层保证）。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +40,13 @@ import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 
+/**
+ * 自动操作设置页。
+ *
+ * 默认关闭；开启前有风险倒计时对话框并写入免责声明版本。
+ * 权限型：预览不真正 arm；竹影实验锁与 requireSessionArm 在此配置。
+ * 不直接注入手势，仅改 [AppConfig.automation] 草稿。
+ */
 @Composable
 fun AutomationSettingsScreen(
     config: AppConfig,
@@ -116,6 +130,7 @@ fun AutomationSettingsScreen(
     }
 }
 
+/** 开启自动操作前的风险确认：倒计时 + 勾选后才可确认。 */
 @Composable
 private fun AutomationRiskDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
     var remaining by remember { mutableIntStateOf(4) }
