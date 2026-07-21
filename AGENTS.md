@@ -65,11 +65,13 @@ FrameSource → VisionRuntimeController → NativeVisionEngine (JNI)
 ### 配置流
 
 ```text
-SettingsScreen 预览/保存 → SettingsRepository → AppConfig Flow
+SettingsHome + 分类子页 共享 SettingsViewModel
+  → draft 预览 / 保存 → SettingsRepository → AppConfig Flow
   → Theme / Runtime / MCP
+AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
 ```
 
-权限型字段（截图后端、automation、mcp、developer、update）**预览时不生效**。
+权限型字段（截图后端、automation、mcp、developer、update、algorithm）**预览时不生效**。
 
 ## 安全不变量（修改时必须保持）
 
@@ -106,6 +108,7 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 | `docs/SECURITY.md` | 安全 |
 | `docs/TESTING.md` | 测试 |
 | `docs/PROGRESS.md` | 进度与未完成 |
+| `docs/ALGORITHM_SYSTEM_V1.md` | 官方算法包格式、发布与运行时（CC-1） |
 | `CHANGELOG.md` | 变更 |
 | `CONTRIBUTING.md` | 贡献 |
 

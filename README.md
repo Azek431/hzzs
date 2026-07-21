@@ -151,6 +151,23 @@ python3 tools/vision/evaluate_dataset.py --dataset /path/to/screenshots --output
 
 当前仓库尚未打出正式 `v0.1.0` Release 时，应用内更新检查会因源不可用而失败，这是预期行为。
 
+### 官方算法包
+
+算法包（`.hzzsalg`）使用**独立于 APK keystore** 的 Ed25519 密钥发布，工具链见 `tools/algorithm/`，说明见 [`docs/ALGORITHM_SYSTEM_V1.md`](docs/ALGORITHM_SYSTEM_V1.md)。
+
+```bash
+python tools/algorithm/validate_algorithm_pack.py --source algorithm-packs/official-bamboo-baseline
+python tools/algorithm/publish_algorithm_release.py \
+  --source algorithm-packs/official-bamboo-baseline \
+  --work-dir build/algorithm-release \
+  --private-key /secure/algorithm-ed25519.pem \
+  --key-id hzzs-algorithm-official-1
+```
+
+默认 dry-run；真实网络发布需 `--execute`，并配置 Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`、`GITEE_TOKEN`。  
+目录发布在 `release-index` 分支的 `algorithms/stable.json` 与 `algorithms/beta.json`；下载 URL 由客户端按 `source + tag + filename` 拼装，不写入目录。  
+CI 工作流：`.github/workflows/algorithm-release.yml`。
+
 ## 测试边界
 
 宿主机数据集运行可以证明崩溃安全、输出约束和性能分布，但 **不能替代人工真值标注**。在没有独立标注前，项目不会声称达到 99% 准确率、所有机型覆盖或固定像素误差目标。
@@ -167,6 +184,7 @@ python3 tools/vision/evaluate_dataset.py --dataset /path/to/screenshots --output
 | [`docs/SECURITY.md`](docs/SECURITY.md) | 安全与权限模型 |
 | [`docs/TESTING.md`](docs/TESTING.md) | 测试与门禁 |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 进度与未完成项 |
+| [`docs/ALGORITHM_SYSTEM_V1.md`](docs/ALGORITHM_SYSTEM_V1.md) | 官方算法包格式、签名与发布 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更日志 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 贡献说明 |
 

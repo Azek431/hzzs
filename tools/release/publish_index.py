@@ -93,12 +93,30 @@ def main() -> None:
     parser.add_argument("--repo", required=True)
     parser.add_argument("--channel", choices=["stable", "beta"], required=True)
     parser.add_argument("--file", required=True)
+    parser.add_argument(
+        "--path-prefix",
+        default="updates",
+        help="Directory under release-index (updates or algorithms)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate inputs and print target paths without network writes",
+    )
     arguments = parser.parse_args()
     content = Path(arguments.file).read_bytes()
     if not content or len(content) > 1024 * 1024:
         raise SystemExit("signed index size is invalid")
-    path = f"updates/{arguments.channel}.json"
+    if arguments.path_prefix not in {"updates", "algorithms"}:
+        raise SystemExit("path-prefix must be updates or algorithms")
+    path = f"{arguments.path_prefix}/{arguments.channel}.json"
     branch = "release-index"
+    if arguments.dry_run:
+        print(
+            f"[dry-run] would publish {path} on GitHub/Gitee branch={branch} "
+            f"bytes={len(content)}"
+        )
+        return
     github(arguments.owner, arguments.repo, path, branch, content, os.environ["GH_TOKEN"])
     gitee(arguments.owner, arguments.repo, path, branch, content, os.environ["GITEE_TOKEN"])
 

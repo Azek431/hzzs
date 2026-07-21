@@ -84,8 +84,13 @@ for token in (
     check(token in settings_repo, f"settings:{token}", "safety invariant missing")
 
 settings_ui = read("app/src/main/java/top/azek431/hzzs/feature/settings/SettingsScreen.kt")
+settings_ui_dir = ROOT / "app/src/main/java/top/azek431/hzzs/feature/settings"
+settings_ui_all = settings_ui
+if settings_ui_dir.is_dir():
+    for path in sorted(settings_ui_dir.rglob("*.kt")):
+        settings_ui_all += "\n" + path.read_text(encoding="utf-8")
 for token in ("DisposableEffect", "discardSilently", "主题已临时预览", "请等待 ${remaining}s"):
-    check(token in settings_ui, f"settings-ui:{token}", "preview/risk UI missing")
+    check(token in settings_ui_all, f"settings-ui:{token}", "preview/risk UI missing")
 
 onboarding = read("app/src/main/java/top/azek431/hzzs/feature/onboarding/OnboardingScreen.kt")
 for token in ("onboardingPages", "acceptedDisclaimerVersion", "enabled = false", "请等待 ${remaining}s"):

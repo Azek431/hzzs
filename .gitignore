@@ -68,6 +68,7 @@
 *.ap_
 *.idsig
 *.hzzsdelta
+*.hzzsalg
 output-metadata.json
 
 
@@ -179,7 +180,7 @@ yarn-error.log*
 # 10. Python 质量/视觉脚本缓存
 # ============================================================
 #
-# tools/quality、tools/vision、tools/release 使用 Python。
+# tools/quality、tools/vision、tools/release、tools/algorithm 使用 Python。
 
 __pycache__/
 *.py[cod]
