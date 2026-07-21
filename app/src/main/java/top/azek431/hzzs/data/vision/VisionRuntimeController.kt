@@ -47,6 +47,7 @@ import top.azek431.hzzs.service.capture.FrameSource
 import top.azek431.hzzs.service.capture.FrameSourceFactory
 import top.azek431.hzzs.service.overlay.OverlayController
 import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -96,7 +97,9 @@ class VisionRuntimeController @Inject constructor(
     private val recentActionTimes = ArrayDeque<Long>()
     private val detectedPlayerReference = AtomicReference<Detection?>(null)
     private val actionMutex = Mutex()
+    private val actionInFlight = AtomicBoolean(false)
     private val trackRetryCounts = mutableMapOf<Long, Int>()
+    private var lastOverlaySignature: Int = Int.MIN_VALUE
 
     init {
         scope.launch {
@@ -267,12 +270,18 @@ class VisionRuntimeController @Inject constructor(
                 }
 
                 if (pipelineScene != config.selectedScene || pipelineSceneConfig != sceneConfig) {
+                    // 场景切换时取消进行中的动作，避免旧场景手势泄漏。
+                    actionJob?.cancelAndJoin()
+                    actionJob = null
+                    actionInFlight.set(false)
                     tracker.reset()
                     ledger.reset()
                     engine.reset()
                     recentActionTimes.clear()
+                    trackRetryCounts.clear()
                     detectedPlayerReference.set(null)
                     disarmAutomation()
+                    lastOverlaySignature = Int.MIN_VALUE
                     pipelineScene = config.selectedScene
                     pipelineSceneConfig = sceneConfig
                     failureCount = 0
@@ -327,12 +336,8 @@ class VisionRuntimeController @Inject constructor(
                     if (result.error != null) {
                         failureCount++
                         disarmAutomation()
-                        val visible = overlay.show(
-                            config = config.overlay,
-                            result = result,
-                            showCoordinateGrid = config.developer.enabled &&
-                                config.developer.showCoordinateGrid,
-                        )
+                        val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
+                        val visible = publishOverlay(config.overlay, result, showGrid, force = true)
                         mutableStatus.update {
                             it.copy(overlayVisible = visible, lastError = result.error)
                         }
@@ -347,12 +352,8 @@ class VisionRuntimeController @Inject constructor(
                     val tracked = tracker.update(frame.sequence, resultWithReference.detections)
                     val trackedResult = resultWithReference.copy(detections = tracked.map { it.detection })
                     mutableLatestResult.value = trackedResult
-                    val visible = overlay.show(
-                        config = config.overlay,
-                        result = trackedResult,
-                        showCoordinateGrid = config.developer.enabled &&
-                            config.developer.showCoordinateGrid,
-                    )
+                    val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
+                    val visible = publishOverlay(config.overlay, trackedResult, showGrid, force = false)
                     mutableStatus.update {
                         it.copy(
                             overlayVisible = visible,
@@ -418,8 +419,6 @@ class VisionRuntimeController @Inject constructor(
             disarmAutomation()
             return
         }
-        val requiredClass = armedWindowClass.get() ?: return
-        if (!mutableStatus.value.automationArmed) return
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
 
         // 帧龄门控：过旧的分析结果不再触发动作。
@@ -433,11 +432,17 @@ class VisionRuntimeController @Inject constructor(
             return
         }
 
-        // 已有动作在执行时，不在帧循环里再排队，避免堆积过期手势。
-        if (actionJob?.isActive == true) return
+        val requiredClass = resolveRequiredWindowClass(config) ?: return
+
+        // CAS 占坑，保证同一时刻最多一个动作任务。
+        if (!actionInFlight.compareAndSet(false, true)) return
 
         val sceneConfig = config.scenes.getValue(config.selectedScene)
-        val player = result.player ?: return
+        val player = result.player
+        if (player == null) {
+            actionInFlight.set(false)
+            return
+        }
         val playerWidth = player.bounds.width.coerceAtLeast(0.01f)
         val triggerDistance = when (config.selectedScene) {
             SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
@@ -460,20 +465,44 @@ class VisionRuntimeController @Inject constructor(
             .filter { (_, gap) -> gap <= triggerDistance }
             .minByOrNull { (_, gap) -> gap }
             ?.first
-            ?: return
+
+        if (candidate == null) {
+            actionInFlight.set(false)
+            return
+        }
 
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
         actionJob = scope.launch {
-            dispatchPlan(
-                token = token,
-                config = config,
-                requiredClass = requiredClass,
-                candidate = candidate,
-                spatialKey = spatialKey,
-                plannedAt = now,
-            )
+            try {
+                dispatchPlan(
+                    token = token,
+                    config = config,
+                    requiredClass = requiredClass,
+                    candidate = candidate,
+                    spatialKey = spatialKey,
+                    plannedAt = now,
+                )
+            } finally {
+                actionInFlight.set(false)
+            }
         }
+    }
+
+    /**
+     * requireSessionArm=true：必须先 arm 绑定窗口。
+     * requireSessionArm=false：每次用当前前台窗口（仍校验白名单），无需手动 arm。
+     */
+    private fun resolveRequiredWindowClass(config: AppConfig): String? {
+        if (config.automation.requireSessionArm) {
+            if (!mutableStatus.value.automationArmed) return null
+            return armedWindowClass.get()
+        }
+        val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: return null
+        if (SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS) return null
+        if (foreground.packageName !in config.automation.allowedPackages) return null
+        if (foreground.className.isBlank()) return null
+        return foreground.className
     }
 
     private suspend fun dispatchPlan(
@@ -498,7 +527,7 @@ class VisionRuntimeController @Inject constructor(
                 foreground.packageName !in config.automation.allowedPackages ||
                 !foreground.className.startsWith(requiredClass)
             ) {
-                disarmAutomation()
+                if (config.automation.requireSessionArm) disarmAutomation()
                 return
             }
 
@@ -520,12 +549,12 @@ class VisionRuntimeController @Inject constructor(
                     val wait = (stroke.dueAt - SystemClock.uptimeMillis()).coerceAtLeast(0L)
                     if (wait > 0L) delay(wait)
                 }
-                if (generation.get() != token) return
+                if (generation.get() != token || !currentCoroutineContext().isActive) return
 
                 var attempt = 0
                 var completed = false
                 while (attempt <= config.automation.retryLimit && !completed) {
-                    if (generation.get() != token) return
+                    if (generation.get() != token || !currentCoroutineContext().isActive) return
                     val created = SystemClock.uptimeMillis()
                     val action = AutomationAction(
                         id = actionIds.getAndIncrement(),
@@ -554,7 +583,7 @@ class VisionRuntimeController @Inject constructor(
                             val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
                             trackRetryCounts[candidate.trackId] = retriesUsed
                             if (attempt > config.automation.retryLimit) {
-                                disarmAutomation()
+                                if (config.automation.requireSessionArm) disarmAutomation()
                                 return
                             }
                             delay(RETRY_BACKOFF_MS)
@@ -564,6 +593,48 @@ class VisionRuntimeController @Inject constructor(
                 if (!completed) return
             }
         }
+    }
+
+    private suspend fun publishOverlay(
+        overlayConfig: top.azek431.hzzs.core.model.OverlayConfig,
+        result: VisionResult?,
+        showCoordinateGrid: Boolean,
+        force: Boolean,
+    ): Boolean {
+        val signature = overlaySignature(overlayConfig, result, showCoordinateGrid)
+        if (!force && signature == lastOverlaySignature) {
+            return mutableStatus.value.overlayVisible
+        }
+        val visible = overlay.show(
+            config = overlayConfig,
+            result = result,
+            showCoordinateGrid = showCoordinateGrid,
+        )
+        lastOverlaySignature = signature
+        return visible
+    }
+
+    private fun overlaySignature(
+        config: top.azek431.hzzs.core.model.OverlayConfig,
+        result: VisionResult?,
+        showCoordinateGrid: Boolean,
+    ): Int {
+        var hash = config.hashCode()
+        hash = 31 * hash + showCoordinateGrid.hashCode()
+        hash = 31 * hash + (result?.detections?.size ?: -1)
+        hash = 31 * hash + ((result?.sceneConfidence ?: -1f) * 1000f).toInt()
+        result?.detections?.forEach { detection ->
+            hash = 31 * hash + detection.kind.hashCode()
+            hash = 31 * hash + detection.id.hashCode()
+            hash = 31 * hash + (detection.bounds.left * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.top * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.right * 1000f).toInt()
+            hash = 31 * hash + (detection.bounds.bottom * 1000f).toInt()
+            hash = 31 * hash + (detection.confidence * 100f).toInt()
+            hash = 31 * hash + detection.actionable.hashCode()
+        }
+        hash = 31 * hash + (result?.error?.hashCode() ?: 0)
+        return hash
     }
 
     private fun spatialKeyOf(detection: Detection): String {
@@ -645,8 +716,9 @@ class VisionRuntimeController @Inject constructor(
     }
 
     private suspend fun resetPipeline() {
-        actionJob?.cancel()
+        actionJob?.cancelAndJoin()
         actionJob = null
+        actionInFlight.set(false)
         tracker.reset()
         ledger.reset()
         engine.reset()
@@ -655,6 +727,7 @@ class VisionRuntimeController @Inject constructor(
         armedWindowClass.set(null)
         recentActionTimes.clear()
         trackRetryCounts.clear()
+        lastOverlaySignature = Int.MIN_VALUE
     }
 
     private class CaptureUnavailable(message: String) : IllegalStateException(message)

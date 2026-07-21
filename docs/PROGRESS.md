@@ -24,8 +24,10 @@
 | P0 | 从 main 移植 vision2/bamboo 检测核心并映射统一协议 | 已落地（含启发式回退） |
 | P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地 |
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
-| P0 | 动作执行移出帧循环 + 帧龄门控 + retryLimit | 已落地 |
-| P1 | SettingsEditSession 接入设置页 | 已落地 |
+| P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
+| P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地 |
+| P1 | requireSessionArm 生效并暴露设置项 | 已落地 |
+| P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
 | P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中 |

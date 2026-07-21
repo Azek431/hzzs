@@ -186,11 +186,19 @@ private class VisionOverlayView(
         showCoordinateGrid: Boolean,
     ): Int {
         var hash = config.style.hashCode()
+        hash = 31 * hash + config.theme.hashCode()
+        hash = 31 * hash + config.customColor
+        hash = 31 * hash + (config.backgroundAlpha * 1000f).toInt()
+        hash = 31 * hash + (config.strokeWidthDp * 100f).toInt()
+        hash = 31 * hash + (config.scale * 100f).toInt()
+        hash = 31 * hash + (config.textScale * 100f).toInt()
+        hash = 31 * hash + config.orientation.hashCode()
         hash = 31 * hash + config.showBoxes.hashCode()
         hash = 31 * hash + config.showText.hashCode()
         hash = 31 * hash + config.showConfidence.hashCode()
         hash = 31 * hash + config.showFps.hashCode()
         hash = 31 * hash + config.showDiagnostics.hashCode()
+        hash = 31 * hash + config.clickThrough.hashCode()
         hash = 31 * hash + showCoordinateGrid.hashCode()
         hash = 31 * hash + (result?.detections?.size ?: -1)
         hash = 31 * hash + ((result?.sceneConfidence ?: -1f) * 1000f).toInt()
