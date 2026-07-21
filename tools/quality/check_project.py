@@ -256,6 +256,24 @@ build_workflow = read(".github/workflows/build.yml")
 for token in ("check_project.py", "run_native_sanitizers.sh", "testDebugUnitTest", "lintDebug", "assembleDebug"):
     check(token in build_workflow, f"ci:{token}", "quality gate missing")
 
+# 宿主机 g++ 脚本必须与 CMakeLists 同源：含 legacy_main 主检测路径与对应 include。
+cmake_native = read("app/src/main/cpp/CMakeLists.txt")
+for host_script in ("tools/vision/run_native_sanitizers.sh", "tools/vision/build_host.sh"):
+    host_text = read(host_script)
+    for token in (
+        "legacy_main/vision2",
+        "legacy_main/vision_bamboo",
+        "HzzsVisionCore.cpp",
+        "BambooVisionCore.cpp",
+        "BambooVisionEngine.cpp",
+    ):
+        check(token in host_text, f"host-native:{host_script}:{token}", "host build diverged from CMake")
+    check(
+        "legacy_main/vision2" in cmake_native and "legacy_main/vision_bamboo" in cmake_native,
+        "host-native:cmake-legacy-main",
+        "CMake missing legacy_main sources",
+    )
+
 result = {"status": "PASS" if not ERRORS else "FAIL", "checks": len(CHECKS), "errors": ERRORS}
 print(json.dumps(result, ensure_ascii=False, indent=2))
 if ERRORS:
