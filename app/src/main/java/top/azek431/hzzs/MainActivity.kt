@@ -82,8 +82,14 @@ import java.util.Locale
 import javax.inject.Inject
 
 /**
- * The single exported activity. Navigation, onboarding and MCP approval UI stay
- * here so feature packages do not own process-level Android lifecycle concerns.
+ * 唯一导出的 Activity：应用导航壳、首次引导与 MCP 审批 UI 的宿主。
+ *
+ * 职责：
+ * - 承载 Compose 根树与底部/侧栏导航，不把进程级生命周期下沉到 feature 包。
+ * - 按配置启停本地 MCP 前台服务（见 [syncMcpService]）。
+ * - 展示 MCP 写操作确认对话框；审批结果回写 [McpUiBridge]。
+ *
+ * 线程：Activity 生命周期与 Compose 在主线程；配置/MCP 状态经 StateFlow 收集。
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -167,6 +173,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * 根级 ViewModel：聚合全局配置、MCP 审批/导航桥与静默更新检查。
+ *
+ * 不直接持有截图或自动化会话；仅协调设置仓库与 UI 桥接。
+ */
 @HiltViewModel
 class AppViewModel @Inject constructor(
     private val repository: SettingsRepository,
@@ -216,6 +227,7 @@ private enum class Destination(val route: String, val label: String, val icon: I
     ABOUT("about", "关于", Icons.Rounded.Info),
 }
 
+/** 主题、引导分流、主导航与 MCP 审批叠层的根 Composable。 */
 @Composable
 private fun HzzsRoot(
     onSaveDonation: (DonationKind) -> Unit,
@@ -261,6 +273,9 @@ private fun HzzsRoot(
     }
 }
 
+/**
+ * 主界面导航壳：窄屏底部栏 / 宽屏侧栏，并消费 MCP 请求的语义路由。
+ */
 @Composable
 private fun MainNavigation(
     onSaveDonation: (DonationKind) -> Unit,
@@ -346,6 +361,7 @@ private fun AppNavHost(
     }
 }
 
+/** MCP「每次确认」模式下的一次性写操作审批对话框。 */
 @Composable
 private fun McpApprovalDialog(
     request: McpApprovalRequest,
@@ -371,8 +387,13 @@ private fun NavHostController.open(route: String) {
     }
 }
 
+/** 上次成功启动 MCP 服务时的配置指纹，用于避免无意义的重复启停。 */
 private var lastMcpFingerprint: String? = null
 
+/**
+ * 将设置中的 MCP 开关/端口/权限级同步到 [McpForegroundService]。
+ * 指纹变化时先 STOP 再 START，确保旧 loopback socket 关闭。
+ */
 private fun syncMcpService(context: Context, enabled: Boolean, fingerprint: String) {
     if (enabled) {
         if (lastMcpFingerprint == fingerprint) return
