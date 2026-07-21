@@ -1,5 +1,7 @@
 package top.azek431.hzzs.nativevision
 
+import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
+
 /**
  * Thin, failure-contained JNI boundary for the C++ vision engine.
  *
@@ -7,6 +9,11 @@ package top.azek431.hzzs.nativevision
  * devices whose linker rejects a dependency. The process must still be able to
  * open Settings and export diagnostics, so library loading is recorded instead
  * of crashing the application during class initialization.
+ *
+ * 算法配置：
+ * - [configureAlgorithm] 在安全切换点解析一次 profile
+ * - [analyze] 只读当前 generation 对应的不可变快照
+ * - 不在每帧解析 JSON
  */
 object NativeVision {
     private val loadFailure: Throwable? = runCatching {
@@ -42,6 +49,13 @@ object NativeVision {
         val error: String,
     )
 
+    data class ConfigResult(
+        val ok: Boolean,
+        val generation: Long,
+        val usingBuiltinFallback: Boolean,
+        val error: String,
+    )
+
     /**
      * Copies only the configured viewport into native memory and returns bounds
      * normalized to that crop. Callers must check [isAvailable] first and must
@@ -61,6 +75,14 @@ object NativeVision {
         viewportRight: Float,
         viewportBottom: Float,
     ): Result
+
+    /**
+     * 在安全切换点配置算法。失败时保留旧配置；调用方应回退内置。
+     * JNI 与 analyze 串行，禁止分析过程中半热切换。
+     */
+    external fun configureAlgorithm(profile: AlgorithmRuntimeProfile): ConfigResult
+
+    external fun activeAlgorithmGeneration(): Long
 
     external fun reset()
 }

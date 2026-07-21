@@ -4,6 +4,7 @@ project(hzzs_vision LANGUAGES CXX)
 # 统一入口 + 历史 main 线 vision2 / bamboo 检测核心（不含旧 JNI 类名桥）。
 add_library(hzzs_vision SHARED
     jni_bridge.cpp
+    algorithm_runtime.cpp
     vision_engine.cpp
     sweet_factory.cpp
     bamboo_bookstore.cpp

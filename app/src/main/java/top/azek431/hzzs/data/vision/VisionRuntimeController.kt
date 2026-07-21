@@ -134,6 +134,10 @@ class VisionRuntimeController @Inject constructor(
             val source = sources.source(backend)
             val token = generation.incrementAndGet()
             resetPipeline()
+            // 启动时把当前激活算法快照同步到 native（默认 builtin）；失败保留 native 默认。
+            runCatching {
+                engine.configureAlgorithm(engine.currentActivation().profile)
+            }
             activeSource = source
             mutableStatus.value = RuntimeStatus(
                 running = true,
@@ -229,6 +233,7 @@ class VisionRuntimeController @Inject constructor(
         var lastProcessedFrameNanos = 0L
         var pipelineScene: SceneId? = null
         var pipelineSceneConfig: SceneConfig? = null
+        var pipelineAlgorithmGeneration = engine.activeAlgorithmGeneration()
 
         val stateJob = CoroutineScope(currentCoroutineContext()).launch {
             source.state.collectLatest { state ->
@@ -269,14 +274,18 @@ class VisionRuntimeController @Inject constructor(
                     continue
                 }
 
-                if (pipelineScene != config.selectedScene || pipelineSceneConfig != sceneConfig) {
-                    // 场景切换时取消进行中的动作，避免旧场景手势泄漏。
+                val algorithmGeneration = engine.activeAlgorithmGeneration()
+                val sceneChanged =
+                    pipelineScene != config.selectedScene || pipelineSceneConfig != sceneConfig
+                val algorithmChanged = pipelineAlgorithmGeneration != algorithmGeneration
+                if (sceneChanged || algorithmChanged) {
+                    // 场景或算法切换必须进入安全点：停动作、清 tracker / 去重缓存。
+                    // 不允许分析过程中半热切换；algorithm 配置应在帧循环外完成。
                     actionJob?.cancelAndJoin()
                     actionJob = null
                     actionInFlight.set(false)
                     tracker.reset()
                     ledger.reset()
-                    engine.reset()
                     recentActionTimes.clear()
                     trackRetryCounts.clear()
                     detectedPlayerReference.set(null)
@@ -284,6 +293,7 @@ class VisionRuntimeController @Inject constructor(
                     lastOverlaySignature = Int.MIN_VALUE
                     pipelineScene = config.selectedScene
                     pipelineSceneConfig = sceneConfig
+                    pipelineAlgorithmGeneration = algorithmGeneration
                     failureCount = 0
                     mutableStatus.update {
                         it.copy(activeScene = config.selectedScene, lastError = null)

@@ -10,6 +10,7 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-om
   -I"$CPP/legacy_main/vision2" \
   -I"$CPP/legacy_main/vision_bamboo" \
   "$ROOT/app/src/test/cpp/native_tests.cpp" \
+  "$CPP/algorithm_runtime.cpp" \
   "$CPP/vision_engine.cpp" \
   "$CPP/sweet_factory.cpp" \
   "$CPP/bamboo_bookstore.cpp" \
