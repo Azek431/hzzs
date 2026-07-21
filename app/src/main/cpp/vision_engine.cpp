@@ -78,16 +78,30 @@ int coarse_step_for(int frame_width, int work_width) {
     return std::clamp(step, 1, 8);
 }
 
-/**
- * 使用历史 main 的 vision2 甜品工厂检测器，并映射到统一 Detection 协议。
- * 保留 sweet_factory.cpp 作为后备启发式（CMake 仍编译，便于对照）。
- */
+Rect fixed_player_bounds(
+    int width,
+    int height,
+    float fixed_player_x_ratio,
+    const SceneAlgorithmParamsNative& params) {
+    const int divisor = std::max(8, params.fixed_player_width_divisor);
+    const int fixed_right = static_cast<int>(width * fixed_player_x_ratio);
+    const int fixed_left = std::max(0, fixed_right - std::max(8, width / divisor));
+    return normalize_px(
+        fixed_left,
+        static_cast<int>(height * params.fixed_player_top),
+        fixed_right,
+        static_cast<int>(height * params.fixed_player_bottom),
+        width,
+        height);
+}
+
 Result analyze_sweet_main(
     const FrameView& frame,
     int work_width,
     int enabled_kind_mask,
     bool detect_player,
-    float fixed_player_x_ratio) {
+    float fixed_player_x_ratio,
+    const SceneAlgorithmParamsNative& params) {
     Result out;
     const int step = coarse_step_for(frame.width, work_width);
     const hzzs::vision2::FrameView view{frame.pixels, frame.width, frame.height, frame.width};
@@ -97,7 +111,7 @@ Result analyze_sweet_main(
     const int player_right = raw.playerRight;
     const int player_top = std::max(0, raw.playerCenterY - raw.playerWidth);
     const int player_bottom = std::min(frame.height - 1, raw.playerCenterY + raw.playerWidth);
-    out.scene_confidence = 0.92f;
+    out.scene_confidence = params.scene_confidence_floor;
 
     {
         Detection player{};
@@ -108,15 +122,8 @@ Result analyze_sweet_main(
                 player_left, player_top, player_right, player_bottom, frame.width, frame.height);
             player.confidence = 1.0f;
         } else {
-            const int fixed_right = static_cast<int>(frame.width * fixed_player_x_ratio);
-            const int fixed_left = std::max(0, fixed_right - std::max(8, frame.width / 20));
-            player.bounds = normalize_px(
-                fixed_left,
-                static_cast<int>(frame.height * 0.72f),
-                fixed_right,
-                static_cast<int>(frame.height * 0.94f),
-                frame.width,
-                frame.height);
+            player.bounds = fixed_player_bounds(
+                frame.width, frame.height, fixed_player_x_ratio, params);
             player.confidence = 1.0f;
         }
         out.detections.push_back(player);
@@ -141,7 +148,6 @@ Result analyze_sweet_main(
     }
     if (raw.cake.found) {
         const bool wide = raw.cake.sizeClass == hzzs::vision2::kSizeLargeOrWide;
-        // 宽 cake 语义上更接近断层/坑：优先 PIT；否则输出蛋糕结构。避免同一框双写导致双动作。
         const Kind cake_kind = wide ? Kind::PIT : Kind::CAKE_STRUCTURE;
         push_if_enabled(
             out,
@@ -182,7 +188,8 @@ Result analyze_bamboo_main(
     int /*work_width*/,
     int enabled_kind_mask,
     bool detect_player,
-    float fixed_player_x_ratio) {
+    float fixed_player_x_ratio,
+    const SceneAlgorithmParamsNative& params) {
     Result out;
     const hzzs::vision_bamboo::FrameView view{frame.pixels, frame.width, frame.height, frame.width};
     const auto raw = hzzs::vision_bamboo::analyze(view);
@@ -192,19 +199,20 @@ Result analyze_bamboo_main(
         out.scene_confidence = finite_confidence(player_conf * 0.35f);
         return out;
     }
-    if (player_conf < 0.45f && detect_player) {
+    if (player_conf < params.player_confidence_floor && detect_player) {
         out.scene_confidence = finite_confidence(player_conf);
         return out;
     }
 
-    out.scene_confidence = finite_confidence(std::max(0.82f, player_conf));
+    out.scene_confidence =
+        finite_confidence(std::max(params.scene_confidence_floor, player_conf));
 
     const int player_left = raw.playerLeft;
     const int player_right = raw.playerRight;
     const int player_top = std::max(0, raw.playerCenterY - raw.playerWidth);
     const int player_bottom = std::min(frame.height - 1, raw.playerCenterY + raw.playerWidth);
 
-    if (detect_player || player_conf >= 0.45f) {
+    if (detect_player || player_conf >= params.player_confidence_floor) {
         Detection player{};
         player.track_hint = 1;
         player.kind = Kind::PLAYER;
@@ -213,18 +221,11 @@ Result analyze_bamboo_main(
         player.confidence = finite_confidence(std::max(player_conf, 0.88f));
         out.detections.push_back(player);
     } else {
-        const int fixed_right = static_cast<int>(frame.width * fixed_player_x_ratio);
-        const int fixed_left = std::max(0, fixed_right - std::max(8, frame.width / 20));
         Detection player{};
         player.track_hint = 1;
         player.kind = Kind::PLAYER;
-        player.bounds = normalize_px(
-            fixed_left,
-            static_cast<int>(frame.height * 0.72f),
-            fixed_right,
-            static_cast<int>(frame.height * 0.94f),
-            frame.width,
-            frame.height);
+        player.bounds =
+            fixed_player_bounds(frame.width, frame.height, fixed_player_x_ratio, params);
         player.confidence = 1.0f;
         out.detections.push_back(player);
     }
@@ -249,7 +250,6 @@ Result analyze_bamboo_main(
     }
     if (raw.gap.found) {
         const bool wide = raw.gap.sizeClass == hzzs::vision_bamboo::kSizeLargeOrWide;
-        // 竹隙为主语义；仅当 BAMBOO_GAP 被用户关闭时才退化为 PIT，避免双写。
         const Kind gap_kind = kind_enabled(enabled_kind_mask, Kind::BAMBOO_GAP)
             ? Kind::BAMBOO_GAP
             : Kind::PIT;
@@ -287,48 +287,9 @@ Result analyze_bamboo_main(
     return out;
 }
 
-}  // namespace
-
-Result analyze(
-    int scene,
-    const FrameView& frame,
-    int work_width,
-    int enabled_kind_mask,
-    bool detect_player,
-    float fixed_player_x_ratio) {
-    if (!valid_frame(frame)) {
-        Result invalid;
-        invalid.error = "invalid frame";
-        return invalid;
-    }
-    if (scene < 0 || scene > 1) {
-        Result invalid;
-        invalid.error = "invalid scene";
-        return invalid;
-    }
-    if (work_width < 160 || work_width > 960) {
-        Result invalid;
-        invalid.error = "invalid work width";
-        return invalid;
-    }
-    if (!std::isfinite(fixed_player_x_ratio) || fixed_player_x_ratio < 0.0f ||
-        fixed_player_x_ratio > 1.0f) {
-        Result invalid;
-        invalid.error = "invalid player ratio";
-        return invalid;
-    }
-
-    Result result = scene == 1
-        ? analyze_bamboo_main(frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio)
-        : analyze_sweet_main(frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio);
-
-    // 若 main 引擎未给出可用结果，回退到统一重构期的启发式检测器。
-    if (result.error.empty() && result.detections.size() <= 1 && result.scene_confidence < 0.2f) {
-        result = scene == 1
-            ? analyze_bamboo(frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio)
-            : analyze_sweet(frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio);
-    }
-
+Result finalize_result(
+    Result result,
+    bool detect_player) {
     result.scene_confidence = finite_confidence(result.scene_confidence);
     for (auto& detection : result.detections) {
         detection.bounds.left =
@@ -370,6 +331,79 @@ Result analyze(
     return result;
 }
 
-void reset() {}
+}  // namespace
+
+Result analyze_with_profile(
+    int scene,
+    const FrameView& frame,
+    int work_width,
+    int enabled_kind_mask,
+    bool detect_player,
+    float fixed_player_x_ratio,
+    const AlgorithmRuntimeProfileNative& profile) {
+    if (!valid_frame(frame)) {
+        Result invalid;
+        invalid.error = "invalid frame";
+        return invalid;
+    }
+    if (scene < 0 || scene >= kSceneCount) {
+        Result invalid;
+        invalid.error = "invalid scene";
+        return invalid;
+    }
+    if (work_width < 160 || work_width > 960) {
+        Result invalid;
+        invalid.error = "invalid work width";
+        return invalid;
+    }
+    if (!std::isfinite(fixed_player_x_ratio) || fixed_player_x_ratio < 0.0f ||
+        fixed_player_x_ratio > 1.0f) {
+        Result invalid;
+        invalid.error = "invalid player ratio";
+        return invalid;
+    }
+
+    const SceneAlgorithmParamsNative& params = profile.scenes[scene];
+    Result result = scene == 1
+        ? analyze_bamboo_main(
+              frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params)
+        : analyze_sweet_main(
+              frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+
+    // 主路径过弱时回退启发式；阈值来自运行时 profile。
+    if (result.error.empty() &&
+        static_cast<int>(result.detections.size()) <= params.fallback_max_detections &&
+        result.scene_confidence < params.fallback_scene_confidence_max) {
+        result = scene == 1
+            ? analyze_bamboo(
+                  frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params)
+            : analyze_sweet(
+                  frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    }
+
+    return finalize_result(std::move(result), detect_player);
+}
+
+Result analyze(
+    int scene,
+    const FrameView& frame,
+    int work_width,
+    int enabled_kind_mask,
+    bool detect_player,
+    float fixed_player_x_ratio) {
+    const auto profile = AlgorithmRuntime::instance().current();
+    return analyze_with_profile(
+        scene,
+        frame,
+        work_width,
+        enabled_kind_mask,
+        detect_player,
+        fixed_player_x_ratio,
+        profile);
+}
+
+void reset() {
+    AlgorithmRuntime::instance().reset();
+}
 
 }  // namespace hzzs

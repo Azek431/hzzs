@@ -8,6 +8,7 @@ g++ -std=c++17 -O3 -DNDEBUG -fPIC -shared \
   -I"$CPP" \
   -I"$CPP/legacy_main/vision2" \
   -I"$CPP/legacy_main/vision_bamboo" \
+  "$CPP/algorithm_runtime.cpp" \
   "$CPP/vision_engine.cpp" \
   "$CPP/sweet_factory.cpp" \
   "$CPP/bamboo_bookstore.cpp" \

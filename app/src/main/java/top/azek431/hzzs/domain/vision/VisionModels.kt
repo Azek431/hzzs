@@ -107,6 +107,12 @@ data class VisionResult(
     val detections: List<Detection>,
     val processingNanos: Long,
     val error: String? = null,
+    /** 当前激活算法诊断字段；切换算法后 generation 递增。 */
+    val activeAlgorithmId: String = AlgorithmRuntimeProfile.BUILTIN_ID,
+    val activeAlgorithmVersion: String = AlgorithmRuntimeProfile.BUILTIN_VERSION,
+    val algorithmGeneration: Long = 0L,
+    val usingBuiltinFallback: Boolean = true,
+    val algorithmLoadError: String? = null,
 ) {
     val actionableDetections: List<Detection>
         get() = detections.filter {
@@ -120,6 +126,16 @@ interface VisionEngine {
         config: SceneConfig,
         viewport: ViewportConfig,
     ): VisionResult
+
+    /**
+     * 在安全切换点应用算法 profile。失败时实现应保留旧配置或回退内置。
+     * 不得在帧循环中半热切换。
+     */
+    fun configureAlgorithm(profile: AlgorithmRuntimeProfile): Result<AlgorithmActivation>
+
+    fun currentActivation(): AlgorithmActivation
+
+    fun activeAlgorithmGeneration(): Long
 
     fun reset()
 }

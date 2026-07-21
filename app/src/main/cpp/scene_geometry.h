@@ -1,4 +1,5 @@
 #pragma once
+#include "algorithm_runtime.h"
 #include "vision_types.h"
 #include "color_components.h"
 #include <algorithm>
@@ -12,12 +13,21 @@ inline int adaptive_stride(const FrameView& f, int work_width, int multiplier = 
 inline bool sweet_white(int r,int g,int b) { return r>190 && g>155 && b>135 && std::abs(r-g)<85; }
 inline bool sweet_pink(int r,int g,int b) { return r>175 && b>100 && r>g*1.08f && r-b<115; }
 inline bool bamboo_green(int r,int g,int b) { return g>80 && g>=r*0.78f && g>b*1.25f && b<125; }
+inline bool bamboo_green(int r, int g, int b, const SceneColorThresholdsNative& c) {
+    return g > c.bamboo_green_min &&
+           g >= r * c.bamboo_green_over_red &&
+           g > b * c.bamboo_green_over_blue &&
+           b < c.bamboo_blue_max;
+}
 
 struct GroundEstimate { int y{}; float confidence{}; };
-inline GroundEstimate estimate_sweet_ground(const FrameView& f) {
-    GroundEstimate best{static_cast<int>(f.height*0.69f),0.0f};
+inline GroundEstimate estimate_sweet_ground(const FrameView& f,
+                                            const SceneAlgorithmParamsNative& params = SceneAlgorithmParamsNative{}) {
+    const float top = params.ground_search_top > 0.0f ? params.ground_search_top : 0.50f;
+    const float bottom = params.ground_search_bottom > top ? params.ground_search_bottom : 0.82f;
+    GroundEstimate best{static_cast<int>(f.height * ((top + bottom) * 0.5f)), 0.0f};
     const int step=std::max(2,f.width/240);
-    for(int y=static_cast<int>(f.height*.50f);y<static_cast<int>(f.height*.82f);y+=std::max(1,f.height/320)){
+    for(int y=static_cast<int>(f.height*top);y<static_cast<int>(f.height*bottom);y+=std::max(1,f.height/320)){
         int white=0,pink=0,total=0; const int below=std::min(f.height-1,y+std::max(3,f.height/70));
         for(int x=0;x<f.width;x+=step){
             auto a=f.pixels[static_cast<size_t>(y)*f.width+x], c=f.pixels[static_cast<size_t>(below)*f.width+x];
@@ -28,11 +38,19 @@ inline GroundEstimate estimate_sweet_ground(const FrameView& f) {
     }
     return best;
 }
-inline GroundEstimate estimate_bamboo_ground(const FrameView& f) {
-    GroundEstimate best{static_cast<int>(f.height*.68f),0.0f}; const int step=std::max(2,f.width/240);
-    for(int y=static_cast<int>(f.height*.52f);y<static_cast<int>(f.height*.82f);y+=std::max(1,f.height/320)){
+inline GroundEstimate estimate_bamboo_ground(const FrameView& f,
+                                             const SceneAlgorithmParamsNative& params = SceneAlgorithmParamsNative{}) {
+    const float top = params.ground_search_top > 0.0f ? params.ground_search_top : 0.52f;
+    const float bottom = params.ground_search_bottom > top ? params.ground_search_bottom : 0.82f;
+    GroundEstimate best{static_cast<int>(f.height*((top+bottom)*0.5f)),0.0f};
+    const int step=std::max(2,f.width/240);
+    for(int y=static_cast<int>(f.height*top);y<static_cast<int>(f.height*bottom);y+=std::max(1,f.height/320)){
         int green_count=0,total=0;
-        for(int x=0;x<f.width;x+=step){auto p=f.pixels[static_cast<size_t>(y)*f.width+x]; green_count+=bamboo_green(red(p),green(p),blue(p)); ++total;}
+        for(int x=0;x<f.width;x+=step){
+            auto p=f.pixels[static_cast<size_t>(y)*f.width+x];
+            green_count+=bamboo_green(red(p),green(p),blue(p),params.colors);
+            ++total;
+        }
         const float score=green_count/static_cast<float>(std::max(1,total));
         if(score>best.confidence) best={y,std::min(1.0f,score*1.8f)};
     }

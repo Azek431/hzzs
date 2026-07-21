@@ -19,7 +19,8 @@
 - 固定玩家比例模式跳过玩家检测；检测一次与连续检测由 Kotlin 运行时控制。
 - 所有面积、乘法、缓冲索引和 JNI 数组长度在使用前校验。
 - Native 不持有 Java 数组或 Bitmap 生命周期之外的内存。
-- `reset()` 当前可为空操作；跨帧状态在 Kotlin tracker / runtime。
+- 算法参数经 `AlgorithmRuntime` 不可变快照注入；`configureAlgorithm` 与 `analyze` 串行，失败保留旧配置或由 Kotlin 回退 `builtin.hzzs.v1`。
+- `reset()` 不强制回退算法；跨帧状态在 Kotlin tracker / runtime。算法回退使用 `configure_builtin` / `configureAlgorithm(builtin)`。
 
 ## 与历史 main
 
