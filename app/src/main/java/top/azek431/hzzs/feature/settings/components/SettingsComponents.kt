@@ -1,3 +1,9 @@
+/**
+ * 设置模块通用 Compose 组件。
+ *
+ * 职责：分类卡、分组卡、开关行、单选卡、保存栏、空态/警告/错误条等可复用 UI。
+ * 边界：纯展示与点击回调；不持有草稿、不访问 Repository/Controller。
+ */
 package top.azek431.hzzs.feature.settings.components
 
 import androidx.compose.foundation.BorderStroke
@@ -41,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 
+/** 设置首页分类入口卡：标题 + 说明 + 当前摘要。 */
 @Composable
 fun SettingsCategoryCard(
     title: String,
@@ -105,6 +112,7 @@ fun SettingsCategoryCard(
     }
 }
 
+/** 子页分组容器。 */
 @Composable
 fun SettingsSectionCard(
     title: String,
@@ -138,6 +146,7 @@ fun SettingsSectionCard(
     }
 }
 
+/** 可点击导航行。 */
 @Composable
 fun SettingsNavigationRow(
     title: String,
@@ -174,6 +183,7 @@ fun SettingsNavigationRow(
     }
 }
 
+/** 开关行；状态变更交给调用方写入草稿。 */
 @Composable
 fun SettingsSwitchRow(
     title: String,
@@ -210,6 +220,7 @@ fun SettingsSwitchRow(
     }
 }
 
+/** 单选卡片行。 */
 @Composable
 fun SettingsRadioCard(
     title: String,
@@ -274,6 +285,7 @@ fun SettingsRadioCard(
     }
 }
 
+/** 小型状态标签。 */
 @Composable
 fun SettingsStatusChip(
     text: String,
@@ -306,6 +318,7 @@ fun SettingsStatusChip(
     }
 }
 
+/** 风险/权限说明警告卡。 */
 @Composable
 fun SettingsWarningCard(
     title: String,
@@ -344,6 +357,7 @@ fun SettingsWarningCard(
     }
 }
 
+/** 分类页顶部摘要 Hero。 */
 @Composable
 fun SettingsHeroCard(
     title: String,
@@ -405,6 +419,7 @@ fun SettingsHeroCard(
     }
 }
 
+/** 模块底部取消/保存栏；仅 dirty 时可保存。 */
 @Composable
 fun SettingsSaveBar(
     dirty: Boolean,
@@ -432,6 +447,7 @@ fun SettingsSaveBar(
     }
 }
 
+/** 列表空态与可选操作。 */
 @Composable
 fun SettingsEmptyState(
     title: String,
@@ -463,6 +479,7 @@ fun SettingsEmptyState(
     }
 }
 
+/** 错误横幅与可选重试。 */
 @Composable
 fun SettingsErrorBanner(
     message: String,

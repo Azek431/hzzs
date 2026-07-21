@@ -1,3 +1,10 @@
+/**
+ * 网络与更新设置页。
+ *
+ * 职责：下载来源、Wi‑Fi 策略、算法通道/自动检查、应用更新检查下载安装。
+ * 数据流：偏好进草稿（预览保留 baseline）；检查/下载/安装为 ViewModel 即时任务，读 baseline。
+ * 边界：不绕过签名校验；不在 feature 内直接 HTTP。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +36,12 @@ import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 
+/**
+ * 网络与更新设置页。
+ *
+ * 应用更新检查/下载/安装走 ViewModel 即时任务；算法通道偏好写草稿。
+ * 未发布签名索引时检查失败为预期。本页不绕过证书绑定验签。
+ */
 @Composable
 fun NetworkUpdateSettingsScreen(
     config: AppConfig,

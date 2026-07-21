@@ -1,3 +1,9 @@
+/**
+ * 设置相关 Compose Preview 样例。
+ *
+ * 职责：为首页/分类卡/算法卡提供静态假数据预览；不接入真实 ViewModel 或仓库。
+ * 边界：仅设计时预览，不影响运行时配置与权限型能力。
+ */
 package top.azek431.hzzs.feature.settings
 
 import androidx.compose.material3.Surface

@@ -1,3 +1,10 @@
+/**
+ * 首次引导向导。
+ *
+ * 职责：分步编辑内存草稿 [AppConfig]；主题等可经 [onPreview] 即时预览。
+ * 数据流：完成前不落盘；点“完成”时才 [onComplete] 写入并标记 onboarding/免责声明版本。
+ * 边界：自动操作默认强制关闭；开启须风险对话框倒计时确认。不直接申请 Root/Shizuku/JNI。
+ */
 package top.azek431.hzzs.feature.onboarding
 
 import androidx.compose.foundation.layout.Arrangement
@@ -56,13 +63,6 @@ import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.ThemePreset
 import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 
-/**
- * First-run configuration wizard.
- *
- * The wizard edits an in-memory draft. Nothing is permanently stored until the
- * user reaches the final page and presses Complete. Automatic operation remains
- * off unless the dedicated risk dialog has completed its countdown.
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen(
@@ -71,6 +71,7 @@ fun OnboardingScreen(
     onComplete: (AppConfig) -> Unit,
 ) {
     var page by remember { mutableIntStateOf(0) }
+    // 内存草稿；进入向导时强制关闭自动操作，完成前不持久化
     var draft by remember(initial) { mutableStateOf(initial.copy(automation = initial.automation.copy(enabled = false))) }
     var showAutomationRisk by remember { mutableStateOf(false) }
     val pages = onboardingPages

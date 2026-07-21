@@ -1,3 +1,10 @@
+/**
+ * 首页概览。
+ *
+ * 职责：展示已保存生效配置速览与导航到运行/设置；不编辑草稿。
+ * 数据流：只读 [SettingsRepository.config]；导航回调由上层 NavHost 注入。
+ * 边界：不启动视觉分析、不触碰权限型运行时能力。
+ */
 package top.azek431.hzzs.feature.home
 
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +53,7 @@ import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import javax.inject.Inject
 
+/** 首页只订阅已落盘配置，不维护设置草稿。 */
 @HiltViewModel
 class HomeViewModel @Inject constructor(repo: SettingsRepository) : ViewModel() {
     val config: StateFlow<AppConfig> = repo.config.stateIn(
@@ -55,6 +63,7 @@ class HomeViewModel @Inject constructor(repo: SettingsRepository) : ViewModel() 
     )
 }
 
+/** 首页 UI：配置速览 + 进入运行控制 / 设置。 */
 @Composable
 fun HomeScreen(
     onOpenRuntime: () -> Unit,

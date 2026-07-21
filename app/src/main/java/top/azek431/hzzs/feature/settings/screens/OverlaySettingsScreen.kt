@@ -1,3 +1,10 @@
+/**
+ * 悬浮窗设置页。
+ *
+ * 职责：编辑悬浮窗开关、样式、主题、透明度与显示项等外观草稿。
+ * 数据流：经 [update] 写入共享草稿；视觉相关字段可预览，保存后持久。
+ * 边界：不创建/操作 WindowManager；实际悬浮窗由运行时/平台层根据已保存配置托管。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +29,12 @@ import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 
+/**
+ * 悬浮窗样式设置页。
+ *
+ * 可预览：主题/样式变更经草稿即时反映到 OverlayController。
+ * 不直接操作 WindowManager；真正加窗/移窗由 service 层完成。
+ */
 @Composable
 fun OverlaySettingsScreen(
     config: AppConfig,

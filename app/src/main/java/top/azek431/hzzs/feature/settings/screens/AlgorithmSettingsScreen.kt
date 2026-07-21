@@ -1,3 +1,11 @@
+/**
+ * 算法与识别设置页。
+ *
+ * 职责：选择自动/手动算法、赛季与识别阈值；展示远端/已安装算法卡。
+ * 数据流：草稿经 [update]；检查/下载/取消/选用经 ViewModel 即时任务；
+ * 算法字段预览被 baseline 锁定，保存后才真正切换运行时。
+ * 边界：不直接网络/JNI；目录状态来自 [AlgorithmCatalogState]。
+ */
 package top.azek431.hzzs.feature.settings.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -353,6 +361,7 @@ fun AlgorithmSettingsScreen(
     }
 }
 
+/** 根据目录 phase 展示加载/离线/安全等横幅。 */
 @Composable
 private fun PhaseBanner(phase: AlgorithmCatalogPhase, onRefresh: () -> Unit) {
     when (phase) {
@@ -430,6 +439,7 @@ private fun MetaLine(label: String, value: String) {
     }
 }
 
+/** 解析算法卡展示状态（当前/待启用/可更新等）。 */
 private fun resolveStatus(
     info: AlgorithmPackageInfo,
     activeId: String?,
@@ -446,6 +456,7 @@ private fun resolveStatus(
     return AlgorithmCardStatus.DOWNLOADABLE
 }
 
+/** 仅更新当前选中赛季的 [SceneConfig]。 */
 private fun updateScene(
     update: ((AppConfig) -> AppConfig) -> Unit,
     config: AppConfig,

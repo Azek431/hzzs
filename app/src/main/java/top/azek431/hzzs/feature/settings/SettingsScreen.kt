@@ -1,3 +1,10 @@
+/**
+ * 设置模块 Compose 入口与嵌套导航。
+ *
+ * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；仅离开整个模块时询问保存/丢弃。
+ * 数据流：订阅 draft/baseline/update/algorithm；子页经 [SettingsViewModel.update] 改草稿。
+ * 边界：不直接 JNI/权限运行时；dispose 时 [discardSilently] 清理未提交预览。
+ */
 package top.azek431.hzzs.feature.settings
 
 import androidx.activity.compose.BackHandler
@@ -50,6 +57,7 @@ import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
 /**
  * 设置模块入口：首页 + 分类子页共享同一 [SettingsViewModel]。
  * 仅在离开整个设置模块时询问保存/丢弃；子页返回首页保留草稿。
+ * 宽屏左侧常驻首页目录，右侧为分类内容。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,6 +214,7 @@ fun SettingsScreen(
     }
 }
 
+/** 设置内嵌 NavHost：把共享草稿与即时任务回调分发给各分类屏。 */
 @Composable
 private fun SettingsNavHost(
     nav: NavHostController,

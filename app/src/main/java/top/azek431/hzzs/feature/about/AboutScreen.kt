@@ -1,3 +1,11 @@
+/**
+ * 关于页与开发者入口。
+ *
+ * 职责：展示版本/免责声明/捐赠入口；连续点击版本号 7 次开启 [DeveloperConfig.enabled]。
+ * 数据流：读 [SettingsRepository] 与 MCP 状态；写开发者开关与诊断相关字段。
+ * 边界：不直接操作 WindowManager / Root / JNI；Native 自检经 [NativeBenchmarkRunner]，
+ * 调试帧经 [DebugFrameRecorder]，MCP 仅展示连接信息。
+ */
 package top.azek431.hzzs.feature.about
 
 import android.content.ClipData
@@ -49,6 +57,7 @@ import javax.inject.Inject
 
 enum class DonationKind { WECHAT, ALIPAY }
 
+/** 关于页状态：配置流、MCP 运行态、调试帧计数与 Native 自检结果。 */
 @HiltViewModel
 class AboutViewModel @Inject constructor(
     private val repository: SettingsRepository,
@@ -97,6 +106,10 @@ class AboutViewModel @Inject constructor(
     }
 }
 
+/**
+ * 关于主界面；开发者已开启时可进入 [DeveloperScreen]。
+ * 版本号 AssistChip 连点 7 次调用 [AboutViewModel.setDeveloperEnabled]。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
@@ -200,6 +213,10 @@ fun AboutScreen(
     }
 }
 
+/**
+ * 开发者诊断页：强制截图后端、调试帧、坐标网格、帧率上限、Native 自检与 MCP 连接信息。
+ * 仅改 [DeveloperConfig]；不直接拉起截图或 MCP 服务。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun DeveloperScreen(
