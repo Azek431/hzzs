@@ -5,11 +5,14 @@ import top.azek431.hzzs.core.model.*
 import java.security.MessageDigest
 
 /**
- * Safe, declarative theme package used by `.hzzstheme` import/export.
+ * `.hzzstheme` 声明式主题包模型。
  *
- * Packages cannot contain executable code, fonts, icons or remote URLs. The
- * parser accepts only a bounded JSON document and validates every numeric value
- * before the theme is previewed.
+ * 安全边界：
+ * - 仅 JSON 字段，无脚本 / 字体 / 图标 / 远程 URL
+ * - 体积上限 [MAX_BYTES]
+ * - 数值在编解码时全部 clamp
+ *
+ * 包内容只影响外观与悬浮窗展示，不触及截图后端、自动操作或 MCP。
  */
 data class HzzsThemePackage(
     val name: String,
@@ -21,11 +24,19 @@ data class HzzsThemePackage(
 ) {
     companion object {
         const val CURRENT_FORMAT = 1
+        /** 主题包未压缩文本最大字节数。 */
         const val MAX_BYTES = 64 * 1024
     }
 }
 
+/**
+ * 主题包 JSON 编解码。
+ *
+ * [encode] 截断过长字符串；[decode] 校验 format / 版本 / 体积，
+ * 未知枚举回退默认，非法浮点回退安全值。
+ */
 object ThemePackageCodec {
+    /** 导出为 pretty JSON 字符串。 */
     fun encode(value: HzzsThemePackage): String {
         val safeName = value.name.trim().take(64).ifBlank { "未命名主题" }
         return JSONObject().apply {
@@ -64,6 +75,11 @@ object ThemePackageCodec {
         }.toString(2)
     }
 
+    /**
+     * 解析主题包。
+     *
+     * @throws IllegalArgumentException 体积过大、格式不对或版本不支持
+     */
     fun decode(raw: String): HzzsThemePackage {
         require(raw.toByteArray(Charsets.UTF_8).size <= HzzsThemePackage.MAX_BYTES) { "主题包过大" }
         val root = JSONObject(raw)
@@ -105,6 +121,7 @@ object ThemePackageCodec {
         )
     }
 
+    /** 计算主题原文 SHA-256（十六进制小写），用于导入前后完整性对照。 */
     fun sha256(raw: String): String = MessageDigest.getInstance("SHA-256")
         .digest(raw.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
@@ -112,6 +129,7 @@ object ThemePackageCodec {
     private inline fun <reified T : Enum<T>> enumOr(raw: String?, fallback: T): T =
         enumValues<T>().firstOrNull { it.name == raw } ?: fallback
 
+    /** finite 且落入 [min, max]，否则 fallback。 */
     private fun Float.finite(fallback: Float, min: Float, max: Float): Float =
         if (isFinite()) coerceIn(min, max) else fallback
 }

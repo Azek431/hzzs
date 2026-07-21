@@ -28,15 +28,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 算法目录与下载任务的 StateFlow 所有者。
+ * 算法目录与下载任务的 [StateFlow] 唯一所有者。
  *
- * 当前实现提供完整 UI 契约与内置/模拟远端目录：
+ * 当前实现提供完整 UI 契约 + 内置/模拟远端目录：
  * - 自动选择：按场景取兼容最新官方算法
- * - 手动选择：钉选已安装包，运行中仅标记 pending
- * - 网络失败：保留已安装/内置并进入 OfflineWithCache / Error
- * - 镜像回退：记录 activeSource 与 lastMirrorReason
+ * - 手动选择：钉选已安装包；分析运行中仅标记 pending
+ * - 网络失败：保留已安装/内置，进入 OfflineWithCache / Error
+ * - 镜像回退：记录 [AlgorithmCatalogState.activeSource] 与 lastMirrorReason
  *
- * 真正的远端签名校验与 so 加载将在后续算法仓库任务接入；本控制器不修改 C++。
+ * 线程：状态更新在 Main；网络/模拟 IO 切 [Dispatchers.IO]。
+ *
+ * 限制：真正的 `.hzzsalg` 签名校验与安装激活尚未接入；
+ * 下载进度为可演示的模拟流程，**不修改 C++ / 不加载可执行代码**。
  */
 @Singleton
 class AlgorithmCatalogController @Inject constructor(
@@ -44,15 +47,21 @@ class AlgorithmCatalogController @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(seedState())
+    /** UI 只读状态。 */
     val state: StateFlow<AlgorithmCatalogState> = mutableState.asStateFlow()
 
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
     private var analysisRunning: Boolean = false
+    /** 来自设置草稿的算法配置（未保存也会驱动列表解析）。 */
     private var draftConfig: AlgorithmConfig = AlgorithmConfig()
     private var sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO
     private var selectedScene: SceneId = SceneId.BAMBOO_BOOKSTORE
 
+    /**
+     * 绑定设置页草稿上下文，重算 active / pending。
+     * 下载与检查不写入 [AlgorithmConfig]；钉选 ID 仍由 ViewModel 写回草稿。
+     */
     fun bindSettings(
         algorithm: AlgorithmConfig,
         sourcePreference: UpdateSourcePreference,
@@ -78,11 +87,17 @@ class AlgorithmCatalogController @Inject constructor(
         }
     }
 
+    /** 同步视觉分析是否在跑；影响“选择后立即启用 vs pending”。 */
     fun setAnalysisRunning(running: Boolean) {
         analysisRunning = running
         mutableState.update { it.copy(analysisRunning = running) }
     }
 
+    /**
+     * 刷新远端目录（模拟）。
+     *
+     * @param force 预留给手动刷新标记；当前实现与非 force 相同
+     */
     fun refreshCatalog(force: Boolean = false) {
         if (checkJob?.isActive == true) return
         checkJob = scope.launch {
@@ -143,6 +158,12 @@ class AlgorithmCatalogController @Inject constructor(
         }
     }
 
+    /**
+     * 下载并“校验”算法包（当前为进度模拟）。
+     *
+     * fail-closed：不兼容 / 不可信签名直接进入对应相位并中止。
+     * 分析运行中或手动模式下载完成后进入 [AlgorithmCatalogPhase.PendingActivation]。
+     */
     fun download(algorithmId: String) {
         val target = mutableState.value.remote.find { it.id == algorithmId }
             ?: mutableState.value.installed.find { it.id == algorithmId }
@@ -246,6 +267,7 @@ class AlgorithmCatalogController @Inject constructor(
         }
     }
 
+    /** 取消进行中的模拟下载任务。 */
     fun cancelDownload(algorithmId: String) {
         downloadJob?.cancel()
         downloadJob = null
@@ -259,8 +281,10 @@ class AlgorithmCatalogController @Inject constructor(
     }
 
     /**
-     * 手动模式选择已安装算法。运行中仅 pending；未运行则在保存草稿后由配置激活。
-     * 本方法只更新目录状态，真正写入 [AlgorithmConfig.pinnedAlgorithmId] 由设置 ViewModel 负责。
+     * 手动模式选择已安装算法。
+     *
+     * 分析运行中或与当前 active 不同 → 仅 pending；
+     * 真正写入 [AlgorithmConfig.pinnedAlgorithmId] 由设置 ViewModel 负责。
      */
     fun selectInstalled(algorithmId: String): AlgorithmPackageInfo? {
         val installed = mutableState.value.installed.find { it.id == algorithmId } ?: return null
@@ -298,10 +322,12 @@ class AlgorithmCatalogController @Inject constructor(
         return installed
     }
 
+    /** 清除一次性提示文案。 */
     fun clearMessage() {
         mutableState.update { it.copy(message = null) }
     }
 
+    /** 种子状态：仅内置包，无远端列表。 */
     private fun seedState(): AlgorithmCatalogState {
         val builtin = builtinPackages()
         val active = builtin.first()
@@ -315,6 +341,10 @@ class AlgorithmCatalogController @Inject constructor(
         )
     }
 
+    /**
+     * 按选择模式解析当前应展示的 active 包。
+     * MANUAL：钉选优先，否则内置/任意兼容；AUTO：场景兼容中 versionCode 最新。
+     */
     private fun resolveActive(
         installed: List<AlgorithmPackageInfo>,
         config: AlgorithmConfig,
@@ -427,11 +457,14 @@ class AlgorithmCatalogController @Inject constructor(
         val message: String?,
     )
 
+    /**
+     * 拉取目录（当前为本地样本 + 源可达性模拟）。
+     * 目录检查体积极小，不受“仅 Wi-Fi 下载大文件”限制。
+     */
     private fun fetchCatalog(
         channel: AlgorithmChannel,
         preference: UpdateSourcePreference,
     ): CatalogFetch {
-        // 目录检查体积极小，不受“仅 Wi-Fi 下载大文件”限制；此处仅模拟可达性与镜像。
         val online = isNetworkAvailable()
         if (!online) {
             error("网络不可用")

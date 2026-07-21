@@ -22,7 +22,14 @@ import kotlin.math.max
 import kotlin.math.min
 
 
-/** Semantic spacing tokens scaled by the user's theme density preference. */
+/**
+ * HZZS Material 3 主题与间距令牌。
+ *
+ * 主题包只存语义控制（mode / preset / 缩放），不存组件级裸色，
+ * 以便 Material 组件演进时导入主题仍稳定。
+ */
+
+/** 语义间距令牌；随用户 [ThemeConfig.spacingScale] 缩放。 */
 data class HzzsDimensions(
     val compactGap: Dp,
     val sectionGap: Dp,
@@ -30,6 +37,7 @@ data class HzzsDimensions(
     val screenPadding: Dp,
 )
 
+/** CompositionLocal：页面与组件读取统一间距。 */
 val LocalHzzsDimensions = staticCompositionLocalOf {
     HzzsDimensions(
         compactGap = 8.dp,
@@ -39,6 +47,7 @@ val LocalHzzsDimensions = staticCompositionLocalOf {
     )
 }
 
+/** 内置调色板种子色（非 DYNAMIC / CUSTOM 时使用）。 */
 private val presetSeeds = mapOf(
     ThemePreset.FIRE_ORANGE to Color(0xFFFF6B2C),
     ThemePreset.CORAL to Color(0xFFC73650),
@@ -51,10 +60,12 @@ private val presetSeeds = mapOf(
 )
 
 /**
- * Application theme generated from a compact seed palette.
+ * 根据 [ThemeConfig] 生成应用主题并包裹 [content]。
  *
- * Theme files store semantic controls rather than raw component colors. This
- * keeps imported themes stable when Material 3 components evolve.
+ * 选择顺序：系统动态取色（Android 12+ 且 preset=DYNAMIC）→
+ * 高对比方案 → 种子色方案（含 AMOLED 真黑）。
+ * 同时提供缩放后的 Typography / Shapes / [LocalHzzsDimensions]，
+ * 并在 Activity 上同步状态栏图标明暗。
  */
 @Composable
 fun HzzsTheme(
