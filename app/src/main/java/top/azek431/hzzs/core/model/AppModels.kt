@@ -2,10 +2,27 @@ package top.azek431.hzzs.core.model
 
 import androidx.annotation.ColorInt
 
-/** Global light/dark behavior. AMOLED is a dark scheme with a true-black canvas. */
+/**
+ * 应用级稳定配置模型。
+ *
+ * 职责：
+ * - 定义主题、悬浮窗、截图、场景、自动操作、MCP、开发者、更新、算法等配置结构
+ * - 作为 DataStore / 设置草稿 / 运行时快照的共享类型
+ *
+ * 约定：
+ * - 本文件尽量少依赖 Android 运行时（仅 [ColorInt] 注解）
+ * - 默认值必须安全：自动操作关、MCP 关、截图 AUTO 不升权
+ * - 修改字段时同步：`validated()`、JSON 编解码、设置 UI、MCP schema、单测
+ */
+
+/** 应用明暗模式。AMOLED 为真黑背景的深色方案。 */
 enum class AppThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
 
-/** Built-in palettes. CUSTOM uses [ThemeConfig.customSeed]. */
+/**
+ * 内置调色板。
+ *
+ * [CUSTOM] 使用 [ThemeConfig.customSeed]；[DYNAMIC] 走系统动态取色（支持时）。
+ */
 enum class ThemePreset {
     DYNAMIC,
     FIRE_ORANGE,
@@ -19,9 +36,10 @@ enum class ThemePreset {
     CUSTOM,
 }
 
-/** Density of information shown by the floating overlay. */
+/** 悬浮窗信息密度：极简 / 紧凑 / 调试 HUD。 */
 enum class OverlayStyle { MINIMAL, COMPACT, DEBUG_HUD }
 
+/** 悬浮窗视觉主题；可与应用主题解耦。 */
 enum class OverlayTheme {
     FOLLOW_APP,
     AUTO_CONTRAST,
@@ -35,32 +53,62 @@ enum class OverlayTheme {
     CUSTOM,
 }
 
+/** 悬浮窗内容排布方向。 */
 enum class OverlayOrientation { HORIZONTAL, VERTICAL }
 
+/** 游戏档案 ID；当前仅支持《火崽崽奇妙屋》。 */
 enum class GameProfileId { HUO_ZAI_ZAI_WONDER_HOUSE }
 
-/** Two seasons of the same game. The gameplay coordinate system is shared. */
+/**
+ * 赛季 ID。
+ *
+ * 枚举序与 C++ `scene` 参数一致：`SWEET_FACTORY = 0`，`BAMBOO_BOOKSTORE = 1`。
+ * 两赛季共用比例坐标体系。
+ */
 enum class SceneId { SWEET_FACTORY, BAMBOO_BOOKSTORE }
 
 /**
- * Capture backends exposed to the user. AUTO never silently escalates to Shell or Root.
- * SHIZUKU is the supported form of an ADB/Shell-backed in-app capability.
+ * 截图后端。
+ *
+ * 安全不变量：[AUTO] 只选择低权限 MediaProjection，**永不**探测 Root / Shizuku / 无障碍。
+ * [SHIZUKU] / [ROOT] / [ACCESSIBILITY] 仅当用户显式选择时启用。
  */
 enum class CaptureBackend { AUTO, MEDIA_PROJECTION, ACCESSIBILITY, SHIZUKU, ROOT }
 
+/** 应用更新通道。 */
 enum class UpdateChannel { STABLE, BETA }
 
-/** 应用/算法下载来源偏好；AUTO 默认 Gitee，不可达时回退 GitHub。 */
+/**
+ * 应用/算法下载来源偏好。
+ *
+ * [AUTO]：默认优先 Gitee，不可达时回退 GitHub。
+ */
 enum class UpdateSourcePreference { AUTO, PREFER_GITEE, PREFER_GITHUB }
 
-/** 算法选择方式：自动取兼容最新官方包，或手动钉选已安装版本。 */
+/**
+ * 算法选择方式。
+ *
+ * [AUTO] 取兼容的最新官方包；[MANUAL] 钉选已安装版本。
+ */
 enum class AlgorithmSelectionMode { AUTO, MANUAL }
 
-/** 算法发布通道，与应用更新通道独立。 */
+/** 算法发布通道，与应用 [UpdateChannel] 相互独立。 */
 enum class AlgorithmChannel { STABLE, BETA }
 
+/**
+ * 玩家水平基准策略。
+ *
+ * - [FIXED_RATIO]：使用配置的固定 X 比例
+ * - [DETECT_ONCE]：启动后检测一次并锁定
+ * - [CONTINUOUS]：持续跟随检测结果
+ */
 enum class PlayerReferenceMode { FIXED_RATIO, DETECT_ONCE, CONTINUOUS }
 
+/**
+ * MCP 权限级别（从紧到松）。
+ *
+ * 即使 [FULL_ACCESS] 也不能绕过系统录屏 / 悬浮窗 / 无障碍 / 安装界面。
+ */
 enum class McpPermissionLevel {
     READ_ONLY,
     ASK_EVERY_TIME,
@@ -68,7 +116,12 @@ enum class McpPermissionLevel {
     FULL_ACCESS,
 }
 
-/** Stable obstacle identifiers used by settings, C++, reports and theme-season filters. */
+/**
+ * 稳定障碍标识。
+ *
+ * 设置过滤、C++ 位掩码、报告与赛季过滤器共用此集合。
+ * 增删时必须同步 Kotlin 枚举、JNI 位、C++ Kind 与标注工具。
+ */
 enum class ObstacleKind {
     POISON_BOTTLE,
     CAKE_STRUCTURE,
@@ -79,6 +132,11 @@ enum class ObstacleKind {
     HANGING_BRUSH,
 }
 
+/**
+ * 应用主题配置。
+ *
+ * 可在设置中临时预览；保存后写入 DataStore。
+ */
 data class ThemeConfig(
     val mode: AppThemeMode = AppThemeMode.SYSTEM,
     val preset: ThemePreset = ThemePreset.FIRE_ORANGE,
@@ -92,6 +150,11 @@ data class ThemeConfig(
     val highContrast: Boolean = false,
 )
 
+/**
+ * 悬浮窗配置。
+ *
+ * 可预览。真正创建/更新窗口由 `OverlayController` 在主线程完成。
+ */
 data class OverlayConfig(
     val enabled: Boolean = true,
     val style: OverlayStyle = OverlayStyle.MINIMAL,
@@ -112,7 +175,11 @@ data class OverlayConfig(
     val lockPosition: Boolean = false,
 )
 
-/** Visible game area in normalized full-screen coordinates. */
+/**
+ * 可见游戏区域，全屏归一化坐标。
+ *
+ * 视觉引擎在视口内裁剪分析；默认全屏。
+ */
 data class ViewportConfig(
     val left: Float = 0f,
     val top: Float = 0f,
@@ -123,46 +190,75 @@ data class ViewportConfig(
     val height: Float get() = bottom - top
 }
 
+/**
+ * 单赛季视觉阈值（用户可调部分）。
+ *
+ * 更细的算法参数见声明式 [top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile]，
+ * 两者职责不同：本结构偏“用户设置”，算法包偏“发布参数”。
+ */
 data class VisionThresholds(
-    /** Native detector chooses an adaptive stride around this work width. */
+    /** Native 检测器围绕该工作宽度选择自适应步长。 */
     val workWidth: Int = 384,
     val minimumConfidence: Float = 0.72f,
     val stableFrames: Int = 2,
     val playerReferenceMode: PlayerReferenceMode = PlayerReferenceMode.FIXED_RATIO,
-    /** Horizontal player reference in viewport-normalized coordinates. */
+    /** 固定玩家水平参考，视口归一化 X。 */
     val fixedPlayerXRatio: Float = 0.185f,
     val behindPlayerMarginRatio: Float = 0.018f,
-    /** Evaluation target only. It is not an accuracy claim. */
+    /**
+     * 评估用边界容差（相对玩家宽度）。
+     * **不是**准确率承诺，仅用于数据集工具。
+     */
     val boundaryTolerancePlayerWidthRatio: Float = 0.05f,
 )
 
+/**
+ * 单赛季配置。
+ *
+ * @property disabledObstacles 空集合表示全部障碍类别启用
+ */
 data class SceneConfig(
     val sceneId: SceneId,
     val enabled: Boolean = true,
-    /** Empty means every obstacle category is enabled. */
     val disabledObstacles: Set<ObstacleKind> = emptySet(),
     val thresholds: VisionThresholds = VisionThresholds(),
 )
 
+/**
+ * 自动操作配置。
+ *
+ * 默认关闭。导入/迁移不得静默开启。
+ * 生效前还须：免责声明版本、视觉运行中、无障碍前台白名单、会话 arm（若要求）等。
+ */
 data class AutomationConfig(
     val enabled: Boolean = false,
     val disclaimerAcceptedVersion: Int = 0,
+    /**
+     * 为 true（默认）时，每次运行会话须在运行页手动解锁（arm）。
+     * 为 false 时，按当前前台白名单窗口自动规划（仍受其它门控约束）。
+     */
     val requireSessionArm: Boolean = true,
     /**
-     * 竹影书屋自动操作在历史 main 线中默认锁定，需用户单独确认实验风险。
+     * 竹影书屋实验性自动操作锁。
+     *
      * 与会话 arm 叠加：即使已 arm，未开启本开关时也不对竹影场景规划动作。
      */
     val bambooExperimentalAutoAction: Boolean = false,
+    /** 与内置默认集合求交后的允许包名。 */
     val allowedPackages: Set<String> = DEFAULT_ALLOWED_PACKAGES,
     val maxActionsPerSecond: Int = 4,
     val minimumSceneConfidence: Float = 0.82f,
     val retryLimit: Int = 1,
-    /** 相对玩家宽度的触发距离（甜甜圈，对齐 main VisionActionPlanner）。 */
+    /** 相对玩家宽度的触发距离（甜甜圈，对齐历史 main 规划器）。 */
     val sweetTriggerDistancePlayerWidths: Float = 1.50f,
     /** 相对玩家宽度的触发距离（竹影）。 */
     val bambooTriggerDistancePlayerWidths: Float = 1.35f,
 ) {
     companion object {
+        /**
+         * 默认允许的前台包（快手系小游戏容器）。
+         * 用户列表会与此集合求交，防止任意包名注入。
+         */
         val DEFAULT_ALLOWED_PACKAGES: Set<String> = setOf(
             "com.smile.gifmaker",
             "com.kuaishou.nebula",
@@ -170,6 +266,12 @@ data class AutomationConfig(
     }
 }
 
+/**
+ * MCP 本地服务配置。
+ *
+ * 默认关闭；启用后仅 loopback + 随机 Bearer。
+ * 权限型字段，设置预览阶段不启动服务。
+ */
 data class McpConfig(
     val enabled: Boolean = false,
     val permissionLevel: McpPermissionLevel = McpPermissionLevel.ASK_EVERY_TIME,
@@ -178,6 +280,11 @@ data class McpConfig(
     val allowDebugFrames: Boolean = false,
 )
 
+/**
+ * 开发者选项。
+ *
+ * 需关于页连续点击版本号解锁；预览阶段不强制切换截图后端等副作用。
+ */
 data class DeveloperConfig(
     val enabled: Boolean = false,
     val forceCaptureBackend: CaptureBackend? = null,
@@ -187,11 +294,17 @@ data class DeveloperConfig(
     val nativeBenchmarkIterations: Int = 200,
 )
 
+/** 首次引导与免责声明接受状态。 */
 data class OnboardingConfig(
     val completed: Boolean = false,
     val acceptedDisclaimerVersion: Int = 0,
 )
 
+/**
+ * 应用更新策略。
+ *
+ * 检查/下载是即时任务；[ignoredVersionCode] 用于用户忽略某版本。
+ */
 data class UpdateConfig(
     val channel: UpdateChannel = UpdateChannel.STABLE,
     val autoCheck: Boolean = true,
@@ -203,8 +316,9 @@ data class UpdateConfig(
 /**
  * 算法包选择与更新策略。
  *
- * 选择模式、通道与手动钉选属于草稿；下载/检查是即时任务，不写入本配置。
- * 手动下载的算法不会在保存前自动激活。
+ * 选择模式、通道与手动钉选属于可保存配置；
+ * 下载/检查是即时任务，不写入本结构。
+ * 手动下载的算法不会在“保存设置”前自动激活。
  */
 data class AlgorithmConfig(
     val selectionMode: AlgorithmSelectionMode = AlgorithmSelectionMode.AUTO,
@@ -215,6 +329,12 @@ data class AlgorithmConfig(
     val autoDownload: Boolean = false,
 )
 
+/**
+ * 完整应用配置快照。
+ *
+ * DataStore schema 版本见 [CURRENT_SCHEMA]。
+ * 默认赛季为竹影书屋；自动操作与 MCP 默认关闭。
+ */
 data class AppConfig(
     val schemaVersion: Int = CURRENT_SCHEMA,
     val theme: ThemeConfig = ThemeConfig(),
@@ -232,11 +352,22 @@ data class AppConfig(
     val algorithm: AlgorithmConfig = AlgorithmConfig(),
 ) {
     companion object {
+        /** DataStore 配置 schema 版本；迁移逻辑依赖此常量。 */
         const val CURRENT_SCHEMA = 6
+
+        /**
+         * 自动操作免责声明版本。
+         * 用户接受版本低于此值时不得 arm。
+         */
         const val DISCLAIMER_VERSION = 1
     }
 }
 
+/**
+ * 运行时对外状态（UI / MCP 只读）。
+ *
+ * 由 [top.azek431.hzzs.data.vision.VisionRuntimeController] 作为唯一所有者更新。
+ */
 data class RuntimeStatus(
     val running: Boolean = false,
     val captureReady: Boolean = false,
