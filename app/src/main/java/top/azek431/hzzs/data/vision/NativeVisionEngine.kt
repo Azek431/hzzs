@@ -28,8 +28,18 @@ import javax.inject.Singleton
 import kotlin.system.measureNanoTime
 
 /**
- * JNI 适配层：帧分析只读当前算法 generation 对应的不可变快照。
- * 配置切换经 [configureAlgorithm] 在安全点完成，并与 native analyze 串行。
+ * Native 视觉引擎的 JNI 适配层，实现领域 [VisionEngine]。
+ *
+ * 职责：
+ * - 将 [VisionFrame] / 场景与视口配置映射为 [NativeVision.analyze] 调用；
+ * - 把 native 检测结果还原为全屏归一化坐标的 [Detection] / [VisionResult]；
+ * - 经 [configureAlgorithm] 在安全点切换算法快照，并与 analyze 串行（由调用方帧循环保证）。
+ *
+ * 输入输出：
+ * - analyze：只读当前 [ActiveAlgorithmProvider] 的不可变激活快照，输出经 [VisionResultValidator] 消毒的结果；
+ * - 像素缓冲仅在 JNI 调用期间借用，本类不持有帧数组地址。
+ *
+ * fail-closed：库不可用、调用异常、非法框/置信度均丢弃为错误结果或跳过该检测项。
  */
 @Singleton
 class NativeVisionEngine @Inject constructor(
@@ -37,6 +47,12 @@ class NativeVisionEngine @Inject constructor(
 ) : VisionEngine {
     private val lastActivation = AtomicReference(algorithmProvider.current())
 
+    /**
+     * 在 Default 调度器上分析一帧。
+     *
+     * 线程：挂起函数，实际工作在 [Dispatchers.Default]；调用方应保证与 [configureAlgorithm] 不并发半热切换。
+     * 坐标：native 返回视口裁剪内归一化框，再经 [toFullScreen] 映射到全屏 `[0,1]`。
+     */
     override suspend fun analyze(
         frame: VisionFrame,
         config: SceneConfig,
@@ -55,6 +71,7 @@ class NativeVisionEngine @Inject constructor(
         var nativeResult: Result<NativeVision.Result>? = null
         val elapsed = measureNanoTime {
             nativeResult = runCatching {
+                // JNI 仅借用 frame.argb，调用返回后不得再访问该数组地址。
                 NativeVision.analyze(
                     scene = config.sceneId.ordinal,
                     pixels = frame.argb,
@@ -121,6 +138,13 @@ class NativeVisionEngine @Inject constructor(
         )
     }
 
+    /**
+     * 在安全点配置算法：先 Kotlin 侧校验与激活，再下推 native。
+     *
+     * 失败路径 fail-closed：校验失败或 native 拒绝时回退内置 profile，尽量保持引擎可用，
+     * 并向调用方返回 failure；成功则推进 generation 并更新 [lastActivation]。
+     * 应由帧循环外或帧循环安全点调用，避免与 analyze 半热竞态。
+     */
     override fun configureAlgorithm(profile: AlgorithmRuntimeProfile): Result<AlgorithmActivation> {
         val validated = AlgorithmProfileValidator.validate(profile)
         if (validated.isFailure) {
@@ -170,6 +194,10 @@ class NativeVisionEngine @Inject constructor(
         return Result.success(activation)
     }
 
+    /**
+     * 读取当前算法 generation：优先 native 侧，库不可用时回落 Kotlin 激活快照。
+     * 帧循环用该值检测算法切换并进入安全点。
+     */
     override fun activeAlgorithmGeneration(): Long {
         val kotlinGen = algorithmProvider.current().generation
         if (!NativeVision.isAvailable) return kotlinGen
@@ -178,14 +206,17 @@ class NativeVisionEngine @Inject constructor(
 
     override fun currentActivation(): AlgorithmActivation = algorithmProvider.current()
 
+    /**
+     * 仅重置 native 分析侧瞬时状态，不强制回退内置算法。
+     * 算法回退请调用 [configureAlgorithm]（[AlgorithmRuntimeProfile.builtin]）。
+     */
     override fun reset() {
-        // 仅重置 native 分析侧状态，不强制回退内置算法。
-        // 算法回退请调用 configureAlgorithm(AlgorithmRuntimeProfile.builtin())。
         if (NativeVision.isAvailable) {
             runCatching { NativeVision.reset() }
         }
     }
 
+    /** 构造无检测的错误结果，仍带上当前算法元数据便于 UI/诊断。 */
     private fun errorResult(
         config: SceneConfig,
         activation: AlgorithmActivation,
@@ -205,6 +236,7 @@ class NativeVisionEngine @Inject constructor(
         algorithmLoadError = activation.loadError,
     )
 
+    /** 视口内归一化框 → 全屏归一化框；非法结果返回 null（fail-closed 丢弃）。 */
     private fun NormalizedRect.toFullScreen(viewport: ViewportConfig): NormalizedRect? =
         NormalizedRect.fromUnchecked(
             left = viewport.left + left * viewport.width,
@@ -213,10 +245,13 @@ class NativeVisionEngine @Inject constructor(
             bottom = viewport.top + bottom * viewport.height,
         )
 
+    /**
+     * 根据场景禁用的障碍构造 native kind 位掩码。
+     * Native Kind 保留 ordinal 0 为 PLAYER；障碍 ordinal 从 bit 1 起。
+     */
     private fun enabledKindMask(config: SceneConfig): Int {
         var mask = ALL_NATIVE_KINDS_MASK
         config.disabledObstacles.forEach { obstacle ->
-            // Native Kind reserves ordinal 0 for PLAYER; obstacle ordinals start at bit 1.
             mask = mask and (1 shl (obstacle.ordinal + 1)).inv()
         }
         return mask
@@ -228,6 +263,7 @@ class NativeVisionEngine @Inject constructor(
     }
 }
 
+/** Hilt 绑定：将 [NativeVisionEngine] / [DefaultActiveAlgorithmProvider] 接到领域接口。 */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class VisionEngineBindings {
