@@ -28,12 +28,17 @@ import javax.inject.Singleton
 import kotlin.math.max
 
 /**
- * Main-thread-owned persistent overlay.
+ * 主线程持有的持久悬浮窗控制器。
  *
- * Click-through mode uses a full-screen, non-touchable Canvas so detection boxes
- * never block the game. Interactive mode intentionally switches to a small HUD
- * window that can be dragged and snapped to an edge; drawing a touchable
- * full-screen window would swallow every game gesture.
+ * 线程不变量：所有 WindowManager.add/update/remove 与 View 更新必须在主线程
+ *（本类统一 [Dispatchers.Main.immediate]）。
+ *
+ * 交互模式：
+ * - 穿透（clickThrough）：全屏 FLAG_NOT_TOUCHABLE Canvas，检测框不挡游戏手势。
+ * - 交互：小 HUD 可拖拽贴边；禁止可触摸全屏窗，否则会吞掉全部游戏输入。
+ *
+ * 安全：无悬浮窗权限或配置关闭时立即移除视图；add/update 失败 fail-closed 隐藏。
+ * 坐标：检测框为视口归一化 [0,1]，仅在绘制层换算像素。
  */
 @Singleton
 class OverlayController @Inject constructor(
@@ -118,6 +123,7 @@ class OverlayController @Inject constructor(
         }
     }
 
+    /** 主线程拖拽交互窗；锁定位置或穿透模式忽略。松手且开启贴边时吸附左右边缘。 */
     private fun moveInteractiveWindow(deltaX: Int, deltaY: Int, released: Boolean) {
         val current = view ?: return
         val params = layoutParams ?: return
@@ -140,6 +146,10 @@ class OverlayController @Inject constructor(
         listOf(width, height, type, flags, x, y)
 }
 
+/**
+ * 悬浮窗内容 View：穿透时绘制归一化检测框；交互时绘制可拖 HUD。
+ * 内容签名去重避免无变化 invalidate；全屏检测框仅在不可触摸模式绘制。
+ */
 private class VisionOverlayView(
     context: Context,
     private val onMove: (deltaX: Int, deltaY: Int, released: Boolean) -> Unit,
@@ -285,7 +295,7 @@ private class VisionOverlayView(
             drawCoordinateGrid(canvas, accent, scale)
         }
 
-        // Full-screen boxes are only safe in non-touchable mode.
+        // 全屏检测框仅在不可触摸模式下安全绘制。
         if (config.showBoxes && config.clickThrough) {
             current.player?.takeIf { config.style == OverlayStyle.DEBUG_HUD }?.let {
                 drawDetection(canvas, it, Color.WHITE, strokeWidth, "玩家")
@@ -414,6 +424,7 @@ private class VisionOverlayView(
         }
     }
 
+    /** 将视口归一化边界映射到当前 View 像素并描边。 */
     private fun drawDetection(
         canvas: Canvas,
         detection: Detection,

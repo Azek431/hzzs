@@ -58,10 +58,15 @@ import top.azek431.hzzs.R
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 
+/** 按 [CaptureBackend] 解析具体帧源实现。 */
 interface FrameSourceFactory {
     fun source(backend: CaptureBackend): FrameSource
 }
 
+/**
+ * 默认帧源工厂：将枚举映射到各后端单例。
+ * 安全不变量：工厂本身不做能力探测或权限请求。
+ */
 @Singleton
 class DefaultFrameSourceFactory @Inject constructor(
     private val automatic: AutoFrameSource,
@@ -87,15 +92,24 @@ abstract class CaptureBindings {
 }
 
 /**
- * AUTO is intentionally the least-privileged stable path. It uses only
- * MediaProjection and never probes Accessibility, Shizuku or Root. Advanced
- * backends are available only after the user explicitly selects them.
+ * AUTO 路径：仅委托 [MediaProjectionFrameSource]。
+ *
+ * 安全不变量（硬性）：
+ * - 只走低权限公开 MediaProjection，不探测、不启用无障碍 / Shizuku / Root。
+ * - 高级后端必须由用户显式选择，配置导入与迁移不得静默升权。
  */
 @Singleton
 class AutoFrameSource @Inject constructor(
     private val mediaProjection: MediaProjectionFrameSource,
 ) : FrameSource by mediaProjection
 
+/**
+ * MediaProjection 持续帧源。
+ *
+ * 职责：申请系统录屏授权、前台服务保活、VirtualDisplay + ImageReader 产出 [CapturedFrame]。
+ * 线程：Image 回调在专用 HandlerThread；状态与通道可跨线程；未投递帧在 Channel 回调中 close。
+ * 所有权：池租约绑定到帧 close；stop/失败时排空通道释放缓冲。
+ */
 @Singleton
 class MediaProjectionFrameSource @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -181,6 +195,10 @@ class MediaProjectionFrameSource @Inject constructor(
     }
 }
 
+/**
+ * 一次性录屏授权 Activity。
+ * 职责：拉起系统 MediaProjection 授权 UI；成功则启动前台捕获服务，取消则回写可恢复失败。
+ */
 @AndroidEntryPoint
 class CapturePermissionActivity : ComponentActivity() {
     @Inject lateinit var source: MediaProjectionFrameSource
@@ -225,6 +243,13 @@ class CapturePermissionActivity : ComponentActivity() {
     }
 }
 
+/**
+ * MediaProjection 前台服务：持有 VirtualDisplay / ImageReader 会话。
+ *
+ * 线程：DISPLAY 优先级 HandlerThread 处理 onImageAvailable；主线程注册 projection 回调。
+ * 旋转：同一 projection token 上 resize + 换 surface，避免 Android 14+ 二次 VirtualDisplay。
+ * 安全：未知/空 Intent 直接 stopSelf 失败关闭；通知中可一键停止捕获。
+ */
 @AndroidEntryPoint
 class MediaProjectionCaptureService : Service() {
     @Inject lateinit var source: MediaProjectionFrameSource
@@ -243,7 +268,7 @@ class MediaProjectionCaptureService : Service() {
         when (intent?.action) {
             ACTION_START -> startCapture(intent)
             ACTION_STOP -> cleanup(updateStateToIdle = true, stopProjection = true, stopService = true)
-            else -> stopSelf() // Sensitive service fails closed for null/unknown intents.
+            else -> stopSelf() // 敏感服务对空/未知 Intent 失败关闭
         }
         return START_NOT_STICKY
     }
@@ -295,10 +320,8 @@ class MediaProjectionCaptureService : Service() {
 
 
     /**
-     * Keeps the same MediaProjection/VirtualDisplay session while replacing the
-     * ImageReader surface after rotation or display-size changes. Android 14+
-     * treats a projection token as a single capture session, so creating a
-     * second VirtualDisplay from the same token is deliberately avoided.
+     * 保持同一 MediaProjection / VirtualDisplay 会话，仅在旋转或显示尺寸变化时替换 ImageReader surface。
+     * Android 14+ 将 projection token 视为单次捕获会话，禁止用同一 token 再创建第二个 VirtualDisplay。
      */
     private fun createOrResizeDisplay(activeProjection: MediaProjection) {
         val metrics = resources.displayMetrics
@@ -431,6 +454,11 @@ class MediaProjectionCaptureService : Service() {
     }
 }
 
+/**
+ * 无障碍截图后端（Android 11+）。
+ * 安全：仅在用户显式选择且服务已连接时就绪；AUTO 路径永不启用。
+ * 线程：回调在主线程协调，像素拷贝在调用方协程；Bitmap 必须 recycle。
+ */
 @Singleton
 class AccessibilityFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
@@ -497,6 +525,7 @@ class AccessibilityFrameSource @Inject constructor() : FrameSource {
 /**
  * 通过 Shizuku 执行 `screencap -p` 的可选截图后端。
  * 不会在 AUTO 路径启用；需要用户显式选择，并已安装/授权 Shizuku。
+ * 输出字节数有上限；失败 fail-closed 返回 null。
  */
 @Singleton
 class ShizukuFrameSource @Inject constructor() : FrameSource {
@@ -662,6 +691,10 @@ class ShizukuFrameSource @Inject constructor() : FrameSource {
     }
 }
 
+/**
+ * Root 实验后端：`su -c screencap -p`。
+ * 安全：仅用户显式选择；AUTO 永不探测 Root。stdout/stderr 有字节上限与超时，超时强制销毁进程。
+ */
 @Singleton
 class RootFrameSource @Inject constructor() : FrameSource {
     private val mutableState = MutableStateFlow<CaptureState>(CaptureState.Idle)
@@ -788,7 +821,7 @@ private suspend fun waitForExit(process: java.lang.Process, timeoutMs: Long): Bo
     return runCatching { process.exitValue() }.isSuccess
 }
 
-/** Process.destroyForcibly() is unavailable on Android 7.0/7.1. */
+/** Process.destroyForcibly() 在 Android 7.0/7.1 不可用，按 API 分支销毁。 */
 private fun java.lang.Process.destroyCompat() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         destroyForcibly()
@@ -805,6 +838,7 @@ private suspend fun throttle(minimumIntervalMs: Long, lastCaptureAtNanos: Long) 
     if (remainingNanos > 0L) delay((remainingNanos + 999_999L) / 1_000_000L)
 }
 
+/** 宽高与像素总量边界校验；越界返回 null 以丢弃异常帧。 */
 private fun safePixelCount(width: Int, height: Int): Int? {
     if (width <= 0 || height <= 0 || width > MAX_FRAME_DIMENSION || height > MAX_FRAME_DIMENSION) return null
     val count = width.toLong() * height.toLong()

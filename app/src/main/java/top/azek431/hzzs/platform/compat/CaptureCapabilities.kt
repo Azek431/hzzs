@@ -11,12 +11,19 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 
-/** Version-level availability only. Permission/connection readiness is evaluated separately. */
+/**
+ * 仅表示当前系统版本是否“支持该后端”，不包含运行时权限/连接就绪。
+ * 业务与 UI 应集中调用此门闩，禁止散落 API 判断。
+ */
 fun CaptureBackend.isSupportedOnThisDevice(): Boolean = when (this) {
     CaptureBackend.AUTO, CaptureBackend.MEDIA_PROJECTION, CaptureBackend.ROOT, CaptureBackend.SHIZUKU -> true
     CaptureBackend.ACCESSIBILITY -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 }
 
+/**
+ * 单一后端的能力快照：支持度、就绪、是否推荐，以及设置页展示文案。
+ * [recommended] 仅供 UI 提示，不强制切换。
+ */
 data class CaptureCapability(
     val backend: CaptureBackend,
     val supported: Boolean,
@@ -26,7 +33,14 @@ data class CaptureCapability(
     val summary: String,
 )
 
-/** Centralizes Android-version checks so business and UI code never scatter API gates. */
+/**
+ * 截图后端能力解析中心：聚合版本门闩、无障碍连接、Shizuku 安装/授权状态。
+ *
+ * 安全不变量：
+ * - AUTO 始终标记为推荐且就绪文案声明“不自动尝试 Root/Shell”；
+ * - 探测 Shizuku 仅用于展示，不会在 AUTO 路径启用；
+ * - Root 的 ready 固定 false（需用户在运行路径显式探测），避免误导“已可用”。
+ */
 @Singleton
 class CaptureCapabilityResolver @Inject constructor(
     @param:ApplicationContext private val context: Context,
