@@ -1,3 +1,7 @@
+/**
+ * 甜甜圈主路径实现：颜色启发式 + 降采样工作图。
+ * 热路径避免大块堆分配；输入 FrameView 像素仅借用。
+ */
 #include "HzzsVisionCore.h"
 
 #include <algorithm>

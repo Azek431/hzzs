@@ -1,3 +1,9 @@
+/**
+ * 算法运行时：内置 profile、严格校验、进程内单例切换。
+ *
+ * 与 Kotlin AlgorithmProfileValidator 范围策略保持一致；
+ * 校验失败不得替换当前快照（由 AlgorithmRuntime::configure 保证）。
+ */
 #include "algorithm_runtime.h"
 
 #include <algorithm>

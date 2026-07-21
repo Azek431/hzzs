@@ -1,5 +1,15 @@
 #pragma once
 
+/**
+ * 声明式算法运行时（CC-1）Native 侧。
+ *
+ * 与 Kotlin domain.vision.AlgorithmRuntimeProfile 对齐：
+ * - configure 时整份校验并替换不可变快照，generation++
+ * - analyze 只读当前 generation，不在帧路径解析 JSON
+ * - 不得包含手势 / Root / 包白名单等安全门禁字段
+ * - 失败回退 builtin.hzzs.v1
+ */
+
 #include <atomic>
 #include <cstdint>
 #include <mutex>

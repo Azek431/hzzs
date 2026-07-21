@@ -1,3 +1,7 @@
+/**
+ * 竹影底层检测实现（历史引擎体）。
+ * 仅被 BambooVisionCore 调用；产品层请走 hzzs::analyze。
+ */
 #include "BambooVisionEngine.h"
 #include <algorithm>
 #include <cmath>

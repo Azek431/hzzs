@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * 颜色通道拆分与连通域标记（启发式回退路径共用）。
+ *
+ * ARGB 打包约定与 Android Bitmap / JNI int 数组一致（高位 A，低位 B）。
+ * components() 在降采样网格上 BFS，输出像素坐标系包围盒。
+ */
 #include "vision_types.h"
 #include <algorithm>
 #include <cmath>
@@ -8,10 +14,20 @@
 #include <vector>
 
 namespace hzzs {
+
+/** 像素坐标系下的连通分量包围盒。 */
 struct Component { int left, top, right, bottom, pixels; };
+
 inline int red(uint32_t p) { return static_cast<int>((p >> 16) & 0xff); }
 inline int green(uint32_t p) { return static_cast<int>((p >> 8) & 0xff); }
 inline int blue(uint32_t p) { return static_cast<int>(p & 0xff); }
+
+/**
+ * 按颜色谓词提取连通域。
+ * @param predicate (r,g,b,px,py) -> 是否前景
+ * @param stride 采样步长，越大越快越粗
+ * @param min_pixels 降采样网格上的最少前景点数
+ */
 inline std::vector<Component> components(
     const FrameView& frame,
     const std::function<bool(int,int,int,int,int)>& predicate,

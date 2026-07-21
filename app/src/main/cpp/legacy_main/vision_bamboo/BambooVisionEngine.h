@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * 竹影底层引擎 C ABI（历史协议 v4）。
+ *
+ * BambooVisionCore 在此之上包装为 C++ 结构；
+ * 产品路径只经 vision_engine 统一出口，避免双协议外泄到 Kotlin。
+ */
 #include <cstdint>
 
 extern "C" {

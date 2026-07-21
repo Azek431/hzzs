@@ -1,3 +1,13 @@
+/**
+ * JNI 边界：Kotlin NativeVision <-> C++ vision_engine / algorithm_runtime。
+ *
+ * 职责：
+ * - 校验帧尺寸与数组长度，借用 Java int[]（GetPrimitiveArrayCritical + JNI_ABORT）
+ * - 视口裁剪后调用 analyze；结果编码为 Java Detection/Result
+ * - configureAlgorithm 与 analyze 共用 g_analysis_mutex，禁止半热切换
+ *
+ * 不变量：Native 不持有 Java 数组地址跨调用；异常一律 clear 并返回失败对象。
+ */
 #include <jni.h>
 
 #include <algorithm>
@@ -27,6 +37,10 @@ bool clear_if_exception(JNIEnv* env) {
     return true;
 }
 
+/**
+ * 关键区借用 Java int[] 像素；析构时 JNI_ABORT 释放，不回写。
+ * 作用域必须短于 JNI 调用，禁止跨线程持有。
+ */
 class CriticalIntArray final {
 public:
     CriticalIntArray(JNIEnv* env, jintArray array)
