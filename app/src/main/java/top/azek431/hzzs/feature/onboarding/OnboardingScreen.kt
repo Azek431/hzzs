@@ -179,16 +179,16 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun IntroPage() = HzzsSection("项目介绍", "火崽崽奇妙屋本地数据分析工具") {
-    Text("HZZS 在设备本地读取你主动授权的屏幕帧，识别赛季障碍并展示结构化结果。它不是游戏官方产品，也不保证游戏结果、账号安全或持续兼容。")
-    Text("默认只启用低权限的数据分析。Root、Shizuku、无障碍自动操作与 MCP 完整访问都需要你主动开启。")
+private fun IntroPage() = HzzsSection("这是什么", "本地画面分析，不是游戏官方产品") {
+    Text("HZZS 在本机处理你授权的屏幕帧，输出障碍识别结果。不保证识别准确或持续兼容。")
+    Text("默认仅低权限分析。Root、Shizuku、自动操作与 MCP 完整访问须你主动开启。")
 }
 
 @Composable
-private fun PrivacyPage() = HzzsSection("隐私与免责声明", "请在继续前理解数据边界") {
-    Text("屏幕帧默认只在本机内存中处理，不上传、不写入相册。仅当你在开发者设置中主动保存调试帧时，图片才会落盘。")
-    Text("自动操作、Root 与第三方 Shell 能力可能引发账号、设备稳定性和隐私风险。使用者应自行判断并承担相应后果。")
-    Text("完成引导代表你已阅读并接受当前版本的简体中文免责声明。")
+private fun PrivacyPage() = HzzsSection("隐私与免责", "继续前请确认边界") {
+    Text("屏幕帧默认仅在本机内存处理，不上传。只有你主动打开调试帧保存时才会落盘。")
+    Text("自动操作、Root 与 Shell 能力有账号与设备风险，须自行判断。")
+    Text("完成引导即表示接受当前版本免责声明。")
 }
 
 @Composable
@@ -303,12 +303,12 @@ private fun OnboardingAutomationRiskDialog(onDismiss: () -> Unit, onConfirm: () 
 
 private data class OnboardingPage(val title: String, val subtitle: String, val icon: ImageVector)
 private val onboardingPages = listOf(
-    OnboardingPage("认识 HZZS", "本地、可控、面向火崽崽奇妙屋", Icons.Rounded.Info),
-    OnboardingPage("隐私与边界", "先了解权限和风险", Icons.Rounded.Security),
+    OnboardingPage("认识 HZZS", "本地分析工具，默认低权限", Icons.Rounded.Info),
+    OnboardingPage("隐私与边界", "本机处理与风险说明", Icons.Rounded.Security),
     OnboardingPage("选择赛季", "甜甜圈或竹影书屋", Icons.Rounded.Analytics),
-    OnboardingPage("截图方式", "优先低权限公开 API", Icons.Rounded.DesktopWindows),
-    OnboardingPage("外观", "主题与悬浮窗", Icons.Rounded.ColorLens),
-    OnboardingPage("自动操作", "默认关闭，按需启用", Icons.Rounded.Tune),
+    OnboardingPage("截图方式", "AUTO 不升权", Icons.Rounded.DesktopWindows),
+    OnboardingPage("外观", "主题与悬浮窗（可预览）", Icons.Rounded.ColorLens),
+    OnboardingPage("自动操作", "默认关闭，需风险确认", Icons.Rounded.Tune),
     OnboardingPage("准备完成", "保存配置并进入首页", Icons.Rounded.CheckCircle),
 )
 

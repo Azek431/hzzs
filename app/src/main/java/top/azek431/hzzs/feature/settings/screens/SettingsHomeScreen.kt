@@ -7,18 +7,16 @@
  */
 package top.azek431.hzzs.feature.settings.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
-import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
+import top.azek431.hzzs.core.designsystem.HzzsCallout
+import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
+import top.azek431.hzzs.core.designsystem.HzzsScrollPage
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.feature.settings.components.SettingsCategoryCard
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
@@ -33,32 +31,28 @@ fun SettingsHomeScreen(
     modifier: Modifier = Modifier,
     selectedRoute: String? = null,
 ) {
-    val dimensions = LocalHzzsDimensions.current
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(dimensions.screenPadding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    HzzsScrollPage(modifier = modifier.fillMaxSize()) {
         item {
             Text(
-                "按分类管理外观、算法、截图与安全选项。子页面共享同一草稿，返回本页不会丢失未保存更改。",
+                "分类管理外观、算法、截图与安全选项。子页共享草稿，返回本页不丢失未保存更改。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        item {
+            HzzsCallout(
+                text = "外观与悬浮窗可即时预览；截图、自动操作、MCP、更新与算法选择需「保存并应用」后生效。",
+                tone = HzzsCalloutTone.INFO,
+            )
+        }
         items(SettingsCategory.entries, key = { it.route }) { category ->
-            val selected = selectedRoute == category.route
             SettingsCategoryCard(
                 title = category.title,
                 description = category.description,
                 summary = category.summary(config, algorithmState),
                 icon = category.icon,
                 onClick = { onOpen(category) },
-                modifier = if (selected) {
-                    Modifier
-                } else {
-                    Modifier
-                },
+                selected = selectedRoute == category.route,
             )
         }
     }

@@ -44,6 +44,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.azek431.hzzs.R
+import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
+import top.azek431.hzzs.core.designsystem.SectionCard
+import top.azek431.hzzs.core.designsystem.HzzsCallout
+import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.DeveloperConfig
 import top.azek431.hzzs.core.model.CaptureBackend
@@ -142,18 +146,23 @@ fun AboutScreen(
         return
     }
 
+    val dimensions = LocalHzzsDimensions.current
     Scaffold(topBar = { TopAppBar(title = { Text("关于") }) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(dimensions.screenPadding),
+            verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap),
         ) {
             item {
-                ElevatedCard {
-                    Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                ElevatedCard(
+                    colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(dimensions.cardPadding), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(56.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(10.dp))
-                        Text("HZZS 火崽崽数据分析", style = MaterialTheme.typography.headlineSmall)
+                        Text("HZZS", style = MaterialTheme.typography.headlineSmall)
                         Text("本地识别 · 多赛季障碍分析 · 高度自定义", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(10.dp))
                         AssistChip(
@@ -188,12 +197,21 @@ fun AboutScreen(
                 }
             }
             item {
-                Text("项目说明", style = MaterialTheme.typography.titleMedium)
-                Text("HZZS 主要用于火崽崽奇妙屋的本地画面分析。截图和识别默认在设备本地完成，不上传游戏画面。自动操作属于高风险可选功能，默认关闭。")
+                SectionCard {
+                    Text("项目说明", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "HZZS 用于火崽崽奇妙屋的本地画面分析。截图与识别默认仅在设备本地完成，不上传画面。自动操作高风险且默认关闭。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             item {
-                Text("免责声明", style = MaterialTheme.typography.titleMedium)
-                Text("本项目为第三方技术研究与数据分析工具，与游戏及平台官方无关。使用者应遵守游戏规则、平台条款和当地法律，并自行承担由识别误差、自动操作或权限配置产生的风险。")
+                HzzsCallout(
+                    title = "免责声明",
+                    text = "第三方技术研究工具，与游戏及平台官方无关。请遵守规则与法律，并自行承担识别误差、自动操作与权限配置风险。",
+                    tone = HzzsCalloutTone.WARNING,
+                )
             }
             item {
                 Text("支持开发", style = MaterialTheme.typography.titleMedium)
