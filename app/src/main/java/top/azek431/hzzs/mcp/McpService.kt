@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Runtime information shown in Developer Settings and copied into Claude Code config. */
+/** 开发者设置展示、并供复制到 Claude Code 配置的 MCP 运行时状态。 */
 data class McpServerState(
     val running: Boolean = false,
     val port: Int = 0,
@@ -42,13 +42,18 @@ data class McpServerState(
     val lastError: String? = null,
 )
 
+/** 待用户确认的一次 MCP 写操作请求。 */
 data class McpApprovalRequest(
     val id: Long,
     val tool: String,
     val summary: String,
 )
 
-/** Process-wide bridge between the foreground service and Compose UI. */
+/**
+ * 进程级 UI 桥：前台服务与 Compose 之间的审批、导航与运行时状态通道。
+ *
+ * 线程：StateFlow 可跨线程写；审批 Deferred 用互斥保护，超时默认拒绝。
+ */
 @Singleton
 class McpUiBridge @Inject constructor() {
     private val mutableServerState = MutableStateFlow(McpServerState())
@@ -57,7 +62,7 @@ class McpUiBridge @Inject constructor() {
     private val mutableApproval = MutableStateFlow<McpApprovalRequest?>(null)
     val approval: StateFlow<McpApprovalRequest?> = mutableApproval.asStateFlow()
 
-    /** Semantic UI destination requested by MCP. Compose consumes and clears it. */
+    /** MCP 请求的语义路由；Compose 导航消费后清除。 */
     private val mutableNavigation = MutableStateFlow<String?>(null)
     val navigation: StateFlow<String?> = mutableNavigation.asStateFlow()
 
@@ -105,10 +110,12 @@ class McpUiBridge @Inject constructor() {
 }
 
 /**
- * In-app action surface used by both MCP and future automation tests.
- * Every write passes through [authorize], so the transport cannot accidentally
- * bypass the selected MCP permission level. HTTP Authorization is additionally
- * enforced with a per-service random bearer token on the loopback listener.
+ * 应用内动作面：MCP 与后续自动化测试共用。
+ *
+ * 安全：
+ * - 所有写操作经 [authorize]，按四级权限（只读 / 每次确认 / 会话信任 / 完整访问）门控。
+ * - 传输层另用 loopback + 每服务生命周期随机 Bearer；完整访问仍不能绕过系统权限对话框。
+ * - 高风险工具（如解锁自动操作）在会话信任级被拒绝，需完整访问。
  */
 @Singleton
 class McpActionRegistry @Inject constructor(
@@ -195,6 +202,10 @@ class McpActionRegistry @Inject constructor(
         }
     }
 
+    /**
+     * 按当前 MCP 权限级门控写操作；只读工具直接放行。
+     * 完整访问仅放开应用内能力，无法代替用户点击系统录屏/悬浮窗/无障碍对话框。
+     */
     private suspend fun authorize(
         tool: String,
         arguments: JSONObject,
@@ -260,9 +271,14 @@ class McpActionRegistry @Inject constructor(
 }
 
 /**
- * Minimal MCP Streamable-HTTP compatible JSON-RPC service bound to loopback.
- * It intentionally supports a focused subset of the protocol and never listens
- * on a LAN interface. ADB `forward` can expose it to Claude Code on the computer.
+ * 最小子集的 MCP Streamable-HTTP JSON-RPC 前台服务，仅绑定 loopback。
+ *
+ * 安全边界：
+ * - 不监听局域网；本机可通过 ADB `forward` 暴露给电脑上的 Claude Code。
+ * - 每次启动生成随机 Bearer，恒时比较；Origin 仅允许空或 loopback。
+ * - 工具调用仍受 [McpActionRegistry] 四级权限约束，不能绕过 Android 系统权限对话框。
+ *
+ * 线程：accept/读写在 IO 协程；通知与 Service 生命周期由主线程协调。
  */
 @AndroidEntryPoint
 class McpForegroundService : Service() {
@@ -532,9 +548,8 @@ private fun readHttpRequest(input: BufferedInputStream): HttpRequest {
 }
 
 /**
- * Browser clients send Origin. CLI/ADB clients normally omit it. Rejecting
- * non-loopback origins prevents a web page from reaching the local MCP bridge
- * through DNS rebinding or a cross-origin form/fetch request.
+ * 浏览器会带 Origin；CLI/ADB 通常省略。
+ * 拒绝非 loopback Origin，防止 DNS rebinding 或跨源页面触达本机 MCP 桥。
  */
 private fun isAllowedLoopbackOrigin(origin: String?): Boolean {
     if (origin.isNullOrBlank()) return true
@@ -546,7 +561,7 @@ private fun isAllowedLoopbackOrigin(origin: String?): Boolean {
     }.getOrDefault(false)
 }
 
-/** Avoids leaking the first mismatching token character through timing. */
+/** Bearer 恒时比较，避免通过时序泄漏首个不匹配字符。 */
 private fun constantTimeBearerMatches(authorization: String?, token: String): Boolean {
     val provided = authorization?.removePrefix("Bearer ")
         ?.takeIf { authorization.startsWith("Bearer ") }
