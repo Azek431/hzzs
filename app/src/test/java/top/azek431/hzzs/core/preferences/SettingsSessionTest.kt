@@ -41,6 +41,29 @@ class SettingsSessionTest {
     }
 
     @Test
+    fun replaceKeepsFullDraftSnapshot() = runTest {
+        val original = AppConfig()
+        var effective = original
+        val session = SettingsEditSession(
+            original = original,
+            onPreview = { effective = it },
+            onPersist = {},
+            onClearPreview = { effective = original },
+        )
+
+        // 模拟连续 UI 修改后整份草稿写回，而不是只应用最后一个 transform。
+        val composed = original.copy(
+            selectedScene = SceneId.SWEET_FACTORY,
+            overlay = original.overlay.copy(showFps = true),
+        )
+        session.replace(composed)
+        assertEquals(SceneId.SWEET_FACTORY, effective.selectedScene)
+        assertTrue(effective.overlay.showFps)
+        assertEquals(composed.selectedScene, session.current().selectedScene)
+        assertTrue(session.current().overlay.showFps)
+    }
+
+    @Test
     fun automationDefaultsToOffAndPersistsOnlyAfterRiskAcceptance() {
         val defaults = ConfigJson.decode(ConfigJson.encode(AppConfig()))
         assertFalse(defaults.automation.enabled)

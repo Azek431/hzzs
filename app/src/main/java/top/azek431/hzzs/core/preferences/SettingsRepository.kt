@@ -158,6 +158,16 @@ class SettingsEditSession(
         return next
     }
 
+    /** 用完整草稿覆盖会话内容，避免 debounce 只保留最后一个 transform 导致丢改。 */
+    suspend fun replace(next: AppConfig): AppConfig {
+        val safe = mutex.withLock {
+            check(!closed) { "设置编辑会话已关闭" }
+            next.validated().also { draft = it }
+        }
+        onPreview(safe)
+        return safe
+    }
+
     suspend fun save(): AppConfig {
         val safe = mutex.withLock {
             check(!closed) { "设置编辑会话已关闭" }
