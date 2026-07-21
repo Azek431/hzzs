@@ -14,6 +14,7 @@
 - C++ 视觉入口、输入边界、JNI 失败隔离与宿主机测试脚手架。
 - 项目级静态门禁、Native sanitizer 与数据集评估工具。
 - 双源签名更新库与发布脚本（`tools/release/*`）。
+- 官方算法包系统 v1 工具链（`tools/algorithm/*`、`algorithm-packs/*`、`algorithm-release.yml`）；真实算法目录尚未对外发布。
 
 ## 进行中 / 对齐历史 main
 
@@ -30,7 +31,9 @@
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
+| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录 StateFlow；远端 so 激活待算法仓库） |
 | P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中 |
+| P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（安装器/下载器未接） |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |

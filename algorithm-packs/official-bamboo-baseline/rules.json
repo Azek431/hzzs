@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scenes": {
+    "BAMBOO_BOOKSTORE": {
+      "disabledObstacles": [],
+      "notes": "Mirrors AppModels.VisionThresholds defaults for BAMBOO_BOOKSTORE. Evaluation-only boundaryTolerance is retained as a measurement target, not an accuracy claim.",
+      "thresholds": {
+        "behindPlayerMarginRatio": 0.018,
+        "boundaryTolerancePlayerWidthRatio": 0.05,
+        "fixedPlayerXRatio": 0.185,
+        "minimumConfidence": 0.72,
+        "playerReferenceMode": "FIXED_RATIO",
+        "stableFrames": 2,
+        "workWidth": 384
+      }
+    }
+  }
+}

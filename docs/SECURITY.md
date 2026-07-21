@@ -55,6 +55,15 @@
 - 清单签名绑定本应用安装证书公钥；Debug 包不能伪装成生产更新源。
 - 差分补丁回放校验后才可安装。
 
+## 官方算法包
+
+- `.hzzsalg` 使用**独立 Ed25519 密钥**，不得复用 APK keystore。
+- 包内仅声明式 JSON / 文本；拒绝可执行扩展名、符号链接、路径穿越与 Zip 炸弹。
+- 目录 `algorithms/{channel}.json` 最后发布；资产哈希不一致时拒绝覆盖。
+- Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`（与 `ANDROID_KEYSTORE_*` 分离）。
+- 运行时只接受校验后的 `AlgorithmRuntimeProfile`；不得动态加载代码；失败回退内置；不得改写自动化门禁。
+- 详见 [`docs/ALGORITHM_SYSTEM_V1.md`](ALGORITHM_SYSTEM_V1.md)。
+
 ## 贡献者注意
 
 禁止提交 keystore、密码、Token、未脱敏截图与用户隐私数据。详见 [`CONTRIBUTING.md`](../CONTRIBUTING.md)。

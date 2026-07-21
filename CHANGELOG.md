@@ -12,8 +12,8 @@
 ### 新增
 
 - 单一 `app` Gradle 模块与 Compose + Hilt 产品壳（引导 / 首页 / 运行 / 设置 / 关于）。
-- DataStore 配置 schema v5：主题、悬浮窗、视口、双赛季、自动操作、MCP、开发者与更新项。
-- 设置页临时预览与“保存并应用”；权限型配置（截图后端、MCP、自动操作、开发者、更新）不在预览阶段启动。
+- DataStore 配置 schema v6：主题、悬浮窗、视口、双赛季、自动操作、MCP、开发者、更新与算法选择项。
+- 设置页临时预览与“保存并应用”；权限型配置（截图后端、MCP、自动操作、开发者、更新、算法）不在预览阶段启动。
 - MediaProjection 默认截图路径；`CaptureBackend.AUTO` 仅委托低权限录屏，不探测 Root / Shizuku / 无障碍。
 - 可选无障碍截图（API 30+）与 Root 截图（超时与尺寸限制）；Shizuku 入口保留。
 - C++ 双赛季视觉引擎（甜甜圈 / 竹影书屋）、位掩码类别过滤、比例坐标与 JNI 失败隔离。
@@ -22,12 +22,17 @@
 - `.hzzstheme` 声明式主题包；关于页赞赏图保存与开发者手势解锁。
 - Gitee 优先双源签名更新库、差分补丁与发布工作流工具。
 - 项目静态门禁、Native ASan/UBSan、宿主机数据集评估脚本与 JVM 单元测试。
+- 官方算法包工具链（`.hzzsalg`）：校验、可重复构建、独立 Ed25519 签名、目录生成、GitHub/Gitee 同步与 dry-run 发布；示例包 `official-bamboo-baseline`。
+- **声明式算法运行时（CC-1）**：`AlgorithmRuntimeProfile` / `ActiveAlgorithmProvider`、JNI `configureAlgorithm`、generation 安全切换、内置 `builtin.hzzs.v1` 回退；`VisionResult` 诊断字段。算法包不得控制手势或安全门禁。
 
 ### 变更
 
 - 默认赛季改为 **竹影书屋**（与历史 main 线默认一致）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
+- **设置界面完整重构**：设置首页 + 分类子页面（外观、算法与识别、截图、悬浮窗、自动操作、网络与更新、MCP/开发者）；宽屏双栏；共享 draft 会话，仅离开设置模块时保存/丢弃。
+- 配置 schema **v6**：新增 `AlgorithmConfig`（自动/手动选择、通道、自动检查/下载）与 `UpdateConfig.sourcePreference`（自动 / 优先 Gitee / 优先 GitHub）。
+- 算法与识别页：主卡展示当前算法/版本/模式/场景/来源/更新状态；最新与已安装列表；Loading/Empty/Offline/镜像回退/安全警告/下载/校验/待启用/错误/不兼容状态。
 
 ### 安全
 

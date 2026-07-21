@@ -64,10 +64,26 @@ python tools/vision/evaluate_dataset.py --dataset /path/to/images --output build
 
 厂商 ROM、Root、Shizuku 与真实游戏链路必须使用对应真机验证。
 
+## 算法包工具链
+
+```bash
+python -m unittest discover -s tools/algorithm/tests -v
+python tools/algorithm/validate_algorithm_pack.py --source algorithm-packs/official-bamboo-baseline
+python tools/algorithm/publish_algorithm_release.py \
+  --source algorithm-packs/official-bamboo-baseline \
+  --work-dir build/algorithm-release \
+  --private-key /secure/algorithm-ed25519.pem \
+  --key-id hzzs-algorithm-official-1
+```
+
+默认 `publish_algorithm_release.py` 为 **dry-run**（不访问网络）。真实发布需显式 `--execute`，并配置独立 Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`（不得复用 APK keystore）。  
+覆盖：可重复构建、签名/篡改、路径穿越、Zip 炸弹模拟、超大文件、禁止扩展名、stable/beta 隔离、撤销标记、Gitee 不可变同步。详见 [`docs/ALGORITHM_SYSTEM_V1.md`](ALGORITHM_SYSTEM_V1.md)。
+
 ## CI
 
 `.github/workflows/build.yml`：质量脚本 → Native sanitizer / host tests → Gradle 测试 / lint / debug APK。  
-`.github/workflows/release.yml`：签名构建、验签、差分补丁、双源发布与匿名哈希校验。
+`.github/workflows/release.yml`：签名构建、验签、差分补丁、双源发布与匿名哈希校验。  
+`.github/workflows/algorithm-release.yml`：官方算法包校验、签名、双源同步与目录发布（默认 dry-run）。
 
 ## 禁止的宣称
 

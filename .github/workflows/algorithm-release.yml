@@ -1,0 +1,121 @@
+name: Publish official algorithm pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_dir:
+        description: Algorithm source directory under algorithm-packs/
+        required: true
+        default: algorithm-packs/official-bamboo-baseline
+      channel:
+        description: Catalog channel
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - beta
+      draft:
+        description: Keep GitHub release as draft
+        required: true
+        default: true
+        type: boolean
+      execute:
+        description: Perform network publish (false = dry-run only)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: algorithm-release-${{ inputs.source_dir }}-${{ inputs.channel }}
+  cancel-in-progress: false
+
+env:
+  GITEE_OWNER: Azek431
+  GITEE_REPO: hzzs
+
+jobs:
+  publish-algorithm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet cryptography requests
+
+      - name: Validate source path
+        shell: bash
+        run: |
+          SOURCE='${{ inputs.source_dir }}'
+          if [[ "$SOURCE" != algorithm-packs/* ]]; then
+            echo "source_dir must stay under algorithm-packs/" >&2
+            exit 1
+          fi
+          if [[ "$SOURCE" == *..* ]]; then
+            echo "path traversal rejected" >&2
+            exit 1
+          fi
+          test -d "$SOURCE"
+          test -f "$SOURCE/manifest.json"
+          test -f "$SOURCE/rules.json"
+          test -f "$SOURCE/CHANGELOG.txt"
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tools/algorithm/tests -v
+
+      - name: Dry-run or execute publish
+        env:
+          ALGORITHM_SIGNING_PRIVATE_KEY_B64: ${{ secrets.ALGORITHM_SIGNING_PRIVATE_KEY_B64 }}
+          ALGORITHM_SIGNING_KEY_ID: ${{ secrets.ALGORITHM_SIGNING_KEY_ID }}
+          GH_TOKEN: ${{ github.token }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ALGORITHM_SIGNING_PRIVATE_KEY_B64:-}" ]]; then
+            echo "ALGORITHM_SIGNING_PRIVATE_KEY_B64 secret is required" >&2
+            exit 1
+          fi
+          if [[ -z "${ALGORITHM_SIGNING_KEY_ID:-}" ]]; then
+            echo "ALGORITHM_SIGNING_KEY_ID secret is required" >&2
+            exit 1
+          fi
+          ARGS=(
+            --source '${{ inputs.source_dir }}'
+            --work-dir build/algorithm-release
+            --channel '${{ inputs.channel }}'
+            --owner "$GITEE_OWNER"
+            --repo "$GITEE_REPO"
+            --key-id "$ALGORITHM_SIGNING_KEY_ID"
+          )
+          if [[ '${{ inputs.draft }}' == 'true' ]]; then
+            ARGS+=(--draft)
+          else
+            ARGS+=(--no-draft)
+          fi
+          if [[ '${{ inputs.execute }}' == 'true' ]]; then
+            if [[ -z "${GITEE_TOKEN:-}" ]]; then
+              echo "GITEE_TOKEN secret is required for execute mode" >&2
+              exit 1
+            fi
+            ARGS+=(--execute)
+          fi
+          python3 tools/algorithm/publish_algorithm_release.py "${ARGS[@]}"
+
+      - name: Upload local artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: algorithm-release-${{ inputs.channel }}
+          path: build/algorithm-release/
+          if-no-files-found: error
