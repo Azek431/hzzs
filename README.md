@@ -24,7 +24,7 @@
   <a href="#代码结构">结构</a> ·
   <a href="#构建">构建</a> ·
   <a href="#文档">文档</a> ·
-  <a href="#star-趋势">Star 趋势</a>
+  <a href="#star-history">Star History</a>
 </p>
 
 > **免责声明**
@@ -170,9 +170,15 @@ python3 tools/vision/evaluate_dataset.py --dataset /path/to/screenshots --output
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更日志 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 贡献说明 |
 
-## Star 趋势
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Azek431/hzzs&type=Date)](https://star-history.com/#Azek431/hzzs&Date)
+<a href="https://www.star-history.com/?repos=Azek431%2Fhzzs&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&theme=dark&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
+ </picture>
+</a>
 
 仓库地址：
 
