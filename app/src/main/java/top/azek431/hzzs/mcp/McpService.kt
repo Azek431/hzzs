@@ -440,6 +440,8 @@ class McpForegroundService : Service() {
         uiBridge.updateServerState(McpServerState())
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+        // 允许后续同进程生命周期内再次启动（改端口重启场景）。
+        stopping.set(false)
     }
 
     private fun createChannel() {
