@@ -47,7 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 
-/** 设置首页分类入口卡：标题 + 说明 + 当前摘要。 */
+/** 设置首页分类入口卡：标题 + 说明 + 当前摘要；[selected] 宽屏高亮当前分类。 */
 @Composable
 fun SettingsCategoryCard(
     title: String,
@@ -56,15 +56,28 @@ fun SettingsCategoryCard(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
 ) {
     val dimensions = LocalHzzsDimensions.current
-    ElevatedCard(
+    Card(
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = "$title，$summary" }
             .clickable(onClick = onClick),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
+        ),
+        border = if (selected) {
+            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            null
+        },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (selected) 2.dp else 0.dp,
         ),
     ) {
         Row(

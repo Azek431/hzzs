@@ -1,23 +1,34 @@
 package top.azek431.hzzs.core.designsystem
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,13 +40,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * 跨 feature 复用的轻量 Compose 组件。
+ * Design System 2.0 跨 feature 页面积木。
  *
- * 依赖 [LocalHzzsDimensions] 与 MaterialTheme，不持有业务状态。
- * feature 层应优先组合这些积木，而不是复制间距与卡片样式。
+ * 依赖 [LocalHzzsDimensions] / [LocalHzzsStatusColors] / MaterialTheme。
+ * feature 应组合这些积木，避免复制间距与卡片样式。
  */
 
-/** 带标题与可选说明的设置/页面分区容器。 */
+enum class HzzsCalloutTone { INFO, WARNING, ERROR, SUCCESS }
+
+/** 带标题与可选说明的分区。 */
 @Composable
 fun HzzsSection(
     title: String,
@@ -45,7 +58,11 @@ fun HzzsSection(
     val dimensions = LocalHzzsDimensions.current
     Column(verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             description?.let {
                 Text(
                     it,
@@ -58,7 +75,7 @@ fun HzzsSection(
     }
 }
 
-/** 一行式状态卡：左侧标题、右侧强调值（首页/运行页常用）。 */
+/** 一行式状态卡：左标题、右强调值。 */
 @Composable
 fun StatusCard(
     title: String,
@@ -66,14 +83,17 @@ fun StatusCard(
     modifier: Modifier = Modifier,
     accent: Color = MaterialTheme.colorScheme.primary,
 ) {
+    val dimensions = LocalHzzsDimensions.current
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(LocalHzzsDimensions.current.cardPadding),
+                .padding(dimensions.cardPadding),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -92,7 +112,7 @@ fun StatusCard(
     }
 }
 
-/** 紧凑指标块：上方标签、下方数值（网格排布用）。 */
+/** 紧凑指标块。 */
 @Composable
 fun MetricTile(
     label: String,
@@ -100,9 +120,9 @@ fun MetricTile(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 64.dp),
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
             Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -117,25 +137,41 @@ fun MetricTile(
                 value,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
 }
 
-/** 状态胶囊：圆点 + 文案；[active] 控制主色强调。 */
+/** 2/3 列指标网格。 */
+@Composable
+fun HzzsMetricGrid(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val dimensions = LocalHzzsDimensions.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.metricGap),
+        content = content,
+    )
+}
+
+/** 状态胶囊：圆点 + 文案。 */
 @Composable
 fun StatusChip(
     text: String,
     active: Boolean,
     modifier: Modifier = Modifier,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val container = if (active) {
-        MaterialTheme.colorScheme.primaryContainer
+        activeColor.copy(alpha = 0.14f)
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        MaterialTheme.colorScheme.surfaceContainer
     }
     val content = if (active) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        activeColor
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -152,14 +188,33 @@ fun StatusChip(
             Box(
                 Modifier
                     .size(8.dp)
-                    .background(if (active) MaterialTheme.colorScheme.primary else content, CircleShape),
+                    .background(if (active) activeColor else content, CircleShape),
             )
             Text(text, style = MaterialTheme.typography.labelLarge, color = content)
         }
     }
 }
 
-/** 首页主卡片：图标 + 标题副标题 + 可扩展内容区。 */
+/** 可横向滚动的状态条。 */
+@Composable
+fun HzzsStatusStrip(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/**
+ * 主操作台卡片：图标 + 标题副标题 + 内容。
+ * 工具专业风使用实心 surfaceContainerLow，弱化半透明叠层。
+ */
 @Composable
 fun HeroCard(
     title: String,
@@ -168,20 +223,22 @@ fun HeroCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val dimensions = LocalHzzsDimensions.current
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(
-            Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.padding(dimensions.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(dimensions.heroGap),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                 ) {
                     Icon(
                         icon,
@@ -192,7 +249,11 @@ fun HeroCard(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
@@ -205,12 +266,13 @@ fun HeroCard(
     }
 }
 
-/** 通用内容卡片，统一 surfaceContainerLow 背景与内边距。 */
+/** 通用内容卡。 */
 @Composable
 fun SectionCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val dimensions = LocalHzzsDimensions.current
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -218,21 +280,25 @@ fun SectionCard(
         ),
     ) {
         Column(
-            Modifier.padding(18.dp),
+            Modifier.padding(dimensions.cardPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
     }
 }
 
-/** 页面顶部大标题与可选副标题。 */
+/** 页面大标题。 */
 @Composable
 fun PageHeader(
     title: String,
     subtitle: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
         subtitle?.let {
             Text(
                 it,
@@ -240,6 +306,149 @@ fun PageHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(2.dp))
     }
+}
+
+/** 语义提示条：信息 / 警告 / 错误 / 成功。 */
+@Composable
+fun HzzsCallout(
+    text: String,
+    tone: HzzsCalloutTone,
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    icon: ImageVector? = null,
+) {
+    val dimensions = LocalHzzsDimensions.current
+    val status = LocalHzzsStatusColors.current
+    val (container, contentColor) = when (tone) {
+        HzzsCalloutTone.INFO -> MaterialTheme.colorScheme.surfaceContainer to
+            MaterialTheme.colorScheme.onSurface
+        HzzsCalloutTone.WARNING -> status.warning.copy(alpha = 0.14f) to status.warning
+        HzzsCalloutTone.ERROR -> MaterialTheme.colorScheme.errorContainer to
+            MaterialTheme.colorScheme.onErrorContainer
+        HzzsCalloutTone.SUCCESS -> status.running.copy(alpha = 0.14f) to status.running
+    }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = container,
+    ) {
+        Row(
+            Modifier.padding(dimensions.cardPadding),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            icon?.let {
+                Icon(it, contentDescription = null, tint = contentColor)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                title?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = contentColor,
+                    )
+                }
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (tone == HzzsCalloutTone.ERROR) {
+                        contentColor
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** 全宽主按钮。 */
+@Composable
+fun HzzsPrimaryAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = LocalHzzsDimensions.current.touchMin),
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        icon?.let {
+            Icon(it, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 全宽次级按钮。 */
+@Composable
+fun HzzsSecondaryAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tonal: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    val min = LocalHzzsDimensions.current.touchMin
+    if (tonal) {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.fillMaxWidth().heightIn(min = min),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            icon?.let {
+                Icon(it, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(text)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.fillMaxWidth().heightIn(min = min),
+            shape = MaterialTheme.shapes.medium,
+            colors = ButtonDefaults.outlinedButtonColors(),
+        ) {
+            icon?.let {
+                Icon(it, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(text)
+        }
+    }
+}
+
+/**
+ * 统一滚动页骨架：标准 contentPadding 与区块间距。
+ * 调用方在 [content] 中写 LazyList item。
+ */
+@Composable
+fun HzzsScrollPage(
+    modifier: Modifier = Modifier,
+    content: LazyListScope.() -> Unit,
+) {
+    val dimensions = LocalHzzsDimensions.current
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(
+            start = dimensions.screenPadding,
+            end = dimensions.screenPadding,
+            top = dimensions.screenPadding,
+            bottom = dimensions.screenPadding + 8.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap),
+        content = content,
+    )
 }

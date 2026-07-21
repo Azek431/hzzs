@@ -3,9 +3,18 @@ package top.azek431.hzzs.core.designsystem
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -21,33 +30,73 @@ import top.azek431.hzzs.core.model.ThemePreset
 import kotlin.math.max
 import kotlin.math.min
 
-
 /**
- * HZZS Material 3 主题与间距令牌。
+ * HZZS Design System 2.0：工具专业风主题与令牌。
  *
- * 主题包只存语义控制（mode / preset / 缩放），不存组件级裸色，
- * 以便 Material 组件演进时导入主题仍稳定。
+ * - 主题包只存语义控制（mode / preset / 缩放），不存组件级裸色
+ * - 页面优先读 [LocalHzzsDimensions] / [LocalHzzsStatusColors]，避免硬编码间距与状态色
+ * - 气质：冷静中性表面 + 品牌 accent（种子色），适合本地分析工具
  */
 
-/** 语义间距令牌；随用户 [ThemeConfig.spacingScale] 缩放。 */
+/** 语义间距；随 [ThemeConfig.spacingScale] 缩放。 */
+@Immutable
 data class HzzsDimensions(
     val compactGap: Dp,
     val sectionGap: Dp,
     val cardPadding: Dp,
     val screenPadding: Dp,
+    val heroGap: Dp,
+    val metricGap: Dp,
+    val bottomBarClearance: Dp,
+    val touchMin: Dp,
 )
 
-/** CompositionLocal：页面与组件读取统一间距。 */
 val LocalHzzsDimensions = staticCompositionLocalOf {
     HzzsDimensions(
         compactGap = 8.dp,
-        sectionGap = 10.dp,
+        sectionGap = 12.dp,
         cardPadding = 16.dp,
-        screenPadding = 16.dp,
+        screenPadding = 20.dp,
+        heroGap = 14.dp,
+        metricGap = 10.dp,
+        bottomBarClearance = 88.dp,
+        touchMin = 48.dp,
     )
 }
 
-/** 内置调色板种子色（非 DYNAMIC / CUSTOM 时使用）。 */
+/**
+ * 运行态/安全态语义色（从 ColorScheme 派生，随主题变化）。
+ * 不写入主题包，避免与安全门禁字段混淆。
+ */
+@Immutable
+data class HzzsStatusColors(
+    val running: Color,
+    val idle: Color,
+    val armed: Color,
+    val locked: Color,
+    val warning: Color,
+    val onRunning: Color,
+    val onIdle: Color,
+    val onArmed: Color,
+    val onLocked: Color,
+    val onWarning: Color,
+)
+
+val LocalHzzsStatusColors = staticCompositionLocalOf {
+    HzzsStatusColors(
+        running = Color(0xFF1D7A58),
+        idle = Color(0xFF6B7280),
+        armed = Color(0xFFB45309),
+        locked = Color(0xFF64748B),
+        warning = Color(0xFFB45309),
+        onRunning = Color.White,
+        onIdle = Color.White,
+        onArmed = Color.White,
+        onLocked = Color.White,
+        onWarning = Color.White,
+    )
+}
+
 private val presetSeeds = mapOf(
     ThemePreset.FIRE_ORANGE to Color(0xFFFF6B2C),
     ThemePreset.CORAL to Color(0xFFC73650),
@@ -60,12 +109,9 @@ private val presetSeeds = mapOf(
 )
 
 /**
- * 根据 [ThemeConfig] 生成应用主题并包裹 [content]。
+ * 根据 [ThemeConfig] 生成主题并提供间距/状态色 Local。
  *
- * 选择顺序：系统动态取色（Android 12+ 且 preset=DYNAMIC）→
- * 高对比方案 → 种子色方案（含 AMOLED 真黑）。
- * 同时提供缩放后的 Typography / Shapes / [LocalHzzsDimensions]，
- * 并在 Activity 上同步状态栏图标明暗。
+ * 选择顺序：系统动态取色 → 高对比预设 → 种子色（含 AMOLED）。
  */
 @Composable
 fun HzzsTheme(
@@ -99,13 +145,14 @@ fun HzzsTheme(
         )
     }
 
+    val corner = config.cornerScale.coerceIn(0f, 2f)
     val typography = scaledTypography(config.fontScale)
     val shapes = Shapes(
-        extraSmall = MaterialTheme.shapes.extraSmall,
-        small = androidx.compose.foundation.shape.RoundedCornerShape((8f * config.cornerScale).dp),
-        medium = androidx.compose.foundation.shape.RoundedCornerShape((14f * config.cornerScale).dp),
-        large = androidx.compose.foundation.shape.RoundedCornerShape((22f * config.cornerScale).dp),
-        extraLarge = androidx.compose.foundation.shape.RoundedCornerShape((30f * config.cornerScale).dp),
+        extraSmall = RoundedCornerShape((4f * corner).dp),
+        small = RoundedCornerShape((8f * corner).dp),
+        medium = RoundedCornerShape((12f * corner).dp),
+        large = RoundedCornerShape((18f * corner).dp),
+        extraLarge = RoundedCornerShape((24f * corner).dp),
     )
 
     val activity = context as? Activity
@@ -120,11 +167,20 @@ fun HzzsTheme(
     val spacing = config.spacingScale.coerceIn(0.75f, 1.5f)
     val dimensions = HzzsDimensions(
         compactGap = (8f * spacing).dp,
-        sectionGap = (10f * spacing).dp,
+        sectionGap = (12f * spacing).dp,
         cardPadding = (16f * spacing).dp,
-        screenPadding = (16f * spacing).dp,
+        screenPadding = (20f * spacing).dp,
+        heroGap = (14f * spacing).dp,
+        metricGap = (10f * spacing).dp,
+        bottomBarClearance = (88f * spacing).dp,
+        touchMin = 48.dp,
     )
-    CompositionLocalProvider(LocalHzzsDimensions provides dimensions) {
+    val statusColors = statusColorsFrom(colors, dark)
+
+    CompositionLocalProvider(
+        LocalHzzsDimensions provides dimensions,
+        LocalHzzsStatusColors provides statusColors,
+    ) {
         MaterialTheme(
             colorScheme = colors,
             typography = typography,
@@ -132,6 +188,26 @@ fun HzzsTheme(
             content = content,
         )
     }
+}
+
+private fun statusColorsFrom(scheme: ColorScheme, dark: Boolean): HzzsStatusColors {
+    val running = if (dark) Color(0xFF34D399) else Color(0xFF047857)
+    val idle = scheme.onSurfaceVariant
+    val armed = if (dark) Color(0xFFFBBF24) else Color(0xFFB45309)
+    val locked = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val warning = scheme.error
+    return HzzsStatusColors(
+        running = running,
+        idle = idle,
+        armed = armed,
+        locked = locked,
+        warning = warning,
+        onRunning = if (dark) Color(0xFF052E1C) else Color.White,
+        onIdle = scheme.surface,
+        onArmed = if (dark) Color(0xFF1C1003) else Color.White,
+        onLocked = scheme.surface,
+        onWarning = scheme.onError,
+    )
 }
 
 private fun scaledTypography(scale: Float): Typography {
@@ -157,40 +233,90 @@ private fun scaledTypography(scale: Float): Typography {
     )
 }
 
+/**
+ * 工具专业风种子方案：中性灰阶表面 + 品牌 primary。
+ * 浅色背景偏冷灰白，避免过度暖色粉感；深色/AMOLED 保持真黑可选。
+ */
 private fun seedScheme(seed: Color, dark: Boolean, amoled: Boolean, highContrast: Boolean): ColorScheme {
-    val primary = if (dark) seed.lighten(0.18f) else seed.darken(0.08f)
-    val secondary = seed.rotateChannels().let { if (dark) it.lighten(0.20f) else it.darken(0.10f) }
-    val tertiary = seed.rotateChannels().rotateChannels().let { if (dark) it.lighten(0.16f) else it.darken(0.08f) }
+    val primary = if (dark) seed.lighten(0.14f) else seed.darken(0.06f)
+    val secondary = seed.rotateChannels().let { if (dark) it.lighten(0.16f) else it.darken(0.10f) }
+    val tertiary = seed.rotateChannels().rotateChannels().let {
+        if (dark) it.lighten(0.12f) else it.darken(0.08f)
+    }
     val surface = when {
         amoled -> Color.Black
-        dark -> Color(0xFF111318)
-        else -> Color(0xFFFFF8F5)
+        dark -> Color(0xFF101216)
+        else -> Color(0xFFF6F7F9)
     }
-    val onSurface = if (dark) Color(0xFFF2F0F4) else Color(0xFF201A18)
-    val outline = if (highContrast) onSurface.copy(alpha = 0.82f) else onSurface.copy(alpha = 0.42f)
+    val surfaceContainer = when {
+        amoled -> Color(0xFF0A0A0A)
+        dark -> Color(0xFF181A20)
+        else -> Color(0xFFEEF0F3)
+    }
+    val surfaceContainerLow = when {
+        amoled -> Color(0xFF080808)
+        dark -> Color(0xFF14161B)
+        else -> Color(0xFFFFFFFF)
+    }
+    val surfaceContainerHigh = when {
+        amoled -> Color(0xFF121212)
+        dark -> Color(0xFF22252D)
+        else -> Color(0xFFE4E7EC)
+    }
+    val onSurface = if (dark) Color(0xFFE8EAED) else Color(0xFF12151A)
+    val onSurfaceVariant = if (dark) Color(0xFFA8B0BB) else Color(0xFF5B6570)
+    val outline = if (highContrast) {
+        onSurface.copy(alpha = 0.88f)
+    } else {
+        onSurface.copy(alpha = if (dark) 0.28f else 0.18f)
+    }
     return if (dark) {
         darkColorScheme(
             primary = primary,
-            onPrimary = Color.Black,
+            onPrimary = Color(0xFF101010),
+            primaryContainer = primary.copy(alpha = 0.22f),
+            onPrimaryContainer = primary.lighten(0.35f),
             secondary = secondary,
             tertiary = tertiary,
             background = surface,
             surface = surface,
-            surfaceContainer = if (amoled) Color(0xFF090909) else Color(0xFF1B1B20),
+            surfaceVariant = surfaceContainerHigh,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHigh.lighten(0.04f),
             onSurface = onSurface,
+            onSurfaceVariant = onSurfaceVariant,
             outline = outline,
+            outlineVariant = outline.copy(alpha = 0.45f),
+            error = Color(0xFFFF8A80),
+            onError = Color(0xFF2A0505),
+            errorContainer = Color(0xFF4A1515),
+            onErrorContainer = Color(0xFFFFDAD6),
         )
     } else {
         lightColorScheme(
             primary = primary,
             onPrimary = Color.White,
+            primaryContainer = primary.copy(alpha = 0.12f),
+            onPrimaryContainer = primary.darken(0.25f),
             secondary = secondary,
             tertiary = tertiary,
             background = surface,
             surface = surface,
-            surfaceContainer = Color(0xFFFFEEE8),
+            surfaceVariant = surfaceContainerHigh,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHigh.darken(0.04f),
             onSurface = onSurface,
+            onSurfaceVariant = onSurfaceVariant,
             outline = outline,
+            outlineVariant = outline.copy(alpha = 0.55f),
+            error = Color(0xFFB3261E),
+            onError = Color.White,
+            errorContainer = Color(0xFFF9DEDC),
+            onErrorContainer = Color(0xFF410E0B),
         )
     }
 }
@@ -201,7 +327,10 @@ private fun highContrastScheme(dark: Boolean): ColorScheme = if (dark) {
         onPrimary = Color.Black,
         background = Color.Black,
         surface = Color.Black,
+        surfaceContainer = Color(0xFF121212),
+        surfaceContainerLow = Color(0xFF0A0A0A),
         onSurface = Color.White,
+        onSurfaceVariant = Color(0xFFE0E0E0),
         outline = Color.White,
         error = Color(0xFFFF6B6B),
     )
@@ -211,7 +340,10 @@ private fun highContrastScheme(dark: Boolean): ColorScheme = if (dark) {
         onPrimary = Color.White,
         background = Color.White,
         surface = Color.White,
+        surfaceContainer = Color(0xFFF0F0F0),
+        surfaceContainerLow = Color.White,
         onSurface = Color.Black,
+        onSurfaceVariant = Color(0xFF222222),
         outline = Color.Black,
         error = Color(0xFF9E0000),
     )
