@@ -50,6 +50,15 @@ enum class CaptureBackend { AUTO, MEDIA_PROJECTION, ACCESSIBILITY, SHIZUKU, ROOT
 
 enum class UpdateChannel { STABLE, BETA }
 
+/** 应用/算法下载来源偏好；AUTO 默认 Gitee，不可达时回退 GitHub。 */
+enum class UpdateSourcePreference { AUTO, PREFER_GITEE, PREFER_GITHUB }
+
+/** 算法选择方式：自动取兼容最新官方包，或手动钉选已安装版本。 */
+enum class AlgorithmSelectionMode { AUTO, MANUAL }
+
+/** 算法发布通道，与应用更新通道独立。 */
+enum class AlgorithmChannel { STABLE, BETA }
+
 enum class PlayerReferenceMode { FIXED_RATIO, DETECT_ONCE, CONTINUOUS }
 
 enum class McpPermissionLevel {
@@ -188,6 +197,22 @@ data class UpdateConfig(
     val autoCheck: Boolean = true,
     val wifiOnly: Boolean = true,
     val ignoredVersionCode: Long? = null,
+    val sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO,
+)
+
+/**
+ * 算法包选择与更新策略。
+ *
+ * 选择模式、通道与手动钉选属于草稿；下载/检查是即时任务，不写入本配置。
+ * 手动下载的算法不会在保存前自动激活。
+ */
+data class AlgorithmConfig(
+    val selectionMode: AlgorithmSelectionMode = AlgorithmSelectionMode.AUTO,
+    /** 手动模式下钉选的算法包 ID；自动模式忽略。 */
+    val pinnedAlgorithmId: String? = null,
+    val channel: AlgorithmChannel = AlgorithmChannel.STABLE,
+    val autoCheck: Boolean = true,
+    val autoDownload: Boolean = false,
 )
 
 data class AppConfig(
@@ -204,9 +229,10 @@ data class AppConfig(
     val developer: DeveloperConfig = DeveloperConfig(),
     val onboarding: OnboardingConfig = OnboardingConfig(),
     val update: UpdateConfig = UpdateConfig(),
+    val algorithm: AlgorithmConfig = AlgorithmConfig(),
 ) {
     companion object {
-        const val CURRENT_SCHEMA = 5
+        const val CURRENT_SCHEMA = 6
         const val DISCLAIMER_VERSION = 1
     }
 }

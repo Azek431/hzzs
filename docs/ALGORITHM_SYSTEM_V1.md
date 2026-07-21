@@ -248,3 +248,43 @@ analyze(frame) 只读当前 generation 对应快照
 - configure 与 analyze 串行，防止半热切换与 use-after-free
 - 网络算法配置不得控制手势 / Root / 包名白名单 / 安全门禁
 - 诊断字段：`activeAlgorithmId`、`activeAlgorithmVersion`、`algorithmGeneration`、`usingBuiltinFallback`、`algorithmLoadError`
+
+## 设置 UI 契约
+
+设置模块通过 `AlgorithmCatalogController`（`StateFlow<AlgorithmCatalogState>`）展示目录与下载任务。
+
+### 配置（schema v6）
+
+```text
+AlgorithmConfig
+  selectionMode: AUTO | MANUAL
+  pinnedAlgorithmId: String?
+  channel: STABLE | BETA
+  autoCheck: Boolean
+  autoDownload: Boolean
+
+UpdateConfig.sourcePreference: AUTO | PREFER_GITEE | PREFER_GITHUB
+```
+
+- 选择模式、通道、来源偏好属于**草稿**，保存后才持久化。
+- 检查目录 / 下载 / 校验是**即时任务**，不走主题预览。
+- 手动下载不自动激活；需用户保存选择。运行中切换显示 pending（下次启动分析时应用）。
+- 第一版算法包是声明式视觉参数，不是任意代码；不得动态加载 `.so` / Dex。
+
+### 页面状态
+
+| phase | UI |
+| --- | --- |
+| Loading | 加载空状态卡 |
+| Empty | 空目录 + 重试 |
+| OfflineWithCache | 错误横幅 + 本地列表 |
+| MirrorFallback | 警告卡 |
+| SecurityWarning | 警告卡，阻止不可信包 |
+| Downloading / Verifying | 进度卡 + 取消 |
+| PendingActivation | 待启用说明 |
+| Error / Incompatible | 错误/警告 + 重试 |
+
+### 排序
+
+远端：兼容优先 → 支持当前场景 → versionCode → 发布时间。  
+已安装：当前使用 → 内置 → versionCode。

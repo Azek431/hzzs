@@ -293,6 +293,11 @@ fun AppConfig.validated(): AppConfig {
         onboarding = onboarding.copy(
             acceptedDisclaimerVersion = onboarding.acceptedDisclaimerVersion.coerceAtLeast(0),
         ),
+        algorithm = algorithm.copy(
+            pinnedAlgorithmId = algorithm.pinnedAlgorithmId
+                ?.trim()
+                ?.takeIf { it.length in 1..96 },
+        ),
     )
 }
 
@@ -373,7 +378,15 @@ object ConfigJson {
                 put("channel", safe.update.channel.name)
                 put("autoCheck", safe.update.autoCheck)
                 put("wifiOnly", safe.update.wifiOnly)
+                put("sourcePreference", safe.update.sourcePreference.name)
                 safe.update.ignoredVersionCode?.let { put("ignoredVersionCode", it) }
+            })
+            put("algorithm", JSONObject().apply {
+                put("selectionMode", safe.algorithm.selectionMode.name)
+                safe.algorithm.pinnedAlgorithmId?.let { put("pinnedAlgorithmId", it) }
+                put("channel", safe.algorithm.channel.name)
+                put("autoCheck", safe.algorithm.autoCheck)
+                put("autoDownload", safe.algorithm.autoDownload)
             })
         }.toString(2)
     }
@@ -390,6 +403,7 @@ object ConfigJson {
         val developer = root.optJSONObject("developer")
         val onboarding = root.optJSONObject("onboarding")
         val update = root.optJSONObject("update")
+        val algorithm = root.optJSONObject("algorithm")
         val parsedScenes = mutableMapOf<SceneId, SceneConfig>()
         val scenes = root.optJSONArray("scenes") ?: JSONArray()
         repeat(minOf(scenes.length(), SceneId.entries.size * 2)) { index ->
@@ -497,8 +511,23 @@ object ConfigJson {
                 channel = enumOr(update?.optString("channel"), defaults.update.channel),
                 autoCheck = update?.optBoolean("autoCheck", true) ?: true,
                 wifiOnly = update?.optBoolean("wifiOnly", true) ?: true,
+                sourcePreference = enumOr(
+                    update?.optString("sourcePreference"),
+                    defaults.update.sourcePreference,
+                ),
                 ignoredVersionCode = update?.takeIf { it.has("ignoredVersionCode") }
                     ?.optLong("ignoredVersionCode"),
+            ),
+            algorithm = defaults.algorithm.copy(
+                selectionMode = enumOr(
+                    algorithm?.optString("selectionMode"),
+                    defaults.algorithm.selectionMode,
+                ),
+                pinnedAlgorithmId = algorithm?.optString("pinnedAlgorithmId")
+                    ?.takeIf(String::isNotBlank),
+                channel = enumOr(algorithm?.optString("channel"), defaults.algorithm.channel),
+                autoCheck = algorithm?.optBoolean("autoCheck", true) ?: true,
+                autoDownload = algorithm?.optBoolean("autoDownload", false) ?: false,
             ),
         ).validated()
     }
@@ -570,6 +599,7 @@ fun AppConfig.diff(other: AppConfig): List<String> = buildList {
     if (mcp != other.mcp) add("MCP 服务")
     if (developer != other.developer) add("开发者设置")
     if (update != other.update) add("更新设置")
+    if (algorithm != other.algorithm) add("算法与识别")
 }
 
 @Module
