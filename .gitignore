@@ -1,25 +1,24 @@
 # ============================================================
-# MyApplication - Git 忽略规则
+# HZZS（火崽崽数据分析）- Git 忽略规则
 # ============================================================
 #
 # 项目定位：
-# - Android 原生项目：Kotlin + XML + Gradle Kotlin DSL
-# - Android Studio 负责 Android 原生开发、运行和调试
-# - VS Code + Claude Code + Serena 负责代码编辑、AI 协作和项目规则
-# - Windows / Linux 多设备开发
-# - 可能通过 Syncthing 同步工作目录
+# - Android 原生：Kotlin + Jetpack Compose + Hilt + C++17/JNI
+# - 单模块 app/；根目录保留 Gradle、CI、tools、文档
+# - Android Studio / VS Code + Claude Code 协作
+# - Windows / Linux；可能通过 Syncthing 同步工作目录
 #
 # 核心原则：
-# 1. 提交：源码、资源、Gradle Wrapper、构建配置、共享开发配置、文档。
-# 2. 忽略：构建产物、本机缓存、SDK 路径、IDE 工作状态、日志、密钥。
-# 3. 不忽略：gradle.properties、gradle/wrapper/、.vscode 的共享配置、
-#    CLAUDE.md、AGENTS.md、.serena/、.github/ 等可复现或协作文件。
+# 1. 提交：源码、资源、Gradle Wrapper、共享配置、文档、质量脚本。
+# 2. 忽略：构建产物、本机缓存、SDK 路径、IDE 私有状态、日志、密钥、
+#    本地备份、拷机 APK、AI 本机权限配置。
+# 3. 白名单：.vscode 共享配置、CLAUDE.md、AGENTS.md、.serena 项目配置、
+#    .github/ 工作流。
 #
 # 重要说明：
 # - .gitignore 只影响“尚未被 Git 跟踪”的文件。
-# - 已经提交过的文件不会因为新增规则自动停止跟踪。
-# - Syncthing 的同步规则必须由 .stignore 单独控制；
-#   .gitignore 无法阻止 Syncthing 同步文件。
+# - 已跟踪文件需用 `git rm --cached` 停止跟踪，不会改写历史。
+# - Syncthing 排除规则写在本机 .stignore，不由本文件控制。
 # ============================================================
 
 
@@ -27,76 +26,48 @@
 # 1. Gradle 缓存与 Android 构建产物
 # ============================================================
 
-# Gradle 的本机缓存、任务执行状态、增量构建元数据。
-# 删除后可由 Gradle 自动重新生成。
 /.gradle/
-
-# 根目录与所有 Android 模块的构建目录。
-# 包含 APK、AAB、R 文件、DEX、资源处理结果、测试报告等生成物。
 /build/
 **/build/
-
-# 本地导出的可安装包目录（手动拷机用，不入库）
-/dist/
-
-# Kotlin / Gradle 相关的项目级缓存。
-# 不属于源码，删除后可重新生成。
 /.kotlin/
-
-# IntelliJ / Android Studio 可能生成的编译输出目录。
 /out/
-
-# Java / Kotlin 编译后的 class 文件。
-# 正常情况下位于 build/ 中；保留该规则用于防止异常散落到项目目录。
 *.class
 
+# 本地导出的可安装包（手动拷机用，不入库）
+/dist/
+
+# CMake / NDK / externalNativeBuild 中间产物
+/.cxx/
+**/.cxx/
+/.externalNativeBuild/
+**/.externalNativeBuild/
+/app/.cxx/
+
 
 # ============================================================
-# 2. Android SDK、本机路径与 Android Studio 本地状态
+# 2. Android SDK、本机路径与 IDE 本地状态
 # ============================================================
 
-# Android SDK 的本机绝对路径配置。
-# 例如 sdk.dir=D:\\Android\\Sdk；不同电脑路径不同，绝不能提交。
 /local.properties
-
-# Android Studio / IntelliJ IDEA 本机索引、窗口布局、SDK/JDK 选择、
-# 模块缓存、运行状态等机器相关信息。
-# 本项目由 Gradle 自动导入，不依赖 .idea 目录复现。
 /.idea/
-
-# IntelliJ IDEA 自动生成的模块与项目文件。
 *.iml
 *.ipr
 *.iws
-
-# Android Studio Device Explorer / Capture 工具产生的本地文件。
 /captures/
-
-# Android Profiler、内存分析、性能追踪等本地调试文件。
 *.hprof
 *.trace
 
-# CMake / NDK / external native build 的中间产物。
-# 当前项目即使暂时没有 NDK，也提前保留，后续接入原生库时无需补规则。
-/.cxx/
-/.externalNativeBuild/
-
 
 # ============================================================
-# 3. Android 打包、安装与发布生成物
+# 3. 打包、安装与发布生成物
 # ============================================================
 
-# Debug / Release APK、Android App Bundle、APK Set、签名附属文件。
-# 正式发布请使用 GitHub Releases、CI 制品或专门的发布目录，
-# 不要把二进制安装包提交到源码仓库。
 *.apk
 *.aab
 *.apks
 *.ap_
 *.idsig
-
-# Android Gradle Plugin 自动生成的 APK 输出描述文件。
-# 通常位于 build/ 内；单独忽略是为了防止被复制到其他目录后误提交。
+*.hzzsdelta
 output-metadata.json
 
 
@@ -104,30 +75,18 @@ output-metadata.json
 # 4. 签名文件、密钥与发布私密配置
 # ============================================================
 
-# Android 应用签名证书与私钥。
-# 泄露后可能导致应用签名被滥用，必须始终保留在本机私有位置。
 *.jks
 *.keystore
 *.p12
 *.pfx
-
-# Android 签名、发布、商店凭据或第三方服务的本地配置。
-# 这些文件通常可能包含 storePassword、keyPassword、Alias、Token、
-# API Key、服务账号地址等敏感信息。
 /key.properties
 /keystore.properties
 /signing.properties
 /secrets.properties
 /local.secrets.properties
-
-# 项目根目录下可能专门存放私钥或秘密配置的目录。
-# 使用根目录限定，避免误伤未来源码中的同名普通目录。
 /keystore/
 /keys/
 /secrets/
-
-# Firebase / Google Services 本地项目配置。
-# 当前 MyApplication 不使用 Firebase；未来接入时也不应提交真实配置。
 /app/google-services.json
 
 
@@ -135,46 +94,29 @@ output-metadata.json
 # 5. 环境变量与本机私有配置
 # ============================================================
 
-# 环境变量文件常包含 Token、测试账号、服务器地址、私有 API Key 等。
-# 所有真实环境变量文件都不应进入公开仓库。
 /.env
 /.env.*
-
-# 允许提交示例模板文件。
-# 示例文件只能保留变量名、用途说明和假数据，不能包含真实密钥。
 !/.env.example
 !/.env.sample
 !/.env.template
 !/.env.*.example
 
-# Gradle 的共享配置 gradle.properties 必须提交；
-# 私人机器专用的额外 Gradle 配置使用下列名称，避免泄露或污染协作配置。
+# 私人机器专用 Gradle 覆盖（共享 gradle.properties 仍提交）
 /gradle.local.properties
 /gradle-local.properties
+/gradle/gradle-daemon-jvm.properties.backup-*
 
 
 # ============================================================
 # 6. VS Code 共享配置与本机局部配置
 # ============================================================
 
-# 先忽略 .vscode 中所有文件，再白名单保留真正需要协作的配置。
-# 这样未来出现日志、临时状态或私人配置时，不会被意外提交。
 /.vscode/*
-
-# 以下配置属于项目共享开发体验，应提交到 Git：
-# - settings.json：工作区性能、文件排除、编辑行为等共享设置
-# - tasks.json：Gradle 构建、安装、测试、释放 Daemon 等任务
-# - launch.json：未来需要的调试配置
-# - extensions.json：项目推荐扩展
-# - snippets：团队或项目可复用代码片段
 !/.vscode/settings.json
 !/.vscode/tasks.json
 !/.vscode/launch.json
 !/.vscode/extensions.json
 !/.vscode/*.code-snippets
-
-# VS Code 本机专用配置、日志与临时状态。
-# 虽然已被上方 /.vscode/* 覆盖，仍显式写出以便维护时理解用途。
 /.vscode/*.local.json
 /.vscode/*.local.*
 /.vscode/settings.local.json
@@ -184,66 +126,39 @@ output-metadata.json
 # ============================================================
 # 7. Claude Code、Serena 与 AI 协作本地文件
 # ============================================================
+#
+# 提交：CLAUDE.md、AGENTS.md、.serena/project.yml 等共享规则。
+# 忽略：本机权限、状态栏、私人设置、技能锁与本地缓存。
 
-# CLAUDE.md、AGENTS.md、.serena/、.github/ 等共享规则不要忽略。
-# 它们属于项目说明、自动化和 AI 协作能力的一部分，应进入 Git。
-
-# 仅忽略 Claude Code 的本机私人配置。
-# 这些文件可能包含本机路径、权限状态或个人偏好。
+/.claude/settings.json
 /.claude/settings.local.json
 /.claude/*.local.json
 /.claude/*.local.md
+/.claude/cache/
 /CLAUDE.local.md
-
-# 常见编辑器本地历史记录目录。
+/skills-lock.json
 /.history/
 
 
 # ============================================================
-# 8. Syncthing 产生的内部文件、临时文件与冲突文件
+# 8. Syncthing 内部文件与冲突副本
 # ============================================================
-
-# 注意：
-# - 下列规则只防止 Git 提交，不能阻止 Syncthing 自己同步。
-# - Syncthing 的实际同步排除规则应写在本机 .stignore 中。
-# - 不要删除 .stfolder；它是 Syncthing 判断同步目录健康状态的标记。
-# - 本项目的 .stignore 应保持本机私有，不提交 Git。
 #
-# 不在这里忽略 .git/：
-# 你当前的跨设备工作流需要 Git 仓库随项目同步。
-# 但不要在两台设备上同时执行 Git 提交、rebase、gc、reset 等重写历史操作。
+# 下列规则只防 Git 提交；同步排除写本机 .stignore。
+# 不忽略 .git/：跨设备可同步仓库，但勿两机同时重写历史。
 
-# Syncthing 文件夹健康标记与残留标记。
 /.stfolder/
 /.stfolder.removed-*
-
-# Syncthing 文件版本历史目录。
-# 体积可能较大，不属于项目源码。
 /.stversions/
-
-# Syncthing 每台设备独立维护的同步忽略规则。
-# 该文件不应通过 Git 共享。
 /.stignore
-
-# Syncthing 下载中的临时文件。
-# Windows 常见名称：~syncthing~文件名.tmp
-# Linux 常见名称：.syncthing.文件名.tmp
 ~syncthing~*.tmp
 .syncthing*.tmp
-
-# 两台设备同时修改同一文件时可能生成的冲突副本。
-# 必须手动检查内容、合并需要保留的版本后再删除。
-# 不应提交进 Git 仓库。
 *.sync-conflict-*
 
 
 # ============================================================
-# 9. Node.js / pnpm 辅助脚本缓存
+# 9. Node.js / 前端辅助缓存（若后续加入文档站/脚本）
 # ============================================================
-#
-# 当前项目以 Android Gradle 为主。
-# 下面规则用于未来加入文档脚本、自动化脚本、网页工具或 Node.js 辅助工具时。
-# 不影响 package.json、pnpm-lock.yaml、脚本源码等应提交文件。
 
 /node_modules/
 /.pnpm-store/
@@ -254,8 +169,6 @@ output-metadata.json
 /.turbo/
 /.vite/
 /.cache/
-
-# Node.js 包管理器与工具日志。
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
@@ -263,11 +176,10 @@ yarn-error.log*
 
 
 # ============================================================
-# 10. Python 辅助脚本缓存
+# 10. Python 质量/视觉脚本缓存
 # ============================================================
 #
-# 当前项目不依赖 Python。
-# 后续使用 Python 做资源处理、代码生成、检查脚本时，缓存不应提交。
+# tools/quality、tools/vision、tools/release 使用 Python。
 
 __pycache__/
 *.py[cod]
@@ -279,31 +191,28 @@ venv/
 
 
 # ============================================================
-# 11. 测试、覆盖率与本地报告
+# 11. 测试报告、本地诊断与备份目录
 # ============================================================
 
-# Android 的测试输出通常已在 build/ 下被忽略。
-# 下列规则覆盖未来额外接入的脚本测试、网页测试或覆盖率工具。
 /coverage/
 /test-results/
 /playwright-report/
 /.nyc_output/
+/.hzzs-test-results/
+.hzzs-test-results/
+/.backups/
+.backups/
+/hzzs-lint-errors*.txt
+hzzs-lint-errors*.txt
 
 
 # ============================================================
-# 12. 日志、临时文件、编辑器备份与合并残留
+# 12. 日志、临时文件、编辑器备份
 # ============================================================
 
-# 应用、Gradle、脚本、工具运行日志。
 *.log
-
-# JVM 崩溃转储文件（堆栈跟踪 + replay 数据）
-# 即使 *.log 已匹配，显式写出以便维护和理解
 hs_err_pid*.log
 replay_pid*.log
-
-# 编辑器自动保存、手动备份、补丁残留与 Vim 临时文件。
-# 长期需要保留的资料请使用正式文件名，不要依赖 .bak / .tmp / .old。
 *.tmp
 *.temp
 *.bak
@@ -316,16 +225,13 @@ replay_pid*.log
 
 
 # ============================================================
-# 13. Windows、macOS 与 Linux 系统垃圾文件
+# 13. 操作系统垃圾文件
 # ============================================================
 
-# Windows 资源管理器缓存与桌面配置。
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
-
-# macOS Finder 元数据、资源叉与目录缓存。
 .DS_Store
 .DS_Store?
 ._*
@@ -333,25 +239,16 @@ $RECYCLE.BIN/
 .LSOverride
 .Spotlight-V100
 .Trashes
-
-# Linux 文件管理器、桌面环境和编辑器可能生成的文件。
 .directory
 .Trash-*/
 
-# Gradle 临时恢复备份，不提交到仓库
-gradle/gradle-daemon-jvm.properties.backup-*
-# Android CMake / NDK build intermediates
-app/.cxx/
 
 # ============================================================
 # 14. 原生库编译产物
 # ============================================================
 
-# C++ 共享库编译产物（.so 文件），由 Gradle/NDK 自动生成。
-# 不同平台/ABI 产物不同，不应提交到 Git。
 *.so
-
-# 本地临时与备份
-.hzzs-test-results/
-skills-lock.json
-.backups/
+*.o
+*.a
+*.dll
+*.dylib
