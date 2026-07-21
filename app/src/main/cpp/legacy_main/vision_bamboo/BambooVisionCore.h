@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+ * 竹影书屋主路径检测核心（从历史 main 移植）。
+ *
+ * 障碍语义：地面 / 缺口 / 头顶物；映射到统一 Kind 时在 vision_engine 完成。
+ * 角色身后目标不得进入动作协议（实现侧过滤）。
+ */
+
 #include <cstdint>
 
 namespace hzzs::vision_bamboo {

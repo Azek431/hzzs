@@ -1,3 +1,9 @@
+/**
+ * 竹影书屋赛季启发式回退检测器。
+ *
+ * 主路径为 legacy_main/vision_bamboo；本文件仅在主路径过弱时启用。
+ * 障碍：熊猫像 / 竹隙 / 悬挂毛笔；PIT 与竹隙单语义，避免双写双动作。
+ */
 #include "vision_engine.h"
 #include "color_components.h"
 #include "scene_geometry.h"

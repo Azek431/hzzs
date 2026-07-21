@@ -1,4 +1,10 @@
 #pragma once
+/**
+ * 场景几何与地面估计（启发式回退 / 辅助）。
+ *
+ * 阈值优先来自 SceneAlgorithmParamsNative；颜色可用内置硬编码或 params.colors。
+ * 不依赖固定屏幕分辨率，一律相对帧宽高比例。
+ */
 #include "algorithm_runtime.h"
 #include "vision_types.h"
 #include "color_components.h"
@@ -7,6 +13,8 @@
 #include <vector>
 
 namespace hzzs {
+
+/** 根据目标工作宽度估算采样步长。 */
 inline int adaptive_stride(const FrameView& f, int work_width, int multiplier = 1) {
     return std::max(1, static_cast<int>(std::ceil(f.width / static_cast<float>(std::max(1, work_width)))) * multiplier);
 }

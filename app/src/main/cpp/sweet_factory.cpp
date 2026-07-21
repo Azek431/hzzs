@@ -1,3 +1,10 @@
+/**
+ * 甜甜圈赛季启发式回退检测器。
+ *
+ * 仅在主路径（legacy_main/vision2）场景置信度过低且检测过少时由 vision_engine 调用。
+ * 基于地面估计 + 颜色连通域；阈值来自 SceneAlgorithmParamsNative。
+ * 输出归一化 Detection，与主路径统一协议。
+ */
 #include "vision_engine.h"
 #include "color_components.h"
 #include "scene_geometry.h"

@@ -1,3 +1,7 @@
+/**
+ * 竹影主路径适配层：将 BambooVisionEngine 输出转为 Detection 协议，
+ * 并过滤玩家身后障碍。
+ */
 #include "BambooVisionCore.h"
 #include "BambooVisionEngine.h"
 

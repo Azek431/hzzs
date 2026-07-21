@@ -1,3 +1,9 @@
+/**
+ * 视觉引擎实现：调度主路径检测器，映射为统一 Detection 协议，
+ * 并在主路径过弱时启用启发式回退。
+ *
+ * 像素 → 归一化坐标在本文件完成；业务阈值优先读 AlgorithmRuntime 快照。
+ */
 #include "vision_engine.h"
 
 #include "HzzsVisionCore.h"
@@ -10,6 +16,7 @@
 namespace hzzs {
 namespace {
 
+/** 帧指针与尺寸边界，与 JNI / Kotlin FrameMeta 上限一致。 */
 bool valid_frame(const FrameView& frame) {
     constexpr int kMaxDimension = 4096;
     constexpr int64_t kMaxPixels = 8'388'608;
@@ -23,6 +30,7 @@ float finite_confidence(float value) {
     return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
 }
 
+/** 像素包围盒（含 right/bottom 闭区间）→ 归一化 [0,1]。 */
 Rect normalize_px(int left, int top, int right, int bottom, int width, int height) {
     if (width <= 0 || height <= 0) return {};
     const float w = static_cast<float>(width);
@@ -40,6 +48,10 @@ Rect normalize_px(int left, int top, int right, int bottom, int width, int heigh
     return rect;
 }
 
+/**
+ * 若类别启用则压入检测；非法矩形降级为 diagnostic_only。
+ * 坐标在写入前归一化。
+ */
 void push_if_enabled(
     Result& out,
     int enabled_kind_mask,

@@ -1,5 +1,14 @@
 #pragma once
 
+/**
+ * 甜甜圈主路径检测核心（从历史 main 移植）。
+ *
+ * 输出像素坐标系 Detection / AnalysisResult；由 vision_engine.cpp 映射为
+ * 统一 hzzs::Detection 归一化协议。跨帧状态不在此维护。
+ *
+ * 修改阈值时优先用相对帧宽高或玩家宽度的比例，避免固定屏幕像素。
+ */
+
 #include <cstdint>
 
 namespace hzzs::vision2 {
