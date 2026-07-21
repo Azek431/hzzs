@@ -27,3 +27,4 @@
 - `vision_engine.cpp` 优先调用主路径，并映射到统一 `Detection` / 位掩码协议；仅当场景置信度很低且检测过少时，回退 `sweet_factory.cpp` / `bamboo_bookstore.cpp`。
 - 宽 cake 输出 `PIT`，窄 cake 输出 `CAKE_STRUCTURE`；竹隙优先 `BAMBOO_GAP`，仅在关闭该类别时退化为 `PIT`，避免同一框双写导致双动作。
 - 历史 `main` 的 analysis 状态机与模拟 HUD 路径不再编译。
+- 宿主机脚本 `tools/vision/build_host.sh` 与 `tools/vision/run_native_sanitizers.sh` 必须与本目录 `CMakeLists.txt` 使用相同源文件与 include（含 `legacy_main/vision2`、`legacy_main/vision_bamboo`）。
