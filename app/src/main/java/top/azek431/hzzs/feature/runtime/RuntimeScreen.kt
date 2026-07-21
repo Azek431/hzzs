@@ -44,23 +44,33 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import top.azek431.hzzs.core.designsystem.HeroCard
 import top.azek431.hzzs.core.designsystem.MetricTile
 import top.azek431.hzzs.core.designsystem.PageHeader
 import top.azek431.hzzs.core.designsystem.SectionCard
 import top.azek431.hzzs.core.designsystem.StatusChip
+import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import javax.inject.Inject
 
 @HiltViewModel
 class RuntimeViewModel @Inject constructor(
     private val controller: VisionRuntimeController,
+    settingsRepository: SettingsRepository,
 ) : ViewModel() {
     val status: StateFlow<RuntimeStatus> = controller.status
+    val config: StateFlow<AppConfig> = settingsRepository.config.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        AppConfig(),
+    )
     var transientMessage by mutableStateOf<String?>(null)
         private set
 
@@ -81,6 +91,8 @@ class RuntimeViewModel @Inject constructor(
 @Composable
 fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
     val status by vm.status.collectAsState()
+    val config by vm.config.collectAsState()
+    val requireSessionArm = config.automation.requireSessionArm
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(vm.transientMessage) {
         vm.transientMessage?.let {
@@ -100,7 +112,11 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
             item {
                 PageHeader(
                     title = "运行控制",
-                    subtitle = "先启动分析，再按需解锁自动操作",
+                    subtitle = if (requireSessionArm) {
+                        "先启动分析，再按需解锁自动操作"
+                    } else {
+                        "先启动分析；当前为自动窗口模式，无需手动解锁"
+                    },
                 )
             }
 
@@ -183,38 +199,59 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Text(
-                        "只会绑定本次会话的当前游戏窗口。切换页面、场景、截图方式或执行失败后会自动解除。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    StatusChip(
-                        if (status.automationArmed) "已解锁：可发送手势" else "已上锁：仅分析不操作",
-                        active = status.automationArmed,
-                    )
-                    if (status.automationArmed) {
-                        FilledTonalButton(onClick = vm::disarm, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Rounded.Lock, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("立即解除")
+                    if (requireSessionArm) {
+                        Text(
+                            "只会绑定本次会话的当前游戏窗口。切换页面、场景、截图方式或执行失败后会自动解除。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        StatusChip(
+                            if (status.automationArmed) "已解锁：可发送手势" else "已上锁：仅分析不操作",
+                            active = status.automationArmed,
+                        )
+                        if (status.automationArmed) {
+                            FilledTonalButton(onClick = vm::disarm, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Rounded.Lock, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("立即解除")
+                            }
+                        } else {
+                            Button(
+                                onClick = vm::arm,
+                                enabled = status.running && status.captureReady,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Rounded.LockOpen, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("确认当前页面并临时启用")
+                            }
+                            if (!status.running || !status.captureReady) {
+                                Text(
+                                    "请先开始分析并完成截图授权，才能解锁自动操作。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     } else {
-                        Button(
-                            onClick = vm::arm,
-                            enabled = status.running && status.captureReady,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Rounded.LockOpen, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("确认当前页面并临时启用")
-                        }
-                        if (!status.running || !status.captureReady) {
-                            Text(
-                                "请先开始分析并完成截图授权，才能解锁自动操作。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Text(
+                            "当前设置为自动窗口模式：分析运行中且前台应用在白名单时，将直接按当前页面规划手势，无需手动解锁。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        StatusChip(
+                            if (status.running && status.captureReady) {
+                                "自动模式：满足条件即可发送手势"
+                            } else {
+                                "自动模式：等待分析与截图就绪"
+                            },
+                            active = status.running && status.captureReady,
+                        )
+                        Text(
+                            "可在设置中重新打开“每次运行需手动解锁窗口”。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

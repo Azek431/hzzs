@@ -46,6 +46,9 @@
 - 动作执行移出帧循环，增加帧龄门控、空间去重与 `retryLimit`。
 - 设置页接入 `SettingsEditSession`；高级截图后端复用帧池；悬浮窗内容未变时跳过重绘。
 - 停止分析时 join 动作任务；`actionInFlight` CAS 防并发；忽略更新走 session；MCP 配置指纹变化才重启；`requireSessionArm` 生效并暴露到设置。
+- 设置连续修改改为整份草稿 flush（`SettingsEditSession.replace`），避免 debounce 丢字段。
+- 运行页按 `requireSessionArm` 切换手动解锁 / 自动窗口模式文案。
+- MCP 停止走 `ACTION_STOP` 并允许同进程再次启动。
 - 修复宿主机 `build_host.sh` / `run_native_sanitizers.sh` 未同步 `legacy_main` 源与 include，导致 CI 找不到 `HzzsVisionCore.h`。
 
 ### 已知限制
