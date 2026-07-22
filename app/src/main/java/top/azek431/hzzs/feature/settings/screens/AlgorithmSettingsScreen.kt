@@ -147,8 +147,8 @@ fun AlgorithmSettingsScreen(
 
         item {
             SettingsWarningCard(
-                title = "算法目录与下载仍为演示",
-                body = "检查/下载不会落盘或验签真实 .hzzsalg，也不会切换 Native 引擎；分析始终使用内置 builtin.hzzs.v1，直至安装器接入。识别赛季与下方阈值可预览即时生效，算法选择须保存且当前仍不驱动引擎。",
+                title = "算法网络与安装说明",
+                body = "目录走 HTTPS 双源；下载需 AlgorithmTrustAnchors 官方公钥与 Ed25519 验签后才落盘。未配置公钥时下载被拒绝。识别赛季/阈值可预览即时生效；算法选择保存后经 ActivationCoordinator 在安全点切换。",
             )
         }
 
@@ -283,7 +283,7 @@ fun AlgorithmSettingsScreen(
         item {
             Text("最新算法", style = MaterialTheme.typography.titleMedium)
             Text(
-                "演示列表按兼容性排序。下载为模拟进度；完整尺寸/颜色优化依赖后续引擎参数化与安装器。",
+                "按兼容性与版本排序。下载受 Wi‑Fi 策略与信任锚约束；主路径尺寸窗后过滤已启用，颜色谓词仍部分硬编码。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -485,7 +485,7 @@ private fun updateScene(
 
 private fun obstaclesFor(scene: SceneId): List<ObstacleKind> = when (scene) {
     SceneId.SWEET_FACTORY -> listOf(
-        ObstacleKind.POISON_BOTTLE,
+        ObstacleKind.GREEN_BOTTLE,
         ObstacleKind.CAKE_STRUCTURE,
         ObstacleKind.HANGING_SPIKE,
         ObstacleKind.PIT,
@@ -494,6 +494,12 @@ private fun obstaclesFor(scene: SceneId): List<ObstacleKind> = when (scene) {
         ObstacleKind.PANDA_STATUE,
         ObstacleKind.BAMBOO_GAP,
         ObstacleKind.HANGING_BRUSH,
+        ObstacleKind.PIT,
+    )
+    SceneId.SEA_SALT_LIVING_ROOM -> listOf(
+        ObstacleKind.SAND_CASTLE,
+        ObstacleKind.HANGING_ANCHOR,
+        ObstacleKind.SEA_PIT,
         ObstacleKind.PIT,
     )
 }

@@ -11,6 +11,8 @@
 
 ### 新增
 
+- **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` 2.0.0 覆盖三赛季参数。
+- **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出到算法测试「识别结果」目录（耗时与叠加图，不宣称准确率）。
 - **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。
 - **算法包 rules schema v2（双段）**：`userThresholds` + `engineParams`；tools 兼容 v1；示例包 `official-bamboo-baseline` 升 v2；Kotlin `AlgorithmRulesParser` 合成双场景 profile 并填洞。
 - **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`。
@@ -43,7 +45,9 @@
 - **构建性能**：`gradle.properties` 按 low-memory / 4 线程画像收紧 Daemon 堆与 worker；开启增量 kapt/Kotlin 与 Configuration Cache 并行；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
 - 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。
 - 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
-- 默认赛季改为 **竹影书屋**（与历史 main 线默认一致）。
+- 默认赛季改为 **海盐客厅**（`AppConfig.DEFAULT_SELECTED_SCENE`，产品默认永远指向当前最新赛季）。
+- 障碍枚举与研究版对齐：`POISON_BOTTLE` → `GREEN_BOTTLE`；新增海盐三类障碍。
+- 内置算法 ID：`builtin.hzzs.v1` → `builtin.hzzs.base`（2.0.0）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
 - Release 签名解析增强：兼容 `ANDROID_KEYSTORE_*` 与历史 `AZEK431_RELEASE_*`，并支持 gitignore 的 `keystore.properties`；恢复 README 本机构建说明与 `keystore.properties.example`；minSdk 24 启用 V2/V3 签名。

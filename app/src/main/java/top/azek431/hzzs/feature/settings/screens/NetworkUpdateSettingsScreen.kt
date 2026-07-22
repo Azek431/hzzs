@@ -141,12 +141,14 @@ fun NetworkUpdateSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "算法更新",
-                description = "通道偏好可保存。检查/下载当前为演示目录与模拟进度，不会验签或激活引擎。",
+                description = "通道偏好可保存。目录 HTTPS 拉取；下载需官方公钥信任锚与验签后才落盘。",
             ) {
-                SettingsWarningCard(
-                    title = "尚未接入真实算法安装器",
-                    body = "自动检查/自动下载开关会写入配置，但后台调度与 .hzzsalg 落盘尚未实现；手动检查仅刷新演示列表。",
-                )
+                if (!top.azek431.hzzs.core.algorithm.AlgorithmTrustAnchors.hasOfficialAnchors()) {
+                    SettingsWarningCard(
+                        title = "尚未配置官方算法公钥",
+                        body = "目录可检查，但下载/安装会 fail-closed。发布密钥后写入 AlgorithmTrustAnchors。autoCheck 仅刷新目录。",
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AlgorithmChannel.entries.forEach { channel ->
                         SettingsRadioCard(
@@ -162,7 +164,7 @@ fun NetworkUpdateSettingsScreen(
                 }
                 SettingsSwitchRow(
                     title = "自动检查算法更新",
-                    subtitle = "已保存；调度未实现，打开后不会后台检查。",
+                    subtitle = "启动时刷新算法目录（需网络）。",
                     checked = config.algorithm.autoCheck,
                     onCheckedChange = { value ->
                         update { it.copy(algorithm = it.algorithm.copy(autoCheck = value)) }
@@ -170,13 +172,13 @@ fun NetworkUpdateSettingsScreen(
                 )
                 SettingsSwitchRow(
                     title = "自动下载算法更新",
-                    subtitle = "已保存；真实下载/激活未接入。",
+                    subtitle = "检查后自动下载兼容最新包（需信任锚；手动模式不自动激活）。",
                     checked = config.algorithm.autoDownload,
                     onCheckedChange = { value ->
                         update { it.copy(algorithm = it.algorithm.copy(autoDownload = value)) }
                     },
                 )
-                Button(onClick = onRefreshAlgorithms) { Text("手动检查算法（演示）") }
+                Button(onClick = onRefreshAlgorithms) { Text("手动检查算法") }
             }
         }
 

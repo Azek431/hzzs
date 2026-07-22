@@ -50,11 +50,18 @@
 
 ### `rules.json`
 
-**现状（schema v1 / 工具链）**：按 `supportedScenes` 提供 `thresholds`（对齐用户侧 `VisionThresholds`）与可选 `disabledObstacles`。  
-**目标（schema v2，设计中）**：双段 `userThresholds` + `engineParams`——前者映射 `SceneConfig`，后者映射 `AlgorithmRuntimeProfile` / C++ 快照；v1 包仅当 user 段，engine 用 builtin 填洞。
+**schema v1（兼容）**：`thresholds`（用户侧 `VisionThresholds`）+ 可选 `disabledObstacles`。  
+**schema v2（当前）**：双段 `userThresholds` + `engineParams`——前者映射 `SceneConfig` 推荐，后者映射 `AlgorithmRuntimeProfile`；缺省赛季用 builtin 填洞。
 
-第一版不包含脚本、模型权重或远程 URL。  
-**应用内安装器尚未接入**：设置页目录/下载为 UI 演示，不会落盘 `.hzzsalg` 或调用 `configureAlgorithm`。
+不包含脚本、模型权重或远程 URL。  
+
+**客户端链路（已落地骨架）**：
+
+- 目录：`AlgorithmNetworkClient` HTTPS 拉 `algorithms/{channel}.json`（Gitee/GitHub）
+- 下载：size/sha256 + `AlgorithmPackVerifier`（ZIP 白名单 + Ed25519）
+- 落盘：`InstalledAlgorithmStore` → `filesDir/algorithms/installed/`
+- 激活：`AlgorithmActivationCoordinator`（save / start 安全点）
+- **信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空 → 下载安装 fail-closed，直至官方公钥写入
 
 ### `signature.json`
 

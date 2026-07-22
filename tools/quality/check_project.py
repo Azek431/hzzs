@@ -104,8 +104,14 @@ check(
 )
 
 onboarding = read("app/src/main/java/top/azek431/hzzs/feature/onboarding/OnboardingScreen.kt")
-for token in ("onboardingPages", "acceptedDisclaimerVersion", "enabled = false", "请等待 ${remaining}s"):
+for token in ("onboardingPageMetas", "acceptedDisclaimerVersion", "enabled = false", "onboarding_risk_wait"):
     check(token in onboarding, f"onboarding:{token}", "first-run invariant missing")
+# 倒计时文案已资源化；源码不得再硬编码「请等待 ${remaining}s」绕过 stringResource。
+check(
+    "请等待 ${remaining}s" not in onboarding,
+    "onboarding:no-hardcoded-wait",
+    "onboarding risk wait must use stringResource",
+)
 
 mcp = read("app/src/main/java/top/azek431/hzzs/mcp/McpService.kt")
 for token in (
