@@ -72,17 +72,10 @@ goto fail
 
 set CLASSPATH=
 
-@rem ---------------------------------------------------------------------------
-@rem HZZS local build knobs (2C/4T + low-memory + IDE 常驻)
-@rem 1) ninja 并行默认 2，避免与 Kotlin/IDE 过订阅；已设置则尊重。
-@rem 2) 强制 configuration-cache=true：%GRADLE_USER_HOME%\gradle.properties 若写了
-@rem    org.gradle.configuration-cache=false 会覆盖项目级 true，冷配置可多 1～2 分钟。
-@rem    命令行 -D 优先级更高。调试配置缓存时可设 HZZS_ALLOW_USER_CC_OVERRIDE=1。
-@rem ---------------------------------------------------------------------------
+@rem HZZS local knobs (ASCII-only comments: cmd breaks on UTF-8 / %%VAR%% in rem).
+@rem Default ninja jobs=2. Force configuration-cache=true unless HZZS_ALLOW_USER_CC_OVERRIDE=1.
 if not defined CMAKE_BUILD_PARALLEL_LEVEL set "CMAKE_BUILD_PARALLEL_LEVEL=2"
-if /I not "%HZZS_ALLOW_USER_CC_OVERRIDE%"=="1" (
-  set "GRADLE_OPTS=%GRADLE_OPTS% -Dorg.gradle.configuration-cache=true"
-)
+if /I not "%HZZS_ALLOW_USER_CC_OVERRIDE%"=="1" set "GRADLE_OPTS=%GRADLE_OPTS% -Dorg.gradle.configuration-cache=true"
 
 @rem Execute Gradle
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %*

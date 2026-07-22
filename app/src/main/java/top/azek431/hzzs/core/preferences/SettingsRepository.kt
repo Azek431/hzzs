@@ -63,7 +63,7 @@ interface SettingsRepository {
     /** 校验后持久化，并清空预览。 */
     suspend fun save(config: AppConfig)
 
-    /** 解析外部 JSON 并校验，不自动保存。 */
+    /** 解析外部 JSON 并校验；**不**自动 harden。MCP/导入 UI 须再调 [hardenedForExternalIngest]。 */
     suspend fun importJson(json: String): AppConfig
 
     /** 导出已校验配置的 JSON 文本。 */
@@ -316,6 +316,9 @@ fun obstaclesForScene(scene: SceneId): Set<ObstacleKind> = when (scene) {
  * - 包名与默认白名单求交
  * - MCP 始终 `bindLocalhostOnly=true`
  * - schema 写回 [AppConfig.CURRENT_SCHEMA]
+ *
+ * 注意：本函数**不会**单独拦截「已接受免责声明后的 enabled=true」。
+ * 外部 JSON / MCP 摄入请再经 [hardenedForExternalIngest]，避免静默开启自动操作或自提 MCP 权限。
  */
 fun AppConfig.validated(): AppConfig {
     val completeScenes = SceneId.entries.associateWith { id ->
@@ -396,6 +399,101 @@ fun AppConfig.validated(): AppConfig {
                 ?.takeIf { it.length in 1..96 },
         ),
     )
+}
+
+/**
+ * 外部摄入（配置导入、MCP `save_settings`/`preview_settings`）相对 [baseline] 的安全收敛。
+ *
+ * 硬规则（对齐 CLAUDE / SECURITY）：
+ * - 不得静默把自动操作从关→开；若 baseline 已开，可保留但不得降低 session arm 强度；
+ * - 不得自提 MCP `permissionLevel` / 不得静默打开 `mcp.enabled` / `allowDebugFrames`；
+ * - 不得静默打开开发者选项或写入 `forceCaptureBackend`（避免升权截图后端）；
+ * - 截图后端不得从低权限静默升到 Root/Shizuku/无障碍（保持 baseline 或更低风险）。
+ *
+ * 调用方应先 [validated] 再 harden，或对本函数返回值再 `validated()`。
+ */
+fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
+    val base = baseline.validated()
+    val candidate = validated()
+
+    val automation = candidate.automation.copy(
+        // 外部路径不得静默开启；仅当 baseline 已开时允许保持。
+        enabled = candidate.automation.enabled && base.automation.enabled,
+        // 不得通过外部 JSON 把「每次会话 arm」关掉。
+        requireSessionArm = if (base.automation.requireSessionArm) {
+            true
+        } else {
+            candidate.automation.requireSessionArm
+        },
+        // 外部不得伪造「用户已接受」：免责版本只可 ≤ baseline。
+        disclaimerAcceptedVersion = minOf(
+            candidate.automation.disclaimerAcceptedVersion,
+            base.automation.disclaimerAcceptedVersion,
+        ),
+        bambooExperimentalAutoAction =
+            candidate.automation.bambooExperimentalAutoAction &&
+                base.automation.bambooExperimentalAutoAction,
+    )
+
+    val mcp = candidate.mcp.copy(
+        enabled = candidate.mcp.enabled && base.mcp.enabled,
+        // 权限级只允许降级或持平，禁止外部自提。
+        permissionLevel = minPermission(base.mcp.permissionLevel, candidate.mcp.permissionLevel),
+        allowDebugFrames = candidate.mcp.allowDebugFrames && base.mcp.allowDebugFrames,
+        bindLocalhostOnly = true,
+    )
+
+    val developer = candidate.developer.copy(
+        enabled = candidate.developer.enabled && base.developer.enabled,
+        forceCaptureBackend = if (base.developer.enabled) {
+            // 开发者已开时，允许改 force，但仍受运行时 isSupported fail-soft。
+            candidate.developer.forceCaptureBackend
+        } else {
+            null
+        },
+    )
+
+    val captureBackend = saferCaptureBackend(base.captureBackend, candidate.captureBackend)
+
+    return candidate.copy(
+        automation = automation,
+        mcp = mcp,
+        developer = developer,
+        captureBackend = captureBackend,
+    ).validated()
+}
+
+/** MCP 权限级序：数字越大权限越高。 */
+private fun mcpPermissionRank(level: McpPermissionLevel): Int =
+    when (level) {
+        McpPermissionLevel.READ_ONLY -> 0
+        McpPermissionLevel.ASK_EVERY_TIME -> 1
+        McpPermissionLevel.TRUSTED_SESSION -> 2
+        McpPermissionLevel.FULL_ACCESS -> 3
+    }
+
+private fun minPermission(
+    baseline: McpPermissionLevel,
+    candidate: McpPermissionLevel,
+): McpPermissionLevel =
+    if (mcpPermissionRank(candidate) <= mcpPermissionRank(baseline)) candidate else baseline
+
+/**
+ * 截图后端风险序：AUTO/MP 最低；无障碍中等；Shizuku/Root 最高。
+ * 外部摄入不得升到比 baseline 更高风险的后端。
+ */
+private fun saferCaptureBackend(
+    baseline: CaptureBackend,
+    candidate: CaptureBackend,
+): CaptureBackend {
+    fun rank(b: CaptureBackend): Int = when (b) {
+        CaptureBackend.AUTO -> 0
+        CaptureBackend.MEDIA_PROJECTION -> 1
+        CaptureBackend.ACCESSIBILITY -> 2
+        CaptureBackend.SHIZUKU -> 3
+        CaptureBackend.ROOT -> 4
+    }
+    return if (rank(candidate) <= rank(baseline)) candidate else baseline
 }
 
 /** 非 finite 浮点回退为默认值。 */

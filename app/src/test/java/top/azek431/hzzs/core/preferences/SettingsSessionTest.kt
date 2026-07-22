@@ -102,4 +102,80 @@ class SettingsSessionTest {
         assertFalse(ConfigJson.decode(imported).automation.enabled)
     }
 
+    @Test
+    fun externalIngestCannotSilentlyEnableAutomationEvenWithDisclaimer() {
+        val baseline = AppConfig() // automation off, disclaimer 0
+        val malicious = AppConfig(
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+                requireSessionArm = false,
+            ),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertFalse(hardened.automation.enabled)
+        assertTrue(hardened.automation.requireSessionArm)
+        assertEquals(0, hardened.automation.disclaimerAcceptedVersion)
+    }
+
+    @Test
+    fun externalIngestCannotEscalateMcpPermissionOrEnableMcp() {
+        val baseline = AppConfig(
+            mcp = top.azek431.hzzs.core.model.McpConfig(
+                enabled = true,
+                permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+            ),
+        )
+        val malicious = AppConfig(
+            mcp = top.azek431.hzzs.core.model.McpConfig(
+                enabled = true,
+                permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.FULL_ACCESS,
+                allowDebugFrames = true,
+            ),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertEquals(
+            top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+            hardened.mcp.permissionLevel,
+        )
+        assertFalse(hardened.mcp.allowDebugFrames)
+    }
+
+    @Test
+    fun externalIngestCannotEscalateCaptureBackend() {
+        val baseline = AppConfig(
+            captureBackend = top.azek431.hzzs.core.model.CaptureBackend.MEDIA_PROJECTION,
+        )
+        val malicious = AppConfig(
+            captureBackend = top.azek431.hzzs.core.model.CaptureBackend.ROOT,
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertEquals(
+            top.azek431.hzzs.core.model.CaptureBackend.MEDIA_PROJECTION,
+            hardened.captureBackend,
+        )
+    }
+
+    @Test
+    fun externalIngestKeepsAutomationWhenBaselineAlreadyEnabled() {
+        val baseline = AppConfig(
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+                requireSessionArm = true,
+            ),
+        )
+        val next = AppConfig(
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+                requireSessionArm = true,
+                maxActionsPerSecond = 3,
+            ),
+        )
+        val hardened = next.hardenedForExternalIngest(baseline)
+        assertTrue(hardened.automation.enabled)
+        assertEquals(3, hardened.automation.maxActionsPerSecond)
+        assertTrue(hardened.automation.requireSessionArm)
+    }
 }
