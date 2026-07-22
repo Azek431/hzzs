@@ -1,7 +1,7 @@
 /**
  * 自动操作与安全设置页。
  *
- * 职责：总开关、requireSessionArm、竹影实验开关；开启须风险倒计时对话框。
+ * 职责：总开关、requireSessionArm、竹影实验开关；展示无障碍连接状态；开启须风险倒计时对话框。
  * 数据流：automation 写入草稿但预览不生效；保存后运行页再按会话解锁策略执行。
  * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启（由模型层保证）。
  */
@@ -21,9 +21,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,13 +35,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 
 /**
  * 自动操作设置页。
@@ -54,7 +64,21 @@ fun AutomationSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val dimensions = LocalHzzsDimensions.current
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var riskDialog by remember { mutableStateOf(false) }
+    var accessibilityConnected by remember {
+        mutableStateOf(SystemCapabilityAccess.isAccessibilityServiceConnected())
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                accessibilityConnected = SystemCapabilityAccess.isAccessibilityServiceConnected()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -66,6 +90,31 @@ fun AutomationSettingsScreen(
                 title = "自动操作默认关闭",
                 body = "自动操作依赖无障碍手势，可能因游戏更新、网络延迟或识别误差产生错误操作。配置导入与迁移不会静默开启。",
             )
+        }
+        item {
+            SettingsSectionCard(
+                title = stringResource(R.string.permission_accessibility_section),
+                description = stringResource(R.string.permission_refresh_hint),
+            ) {
+                Text(
+                    if (accessibilityConnected) {
+                        stringResource(R.string.permission_accessibility_connected)
+                    } else {
+                        stringResource(R.string.permission_accessibility_disconnected)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (accessibilityConnected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                OutlinedButton(
+                    onClick = { SystemCapabilityAccess.openAccessibilitySettings(context) },
+                ) {
+                    Text(stringResource(R.string.permission_accessibility_open))
+                }
+            }
         }
         item {
             SettingsSectionCard(

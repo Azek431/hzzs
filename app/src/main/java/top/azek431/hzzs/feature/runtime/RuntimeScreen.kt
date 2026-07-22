@@ -7,6 +7,8 @@
  */
 package top.azek431.hzzs.feature.runtime
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,8 +31,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -54,10 +58,12 @@ import top.azek431.hzzs.core.designsystem.PageHeader
 import top.azek431.hzzs.core.designsystem.SectionCard
 import top.azek431.hzzs.core.designsystem.StatusChip
 import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.model.OverlayBlockReason
 import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.VisionRuntimeController
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import javax.inject.Inject
 
 @HiltViewModel
@@ -96,6 +102,7 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
     val requireSessionArm = config.automation.requireSessionArm
     val statusColors = LocalHzzsStatusColors.current
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(vm.transientMessage) {
         vm.transientMessage?.let {
@@ -191,6 +198,43 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                 }
             }
 
+            if (status.running && !status.overlayVisible) {
+                when (status.overlayBlockReason) {
+                    OverlayBlockReason.PERMISSION -> item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            HzzsCallout(
+                                title = stringResource(R.string.runtime_overlay_permission_title),
+                                text = stringResource(R.string.runtime_overlay_permission_body),
+                                tone = HzzsCalloutTone.WARNING,
+                                icon = Icons.Rounded.Warning,
+                            )
+                            HzzsPrimaryAction(
+                                text = stringResource(R.string.runtime_overlay_permission_action),
+                                onClick = { SystemCapabilityAccess.openOverlayPermissionSettings(context) },
+                                icon = Icons.Rounded.Visibility,
+                            )
+                        }
+                    }
+                    OverlayBlockReason.ADD_VIEW_FAILED -> item {
+                        HzzsCallout(
+                            title = stringResource(R.string.runtime_overlay_add_failed_title),
+                            text = stringResource(R.string.runtime_overlay_add_failed_body),
+                            tone = HzzsCalloutTone.ERROR,
+                            icon = Icons.Rounded.Warning,
+                        )
+                    }
+                    OverlayBlockReason.DISABLED -> item {
+                        HzzsCallout(
+                            title = stringResource(R.string.runtime_overlay_disabled_title),
+                            text = stringResource(R.string.runtime_overlay_disabled_body),
+                            tone = HzzsCalloutTone.INFO,
+                            icon = Icons.Rounded.Visibility,
+                        )
+                    }
+                    null -> Unit
+                }
+            }
+
             item {
                 SectionCard {
                     Text(
@@ -282,7 +326,7 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
 
             item {
                 HzzsCallout(
-                    text = "悬浮窗与录屏授权由系统对话框授予。自动操作仅在前台包名位于白名单时生效。",
+                    text = stringResource(R.string.runtime_permission_hint),
                     tone = HzzsCalloutTone.INFO,
                     icon = Icons.Rounded.Security,
                 )

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.DesktopWindows
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -45,6 +46,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,8 +56,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.HzzsSection
@@ -70,6 +76,7 @@ import top.azek431.hzzs.core.model.OverlayStyle
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.ThemePreset
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -193,12 +200,13 @@ fun OnboardingScreen(
                         1 -> PrivacyPage()
                         2 -> SeasonPage(draft) { scene -> update { it.copy(selectedScene = scene) } }
                         3 -> CapturePage(draft) { backend -> update { it.copy(captureBackend = backend) } }
-                        4 -> AppearancePage(
+                        4 -> PermissionsPage()
+                        5 -> AppearancePage(
                             draft = draft,
                             onTheme = { preset -> update { it.copy(theme = it.theme.copy(preset = preset)) } },
                             onOverlay = { style -> update { it.copy(overlay = it.overlay.copy(style = style)) } },
                         )
-                        5 -> AutomationPage(
+                        6 -> AutomationPage(
                             enabled = draft.automation.enabled,
                             onChange = { enabled ->
                                 if (enabled) showAutomationRisk = true
@@ -303,6 +311,88 @@ private fun CapturePage(config: AppConfig, onSelect: (CaptureBackend) -> Unit) =
         stringResource(R.string.onboarding_capture_advanced_hint),
         style = MaterialTheme.typography.bodySmall,
     )
+}
+
+@Composable
+private fun PermissionsPage() {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var overlayGranted by remember {
+        mutableStateOf(SystemCapabilityAccess.canDrawOverlays(context))
+    }
+    var accessibilityConnected by remember {
+        mutableStateOf(SystemCapabilityAccess.isAccessibilityServiceConnected())
+    }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                overlayGranted = SystemCapabilityAccess.canDrawOverlays(context)
+                accessibilityConnected = SystemCapabilityAccess.isAccessibilityServiceConnected()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    HzzsSection(
+        stringResource(R.string.onboarding_permissions_section),
+        stringResource(R.string.onboarding_permissions_desc),
+    ) {
+        Text(
+            stringResource(R.string.onboarding_permissions_overlay_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(stringResource(R.string.onboarding_permissions_overlay_body))
+        Text(
+            if (overlayGranted) {
+                stringResource(R.string.permission_overlay_granted)
+            } else {
+                stringResource(R.string.permission_overlay_denied)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (overlayGranted) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.error
+            },
+        )
+        OutlinedButton(onClick = { SystemCapabilityAccess.openOverlayPermissionSettings(context) }) {
+            Text(stringResource(R.string.permission_overlay_open))
+        }
+
+        Text(
+            stringResource(R.string.onboarding_permissions_a11y_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(stringResource(R.string.onboarding_permissions_a11y_body))
+        Text(
+            if (accessibilityConnected) {
+                stringResource(R.string.permission_accessibility_connected)
+            } else {
+                stringResource(R.string.permission_accessibility_disconnected)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (accessibilityConnected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        OutlinedButton(onClick = { SystemCapabilityAccess.openAccessibilitySettings(context) }) {
+            Text(stringResource(R.string.permission_accessibility_open))
+        }
+
+        Text(
+            stringResource(R.string.onboarding_permissions_capture_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.permission_refresh_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -424,9 +514,10 @@ private fun onboardingPageMetas(): List<OnboardingPageMeta> = listOf(
     OnboardingPageMeta(stringResource(R.string.onboarding_page1_title), stringResource(R.string.onboarding_page1_subtitle), Icons.Rounded.Security),
     OnboardingPageMeta(stringResource(R.string.onboarding_page2_title), stringResource(R.string.onboarding_page2_subtitle), Icons.Rounded.Analytics),
     OnboardingPageMeta(stringResource(R.string.onboarding_page3_title), stringResource(R.string.onboarding_page3_subtitle), Icons.Rounded.DesktopWindows),
-    OnboardingPageMeta(stringResource(R.string.onboarding_page4_title), stringResource(R.string.onboarding_page4_subtitle), Icons.Rounded.ColorLens),
-    OnboardingPageMeta(stringResource(R.string.onboarding_page5_title), stringResource(R.string.onboarding_page5_subtitle), Icons.Rounded.Tune),
-    OnboardingPageMeta(stringResource(R.string.onboarding_page6_title), stringResource(R.string.onboarding_page6_subtitle), Icons.Rounded.CheckCircle),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page4_title), stringResource(R.string.onboarding_page4_subtitle), Icons.Rounded.VerifiedUser),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page5_title), stringResource(R.string.onboarding_page5_subtitle), Icons.Rounded.ColorLens),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page6_title), stringResource(R.string.onboarding_page6_subtitle), Icons.Rounded.Tune),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page7_title), stringResource(R.string.onboarding_page7_subtitle), Icons.Rounded.CheckCircle),
 )
 
 @Composable

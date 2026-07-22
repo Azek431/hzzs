@@ -397,6 +397,20 @@ data class AppConfig(
 }
 
 /**
+ * 悬浮窗未能显示的原因（与分析 [RuntimeStatus.lastError] 分离）。
+ *
+ * [null] 表示未尝试、已隐藏或当前可见；仅在期望显示但失败时写入。
+ */
+enum class OverlayBlockReason {
+    /** 应用内悬浮窗总开关关闭。 */
+    DISABLED,
+    /** 缺少系统「显示在其他应用上层」权限。 */
+    PERMISSION,
+    /** WindowManager 添加/更新失败。 */
+    ADD_VIEW_FAILED,
+}
+
+/**
  * 运行时对外状态（UI / MCP 只读）。
  *
  * 由 [top.azek431.hzzs.data.vision.VisionRuntimeController] 作为唯一所有者更新。
@@ -405,6 +419,8 @@ data class RuntimeStatus(
     val running: Boolean = false,
     val captureReady: Boolean = false,
     val overlayVisible: Boolean = false,
+    /** 期望显示悬浮窗但失败时的原因；可见或未尝试时为 null。 */
+    val overlayBlockReason: OverlayBlockReason? = null,
     val automationArmed: Boolean = false,
     val activeScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE,
     val activeBackend: CaptureBackend = CaptureBackend.AUTO,

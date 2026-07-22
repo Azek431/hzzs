@@ -25,8 +25,9 @@ import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
-import top.azek431.hzzs.core.model.RuntimeStatus
+import top.azek431.hzzs.core.model.OverlayBlockReason
 import top.azek431.hzzs.core.model.PlayerReferenceMode
+import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.core.model.SceneConfig
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.preferences.SettingsRepository
@@ -226,6 +227,7 @@ class VisionRuntimeController @Inject constructor(
             running = false,
             captureReady = false,
             overlayVisible = false,
+            overlayBlockReason = null,
             automationArmed = false,
             fps = 0f,
         )
@@ -326,6 +328,7 @@ class VisionRuntimeController @Inject constructor(
                     mutableStatus.update {
                         it.copy(
                             overlayVisible = false,
+                            overlayBlockReason = OverlayBlockReason.DISABLED,
                             activeScene = config.selectedScene,
                             lastError = "当前主题场景已禁用",
                         )
@@ -341,6 +344,22 @@ class VisionRuntimeController @Inject constructor(
                 if (sceneChanged || algorithmChanged) {
                     // 场景或算法切换必须进入安全点：停动作、清 tracker / 去重缓存。
                     // 不允许分析过程中半热切换；algorithm 配置应在帧循环外完成。
+                    if (algorithmChanged) {
+                        val activation = runCatching { engine.currentActivation() }.getOrNull()
+                        AppLog.i(
+                            "algorithm",
+                            "pipeline safety-point gen $pipelineAlgorithmGeneration→$algorithmGeneration " +
+                                "id=${activation?.profile?.algorithmId ?: "?"} " +
+                                "ver=${activation?.profile?.version ?: "?"} " +
+                                "fallback=${activation?.usingBuiltinFallback}",
+                        )
+                    }
+                    if (sceneChanged) {
+                        AppLog.i(
+                            "vision",
+                            "pipeline scene safety-point ${pipelineScene?.name ?: "-"}→${config.selectedScene.name}",
+                        )
+                    }
                     actionJob?.cancelAndJoin()
                     actionJob = null
                     actionInFlight.set(false)
@@ -426,9 +445,13 @@ class VisionRuntimeController @Inject constructor(
                         failureCount++
                         disarmAutomation()
                         val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
-                        val visible = publishOverlay(config.overlay, result, showGrid, force = true)
+                        val overlayState = publishOverlay(config.overlay, result, showGrid, force = true)
                         mutableStatus.update {
-                            it.copy(overlayVisible = visible, lastError = result.error)
+                            it.copy(
+                                overlayVisible = overlayState.visible,
+                                overlayBlockReason = overlayState.blockReason,
+                                lastError = result.error,
+                            )
                         }
                         if (failureCount >= MAX_CONSECUTIVE_VISION_FAILURES) {
                             throw VisionUnavailable("视觉分析连续失败 $failureCount 次：${result.error}")
@@ -446,10 +469,11 @@ class VisionRuntimeController @Inject constructor(
                     )
                     mutableLatestResult.value = trackedResult
                     val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
-                    val visible = publishOverlay(config.overlay, trackedResult, showGrid, force = false)
+                    val overlayState = publishOverlay(config.overlay, trackedResult, showGrid, force = false)
                     mutableStatus.update {
                         it.copy(
-                            overlayVisible = visible,
+                            overlayVisible = overlayState.visible,
+                            overlayBlockReason = overlayState.blockReason,
                             lastError = null,
                             processingMs = trackedResult.processingNanos / 1_000_000f,
                             obstacleCount = trackedResult.detections.size,
@@ -495,6 +519,7 @@ class VisionRuntimeController @Inject constructor(
                         running = false,
                         captureReady = false,
                         overlayVisible = false,
+                        overlayBlockReason = null,
                         automationArmed = false,
                         fps = 0f,
                     )
@@ -714,19 +739,25 @@ class VisionRuntimeController @Inject constructor(
         result: VisionResult?,
         showCoordinateGrid: Boolean,
         force: Boolean,
-    ): Boolean {
+    ): OverlayPublishState {
         val signature = overlaySignature(overlayConfig, result, showCoordinateGrid)
         if (!force && signature == lastOverlaySignature) {
-            return mutableStatus.value.overlayVisible
+            val current = mutableStatus.value
+            return OverlayPublishState(current.overlayVisible, current.overlayBlockReason)
         }
-        val visible = overlay.show(
+        val showResult = overlay.show(
             config = overlayConfig,
             result = result,
             showCoordinateGrid = showCoordinateGrid,
         )
         lastOverlaySignature = signature
-        return visible
+        return OverlayPublishState(showResult.visible, showResult.blockReason)
     }
+
+    private data class OverlayPublishState(
+        val visible: Boolean,
+        val blockReason: OverlayBlockReason?,
+    )
 
     /** 粗粒度签名：用于抑制重复 overlay 刷新，非密码学哈希。 */
     private fun overlaySignature(

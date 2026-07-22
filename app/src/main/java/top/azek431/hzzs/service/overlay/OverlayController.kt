@@ -18,6 +18,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import top.azek431.hzzs.core.model.OverlayBlockReason
 import top.azek431.hzzs.core.model.OverlayConfig
 import top.azek431.hzzs.core.model.OverlayOrientation
 import top.azek431.hzzs.core.model.OverlayStyle
@@ -37,9 +38,9 @@ import kotlin.math.max
  * 线程不变量：所有 WindowManager.add/update/remove 与 View 更新必须在主线程
  *（本类统一 [Dispatchers.Main.immediate]）。
  *
- * 交互模式：
- * - 穿透（clickThrough）：全屏 FLAG_NOT_TOUCHABLE Canvas，检测框不挡游戏手势。
- * - 交互：小 HUD 可拖拽贴边；禁止可触摸全屏窗，否则会吞掉全部游戏输入。
+ * 双窗架构（默认）：
+ * - 穿透全屏层：FLAG_NOT_TOUCHABLE，绘制检测框 / 坐标网格，不挡游戏手势；
+ * - 交互 HUD 层：WRAP_CONTENT 可拖拽贴边，展示状态文字，不绘制全屏框。
  *
  * 安全：无悬浮窗权限或配置关闭时立即移除视图；add/update 失败 fail-closed 隐藏。
  * 坐标：检测框为视口归一化 [0,1]，仅在绘制层换算像素。
@@ -49,69 +50,106 @@ class OverlayController @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private var view: VisionOverlayView? = null
-    private var layoutParams: WindowManager.LayoutParams? = null
+    private var passThroughView: VisionOverlayView? = null
+    private var passThroughParams: WindowManager.LayoutParams? = null
+    private var hudView: VisionOverlayView? = null
+    private var hudParams: WindowManager.LayoutParams? = null
     private var currentConfig = OverlayConfig()
     private var positionX = 12
     private var positionY = 96
 
+    /**
+     * 显示或更新双层悬浮窗。
+     *
+     * @return [OverlayShowResult]：是否至少一层挂载成功，以及失败原因（若有）。
+     */
     suspend fun show(
         config: OverlayConfig,
         result: VisionResult?,
         showCoordinateGrid: Boolean = false,
-    ): Boolean =
+    ): OverlayShowResult =
         withContext(Dispatchers.Main.immediate) {
-            if (!config.enabled || !Settings.canDrawOverlays(context)) {
+            if (!config.enabled) {
                 hideInternal()
-                return@withContext false
+                return@withContext OverlayShowResult(visible = false, blockReason = OverlayBlockReason.DISABLED)
+            }
+            if (!Settings.canDrawOverlays(context)) {
+                hideInternal()
+                return@withContext OverlayShowResult(visible = false, blockReason = OverlayBlockReason.PERMISSION)
             }
 
             currentConfig = config
-            val nextParams = createLayoutParams(config)
-            val current = view
-            if (current == null) {
-                val created = VisionOverlayView(context, ::moveInteractiveWindow)
-                if (runCatching { windowManager.addView(created, nextParams) }.isFailure) {
-                    return@withContext false
-                }
-                view = created
-                layoutParams = nextParams
-                created.update(config, result, showCoordinateGrid)
-            } else {
-                val previous = layoutParams
-                if (previous == null || previous.layoutSignature() != nextParams.layoutSignature()) {
-                    if (runCatching { windowManager.updateViewLayout(current, nextParams) }.isFailure) {
-                        hideInternal()
-                        return@withContext false
-                    }
-                    layoutParams = nextParams
-                }
-                current.update(config, result, showCoordinateGrid)
+            val passParams = createPassThroughParams()
+            val interactiveParams = createInteractiveParams()
+
+            val passOk = ensureView(
+                current = passThroughView,
+                params = passParams,
+                storedParams = passThroughParams,
+                role = OverlayLayerRole.PASS_THROUGH_BOXES,
+                onCreated = { view, layout ->
+                    passThroughView = view
+                    passThroughParams = layout
+                },
+                onUpdated = { passThroughParams = it },
+                onFailed = { hidePassThrough() },
+            )
+            if (!passOk) {
+                hideInternal()
+                return@withContext OverlayShowResult(visible = false, blockReason = OverlayBlockReason.ADD_VIEW_FAILED)
             }
-            true
+
+            val hudOk = ensureView(
+                current = hudView,
+                params = interactiveParams,
+                storedParams = hudParams,
+                role = OverlayLayerRole.INTERACTIVE_HUD,
+                onCreated = { view, layout ->
+                    hudView = view
+                    hudParams = layout
+                },
+                onUpdated = { hudParams = it },
+                onFailed = { hideHud() },
+            )
+            if (!hudOk) {
+                hideInternal()
+                return@withContext OverlayShowResult(visible = false, blockReason = OverlayBlockReason.ADD_VIEW_FAILED)
+            }
+
+            passThroughView?.update(config, result, showCoordinateGrid, OverlayLayerRole.PASS_THROUGH_BOXES)
+            hudView?.update(config, result, showCoordinateGrid, OverlayLayerRole.INTERACTIVE_HUD)
+            OverlayShowResult(visible = true, blockReason = null)
         }
 
     suspend fun hide() = withContext(Dispatchers.Main.immediate) { hideInternal() }
 
     /**
-     * 截图前临时隐藏已挂载 HUD，但不移除 Window，避免每帧 add/remove 抖动。
+     * 截图前临时隐藏已挂载 HUD/检测层，但不移除 Window，避免每帧 add/remove 抖动。
      * 等待一次主显示帧提交，调用方随后再排空可能含旧合成层的捕获帧。
      */
     suspend fun suspendForCapture(): Boolean = withContext(Dispatchers.Main.immediate) {
-        val current = view ?: return@withContext false
-        if (current.visibility != View.VISIBLE) return@withContext false
-        current.visibility = View.INVISIBLE
+        val targets = listOfNotNull(passThroughView, hudView)
+        if (targets.isEmpty()) return@withContext false
+        var anyVisible = false
+        targets.forEach { view ->
+            if (view.visibility == View.VISIBLE) {
+                anyVisible = true
+                view.visibility = View.INVISIBLE
+            }
+        }
+        if (!anyVisible) return@withContext false
         awaitNextDisplayFrame()
         true
     }
 
     /** 输入缓冲取得后立即恢复上一轮 HUD；识别仍读取独立的干净像素缓冲。 */
     suspend fun resumeAfterCapture(): Boolean = withContext(Dispatchers.Main.immediate) {
-        val current = view ?: return@withContext false
-        // 仅恢复仍挂载的视图；若 hideInternal 已移除则保持空闲。
-        if (view !== current) return@withContext false
-        current.visibility = View.VISIBLE
-        current.invalidate()
+        val targets = listOfNotNull(passThroughView, hudView)
+        if (targets.isEmpty()) return@withContext false
+        targets.forEach { view ->
+            view.visibility = View.VISIBLE
+            view.invalidate()
+        }
         true
     }
 
@@ -126,48 +164,107 @@ class OverlayController @Inject constructor(
         }
     }
 
+    private fun ensureView(
+        current: VisionOverlayView?,
+        params: WindowManager.LayoutParams,
+        storedParams: WindowManager.LayoutParams?,
+        role: OverlayLayerRole,
+        onCreated: (VisionOverlayView, WindowManager.LayoutParams) -> Unit,
+        onUpdated: (WindowManager.LayoutParams) -> Unit,
+        onFailed: () -> Unit,
+    ): Boolean {
+        if (current == null) {
+            val created = VisionOverlayView(context, role, ::moveInteractiveWindow)
+            if (runCatching { windowManager.addView(created, params) }.isFailure) {
+                onFailed()
+                return false
+            }
+            onCreated(created, params)
+            return true
+        }
+        val previous = storedParams
+        if (previous == null || previous.layoutSignature() != params.layoutSignature()) {
+            if (runCatching { windowManager.updateViewLayout(current, params) }.isFailure) {
+                onFailed()
+                return false
+            }
+            onUpdated(params)
+        }
+        return true
+    }
+
     private fun hideInternal() {
-        view?.let { current ->
+        hidePassThrough()
+        hideHud()
+    }
+
+    private fun hidePassThrough() {
+        passThroughView?.let { current ->
             current.visibility = View.VISIBLE
             runCatching { windowManager.removeViewImmediate(current) }
         }
-        view = null
-        layoutParams = null
+        passThroughView = null
+        passThroughParams = null
     }
 
-    private fun createLayoutParams(config: OverlayConfig): WindowManager.LayoutParams {
-        val interactive = !config.clickThrough
+    private fun hideHud() {
+        hudView?.let { current ->
+            current.visibility = View.VISIBLE
+            runCatching { windowManager.removeViewImmediate(current) }
+        }
+        hudView = null
+        hudParams = null
+    }
+
+    private fun createPassThroughParams(): WindowManager.LayoutParams {
         val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            (if (interactive) {
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-            } else {
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            })
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         return WindowManager.LayoutParams(
-            if (interactive) WindowManager.LayoutParams.WRAP_CONTENT else WindowManager.LayoutParams.MATCH_PARENT,
-            if (interactive) WindowManager.LayoutParams.WRAP_CONTENT else WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType(),
             flags,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = if (interactive) positionX else 0
-            y = if (interactive) positionY else 0
+            x = 0
+            y = 0
         }
     }
 
-    /** 主线程拖拽交互窗；锁定位置或穿透模式忽略。松手且开启贴边时吸附左右边缘。 */
+    private fun createInteractiveParams(): WindowManager.LayoutParams {
+        val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType(),
+            flags,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = positionX
+            y = positionY
+        }
+    }
+
+    private fun overlayType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
+    /** 主线程拖拽交互窗；锁定位置时忽略。松手且开启贴边时吸附左右边缘。 */
     private fun moveInteractiveWindow(deltaX: Int, deltaY: Int, released: Boolean) {
-        val current = view ?: return
-        val params = layoutParams ?: return
-        if (currentConfig.clickThrough || currentConfig.lockPosition) return
+        val current = hudView ?: return
+        val params = hudParams ?: return
+        if (currentConfig.lockPosition) return
 
         val metrics = context.resources.displayMetrics
         val maxX = max(0, metrics.widthPixels - current.width)
@@ -186,12 +283,25 @@ class OverlayController @Inject constructor(
         listOf(width, height, type, flags, x, y)
 }
 
+/** 悬浮窗展示结果：可见性 + 与分析错误分离的阻塞原因。 */
+data class OverlayShowResult(
+    val visible: Boolean,
+    val blockReason: OverlayBlockReason?,
+)
+
+/** 双层悬浮窗角色：穿透检测框 vs 交互 HUD。 */
+private enum class OverlayLayerRole {
+    PASS_THROUGH_BOXES,
+    INTERACTIVE_HUD,
+}
+
 /**
- * 悬浮窗内容 View：穿透时绘制归一化检测框；交互时绘制可拖 HUD。
- * 内容签名去重避免无变化 invalidate；全屏检测框仅在不可触摸模式绘制。
+ * 悬浮窗内容 View：按 [role] 只承担一层职责。
+ * 内容签名去重避免无变化 invalidate。
  */
 private class VisionOverlayView(
     context: Context,
+    private val role: OverlayLayerRole,
     private val onMove: (deltaX: Int, deltaY: Int, released: Boolean) -> Unit,
 ) : View(context) {
     private val density = resources.displayMetrics.density
@@ -213,12 +323,18 @@ private class VisionOverlayView(
     private var lastRawX = 0f
     private var lastRawY = 0f
 
-    fun update(config: OverlayConfig, result: VisionResult?, showCoordinateGrid: Boolean) {
+    fun update(
+        config: OverlayConfig,
+        result: VisionResult?,
+        showCoordinateGrid: Boolean,
+        role: OverlayLayerRole,
+    ) {
+        check(role == this.role)
         val sizeMayChange = this.config.style != config.style ||
             this.config.orientation != config.orientation ||
             this.config.scale != config.scale ||
             this.config.textScale != config.textScale ||
-            this.config.clickThrough != config.clickThrough
+            this.role == OverlayLayerRole.INTERACTIVE_HUD
         val contentSignature = contentSignature(config, result, showCoordinateGrid)
         val unchanged = !sizeMayChange && contentSignature == lastContentSignature
         this.config = config
@@ -236,7 +352,8 @@ private class VisionOverlayView(
         result: VisionResult?,
         showCoordinateGrid: Boolean,
     ): Int {
-        var hash = config.style.hashCode()
+        var hash = role.hashCode()
+        hash = 31 * hash + config.style.hashCode()
         hash = 31 * hash + config.theme.hashCode()
         hash = 31 * hash + config.customColor
         hash = 31 * hash + (config.backgroundAlpha * 1000f).toInt()
@@ -273,7 +390,7 @@ private class VisionOverlayView(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        if (config.clickThrough) {
+        if (role == OverlayLayerRole.PASS_THROUGH_BOXES) {
             setMeasuredDimension(
                 View.MeasureSpec.getSize(widthMeasureSpec),
                 View.MeasureSpec.getSize(heightMeasureSpec),
@@ -299,7 +416,7 @@ private class VisionOverlayView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (config.clickThrough || config.lockPosition) return false
+        if (role != OverlayLayerRole.INTERACTIVE_HUD || config.lockPosition) return false
         return when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 lastRawX = event.rawX
@@ -337,34 +454,38 @@ private class VisionOverlayView(
         stroke.strokeWidth = strokeWidth
         text.textSize = 12f * density * config.textScale * scale
 
-        if (showCoordinateGrid && config.clickThrough) {
-            drawCoordinateGrid(canvas, accent, scale)
-        }
-
-        // 全屏检测框仅在不可触摸模式下安全绘制。
-        if (config.showBoxes && config.clickThrough) {
-            current.player?.takeIf { config.style == OverlayStyle.DEBUG_HUD }?.let {
-                drawDetection(canvas, it, Color.WHITE, strokeWidth, "玩家")
-            }
-            current.detections
-                .asSequence()
-                .filter { config.showDiagnostics || !it.diagnosticOnly }
-                .forEach { detection ->
-                    val color = if (detection.actionable) accent else withAlpha(accent, 145)
-                    drawDetection(
-                        canvas,
-                        detection,
-                        color,
-                        strokeWidth,
-                        detectionKindDisplayName(detection.kind.name),
-                    )
+        when (role) {
+            OverlayLayerRole.PASS_THROUGH_BOXES -> {
+                if (showCoordinateGrid) {
+                    drawCoordinateGrid(canvas, accent, scale)
                 }
-        }
-
-        when (config.style) {
-            OverlayStyle.MINIMAL -> drawMinimalHud(canvas, current, accent, scale)
-            OverlayStyle.COMPACT -> drawCompactHud(canvas, current, accent, scale)
-            OverlayStyle.DEBUG_HUD -> drawDebugHud(canvas, current, accent, scale)
+                // 检测框始终画在穿透层：不挡触摸；clickThrough 仅保留为兼容配置项。
+                if (config.showBoxes) {
+                    current.player?.takeIf { config.style == OverlayStyle.DEBUG_HUD }?.let {
+                        drawDetection(canvas, it, Color.WHITE, strokeWidth, "玩家")
+                    }
+                    current.detections
+                        .asSequence()
+                        .filter { config.showDiagnostics || !it.diagnosticOnly }
+                        .forEach { detection ->
+                            val color = if (detection.actionable) accent else withAlpha(accent, 145)
+                            drawDetection(
+                                canvas,
+                                detection,
+                                color,
+                                strokeWidth,
+                                detectionKindDisplayName(detection.kind.name),
+                            )
+                        }
+                }
+            }
+            OverlayLayerRole.INTERACTIVE_HUD -> {
+                when (config.style) {
+                    OverlayStyle.MINIMAL -> drawMinimalHud(canvas, current, accent, scale)
+                    OverlayStyle.COMPACT -> drawCompactHud(canvas, current, accent, scale)
+                    OverlayStyle.DEBUG_HUD -> drawDebugHud(canvas, current, accent, scale)
+                }
+            }
         }
     }
 

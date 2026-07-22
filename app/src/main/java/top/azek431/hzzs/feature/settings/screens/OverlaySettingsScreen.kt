@@ -1,9 +1,9 @@
 /**
  * 悬浮窗设置页。
  *
- * 职责：编辑悬浮窗开关、样式、主题、透明度与显示项等外观草稿。
+ * 职责：编辑悬浮窗开关、样式、主题、透明度与显示项等外观草稿；展示系统悬浮窗权限状态。
  * 数据流：经 [update] 写入共享草稿；视觉相关字段可预览，保存后持久。
- * 边界：不创建/操作 WindowManager；实际悬浮窗由运行时/平台层根据已保存配置托管。
+ * 边界：不创建/操作 WindowManager；跳转系统设置经 [SystemCapabilityAccess]；加窗由 service 层完成。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -15,10 +15,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.DisposableEffect
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.OverlayOrientation
@@ -28,6 +40,7 @@ import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 
 /**
  * 悬浮窗样式设置页。
@@ -42,6 +55,21 @@ fun OverlaySettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val dimensions = LocalHzzsDimensions.current
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var overlayGranted by remember {
+        mutableStateOf(SystemCapabilityAccess.canDrawOverlays(context))
+    }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                overlayGranted = SystemCapabilityAccess.canDrawOverlays(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(dimensions.screenPadding),
@@ -49,8 +77,33 @@ fun OverlaySettingsScreen(
     ) {
         item {
             SettingsSectionCard(
+                title = stringResource(R.string.permission_overlay_section),
+                description = stringResource(R.string.permission_refresh_hint),
+            ) {
+                Text(
+                    if (overlayGranted) {
+                        stringResource(R.string.permission_overlay_granted)
+                    } else {
+                        stringResource(R.string.permission_overlay_denied)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (overlayGranted) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+                OutlinedButton(
+                    onClick = { SystemCapabilityAccess.openOverlayPermissionSettings(context) },
+                ) {
+                    Text(stringResource(R.string.permission_overlay_open))
+                }
+            }
+        }
+        item {
+            SettingsSectionCard(
                 title = "悬浮窗总开关",
-                description = "默认极简；调试 HUD 适合校准和反馈问题。",
+                description = "应用内开关不能代替系统权限；无系统权限时即使打开也不会显示。",
             ) {
                 SettingsSwitchRow(
                     title = "显示悬浮窗",
@@ -162,19 +215,13 @@ fun OverlaySettingsScreen(
                     },
                 )
                 SettingsSwitchRow(
-                    title = "触摸穿透（全屏检测框模式）",
+                    title = "触摸穿透（兼容项）",
+                    subtitle = "当前为双层架构：穿透层始终绘制检测框，交互层始终为可拖 HUD；本开关保留兼容旧配置。",
                     checked = config.overlay.clickThrough,
                     onCheckedChange = { value ->
                         update { it.copy(overlay = it.overlay.copy(clickThrough = value)) }
                     },
                 )
-                if (!config.overlay.clickThrough) {
-                    Text(
-                        "关闭穿透后悬浮窗会变为可拖动的小型 HUD，并停止绘制全屏检测框，避免拦截游戏触摸。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 SettingsSwitchRow(
                     title = "贴边吸附",
                     checked = config.overlay.snapToEdge,
