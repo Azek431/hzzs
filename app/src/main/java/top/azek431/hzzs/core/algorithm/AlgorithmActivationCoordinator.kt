@@ -1,5 +1,6 @@
 package top.azek431.hzzs.core.algorithm
 
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AlgorithmConfig
 import top.azek431.hzzs.core.model.AlgorithmSelectionMode
 import top.azek431.hzzs.core.model.SceneId
@@ -43,8 +44,16 @@ class AlgorithmActivationCoordinator @Inject constructor(
         val target = resolveCatalogId(config, selectedScene)
         if (analysisRunning.get()) {
             pendingCatalogId.set(target)
+            AppLog.i(
+                "algorithm",
+                "config committed while analyzing; pending=$target mode=${config.selectionMode.name}",
+            )
             return Result.success(engine.currentActivation())
         }
+        AppLog.i(
+            "algorithm",
+            "config committed; activating=$target mode=${config.selectionMode.name} scene=${selectedScene.name}",
+        )
         return activateCatalog(target)
     }
 
@@ -54,13 +63,36 @@ class AlgorithmActivationCoordinator @Inject constructor(
     fun ensureConfigured(config: AlgorithmConfig, selectedScene: SceneId): Result<AlgorithmActivation> {
         val pending = pendingCatalogId.getAndSet(null)
         val target = pending ?: resolveCatalogId(config, selectedScene)
+        AppLog.i(
+            "algorithm",
+            "ensureConfigured target=$target pendingWas=${pending ?: "-"} scene=${selectedScene.name}",
+        )
         return activateCatalog(target)
     }
 
     fun activateCatalog(catalogId: String): Result<AlgorithmActivation> {
         val profile = store.getProfile(catalogId) ?: AlgorithmRuntimeProfile.builtin()
-        return engine.configureAlgorithm(profile).also {
-            if (it.isSuccess) pendingCatalogId.set(null)
+        val usedBuiltinProfile = store.getProfile(catalogId) == null &&
+            !AlgorithmIds.isBuiltinCatalog(catalogId)
+        if (usedBuiltinProfile) {
+            AppLog.w("algorithm", "catalog missing id=$catalogId → fallback builtin profile")
+        }
+        return engine.configureAlgorithm(profile).also { result ->
+            result.onSuccess { activation ->
+                pendingCatalogId.set(null)
+                AppLog.i(
+                    "algorithm",
+                    "activated id=${activation.profile.algorithmId} ver=${activation.profile.version} " +
+                        "gen=${activation.generation} builtinFallback=${activation.usingBuiltinFallback}",
+                )
+                activation.loadError?.let { AppLog.w("algorithm", "activation loadError=$it") }
+            }.onFailure { error ->
+                AppLog.e(
+                    "algorithm",
+                    "activate failed catalogId=$catalogId: ${error.message ?: error.javaClass.simpleName}",
+                    error,
+                )
+            }
         }
     }
 

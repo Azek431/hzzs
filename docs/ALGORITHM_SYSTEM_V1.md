@@ -36,7 +36,7 @@
 |---|---|
 | `schemaVersion` | 固定 `1` |
 | `id` | 小写 kebab-id，如 `official-bamboo-baseline` |
-| `version` | 语义化版本，如 `1.0.0` |
+| `version` | 语义化版本 `MAJOR.MINOR.PATCH`（**首版 `0.1.0`**；与 App 版本独立；补丁 +PATCH、完整一波 +MINOR、破坏性 +MAJOR；**验证通过后再 bump**，见根 `CLAUDE.md`） |
 | `displayName` | 展示名 |
 | `description` | 描述（禁止准确率吹嘘） |
 | `engineId` | 默认 `native-vision` |
@@ -79,28 +79,26 @@
 `signedPayload` 绑定：`algorithmId`、`version`、各文件 `name/size/sha256`、`keyId`、算法名。  
 客户端应内置信任公钥；包内公钥仅作调试对照，生产校验以内置信任锚为准。
 
-## Release 标签
+## 资产与发布（无 Release tag）
 
-```text
-alg-<algorithmId>-v<version>
-```
-
-示例：`alg-official-bamboo-baseline-v1.0.0`  
-附件名：`official-bamboo-baseline-v1.0.0.hzzsalg`
-
-## 算法目录
-
-发布在 `release-index` 分支：
+算法包**不**使用 `alg-…` GitHub/Gitee Release tag。  
+目录与包体都放在 `release-index` 分支：
 
 ```text
 algorithms/stable.json
 algorithms/beta.json
+algorithms/packages/<filename>.hzzsalg
 ```
 
-公开读取（与更新索引同分支策略）：
+附件名示例：`official-bamboo-baseline-v0.1.0.hzzsalg`  
+客户端下载 URL（raw）：
 
-- Gitee：`https://gitee.com/Azek431/hzzs/raw/release-index/algorithms/stable.json`
-- GitHub：`https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.json`
+```text
+https://gitee.com/Azek431/hzzs/raw/release-index/algorithms/packages/<filename>
+https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/packages/<filename>
+```
+
+发布时先上传 packages 资产并双向匿名校验，**最后**才更新目录 JSON。
 
 ### 目录字段
 
@@ -118,7 +116,7 @@ algorithms/beta.json
 
 | 字段 | 说明 |
 |---|---|
-| `id` / `version` / `tag` / `filename` | 身份与资产名 |
+| `id` / `version` / `filename` / `assetPath` | 身份与 `release-index` 下资产路径 |
 | `size` / `sha256` | 完整性 |
 | `engineId` / `engineApiVersion` | 引擎兼容 |
 | `minimumAppVersionCode` | 应用兼容 |
@@ -127,12 +125,8 @@ algorithms/beta.json
 | `revoked` | 撤销 |
 | `displayName` / `author` | 展示 |
 
-**不写下载 URL。** 客户端按 `source + tag + filename` 生成：
-
-```text
-https://gitee.com/Azek431/hzzs/releases/download/<tag>/<filename>
-https://github.com/Azek431/hzzs/releases/download/<tag>/<filename>
-```
+**不写任意外链 URL。** 客户端按 `source + assetPath`（缺省 `algorithms/packages/<filename>`）生成 raw 下载地址。  
+兼容：旧目录若仍带 `tag` 字段，客户端忽略 tag，仍走 packages 路径。
 
 `stable` 与 `beta` 目录相互隔离；撤销版本通过 `revoked=true` 表达，不静默删除历史资产。
 
@@ -160,18 +154,15 @@ https://github.com/Azek431/hzzs/releases/download/<tag>/<filename>
 
 **禁止**使用 `ANDROID_KEYSTORE_*` 为算法包签名。
 
-## 发布顺序（原子性）
+## 发布顺序（原子性，无 tag）
 
 1. 校验工作树算法源  
 2. 构建 `.hzzsalg`  
 3. 签名并本地反向验证  
-4. 创建/更新 GitHub Release（可 draft）并上传包 + `SHA256SUMS` + 公钥  
-5. 同步**完全相同**附件到 Gitee（`--immutable`：哈希一致跳过，不一致失败；不先删后传）  
-6. 匿名下载 GitHub 与 Gitee 包  
-7. 比较两侧 SHA-256  
-8. 验证两个下载包签名  
-9. 生成并签名 `stable.json` / `beta.json`  
-10. **最后**更新 GitHub/Gitee `release-index` 的 `algorithms/*.json`  
+4. 上传包到 `release-index` 的 `algorithms/packages/`（GitHub + Gitee，内容相同则跳过）  
+5. 匿名 raw 下载两侧包并比较 SHA-256 + 验签  
+6. 生成并签名 `stable.json` / `beta.json`  
+7. **最后**更新 `release-index` 的 `algorithms/{channel}.json`  
 
 任一步失败不得发布新目录。重复执行必须幂等。日志不得泄漏 token。
 

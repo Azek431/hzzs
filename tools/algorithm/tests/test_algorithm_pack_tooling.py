@@ -68,7 +68,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
 
     def _signed_official(self) -> Path:
         unsigned = build_package(OFFICIAL, self.tmpdir / "out")
-        signed = self.tmpdir / package_filename("official-bamboo-baseline", "1.0.0")
+        signed = self.tmpdir / package_filename("official-bamboo-baseline", "0.1.0")
         # build_package may already write expected name into out dir
         if unsigned.name != signed.name:
             signed = self.tmpdir / "signed.hzzsalg"
@@ -148,7 +148,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             require_key_id=self.key_id,
         )
         self.assertEqual(result["id"], "official-bamboo-baseline")
-        self.assertEqual(result["version"], "1.0.0")
+        self.assertEqual(result["version"], "0.1.0")
 
     def test_tampered_file_fails(self) -> None:
         signed = self._signed_official()
@@ -232,7 +232,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
     def test_stable_beta_catalog_isolation(self) -> None:
         signed = self._signed_official()
         # Ensure filename matches expected package name for catalog entry
-        expected = self.tmpdir / package_filename("official-bamboo-baseline", "1.0.0")
+        expected = self.tmpdir / package_filename("official-bamboo-baseline", "0.1.0")
         if signed != expected:
             expected.write_bytes(signed.read_bytes())
             signed = expected
@@ -312,7 +312,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         work = self.tmpdir / "publish"
-        signed = work / package_filename("official-bamboo-baseline", "1.0.0")
+        signed = work / package_filename("official-bamboo-baseline", "0.1.0")
         self.assertTrue(signed.is_file())
         self.assertTrue((work / "stable.json").is_file())
         self.assertTrue((work / "SHA256SUMS").is_file())

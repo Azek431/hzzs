@@ -21,7 +21,6 @@ from common import (
     AlgorithmPackError,
     canonical_json,
     package_filename,
-    release_tag,
     sha256_file,
     write_json,
 )
@@ -65,7 +64,8 @@ def algorithm_entry_from_package(
     return {
         "id": manifest["id"],
         "version": manifest["version"],
-        "tag": release_tag(manifest["id"], manifest["version"]),
+        # 资产与目录同在 release-index；不再依赖 GitHub/Gitee Release tag。
+        "assetPath": f"algorithms/packages/{filename}",
         "filename": filename,
         "size": verified["size"],
         "sha256": verified["sha256"],

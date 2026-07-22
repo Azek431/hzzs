@@ -13,13 +13,13 @@
 python tools/algorithm/validate_algorithm_pack.py --source algorithm-packs/official-bamboo-baseline
 python tools/algorithm/build_algorithm_pack.py --source algorithm-packs/official-bamboo-baseline --output build/algorithm
 python tools/algorithm/sign_algorithm_pack.py sign \
-  --input build/algorithm/official-bamboo-baseline-v1.0.0.hzzsalg \
-  --output build/algorithm/official-bamboo-baseline-v1.0.0.signed.hzzsalg \
+  --input build/algorithm/official-bamboo-baseline-v0.1.0.hzzsalg \
+  --output build/algorithm/official-bamboo-baseline-v0.1.0.signed.hzzsalg \
   --private-key /path/to/algorithm-ed25519-private.pem \
   --key-id hzzs-algorithm-official-1 \
   --public-key-output algorithm-packs/official-public-keys/hzzs-algorithm-official-1.pem
 python tools/algorithm/verify_algorithm_pack.py \
-  --package build/algorithm/official-bamboo-baseline-v1.0.0.signed.hzzsalg \
+  --package build/algorithm/official-bamboo-baseline-v0.1.0.signed.hzzsalg \
   --public-key algorithm-packs/official-public-keys/hzzs-algorithm-official-1.pem
 ```
 

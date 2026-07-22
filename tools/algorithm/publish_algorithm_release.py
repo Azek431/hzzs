@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Publish official algorithm pack assets and catalog with dry-run support.
 
-Publishing order (atomic catalog last):
+Publishing order (atomic catalog last) — **no GitHub/Gitee Release tags**:
 1. Validate source
 2. Build + sign package
 3. Local verify
-4. Create/update GitHub draft release and upload assets (immutable on hash mismatch)
-5. Sync identical assets to Gitee (no delete-then-upload clobber)
-6. Anonymous download both sides and compare SHA-256 + verify signatures
-7. Build and sign catalog (stable.json / beta.json)
-8. Publish catalog to release-index only after all prior steps succeed
+4. Upload package (+ checksums + public key) to release-index branch under
+   algorithms/packages/
+5. Anonymous download both Gitee/GitHub raw mirrors, compare SHA-256 + verify signatures
+6. Build and sign catalog (stable.json / beta.json)
+7. Publish catalog to release-index only after all prior steps succeed
 
 Network operations require explicit --execute. Default is dry-run.
 """
@@ -21,7 +21,6 @@ import base64
 import hashlib
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -39,7 +38,6 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 from common import (  # noqa: E402
     AlgorithmPackError,
     package_filename,
-    release_tag,
     sha256_file,
 )
 from build_algorithm_catalog import (  # noqa: E402
@@ -83,155 +81,6 @@ def _public_pem(private_key) -> str:
     ).decode("ascii")
 
 
-def http_json(
-    method: str,
-    url: str,
-    *,
-    token: str | None = None,
-    host: str,
-    body: dict[str, Any] | None = None,
-    retries: int = 4,
-) -> Any:
-    headers = {"Accept": "application/json", "User-Agent": "HZZS-Algorithm-Publisher"}
-    data = None
-    if body is not None:
-        data = json.dumps(body).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    if host == "github" and token:
-        headers["Authorization"] = f"Bearer {token}"
-        headers["X-GitHub-Api-Version"] = "2022-11-28"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        request = Request(url, data=data, headers=headers, method=method)
-        try:
-            with urlopen(request, timeout=60) as response:
-                payload = response.read()
-                if not payload:
-                    return None
-                return json.loads(payload.decode("utf-8"))
-        except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")[:500]
-            last_error = AlgorithmPackError(
-                f"{host} HTTP {error.code} {method} {url.split('?')[0]}: {detail}"
-            )
-            if error.code in {408, 429, 500, 502, 503, 504} and attempt + 1 < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error from error
-        except URLError as error:
-            last_error = AlgorithmPackError(f"{host} network error: {error}")
-            if attempt + 1 < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error from error
-    raise last_error or AlgorithmPackError("HTTP request failed")
-
-
-def github_paginate(url: str, token: str) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    page = 1
-    while True:
-        sep = "&" if "?" in url else "?"
-        batch = http_json(
-            "GET",
-            f"{url}{sep}per_page=100&page={page}",
-            token=token,
-            host="github",
-        )
-        if not isinstance(batch, list) or not batch:
-            break
-        results.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
-        if page > 50:
-            raise AlgorithmPackError("GitHub pagination exceeded safety limit")
-    return results
-
-
-def ensure_github_release(
-    *,
-    owner: str,
-    repo: str,
-    tag: str,
-    name: str,
-    body: str,
-    token: str,
-    draft: bool,
-    prerelease: bool,
-    dry_run: bool,
-) -> dict[str, Any]:
-    api = f"https://api.github.com/repos/{owner}/{repo}"
-    if dry_run:
-        _log(f"[dry-run] would create/update GitHub release {tag} draft={draft}")
-        return {"id": 0, "upload_url": "", "assets": [], "html_url": f"dry-run://{tag}"}
-    releases = github_paginate(f"{api}/releases", token)
-    existing = next((item for item in releases if item.get("tag_name") == tag), None)
-    payload = {
-        "tag_name": tag,
-        "name": name,
-        "body": body[: 128 * 1024],
-        "draft": draft,
-        "prerelease": prerelease,
-        "target_commitish": "main",
-    }
-    if existing:
-        return http_json(
-            "PATCH",
-            f"{api}/releases/{existing['id']}",
-            token=token,
-            host="github",
-            body=payload,
-        )
-    return http_json("POST", f"{api}/releases", token=token, host="github", body=payload)
-
-
-def github_asset_map(release: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {item["name"]: item for item in release.get("assets", []) if item.get("name")}
-
-
-def upload_github_asset(
-    *,
-    upload_url_template: str,
-    path: Path,
-    token: str,
-    existing: dict[str, Any] | None,
-    dry_run: bool,
-) -> None:
-    digest = sha256_file(path)
-    if existing is not None:
-        remote_size = int(existing.get("size") or 0)
-        local_size = path.stat().st_size
-        if remote_size == local_size:
-            _log(f"GitHub asset exists with same size, skip upload: {path.name}")
-            return
-        raise AlgorithmPackError(
-            f"GitHub asset {path.name} exists with different size "
-            f"(remote={remote_size}, local={local_size}); refusing to clobber"
-        )
-    if dry_run:
-        _log(f"[dry-run] would upload GitHub asset {path.name} sha256={digest}")
-        return
-    base = upload_url_template.split("{", 1)[0]
-    url = f"{base}?name={path.name}"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/octet-stream",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "HZZS-Algorithm-Publisher",
-    }
-    request = Request(url, data=path.read_bytes(), headers=headers, method="POST")
-    try:
-        with urlopen(request, timeout=300) as response:
-            response.read()
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:500]
-        raise AlgorithmPackError(
-            f"GitHub upload failed for {path.name}: {error.code} {detail}"
-        ) from error
-
-
 def anonymous_download(url: str, retries: int = 4) -> bytes:
     last_error: Exception | None = None
     for attempt in range(retries):
@@ -255,19 +104,23 @@ def write_sha256sums(paths: list[Path], output: Path) -> None:
     output.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
-def _publish_algorithm_index(
+def _publish_release_index_file(
     *,
     owner: str,
     repo: str,
-    channel: str,
+    path: str,
     content: bytes,
     gh_token: str,
     gitee_token: str,
+    message: str | None = None,
 ) -> None:
+    """Create/update a single file on release-index for GitHub and Gitee."""
     if not content or len(content) > 1024 * 1024:
-        raise AlgorithmPackError("catalog size invalid")
-    path = f"algorithms/{channel}.json"
+        raise AlgorithmPackError(f"content size invalid for {path}")
+    if not path.startswith("algorithms/"):
+        raise AlgorithmPackError(f"path must be under algorithms/: {path}")
     branch = "release-index"
+    commit_msg = message or f"更新 {path}"
 
     api = f"https://api.github.com/repos/{owner}/{repo}"
     headers = {
@@ -303,25 +156,32 @@ def _publish_algorithm_index(
         ) as response:
             current = json.loads(response.read().decode("utf-8"))
             sha = current.get("sha")
+            # immutable: same content → skip
+            if current.get("content"):
+                existing = base64.b64decode("".join(current["content"].split()))
+                if existing == content:
+                    _log(f"GitHub {path} unchanged, skip")
+                    sha = "skip"
     except HTTPError as error:
         if error.code != 404:
             raise AlgorithmPackError(f"GitHub content lookup failed: {error.code}") from error
 
-    body: dict[str, Any] = {
-        "message": f"更新 {path}",
-        "content": base64.b64encode(content).decode("ascii"),
-        "branch": branch,
-    }
-    if sha:
-        body["sha"] = sha
-    put = Request(
-        api + f"/contents/{path}",
-        data=json.dumps(body).encode("utf-8"),
-        headers={**headers, "Content-Type": "application/json"},
-        method="PUT",
-    )
-    with urlopen(put, timeout=30) as response:
-        response.read()
+    if sha != "skip":
+        body: dict[str, Any] = {
+            "message": commit_msg,
+            "content": base64.b64encode(content).decode("ascii"),
+            "branch": branch,
+        }
+        if sha:
+            body["sha"] = sha
+        put = Request(
+            api + f"/contents/{path}",
+            data=json.dumps(body).encode("utf-8"),
+            headers={**headers, "Content-Type": "application/json"},
+            method="PUT",
+        )
+        with urlopen(put, timeout=60) as response:
+            response.read()
 
     gitee_api = f"https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}"
     gitee_sha = None
@@ -332,13 +192,18 @@ def _publish_algorithm_index(
         ) as response:
             current = json.loads(response.read().decode("utf-8"))
             gitee_sha = current.get("sha")
+            if current.get("content"):
+                existing = base64.b64decode("".join(str(current["content"]).split()))
+                if existing == content:
+                    _log(f"Gitee {path} unchanged, skip")
+                    return
     except HTTPError as error:
         if error.code != 404:
             raise AlgorithmPackError(f"Gitee content lookup failed: {error.code}") from error
 
     form = {
         "access_token": gitee_token,
-        "message": f"更新 {path}",
+        "message": commit_msg,
         "content": base64.b64encode(content).decode("ascii"),
         "branch": branch,
     }
@@ -353,8 +218,28 @@ def _publish_algorithm_index(
         },
         method="PUT",
     )
-    with urlopen(put_gitee, timeout=30) as response:
+    with urlopen(put_gitee, timeout=60) as response:
         response.read()
+
+
+def _publish_algorithm_index(
+    *,
+    owner: str,
+    repo: str,
+    channel: str,
+    content: bytes,
+    gh_token: str,
+    gitee_token: str,
+) -> None:
+    _publish_release_index_file(
+        owner=owner,
+        repo=repo,
+        path=f"algorithms/{channel}.json",
+        content=content,
+        gh_token=gh_token,
+        gitee_token=gitee_token,
+        message=f"更新 algorithms/{channel}.json",
+    )
 
 
 def publish(arguments: argparse.Namespace) -> int:
@@ -377,7 +262,7 @@ def publish(arguments: argparse.Namespace) -> int:
     )
     manifest = validate_source(source)["manifest"]
     filename = package_filename(manifest["id"], manifest["version"])
-    tag = release_tag(manifest["id"], manifest["version"])
+    asset_path = f"algorithms/packages/{filename}"
     signed_path = out_dir / filename
     sign_package(unsigned, signed_path, private_key=private_key, key_id=key_id)
 
@@ -399,7 +284,6 @@ def publish(arguments: argparse.Namespace) -> int:
 
     checksums = out_dir / "SHA256SUMS"
     write_sha256sums([signed_path, public_b64_path], checksums)
-    assets = [signed_path, checksums, public_b64_path]
 
     channel = arguments.channel
     owner = arguments.owner
@@ -407,93 +291,57 @@ def publish(arguments: argparse.Namespace) -> int:
     gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     gitee_token = os.environ.get("GITEE_TOKEN")
 
-    body = (
-        f"Official HZZS algorithm pack `{manifest['id']}` version `{manifest['version']}`.\n\n"
-        f"- scenes: {', '.join(manifest['supportedScenes'])}\n"
-        f"- engine: {manifest['engineId']} api={manifest['engineApiVersion']}\n"
-        f"- minimumAppVersionCode: {manifest['minimumAppVersionCode']}\n"
-        f"- channel target: {channel}\n\n"
-        "Package format: `.hzzsalg` (manifest.json, rules.json, CHANGELOG.txt, signature.json).\n"
-        "Do not trust assets without signature verification against the official algorithm public key.\n"
-    )
-    notes_path = out_dir / "release-notes.md"
-    notes_path.write_text(body, encoding="utf-8", newline="\n")
-
     if not dry_run and not gh_token:
         raise AlgorithmPackError("GH_TOKEN/GITHUB_TOKEN required for --execute")
     if not dry_run and not gitee_token:
         raise AlgorithmPackError("GITEE_TOKEN required for --execute")
 
-    release = ensure_github_release(
-        owner=owner,
-        repo=repo,
-        tag=tag,
-        name=tag,
-        body=body,
-        token=gh_token or "",
-        draft=arguments.draft,
-        prerelease=channel == "beta",
-        dry_run=dry_run,
-    )
-    existing_assets = github_asset_map(release)
-    for asset in assets:
-        upload_github_asset(
-            upload_url_template=release.get("upload_url", ""),
-            path=asset,
-            token=gh_token or "",
-            existing=existing_assets.get(asset.name),
-            dry_run=dry_run,
-        )
-
-    sync_script = ROOT / "tools" / "release" / "sync_gitee_release.py"
+    # 资产先上 release-index，再写目录（不创建 Release tag）
+    package_bytes = signed_path.read_bytes()
     if dry_run:
         _log(
-            "[dry-run] would sync Gitee release "
-            f"{tag} assets=" + ",".join(path.name for path in assets)
+            f"[dry-run] would upload {asset_path} (+ SHA256SUMS, public key) "
+            "to release-index on GitHub and Gitee"
         )
     else:
-        command = [
-            sys.executable,
-            str(sync_script),
-            "--owner",
-            owner,
-            "--repo",
-            repo,
-            "--tag",
-            tag,
-            "--name",
-            tag,
-            "--body-file",
-            str(notes_path),
-            "--assets",
-            *[str(path) for path in assets],
-            "--immutable",
-        ]
-        if channel == "beta":
-            command.append("--prerelease")
-        env = os.environ.copy()
-        completed = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            env=env,
+        _publish_release_index_file(
+            owner=owner,
+            repo=repo,
+            path=asset_path,
+            content=package_bytes,
+            gh_token=gh_token or "",
+            gitee_token=gitee_token or "",
+            message=f"发布算法包 {manifest['id']} {manifest['version']}",
         )
-        if completed.returncode != 0:
-            raise AlgorithmPackError(
-                f"Gitee sync failed: {_redact(completed.stderr or completed.stdout)}"
-            )
-        _log(_redact(completed.stdout.strip() or "Gitee sync OK"))
+        _publish_release_index_file(
+            owner=owner,
+            repo=repo,
+            path=f"algorithms/packages/{checksums.name}",
+            content=checksums.read_bytes(),
+            gh_token=gh_token or "",
+            gitee_token=gitee_token or "",
+            message=f"更新算法包校验和 {manifest['id']} {manifest['version']}",
+        )
+        _publish_release_index_file(
+            owner=owner,
+            repo=repo,
+            path="algorithms/packages/algorithm-public-key.der.b64",
+            content=public_b64_path.read_bytes(),
+            gh_token=gh_token or "",
+            gitee_token=gitee_token or "",
+            message="更新算法官方公钥",
+        )
+        _log(f"uploaded package to release-index {asset_path}")
 
     local_sha = verified["sha256"]
     if dry_run:
         _log("[dry-run] skip anonymous dual-source download verification")
     else:
         for base in (
-            f"https://github.com/{owner}/{repo}/releases/download/{tag}",
-            f"https://gitee.com/{owner}/{repo}/releases/download/{tag}",
+            f"https://raw.githubusercontent.com/{owner}/{repo}/release-index",
+            f"https://gitee.com/{owner}/{repo}/raw/release-index",
         ):
-            url = f"{base}/{filename}"
+            url = f"{base}/{asset_path}"
             data = anonymous_download(url)
             remote_sha = sha256_bytes(data)
             if remote_sha != local_sha:
@@ -566,12 +414,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--private-key-b64")
     parser.add_argument("--key-id", default=os.environ.get("ALGORITHM_SIGNING_KEY_ID"))
     parser.add_argument("--generated-at")
-    parser.add_argument(
-        "--draft",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Create GitHub release as draft (default: true)",
-    )
     parser.add_argument(
         "--execute",
         action="store_true",

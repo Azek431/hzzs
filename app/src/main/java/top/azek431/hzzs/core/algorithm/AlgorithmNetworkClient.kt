@@ -22,6 +22,8 @@ import javax.inject.Singleton
  * 算法目录拉取 + `.hzzsalg` 下载。
  *
  * 安全：仅 HTTPS；目录 JSON 有大小上限；资产下载校验 size/sha256。
+ * 资产与目录同在 `release-index` 分支（**不依赖** GitHub/Gitee Release tag）：
+ * `algorithms/packages/<filename>`。
  * 目录签名（catalogSignature）在信任锚未配置时只做结构校验并标记 UNKNOWN。
  */
 @Singleton
@@ -40,7 +42,8 @@ class AlgorithmNetworkClient @Inject constructor(
 
     data class CatalogRemoteEntry(
         val info: AlgorithmPackageInfo,
-        val tag: String,
+        /** release-index 下相对路径，如 algorithms/packages/foo-v1.0.0.hzzsalg */
+        val assetPath: String,
         val filename: String,
         val sha256: String,
     )
@@ -96,7 +99,7 @@ class AlgorithmNetworkClient @Inject constructor(
         if (wifiOnly && !isOnUnmeteredNetwork()) {
             error("当前设置要求仅在 Wi‑Fi 下下载算法包")
         }
-        val url = packageUrl(source, entry.tag, entry.filename)
+        val url = packageUrl(source, entry.assetPath)
         val stagingRoot = File(appContext.cacheDir, "algorithm-dl").also { it.mkdirs() }
         val part = File(stagingRoot, "${entry.info.id}.hzzsalg.part")
         val target = File(stagingRoot, "${entry.info.id}.hzzsalg")
@@ -149,8 +152,13 @@ class AlgorithmNetworkClient @Inject constructor(
             if (item.optBoolean("revoked", false)) continue
             val id = item.getString("id")
             val version = item.getString("version")
-            val tag = item.getString("tag")
             val filename = item.getString("filename")
+            require(SAFE_NAME.matches(filename)) { "非法文件名: $filename" }
+            // 优先 assetPath；兼容旧目录里的 tag 字段（忽略，仅用于人工阅读）
+            val assetPath = item.optString("assetPath").ifBlank {
+                "algorithms/packages/$filename"
+            }
+            require(SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径: $assetPath" }
             val size = item.getLong("size")
             val sha256 = item.getString("sha256")
             val scenes = item.optJSONArray("supportedScenes").toSceneSet()
@@ -177,7 +185,7 @@ class AlgorithmNetworkClient @Inject constructor(
                 releaseNotes = item.optString("changelog"),
                 isCompatible = appCode >= minApp,
             )
-            out += CatalogRemoteEntry(info, tag, filename, sha256)
+            out += CatalogRemoteEntry(info, assetPath, filename, sha256)
         }
         return out
     }
@@ -197,14 +205,17 @@ class AlgorithmNetworkClient @Inject constructor(
             "https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/$file"
     }
 
-    private fun packageUrl(source: UpdateSourceId, tag: String, filename: String): String {
-        require(SAFE_TAG.matches(tag)) { "非法 tag" }
-        require(SAFE_NAME.matches(filename)) { "非法文件名" }
+    /**
+     * 包体与目录同分支：release-index 上的 raw 路径。
+     * 不使用 GitHub/Gitee Releases tag。
+     */
+    private fun packageUrl(source: UpdateSourceId, assetPath: String): String {
+        require(SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径" }
         return when (source) {
             UpdateSourceId.GITEE ->
-                "https://gitee.com/Azek431/hzzs/releases/download/$tag/$filename"
+                "https://gitee.com/Azek431/hzzs/raw/release-index/$assetPath"
             UpdateSourceId.GITHUB ->
-                "https://github.com/Azek431/hzzs/releases/download/$tag/$filename"
+                "https://raw.githubusercontent.com/Azek431/hzzs/release-index/$assetPath"
         }
     }
 
@@ -312,7 +323,8 @@ class AlgorithmNetworkClient @Inject constructor(
     companion object {
         private const val MAX_CATALOG_BYTES = 512L * 1024L
         private const val MAX_PACKAGE_BYTES = 1024L * 1024L
-        private val SAFE_TAG = Regex("^[A-Za-z0-9._+-]{1,96}$")
         private val SAFE_NAME = Regex("^[A-Za-z0-9._+-]{1,160}$")
+        /** 仅允许 algorithms/packages/ 下单层安全文件名。 */
+        private val SAFE_ASSET_PATH = Regex("^algorithms/packages/[A-Za-z0-9._+-]{1,160}$")
     }
 }
