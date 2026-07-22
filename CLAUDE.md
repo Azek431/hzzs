@@ -10,7 +10,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 | --- | --- |
 | 最低系统 | Android 7.0（API 24） |
 | 首发版本目标 | **0.1.0** / `versionCode = 1`（尚未正式 release） |
-| 默认赛季 | **竹影书屋** `SceneId.BAMBOO_BOOKSTORE` |
+| 默认赛季 | 以源码 `AppConfig.DEFAULT_SELECTED_SCENE` 为准（勿在文档写死具体赛季） |
 | 模块 | **仅** `:app` |
 
 ## 结构约束

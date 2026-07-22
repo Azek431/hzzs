@@ -6,7 +6,7 @@
 
 - `versionName`：`0.1.0`（可用 `HZZS_VERSION_NAME` / `hzzsVersionName` 覆盖）
 - `versionCode`：`1`（可用 `HZZS_VERSION_CODE` / `hzzsVersionCode` 覆盖）
-- 默认赛季：`SceneId.BAMBOO_BOOKSTORE`
+- 默认赛季：`AppConfig.DEFAULT_SELECTED_SCENE`（源码唯一真相，文档不写死具体枚举值）
 
 ## 目录地图
 
