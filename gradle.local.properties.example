@@ -10,4 +10,8 @@ hzzs.native.abis=arm64-v8a
 # 建议在启动终端前设置（与 workers 对齐，防 4 核过订阅）：
 #   $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 #
+# 注意：本文件目前只被 app/build.gradle.kts 读取 hzzs.* 键（如 native.abis）。
+# org.gradle.jvmargs / kotlin.daemon.jvmargs 必须在 daemon 启动前生效，
+# 请改根 gradle.properties，或写入 %GRADLE_USER_HOME%\gradle.properties（用户级覆盖）。
+#
 # 恢复完整 ABI：删除本文件或注释掉 hzzs.native.abis

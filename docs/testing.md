@@ -21,6 +21,22 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 
 完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`（应注释掉 `org.gradle.configuration-cache=false`）。
 
+### 本机 Kotlin IC / 低内存
+
+- 产品使用 **Hilt + KSP**（不再 kapt stub 双编译）。
+- 堆与 worker 按 low-memory / 4 线程画像写在根 `gradle.properties`；可用 `gradle.local.properties` 覆盖。
+- 若出现 `classpath-snapshot` / `shrunk-classpath-snapshot.bin` 找不到、IC 回退全量、或 `Gradle build daemon has been stopped: stop command received`：
+
+```powershell
+# 停 daemon + 清 Kotlin/KSP IC；空闲内存尚可时再加 -Compile
+.\tools\dev\repair_gradle_kotlin_cache.ps1 -Compile
+# 或手动（IDE 常会 stop 常驻 daemon 时加 --no-daemon）
+.\gradlew.bat --no-daemon --console=plain :app:compileDebugKotlin
+```
+
+- 可用物理内存 < ~1.5 GiB 时先关多余语言服务 / 浏览器，再构建；全量 `:app:testDebugUnitTest` 易 OOM，优先相关 `--tests`。
+- 项目默认 `ksp.incremental=false`（低内存写盘更稳）；充裕时可在用户级 `gradle.properties` 打开。
+
 Release（需签名配置，见 README「Release 构建与签名」）：
 
 ```bash

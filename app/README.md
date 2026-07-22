@@ -16,7 +16,7 @@
 - `feature/`：首次引导、首页、运行、设置、关于和开发者界面。
 - `platform/compat/`：Android 版本及设备能力判断。
 - `service/capture/`：MediaProjection、Accessibility、Root、Shizuku 等截图实现。
-- `service/overlay/`：持久 WindowManager Canvas 悬浮窗。
+- `service/overlay/`：持久 WindowManager Canvas 双层悬浮窗（穿透检测框 + 可拖 HUD）。
 - `service/automation/`：Accessibility 手势分发。
 - `mcp/`：仅本地回环的 MCP 服务和权限策略。
 - `src/main/cpp/`：C++17 多场景障碍检测与 JNI。

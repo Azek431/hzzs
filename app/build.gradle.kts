@@ -75,7 +75,7 @@ val releaseSigningConfigured = listOf(
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.legacy.kapt)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
 
@@ -233,9 +233,10 @@ android {
     }
 }
 
-kapt {
-    correctErrorTypes = true
-    useBuildCache = true
+// Hilt 走 KSP（不再 kapt 双编译 stub），日常 Kotlin 增量更稳。
+ksp {
+    arg("dagger.fastInit", "enabled")
+    arg("dagger.hilt.android.internal.disableAndroidSuperclassValidation", "true")
 }
 
 tasks.matching {
@@ -297,7 +298,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
     implementation(libs.bouncycastle.bcprov)

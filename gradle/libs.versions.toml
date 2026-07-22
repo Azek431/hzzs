@@ -1,6 +1,8 @@
 [versions]
 agp = "9.2.0"
 kotlin = "2.3.10"
+# KSP 版本号与 Kotlin 主版本对齐（见 Maven Central symbol-processing-gradle-plugin）
+ksp = "2.3.10"
 composeBom = "2026.06.00"
 activityCompose = "1.13.0"
 splashscreen = "1.2.0"
@@ -61,5 +63,5 @@ bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref 
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-legacy-kapt = { id = "com.android.legacy-kapt", version.ref = "agp" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

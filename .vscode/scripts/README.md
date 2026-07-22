@@ -33,3 +33,4 @@
 
 - 全局 `CMAKE_BUILD_PARALLEL_LEVEL=2`（tasks.json `options.env`）减轻 4 核过订阅。
 - 需要 `adb` 与 `.\gradlew.bat` 在 PATH / 仓库根目录可用。
+- 构建报 Kotlin IC / `classpath-snapshot` 损坏，或 daemon 被 stop：仓库根执行 `.\tools\dev\repair_gradle_kotlin_cache.ps1`（可加 `-Compile`）。
