@@ -3,7 +3,7 @@
  *
  * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；仅离开整个模块时询问保存/丢弃。
  * 数据流：订阅 draft/baseline/update/algorithm；子页经 [SettingsViewModel.update] 改草稿。
- * 边界：不直接 JNI/权限运行时；dispose 时 [discardSilently] 清理未提交预览。
+ * 边界：不直接 JNI/权限运行时；dispose 只清除临时预览，不替用户决定保存或丢弃。
  */
 package top.azek431.hzzs.feature.settings
 
@@ -32,8 +32,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -42,6 +44,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import top.azek431.hzzs.R
+import top.azek431.hzzs.core.designsystem.HzzsBreakpoints
+import top.azek431.hzzs.core.designsystem.LocalHzzsMotion
+import top.azek431.hzzs.core.designsystem.sharedAxisXEnter
+import top.azek431.hzzs.core.designsystem.sharedAxisXExit
+import top.azek431.hzzs.core.designsystem.sharedAxisXPopEnter
+import top.azek431.hzzs.core.designsystem.sharedAxisXPopExit
 import top.azek431.hzzs.feature.settings.components.SettingsSaveBar
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
 import top.azek431.hzzs.feature.settings.model.SettingsRoutes
@@ -63,6 +72,7 @@ import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
 @Composable
 fun SettingsScreen(
     onExit: () -> Unit,
+    exitCoordinator: SettingsExitCoordinator? = null,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val config by vm.draft.collectAsState()
@@ -75,14 +85,27 @@ fun SettingsScreen(
     val route = entry?.destination?.route ?: SettingsRoutes.HOME
     val onHome = route == SettingsRoutes.HOME
     var confirmExit by remember { mutableStateOf(false) }
+    var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    DisposableEffect(vm) {
-        onDispose { vm.discardSilently() }
+    val currentDirty by rememberUpdatedState(dirty)
+    val currentOnExit by rememberUpdatedState(onExit)
+
+    fun requestExit(action: () -> Unit = currentOnExit) {
+        if (currentDirty) {
+            pendingExitAction = action
+            confirmExit = true
+        } else {
+            vm.discard(action)
+        }
     }
 
-    fun requestExit() {
-        if (dirty) confirmExit = true else vm.discard(onExit)
+    DisposableEffect(exitCoordinator, vm) {
+        val registration = exitCoordinator?.attach(::requestExit)
+        onDispose {
+            registration?.dispose()
+            vm.clearPreviewSilently()
+        }
     }
 
     BackHandler {
@@ -93,8 +116,9 @@ fun SettingsScreen(
         }
     }
 
+    val settingsLabel = stringResource(R.string.nav_settings)
     val title = when (route) {
-        SettingsRoutes.HOME -> "设置"
+        SettingsRoutes.HOME -> settingsLabel
         SettingsCategory.APPEARANCE.route -> SettingsCategory.APPEARANCE.title
         SettingsCategory.ALGORITHM.route -> SettingsCategory.ALGORITHM.title
         SettingsCategory.CAPTURE.route -> SettingsCategory.CAPTURE.title
@@ -102,7 +126,7 @@ fun SettingsScreen(
         SettingsCategory.AUTOMATION.route -> SettingsCategory.AUTOMATION.title
         SettingsCategory.NETWORK.route -> SettingsCategory.NETWORK.title
         SettingsCategory.MCP.route -> SettingsCategory.MCP.title
-        else -> "设置"
+        else -> settingsLabel
     }
 
     Scaffold(
@@ -115,7 +139,10 @@ fun SettingsScreen(
                             if (onHome) requestExit() else nav.popBackStack()
                         },
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
@@ -142,7 +169,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            val wide = maxWidth >= 840.dp
+            val wide = maxWidth >= HzzsBreakpoints.SettingsTwoPane
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Box(
@@ -191,24 +218,31 @@ fun SettingsScreen(
 
     if (confirmExit) {
         AlertDialog(
-            onDismissRequest = { confirmExit = false },
-            title = { Text("未保存的更改") },
-            text = { Text("要保存当前设置，还是丢弃更改并离开？") },
+            onDismissRequest = {
+                confirmExit = false
+                pendingExitAction = null
+            },
+            title = { Text(stringResource(R.string.settings_unsaved_title)) },
+            text = { Text(stringResource(R.string.settings_unsaved_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
+                        val action = pendingExitAction ?: currentOnExit
                         confirmExit = false
-                        vm.save(onExit)
+                        pendingExitAction = null
+                        vm.save(action)
                     },
-                ) { Text("保存并离开") }
+                ) { Text(stringResource(R.string.settings_save_and_leave)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
+                        val action = pendingExitAction ?: currentOnExit
                         confirmExit = false
-                        vm.discard(onExit)
+                        pendingExitAction = null
+                        vm.discard(action)
                     },
-                ) { Text("丢弃") }
+                ) { Text(stringResource(R.string.action_discard)) }
             },
         )
     }
@@ -226,10 +260,15 @@ private fun SettingsNavHost(
     modifier: Modifier,
     startAtHome: Boolean,
 ) {
+    val motion = LocalHzzsMotion.current
     NavHost(
         navController = nav,
         startDestination = if (startAtHome) SettingsRoutes.HOME else SettingsCategory.APPEARANCE.route,
         modifier = modifier,
+        enterTransition = { motion.sharedAxisXEnter() },
+        exitTransition = { motion.sharedAxisXExit() },
+        popEnterTransition = { motion.sharedAxisXPopEnter() },
+        popExitTransition = { motion.sharedAxisXPopExit() },
     ) {
         composable(SettingsRoutes.HOME) {
             SettingsHomeScreen(
@@ -288,7 +327,20 @@ private fun SettingsNavHost(
             )
         }
         composable(SettingsCategory.MCP.route) {
-            McpDeveloperSettingsScreen(config = config, update = vm::update)
+            val mcpState by vm.mcpState.collectAsState()
+            val debugFrameCount by vm.debugFrameCount.collectAsState()
+            val benchmark by vm.benchmark.collectAsState()
+            McpDeveloperSettingsScreen(
+                config = config,
+                update = vm::update,
+                mcpState = mcpState,
+                debugFrameCount = debugFrameCount,
+                benchmark = benchmark,
+                onRefreshDebugFrames = vm::refreshDebugFrameCount,
+                onClearDebugFrames = vm::clearDebugFrames,
+                onRunBenchmark = vm::runNativeBenchmark,
+                onBuildDiagnostics = vm::buildDiagnosticsReport,
+            )
         }
     }
 }

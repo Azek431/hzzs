@@ -21,6 +21,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.core.model.RuntimeStatus
@@ -41,6 +43,7 @@ import top.azek431.hzzs.domain.vision.ObjectKind
 import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
+import top.azek431.hzzs.domain.vision.withApproximateDisplayContour
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
@@ -80,6 +83,7 @@ class VisionRuntimeController @Inject constructor(
     private val engine: VisionEngine,
     private val overlay: OverlayController,
     private val debugFrameRecorder: DebugFrameRecorder,
+    private val algorithmActivation: AlgorithmActivationCoordinator,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lifecycleMutex = Mutex()
@@ -155,10 +159,19 @@ class VisionRuntimeController @Inject constructor(
             val source = sources.source(backend)
             val token = generation.incrementAndGet()
             resetPipeline()
-            // 启动时把当前激活算法快照同步到 native（默认 builtin）；失败保留 native 默认。
+            // 启动分析前按已保存 AlgorithmConfig 解析并激活（含 pending）；失败回退内置。
             runCatching {
-                engine.configureAlgorithm(engine.currentActivation().profile)
+                algorithmActivation.ensureConfigured(
+                    config = config.algorithm,
+                    selectedScene = config.selectedScene,
+                )
+            }.onFailure { error ->
+                AppLog.w(
+                    "vision",
+                    "algorithm ensureConfigured failed: ${error.message ?: error.javaClass.simpleName}",
+                )
             }
+            algorithmActivation.setAnalysisRunning(true)
             activeSource = source
             mutableStatus.value = RuntimeStatus(
                 running = true,
@@ -178,6 +191,7 @@ class VisionRuntimeController @Inject constructor(
             } catch (error: Throwable) {
                 activeSource = null
                 runCatching { source.stop() }
+                AppLog.e("vision", "start capture failed: ${error.message}", error)
                 mutableStatus.value = RuntimeStatus(
                     running = false,
                     activeScene = config.selectedScene,
@@ -207,6 +221,7 @@ class VisionRuntimeController @Inject constructor(
         runCatching { source?.stop() }
         overlay.hide()
         resetPipeline()
+        algorithmActivation.setAnalysisRunning(false)
         mutableStatus.value = mutableStatus.value.copy(
             running = false,
             captureReady = false,
@@ -274,7 +289,8 @@ class VisionRuntimeController @Inject constructor(
         var failureCount = 0
         var frameCount = 0
         var fpsWindowStart = SystemClock.elapsedRealtime()
-        var lastProcessedFrameNanos = 0L
+        // Tracker 稳定帧按已分析帧计数，避免 conflated/排空帧让序号跳跃。
+        var trackingSequence = -1L
         var pipelineScene: SceneId? = null
         var pipelineSceneConfig: SceneConfig? = null
         var pipelineAlgorithmGeneration = engine.activeAlgorithmGeneration()
@@ -329,6 +345,7 @@ class VisionRuntimeController @Inject constructor(
                     actionJob = null
                     actionInFlight.set(false)
                     tracker.reset()
+                    trackingSequence = -1L
                     ledger.reset()
                     recentActionTimes.clear()
                     trackRetryCounts.clear()
@@ -344,7 +361,36 @@ class VisionRuntimeController @Inject constructor(
                     }
                 }
 
-                val frame = source.nextFrame(lastSequence)
+                // HZZS_V092_COMPLETION_DRIVEN_CAPTURE
+                // 无固定 FPS sleep：上一轮完成后直接等待最新新帧。
+                // HUD 已显示时先临时隐身并等待一次显示提交；MediaProjection/AUTO
+                // 再排空一张可能含旧合成层的帧，随后取得干净输入缓冲。
+                val overlaySuspended =
+                    mutableStatus.value.overlayVisible &&
+                        config.overlay.enabled &&
+                        overlay.suspendForCapture()
+                val frame = try {
+                    val continuousProjection =
+                        startedBackend == CaptureBackend.AUTO ||
+                            startedBackend == CaptureBackend.MEDIA_PROJECTION
+                    if (overlaySuspended && continuousProjection) {
+                        val drained = source.nextFrame(lastSequence)
+                        if (drained == null) {
+                            null
+                        } else {
+                            drained.use {
+                                if (drained.sequence > lastSequence) lastSequence = drained.sequence
+                            }
+                            source.nextFrame(lastSequence)
+                        }
+                    } else {
+                        source.nextFrame(lastSequence)
+                    }
+                } finally {
+                    if (overlaySuspended && generation.get() == token) {
+                        overlay.resumeAfterCapture()
+                    }
+                }
                 if (frame == null) {
                     when (val state = source.state.value) {
                         is CaptureState.Failed -> throw CaptureUnavailable(state.message)
@@ -359,19 +405,6 @@ class VisionRuntimeController @Inject constructor(
                 frame.use {
                     if (frame.sequence <= lastSequence || generation.get() != token) return@use
                     lastSequence = frame.sequence
-                    val frameRateLimit = if (config.developer.enabled) {
-                        config.developer.frameRateLimit.coerceIn(1, 120)
-                    } else {
-                        DEFAULT_FRAME_RATE_LIMIT
-                    }
-                    val minimumFrameIntervalNanos = 1_000_000_000L / frameRateLimit
-                    if (
-                        lastProcessedFrameNanos > 0L &&
-                        frame.elapsedRealtimeNanos - lastProcessedFrameNanos < minimumFrameIntervalNanos
-                    ) {
-                        return@use
-                    }
-                    lastProcessedFrameNanos = frame.elapsedRealtimeNanos
                     debugFrameRecorder.offer(frame, config.developer)
                     val result = engine.analyze(
                         VisionFrame(
@@ -405,8 +438,12 @@ class VisionRuntimeController @Inject constructor(
                     failureCount = 0
 
                     val resultWithReference = result.withPlayerReference(sceneConfig)
-                    val tracked = tracker.update(frame.sequence, resultWithReference.detections)
-                    val trackedResult = resultWithReference.copy(detections = tracked.map { it.detection })
+                    // Tracker 稳定帧按已分析帧计数，避免 conflated/排空帧让序号跳跃。
+                    trackingSequence++
+                    val tracked = tracker.update(trackingSequence, resultWithReference.detections)
+                    val trackedResult = resultWithReference.copy(
+                        detections = tracked.map { it.detection.withApproximateDisplayContour() },
+                    )
                     mutableLatestResult.value = trackedResult
                     val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
                     val visible = publishOverlay(config.overlay, trackedResult, showGrid, force = false)
@@ -442,6 +479,7 @@ class VisionRuntimeController @Inject constructor(
             throw cancelled
         } catch (error: Throwable) {
             disarmAutomation()
+            AppLog.e("vision", "frame loop failed: ${error.message}", error)
             mutableStatus.update {
                 it.copy(lastError = error.message ?: error.javaClass.simpleName)
             }
@@ -828,7 +866,6 @@ class VisionRuntimeController @Inject constructor(
         const val FOREGROUND_MAX_AGE_MS = 1_500L
         const val MAX_CONSECUTIVE_VISION_FAILURES = 5
         const val FPS_WINDOW_MS = 1_000L
-        const val DEFAULT_FRAME_RATE_LIMIT = 60
         const val ACTION_RATE_WINDOW_MS = 1_000L
         const val ACTION_TTL_MS = 650L
         const val DOUBLE_JUMP_GAP_SWEET_MS = 75L

@@ -13,6 +13,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -27,7 +28,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +37,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,9 +49,14 @@ import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.designsystem.SectionCard
 import top.azek431.hzzs.core.designsystem.HzzsCallout
 import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
+import top.azek431.hzzs.core.logging.DiagnosticsExporter
+import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
 import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.model.AppLogLevel
 import top.azek431.hzzs.core.model.DeveloperConfig
 import top.azek431.hzzs.core.model.CaptureBackend
+import top.azek431.hzzs.core.model.developerLabel
+import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.DebugFrameRecorder
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
@@ -64,6 +70,7 @@ enum class DonationKind { WECHAT, ALIPAY }
 /** 关于页状态：配置流、MCP 运行态、调试帧计数与 Native 自检结果。 */
 @HiltViewModel
 class AboutViewModel @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
     private val repository: SettingsRepository,
     mcpUiBridge: McpUiBridge,
     private val debugFrames: DebugFrameRecorder,
@@ -108,6 +115,33 @@ class AboutViewModel @Inject constructor(
         val iterations = config.value.developer.nativeBenchmarkIterations
         viewModelScope.launch { mutableBenchmark.value = benchmarkRunner.run(iterations) }
     }
+
+    /** 脱敏诊断摘要：版本 / 机型 / 配置摘要 / 最近日志；不含 Bearer。 */
+    fun buildDiagnosticsReport(): String {
+        val current = config.value
+        val mcp = mcpState.value
+        val packageInfo = runCatching {
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        }.getOrNull()
+        val versionName = packageInfo?.versionName ?: "unknown"
+        val versionCode = if (Build.VERSION.SDK_INT >= 28) {
+            packageInfo?.longVersionCode ?: 0L
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo?.versionCode?.toLong() ?: 0L
+        }
+        return DiagnosticsExporter.buildReport(
+            versionName = versionName,
+            versionCode = versionCode,
+            config = current,
+            mcp = McpDiagnosticsSnapshot(
+                running = mcp.running,
+                port = mcp.port.takeIf { mcp.running },
+                lastError = mcp.lastError,
+            ),
+            debugFrameCount = mutableDebugFrameCount.value,
+        )
+    }
 }
 
 /**
@@ -142,6 +176,7 @@ fun AboutScreen(
             onRefreshDebugFrames = vm::refreshDebugFrameCount,
             onClearDebugFrames = vm::clearDebugFrames,
             onRunBenchmark = vm::runNativeBenchmark,
+            onBuildDiagnostics = vm::buildDiagnosticsReport,
         )
         return
     }
@@ -232,8 +267,8 @@ fun AboutScreen(
 }
 
 /**
- * 开发者诊断页：强制截图后端、调试帧、坐标网格、帧率上限、Native 自检与 MCP 连接信息。
- * 仅改 [DeveloperConfig]；不直接拉起截图或 MCP 服务。
+ * 开发者诊断页：强制截图后端、调试帧、坐标网格、日志级别、Native 自检与诊断导出。
+ * 仅改 [DeveloperConfig]；不直接拉起截图或 MCP 服务。设置页「MCP 与开发者」含同等字段。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -248,6 +283,7 @@ private fun DeveloperScreen(
     onRefreshDebugFrames: () -> Unit,
     onClearDebugFrames: () -> Unit,
     onRunBenchmark: () -> Unit,
+    onBuildDiagnostics: () -> String,
 ) {
     val context = LocalContext.current
     Scaffold(
@@ -262,14 +298,20 @@ private fun DeveloperScreen(
             item {
                 ElevatedCard {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text("开发者设置", style = MaterialTheme.typography.titleMedium); Text("关闭后入口会隐藏，可再次连续点击版本号 7 次开启。", style = MaterialTheme.typography.bodySmall) }
+                        Column(Modifier.weight(1f)) {
+                            Text("开发者设置", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "关闭后入口会隐藏，可再次连续点击版本号 7 次开启。完整项也在设置 → MCP 与开发者。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         Switch(checked = config.developer.enabled, onCheckedChange = onEnabledChange)
                     }
                 }
             }
             item {
                 Text("强制截图后端", style = MaterialTheme.typography.titleMedium)
-                Text("仅用于诊断。选择“跟随设置”可恢复普通用户配置。", style = MaterialTheme.typography.bodySmall)
+                Text("仅用于诊断。选择“跟随设置”可恢复普通用户配置。AUTO 仍不升权。", style = MaterialTheme.typography.bodySmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     (listOf<CaptureBackend?>(null) + CaptureBackend.entries).forEach { backend ->
                         FilterChip(
@@ -286,7 +328,10 @@ private fun DeveloperScreen(
                         DeveloperSwitch("保存调试帧", config.developer.saveDebugFrames) { value ->
                             onUpdate { it.copy(saveDebugFrames = value) }
                         }
-                        Text("最多保留 20 张，每 5 秒采样一次，仅存储在应用私有目录。当前：$debugFrameCount 张", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "最多保留 20 张，每 5 秒采样一次，仅存储在应用私有目录。当前：$debugFrameCount 张",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = onRefreshDebugFrames) { Text("刷新") }
                             TextButton(onClick = onClearDebugFrames, enabled = debugFrameCount > 0) { Text("清除") }
@@ -294,10 +339,34 @@ private fun DeveloperScreen(
                     }
                 }
             }
-            item { DeveloperSwitch("显示比例坐标网格", config.developer.showCoordinateGrid) { value -> onUpdate { it.copy(showCoordinateGrid = value) } } }
             item {
-                Text("识别帧率上限：${config.developer.frameRateLimit}")
-                Slider(value = config.developer.frameRateLimit.toFloat(), onValueChange = { value -> onUpdate { it.copy(frameRateLimit = value.toInt()) } }, valueRange = 1f..120f)
+                DeveloperSwitch("显示比例坐标网格", config.developer.showCoordinateGrid) { value ->
+                    onUpdate { it.copy(showCoordinateGrid = value) }
+                }
+            }
+            item {
+                Text("日志级别：${config.developer.logLevel.displayName()}", style = MaterialTheme.typography.titleMedium)
+                Text("控制 Logcat 与内存 ring buffer；关闭开发者后 DEBUG 以下不入缓冲。", style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppLogLevel.entries.forEach { level ->
+                        FilterChip(
+                            selected = config.developer.logLevel == level,
+                            onClick = { onUpdate { it.copy(logLevel = level) } },
+                            label = { Text(level.name) },
+                        )
+                    }
+                }
+            }
+            item {
+                Text(
+                    "识别帧率上限：${config.developer.frameRateLimit}（保留字段，完成驱动下暂不消费）",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Slider(
+                    value = config.developer.frameRateLimit.toFloat(),
+                    onValueChange = { value -> onUpdate { it.copy(frameRateLimit = value.toInt()) } },
+                    valueRange = 1f..120f,
+                )
             }
             item {
                 ElevatedCard {
@@ -321,7 +390,11 @@ private fun DeveloperScreen(
                                 )
                             },
                             onFailure = { error ->
-                                Text("自检失败：${error.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    "自检失败：${error.message}",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             },
                         )
                     }
@@ -335,21 +408,47 @@ private fun DeveloperScreen(
                         mcpState.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         if (mcpState.running) {
                             Button(onClick = {
-                                val command = "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\nAuthorization: Bearer ${mcpState.token}"
-                                context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("HZZS MCP", command))
-                            }) { Icon(Icons.Rounded.ContentCopy, null); Spacer(Modifier.width(6.dp)); Text("复制连接信息") }
+                                val command =
+                                    "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
+                                        "Authorization: Bearer ${mcpState.token}"
+                                context.getSystemService(ClipboardManager::class.java)
+                                    .setPrimaryClip(ClipData.newPlainText("HZZS MCP", command))
+                            }) {
+                                Icon(Icons.Rounded.ContentCopy, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("复制连接信息")
+                            }
                         }
                     }
                 }
             }
             item {
-                OutlinedButton(onClick = {
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "HZZS developer diagnostics: mcp=${mcpState.running}, frameLimit=${config.developer.frameRateLimit}")
-                    }
-                    context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
-                }) { Icon(Icons.Rounded.BugReport, null); Spacer(Modifier.width(6.dp)); Text("导出诊断摘要") }
+                OutlinedButton(
+                    onClick = {
+                        val report = onBuildDiagnostics()
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Rounded.BugReport, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("导出诊断摘要")
+                }
+            }
+            item {
+                TextButton(
+                    onClick = {
+                        val report = onBuildDiagnostics()
+                        context.getSystemService(ClipboardManager::class.java)
+                            .setPrimaryClip(ClipData.newPlainText("HZZS diagnostics", report))
+                    },
+                ) {
+                    Text("复制诊断摘要到剪贴板")
+                }
             }
         }
     }
@@ -395,10 +494,3 @@ private fun AboutRow(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
     )
 }
 
-private fun CaptureBackend.developerLabel(): String = when (this) {
-    CaptureBackend.AUTO -> "自动"
-    CaptureBackend.MEDIA_PROJECTION -> "屏幕录制"
-    CaptureBackend.ACCESSIBILITY -> "无障碍"
-    CaptureBackend.SHIZUKU -> "Shizuku"
-    CaptureBackend.ROOT -> "Root"
-}

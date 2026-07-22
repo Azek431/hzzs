@@ -4,16 +4,19 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.os.Build
 import android.provider.Settings
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import top.azek431.hzzs.core.model.OverlayConfig
 import top.azek431.hzzs.core.model.OverlayOrientation
@@ -25,6 +28,7 @@ import top.azek431.hzzs.domain.vision.Detection
 import top.azek431.hzzs.domain.vision.VisionResult
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 import kotlin.math.max
 
 /**
@@ -89,8 +93,44 @@ class OverlayController @Inject constructor(
 
     suspend fun hide() = withContext(Dispatchers.Main.immediate) { hideInternal() }
 
+    /**
+     * 截图前临时隐藏已挂载 HUD，但不移除 Window，避免每帧 add/remove 抖动。
+     * 等待一次主显示帧提交，调用方随后再排空可能含旧合成层的捕获帧。
+     */
+    suspend fun suspendForCapture(): Boolean = withContext(Dispatchers.Main.immediate) {
+        val current = view ?: return@withContext false
+        if (current.visibility != View.VISIBLE) return@withContext false
+        current.visibility = View.INVISIBLE
+        awaitNextDisplayFrame()
+        true
+    }
+
+    /** 输入缓冲取得后立即恢复上一轮 HUD；识别仍读取独立的干净像素缓冲。 */
+    suspend fun resumeAfterCapture(): Boolean = withContext(Dispatchers.Main.immediate) {
+        val current = view ?: return@withContext false
+        // 仅恢复仍挂载的视图；若 hideInternal 已移除则保持空闲。
+        if (view !== current) return@withContext false
+        current.visibility = View.VISIBLE
+        current.invalidate()
+        true
+    }
+
+    private suspend fun awaitNextDisplayFrame() {
+        suspendCancellableCoroutine { continuation ->
+            val choreographer = Choreographer.getInstance()
+            val callback = Choreographer.FrameCallback {
+                if (continuation.isActive) continuation.resume(Unit)
+            }
+            continuation.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
+            choreographer.postFrameCallback(callback)
+        }
+    }
+
     private fun hideInternal() {
-        view?.let { current -> runCatching { windowManager.removeViewImmediate(current) } }
+        view?.let { current ->
+            current.visibility = View.VISIBLE
+            runCatching { windowManager.removeViewImmediate(current) }
+        }
         view = null
         layoutParams = null
     }
@@ -157,6 +197,7 @@ private class VisionOverlayView(
     private val density = resources.displayMetrics.density
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val contourPath = Path()
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         typeface = android.graphics.Typeface.create(
@@ -221,6 +262,11 @@ private class VisionOverlayView(
             hash = 31 * hash + (detection.bounds.bottom * 1000f).toInt()
             hash = 31 * hash + (detection.confidence * 100f).toInt()
             hash = 31 * hash + detection.actionable.hashCode()
+            hash = 31 * hash + detection.displayContour.size
+            detection.displayContour.forEach { point ->
+                hash = 31 * hash + (point.x * 2000f).toInt()
+                hash = 31 * hash + (point.y * 2000f).toInt()
+            }
         }
         hash = 31 * hash + (result?.error?.hashCode() ?: 0)
         return hash
@@ -437,14 +483,56 @@ private class VisionOverlayView(
         val top = bounds.top * height
         val right = bounds.right * width
         val bottom = bounds.bottom * height
-        stroke.color = color
-        stroke.strokeWidth = strokeWidth
-        canvas.drawRect(left, top, right, bottom, stroke)
+        if (detection.displayContour.size >= 3) {
+            drawDisplayContour(canvas, detection, color, strokeWidth)
+        } else {
+            stroke.color = color
+            stroke.strokeWidth = strokeWidth
+            canvas.drawRect(left, top, right, bottom, stroke)
+        }
         if (config.showConfidence || config.style == OverlayStyle.DEBUG_HUD) {
             val caption = "$label ${(detection.confidence * 100f).toInt()}%"
             val baseline = (top - 4f * density).coerceAtLeast(text.textSize)
             text.color = color
             canvas.drawText(caption, left, baseline, text)
+        }
+    }
+
+    /**
+     * 用归一化点生成封闭 Path。所有填充与描边都 clip 在 Path 内，
+     * 因此 Canvas 居中描边不会向障碍轮廓外溢。
+     */
+    private fun drawDisplayContour(
+        canvas: Canvas,
+        detection: Detection,
+        color: Int,
+        strokeWidth: Float,
+    ) {
+        val points = detection.displayContour
+        if (points.size < 3) return
+        contourPath.reset()
+        contourPath.moveTo(points.first().x * width, points.first().y * height)
+        for (index in 1 until points.size) {
+            val point = points[index]
+            contourPath.lineTo(point.x * width, point.y * height)
+        }
+        contourPath.close()
+
+        val checkpoint = canvas.save()
+        try {
+            canvas.clipPath(contourPath)
+            fill.color = withAlpha(color, 34)
+            canvas.drawPath(contourPath, fill)
+
+            stroke.color = Color.argb(210, 7, 12, 18)
+            stroke.strokeWidth = (strokeWidth * 2.4f).coerceAtLeast(2f)
+            canvas.drawPath(contourPath, stroke)
+
+            stroke.color = color
+            stroke.strokeWidth = strokeWidth.coerceAtLeast(1f)
+            canvas.drawPath(contourPath, stroke)
+        } finally {
+            canvas.restoreToCount(checkpoint)
         }
     }
 

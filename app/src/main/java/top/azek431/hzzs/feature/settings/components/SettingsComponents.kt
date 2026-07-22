@@ -9,6 +9,7 @@ package top.azek431.hzzs.feature.settings.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,12 +40,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 
 /** 设置首页分类入口卡：标题 + 说明 + 当前摘要；[selected] 宽屏高亮当前分类。 */
@@ -432,7 +435,7 @@ fun SettingsHeroCard(
     }
 }
 
-/** 模块底部取消/保存栏；仅 dirty 时可保存。 */
+/** 模块底部取消/保存栏；仅 dirty 时可保存。窄屏改为纵向动作区。 */
 @Composable
 fun SettingsSaveBar(
     dirty: Boolean,
@@ -441,21 +444,57 @@ fun SettingsSaveBar(
     modifier: Modifier = Modifier,
 ) {
     Surface(tonalElevation = 4.dp, modifier = modifier.fillMaxWidth()) {
-        Row(
+        BoxWithConstraints(
             Modifier
                 .fillMaxWidth()
                 .padding(PaddingValues(horizontal = 12.dp, vertical = 10.dp)),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (dirty) {
-                SettingsStatusChip("未保存", emphasis = true)
-                Spacer(Modifier.weight(1f))
+            val compact = maxWidth < 420.dp
+            if (compact) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (dirty) {
+                        SettingsStatusChip(
+                            stringResource(R.string.settings_dirty_chip),
+                            emphasis = true,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.action_cancel)) }
+                    Button(
+                        onClick = onSave,
+                        enabled = dirty,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.settings_save_and_apply))
+                    }
+                }
             } else {
-                Spacer(Modifier.weight(1f))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (dirty) {
+                        SettingsStatusChip(
+                            stringResource(R.string.settings_dirty_chip),
+                            emphasis = true,
+                        )
+                        Spacer(Modifier.weight(1f))
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    OutlinedButton(onClick = onCancel) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                    Button(onClick = onSave, enabled = dirty) {
+                        Text(stringResource(R.string.settings_save_and_apply))
+                    }
+                }
             }
-            OutlinedButton(onClick = onCancel) { Text("取消") }
-            Button(onClick = onSave, enabled = dirty) { Text("保存并应用") }
         }
     }
 }

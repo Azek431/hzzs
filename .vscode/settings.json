@@ -20,12 +20,30 @@
   "workbench.editor.enablePreview": true,
   "workbench.editor.restoreViewState": false,
   "workbench.startupEditor": "none",
+  "explorer.autoReveal": false,
 
   "extensions.ignoreRecommendations": true,
   "extensions.autoCheckUpdates": false,
 
   "files.exclude": {
     "**/.git": true,
+    "**/.backups": true,
+    "**/.claude": true,
+    "**/.serena/cache": true,
+    "**/.stversions": true,
+    "**/.hzzs-test-results": true,
+    "**/.test-data": true,
+    "**/local-diagnostics": true,
+    "**/test-output": true,
+    "**/recognition-results": true,
+    "**/benchmark-results": true,
+    "**/profiling": true,
+    "**/device-artifacts": true,
+    "**/device-logs": true,
+    "**/recordings": true,
+    "**/screenshots": true,
+    "**/datasets": true,
+    "**/test_images": true,
     "**/.gradle": true,
     "**/.idea": true,
     "**/.kotlin": true,
@@ -59,6 +77,23 @@
   "files.watcherExclude": {
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
+    "**/.backups/**": true,
+    "**/.claude/**": true,
+    "**/.serena/cache/**": true,
+    "**/.stversions/**": true,
+    "**/.hzzs-test-results/**": true,
+    "**/.test-data/**": true,
+    "**/local-diagnostics/**": true,
+    "**/test-output/**": true,
+    "**/recognition-results/**": true,
+    "**/benchmark-results/**": true,
+    "**/profiling/**": true,
+    "**/device-artifacts/**": true,
+    "**/device-logs/**": true,
+    "**/recordings/**": true,
+    "**/screenshots/**": true,
+    "**/datasets/**": true,
+    "**/test_images/**": true,
     "**/.gradle/**": true,
     "**/.idea/**": true,
     "**/.kotlin/**": true,
@@ -73,27 +108,88 @@
   },
 
   "search.followSymlinks": false,
+  "search.useIgnoreFiles": true,
+  "search.useGlobalIgnoreFiles": true,
+  "search.useParentIgnoreFiles": false,
 
   "git.openRepositoryInParentFolders": "never",
   "git.autofetch": false,
   "git.autorefresh": true,
+  "git.detectSubmodules": false,
+  "git.detectSubmodulesLimit": 0,
   "git.decorations.enabled": false,
   "git.confirmBeforeClose": false,
 
   "terminal.integrated.cwd": "${workspaceFolder}",
   "terminal.integrated.defaultProfile.windows": "PowerShell",
 
+  // 本仓库以 JetBrains Kotlin + Gradle CLI 为主；工作区禁用 Red Hat Java LS。
+  // 下列开关用于防止扩展若被临时启用时仍拉起重型 JDT / 导入。
   "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.metadata/**",
+    "**/archetype-resources/**",
+    "**/META-INF/maven/**",
+    "**/build/**",
+    "**/.gradle/**",
+    "**/.cxx/**",
+    "**/app/build/**"
+  ],
   "java.gradle.buildServer.enabled": "off",
   "java.autobuild.enabled": false,
   "java.maxConcurrentBuilds": 1,
+  "java.configuration.checkProjectSettingsExclusions": false,
   "java.configuration.updateBuildConfiguration": "disabled",
+  "java.project.importOnFirstTimeStartup": "disabled",
+  "java.project.resourceFilters": [
+    "node_modules",
+    "\\.git",
+    "\\.gradle",
+    "build",
+    "\\.cxx"
+  ],
   "java.referencesCodeLens.enabled": false,
   "java.implementationsCodeLens.enabled": false,
   "java.signatureHelp.enabled": false,
+  "java.completion.enabled": false,
   "java.completion.importOrder": [],
-  "java.jdt.ls.vmargs": "-Xmx512m -XX:MaxMetaspaceSize=192m -XX:+UseG1GC -XX:G1HeapRegionSize=4m -XX:+UseStringDeduplication",
-  "java.server.launchMode": "StandardIO",
+  "java.jdt.ls.lombokSupport.enabled": false,
+  "java.jdt.ls.vmargs": "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseG1GC -XX:+UseStringDeduplication",
+  "java.server.launchMode": "LightWeight",
+  "java.symbols.includeSourceMethodDeclarations": false,
+
+  // JetBrains Kotlin LSP 是本项目 VS Code 内的主 Kotlin 语义服务。
+  // 限制堆与代码缓存，避免中小型 Android 工程空闲时常驻超过 1 GiB。
+  "intellij.additionalJvmArgs": [
+    "-Xms128m",
+    "-Xmx768m",
+    "-XX:ReservedCodeCacheSize=256m",
+    "-XX:+UseG1GC",
+    "-XX:+UseStringDeduplication"
+  ],
+  "intellij.buildTool": "gradle",
+  "intellij.trace.server": "off",
+
+  // 项目没有 Node 依赖，禁止 npm/package.json 自动探测与后台脚本能力。
+  "npm.autoDetect": "off",
+  "npm.fetchOnlinePackageInfo": false,
+  "typescript.disableAutomaticTypeAcquisition": true,
+
+  // Python 工具仅扫描源码/脚本；生成物、备份和本机状态由 VS Code 统一排除。
+  "python.analysis.exclude": [
+    "**/.backups/**",
+    "**/.claude/**",
+    "**/.serena/cache/**",
+    "**/.stversions/**",
+    "**/.gradle/**",
+    "**/.kotlin/**",
+    "**/build/**",
+    "**/.cxx/**",
+    "**/.hzzs-test-results/**"
+  ],
+  "python.analysis.indexing": false,
 
   "eslint.enable": false,
   "cSpell.enabled": false,

@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AlgorithmConfig
 import top.azek431.hzzs.core.model.AlgorithmSelectionMode
+import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.UpdateSourcePreference
 import top.azek431.hzzs.core.update.UpdateSourceId
@@ -56,7 +57,7 @@ class AlgorithmCatalogController @Inject constructor(
     /** 来自设置草稿的算法配置（未保存也会驱动列表解析）。 */
     private var draftConfig: AlgorithmConfig = AlgorithmConfig()
     private var sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO
-    private var selectedScene: SceneId = SceneId.BAMBOO_BOOKSTORE
+    private var selectedScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE
 
     /**
      * 绑定设置页草稿上下文，重算 active / pending。
@@ -586,33 +587,15 @@ class AlgorithmCatalogController @Inject constructor(
         val now = 1_750_000_000_000L
         return listOf(
             AlgorithmPackageInfo(
-                id = "builtin-bamboo-1.0.0",
-                name = "竹影书屋内置算法",
-                versionName = "1.0.0",
+                id = AlgorithmIds.BUILTIN_CATALOG_ID,
+                name = "内置算法",
+                versionName = AlgorithmIds.BUILTIN_VERSION,
                 versionCode = 1_000,
                 channel = AlgorithmChannel.STABLE,
-                summary = "随应用分发的默认竹影识别引擎。",
-                supportedScenes = setOf(SceneId.BAMBOO_BOOKSTORE),
+                summary = "随应用分发的双赛季默认识别引擎（runtime ${AlgorithmIds.BUILTIN_RUNTIME_ID}）。",
+                supportedScenes = SceneId.entries.toSet(),
                 minAppVersionCode = 1,
                 publishedAtEpochMs = now,
-                sizeBytes = 0,
-                origin = AlgorithmOrigin.BUILTIN,
-                signature = AlgorithmSignatureState.OFFICIAL,
-                downloadSource = AlgorithmDownloadSource.BUILTIN,
-                isBuiltin = true,
-                isInstalled = true,
-                isCompatible = true,
-            ),
-            AlgorithmPackageInfo(
-                id = "builtin-sweet-1.0.0",
-                name = "甜甜圈内置算法",
-                versionName = "1.0.0",
-                versionCode = 1_000,
-                channel = AlgorithmChannel.STABLE,
-                summary = "随应用分发的默认甜甜圈识别引擎。",
-                supportedScenes = setOf(SceneId.SWEET_FACTORY),
-                minAppVersionCode = 1,
-                publishedAtEpochMs = now - 86_400_000L,
                 sizeBytes = 0,
                 origin = AlgorithmOrigin.BUILTIN,
                 signature = AlgorithmSignatureState.OFFICIAL,

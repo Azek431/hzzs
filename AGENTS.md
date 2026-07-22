@@ -14,7 +14,7 @@
 | 最低 SDK | 24（Android 7.0） |
 | 目标 / 编译 SDK | 37 |
 | 版本 | **0.1.0** / `versionCode = 1`（首发目标，尚未正式 release） |
-| 默认赛季 | **竹影书屋** `SceneId.BAMBOO_BOOKSTORE` |
+| 默认赛季 | `AppConfig.DEFAULT_SELECTED_SCENE`（源码唯一真相；文档不写死赛季名） |
 | 模块 | **仅** `:app` |
 | 仓库 | [Azek431/hzzs](https://github.com/Azek431/hzzs) |
 
@@ -66,11 +66,14 @@ app/src/test/      JVM 单测 + cpp/native_tests.cpp
 ### 主数据流
 
 ```text
-FrameSource → VisionRuntimeController → NativeVisionEngine (JNI)
-  → VisionResultValidator → MultiObjectTracker
-  → OverlayController
+FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
+  → NativeVisionEngine (JNI)
+  → VisionResultValidator → MultiObjectTracker（分析序号）
+  → displayContour（仅 HUD，可选）→ OverlayController
   → (arm 后，独立 actionJob) GestureArbiter → HzzsAccessibilityService
 ```
+
+动作 / 距离 / Tracker 几何只读 `Detection.bounds`。`displayContour` 不得参与规划。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md` 与根目录 `CLAUDE.md` 的 Git / 运行时约定。
 
 ### 配置流
 

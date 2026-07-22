@@ -30,6 +30,7 @@ from common import (  # noqa: E402
     package_filename,
     read_zip_entries,
     sha256_file,
+    validate_rules,
     write_deterministic_zip,
 )
 from sign_algorithm_pack import load_private_key, sign_package  # noqa: E402
@@ -83,6 +84,55 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         result = validate_source(OFFICIAL)
         self.assertEqual(result["manifest"]["id"], "official-bamboo-baseline")
         self.assertIn("BAMBOO_BOOKSTORE", result["manifest"]["supportedScenes"])
+        self.assertEqual(result["rules"]["schemaVersion"], 2)
+        scene = result["rules"]["scenes"]["BAMBOO_BOOKSTORE"]
+        self.assertIn("userThresholds", scene)
+        self.assertIn("engineParams", scene)
+
+    def test_rules_v1_still_validates(self) -> None:
+        rules = {
+            "schemaVersion": 1,
+            "scenes": {
+                "BAMBOO_BOOKSTORE": {
+                    "thresholds": {
+                        "workWidth": 384,
+                        "minimumConfidence": 0.72,
+                        "stableFrames": 2,
+                        "playerReferenceMode": "FIXED_RATIO",
+                        "fixedPlayerXRatio": 0.185,
+                    },
+                    "disabledObstacles": [],
+                }
+            },
+        }
+        validate_rules(rules, ["BAMBOO_BOOKSTORE"])
+
+    def test_rules_v2_rejects_forbidden_engine_key(self) -> None:
+        rules = {
+            "schemaVersion": 2,
+            "scenes": {
+                "BAMBOO_BOOKSTORE": {
+                    "engineParams": {"automation": True},
+                }
+            },
+        }
+        with self.assertRaises(AlgorithmPackError):
+            validate_rules(rules, ["BAMBOO_BOOKSTORE"])
+
+    def test_rules_v2_rejects_inverted_range(self) -> None:
+        rules = {
+            "schemaVersion": 2,
+            "scenes": {
+                "BAMBOO_BOOKSTORE": {
+                    "engineParams": {
+                        "bottleWidthMin": 0.5,
+                        "bottleWidthMax": 0.1,
+                    },
+                }
+            },
+        }
+        with self.assertRaises(AlgorithmPackError):
+            validate_rules(rules, ["BAMBOO_BOOKSTORE"])
 
     def test_reproducible_build(self) -> None:
         a = build_package(OFFICIAL, self.tmpdir / "a.hzzsalg")

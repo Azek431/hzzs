@@ -65,7 +65,7 @@ struct AnalysisResult {
     Detection overhead;
 };
 
-AnalysisResult analyze(const FrameView& frame) noexcept;
+AnalysisResult analyze(const FrameView& frame, float player_confidence_floor = 0.45f) noexcept;
 int pack(const AnalysisResult& result, std::int32_t* out, int capacity) noexcept;
 
 } // namespace hzzs::vision_bamboo
