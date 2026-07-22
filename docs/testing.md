@@ -14,10 +14,12 @@ Windows 可使用 `.\gradlew.bat`。
 日常本机加速（仅 Debug / 真机）：
 
 ```powershell
+# 推荐：gradle.local.properties 中 hzzs.native.abis=arm64-v8a
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 .\gradlew.bat -Phzzs.native.abis=arm64-v8a :app:assembleDebug
 ```
 
-完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`。
+完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`（应注释掉 `org.gradle.configuration-cache=false`）。
 
 Release（需签名配置，见 README「Release 构建与签名」）：
 
