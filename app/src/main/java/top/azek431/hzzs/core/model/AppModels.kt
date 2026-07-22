@@ -164,7 +164,8 @@ data class ThemeConfig(
  */
 data class OverlayConfig(
     val enabled: Boolean = true,
-    val style: OverlayStyle = OverlayStyle.MINIMAL,
+    /** 产品默认调试 HUD：首装与缺字段回退；用户已保存样式不被迁移改写。 */
+    val style: OverlayStyle = OverlayStyle.DEBUG_HUD,
     val theme: OverlayTheme = OverlayTheme.FOLLOW_APP,
     @param:ColorInt val customColor: Int = 0xFF20E89B.toInt(),
     val backgroundAlpha: Float = 0.70f,

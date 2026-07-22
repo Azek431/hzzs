@@ -104,7 +104,7 @@ object ThemePackageCodec {
                 highContrast = theme.optBoolean("highContrast", false),
             ),
             overlay = OverlayConfig(
-                style = enumOr(overlay.optString("style"), OverlayStyle.MINIMAL),
+                style = enumOr(overlay.optString("style"), OverlayStyle.DEBUG_HUD),
                 theme = enumOr(overlay.optString("theme"), OverlayTheme.FOLLOW_APP),
                 customColor = overlay.optInt("customColor", 0xFF20E89B.toInt()),
                 backgroundAlpha = overlay.optDouble("backgroundAlpha", 0.7).toFloat().finite(0.7f, 0.1f, 1f),

@@ -37,6 +37,23 @@ class ThemePackageTest {
     }
 
     @Test
+    fun missingOverlayStyleFallsBackToDebugHud() {
+        val root = JSONObject(
+            ThemePackageCodec.encode(
+                HzzsThemePackage(name = "fallback", theme = ThemeConfig(), overlay = OverlayConfig()),
+            ),
+        )
+        root.getJSONObject("overlay").remove("style")
+        val decoded = ThemePackageCodec.decode(root.toString())
+        assertEquals(OverlayStyle.DEBUG_HUD, decoded.overlay.style)
+    }
+
+    @Test
+    fun defaultOverlayConfigUsesDebugHud() {
+        assertEquals(OverlayStyle.DEBUG_HUD, OverlayConfig().style)
+    }
+
+    @Test
     fun executableAndRemoteFieldsAreIgnored() {
         val raw = JSONObject(ThemePackageCodec.encode(
             HzzsThemePackage(name = "safe", theme = ThemeConfig(), overlay = OverlayConfig()),

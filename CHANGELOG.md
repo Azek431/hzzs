@@ -44,6 +44,7 @@
 
 ### 变更
 
+- **悬浮窗默认样式**：首装 / 缺字段回退由「极简」改为 **调试 HUD**（`OverlayStyle.DEBUG_HUD`）；已保存配置与主题包内显式 `style` 不变。
 - 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；改完须同步 `README.md`（**保留 Star History**）与 `CLAUDE.md`；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。
 - **构建性能**：Hilt 从 legacy-kapt 迁至 **KSP**（去掉 stub 双编译）；`gradle.properties` 按 low-memory / 4 线程再收紧 Daemon/Kotlin 堆与 `workers.max=2`；`tools/dev/repair_gradle_kotlin_cache.ps1` 修复 IC 损坏；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
