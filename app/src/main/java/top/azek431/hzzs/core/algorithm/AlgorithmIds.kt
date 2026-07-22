@@ -7,9 +7,9 @@ package top.azek431.hzzs.core.algorithm
  * - Native / VisionResult：runtime ID（内置 [BUILTIN_RUNTIME_ID] 或 pack.&lt;catalogId&gt;）
  */
 object AlgorithmIds {
-    const val BUILTIN_CATALOG_ID = "builtin-hzzs-1.0.0"
-    const val BUILTIN_RUNTIME_ID = "builtin.hzzs.v1"
-    const val BUILTIN_VERSION = "1.0.0"
+    const val BUILTIN_CATALOG_ID = "builtin-hzzs-base-2.0.0"
+    const val BUILTIN_RUNTIME_ID = "builtin.hzzs.base"
+    const val BUILTIN_VERSION = "2.0.0"
     const val PACK_RUNTIME_PREFIX = "pack."
 
     fun isBuiltinCatalog(catalogId: String): Boolean =

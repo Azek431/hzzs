@@ -179,6 +179,7 @@ class SettingsViewModel @Inject constructor(
             algorithm = config.algorithm,
             sourcePreference = config.update.sourcePreference,
             selectedScene = config.selectedScene,
+            wifiOnly = config.update.wifiOnly,
         )
     }
 

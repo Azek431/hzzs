@@ -9,8 +9,9 @@ package top.azek431.hzzs.core.model
 
 /** 赛季显示名。 */
 fun SceneId.displayName(): String = when (this) {
-    SceneId.SWEET_FACTORY -> "甜甜圈"
+    SceneId.SWEET_FACTORY -> "甜品工厂"
     SceneId.BAMBOO_BOOKSTORE -> "竹影书屋"
+    SceneId.SEA_SALT_LIVING_ROOM -> "海盐客厅"
 }
 
 /** 截图后端显示名。 */
@@ -125,13 +126,16 @@ fun PlayerReferenceMode.displayName(): String = when (this) {
 
 /** 障碍类别显示名（设置过滤、列表等）。 */
 fun ObstacleKind.displayName(): String = when (this) {
-    ObstacleKind.POISON_BOTTLE -> "毒药瓶"
+    ObstacleKind.GREEN_BOTTLE -> "绿色毒瓶"
     ObstacleKind.CAKE_STRUCTURE -> "蛋糕结构"
     ObstacleKind.HANGING_SPIKE -> "悬挂尖刺"
     ObstacleKind.PIT -> "地坑"
     ObstacleKind.PANDA_STATUE -> "熊猫摆件"
     ObstacleKind.BAMBOO_GAP -> "竹林缺口"
     ObstacleKind.HANGING_BRUSH -> "悬挂毛笔"
+    ObstacleKind.SAND_CASTLE -> "沙堡"
+    ObstacleKind.HANGING_ANCHOR -> "悬挂船锚"
+    ObstacleKind.SEA_PIT -> "海坑"
 }
 
 /**
@@ -142,12 +146,15 @@ fun ObstacleKind.displayName(): String = when (this) {
  */
 fun detectionKindDisplayName(kindName: String): String = when (kindName) {
     "PLAYER" -> "玩家"
-    "POISON_BOTTLE" -> "毒药瓶"
+    "GREEN_BOTTLE", "POISON_BOTTLE" -> "绿色毒瓶"
     "CAKE_STRUCTURE" -> "蛋糕结构"
     "HANGING_SPIKE" -> "悬挂尖刺"
     "PIT" -> "地坑"
     "PANDA_STATUE" -> "熊猫摆件"
     "BAMBOO_GAP" -> "竹林缺口"
     "HANGING_BRUSH" -> "悬挂毛笔"
+    "SAND_CASTLE" -> "沙堡"
+    "HANGING_ANCHOR" -> "悬挂船锚"
+    "SEA_PIT" -> "海坑"
     else -> kindName
 }

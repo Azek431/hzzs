@@ -147,6 +147,7 @@ fun AlgorithmPackageInfo.statusAgainst(
     activeId: String?,
     pendingId: String?,
     latestCompatibleId: String?,
+    activeVersionCode: Long? = null,
 ): AlgorithmCardStatus {
     if (!isCompatible) return AlgorithmCardStatus.INCOMPATIBLE
     if (pendingId != null && id == pendingId) return AlgorithmCardStatus.PENDING_ACTIVATION
@@ -154,15 +155,12 @@ fun AlgorithmPackageInfo.statusAgainst(
     if (isInstalled && latestCompatibleId == id) return AlgorithmCardStatus.LATEST
     if (isInstalled) return AlgorithmCardStatus.INSTALLED
     if (latestCompatibleId == id) return AlgorithmCardStatus.LATEST
-    if (activeId != null && versionCode > (remoteVersionOf(activeId) ?: 0L)) {
+    val baseline = activeVersionCode ?: 0L
+    if (activeId != null && versionCode > baseline) {
         return AlgorithmCardStatus.UPDATABLE
     }
     return AlgorithmCardStatus.DOWNLOADABLE
 }
-
-/** 当条目自身即 active 时返回其 versionCode，否则 null（比较时按 0）。 */
-private fun AlgorithmPackageInfo.remoteVersionOf(activeId: String): Long? =
-    if (id == activeId) versionCode else null
 
 /** 卡片状态中文标签。 */
 fun AlgorithmCardStatus.label(): String = when (this) {

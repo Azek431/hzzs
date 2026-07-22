@@ -300,6 +300,7 @@ dependencies {
     kapt(libs.hilt.compiler)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    implementation(libs.bouncycastle.bcprov)
 
     testImplementation(libs.junit)
     testImplementation(libs.json)

@@ -31,7 +31,7 @@ fun approximateDisplayContour(
 
     return when (kind) {
         ObjectKind.PLAYER -> emptyList()
-        ObjectKind.POISON_BOTTLE -> listOf(
+        ObjectKind.GREEN_BOTTLE -> listOf(
             point(.34f, 0f), point(.66f, 0f),
             point(.69f, .11f), point(.80f, .18f),
             point(.90f, .39f), point(1f, .62f),
@@ -40,7 +40,9 @@ fun approximateDisplayContour(
             point(0f, .62f), point(.10f, .39f),
             point(.20f, .18f), point(.31f, .11f),
         )
-        ObjectKind.CAKE_STRUCTURE -> listOf(
+        ObjectKind.CAKE_STRUCTURE,
+        ObjectKind.SAND_CASTLE,
+        -> listOf(
             point(.05f, 0f), point(.95f, 0f), point(1f, .08f),
             point(1f, 1f), point(0f, 1f), point(0f, .08f),
         )
@@ -51,6 +53,7 @@ fun approximateDisplayContour(
         )
         ObjectKind.PIT,
         ObjectKind.BAMBOO_GAP,
+        ObjectKind.SEA_PIT,
         -> listOf(
             point(0f, 0f), point(1f, 0f),
             point(1f, 1f), point(0f, 1f),
@@ -61,7 +64,9 @@ fun approximateDisplayContour(
             point(1f, .43f), point(.93f, .84f), point(.78f, 1f),
             point(.22f, 1f), point(.07f, .84f), point(0f, .43f),
         )
-        ObjectKind.HANGING_BRUSH -> listOf(
+        ObjectKind.HANGING_BRUSH,
+        ObjectKind.HANGING_ANCHOR,
+        -> listOf(
             point(.37f, 0f), point(.63f, 0f),
             point(.66f, .54f), point(1f, .70f),
             point(.66f, .86f), point(.50f, 1f),

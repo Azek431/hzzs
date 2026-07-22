@@ -548,6 +548,7 @@ class VisionRuntimeController @Inject constructor(
         val triggerDistance = when (config.selectedScene) {
             SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
             SceneId.BAMBOO_BOOKSTORE -> config.automation.bambooTriggerDistancePlayerWidths
+            SceneId.SEA_SALT_LIVING_ROOM -> config.automation.bambooTriggerDistancePlayerWidths
         } * playerWidth
 
         val candidate = tracked
@@ -784,7 +785,9 @@ class VisionRuntimeController @Inject constructor(
             Avoidance.DOUBLE_JUMP -> {
                 val gap = when (scene) {
                     SceneId.SWEET_FACTORY -> DOUBLE_JUMP_GAP_SWEET_MS
-                    SceneId.BAMBOO_BOOKSTORE -> DOUBLE_JUMP_GAP_BAMBOO_MS
+                    SceneId.BAMBOO_BOOKSTORE,
+                    SceneId.SEA_SALT_LIVING_ROOM,
+                    -> DOUBLE_JUMP_GAP_BAMBOO_MS
                 }
                 listOf(
                     PlannedStroke(jump, now, ACTION_TTL_MS),
@@ -794,7 +797,9 @@ class VisionRuntimeController @Inject constructor(
             Avoidance.SLIDE -> {
                 val ttl = when (scene) {
                     SceneId.SWEET_FACTORY -> SLIDE_TTL_SWEET_MS
-                    SceneId.BAMBOO_BOOKSTORE -> SLIDE_TTL_BAMBOO_MS
+                    SceneId.BAMBOO_BOOKSTORE,
+                    SceneId.SEA_SALT_LIVING_ROOM,
+                    -> SLIDE_TTL_BAMBOO_MS
                 }
                 listOf(PlannedStroke(slide, now, ttl))
             }

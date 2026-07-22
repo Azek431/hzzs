@@ -62,10 +62,11 @@ enum class GameProfileId { HUO_ZAI_ZAI_WONDER_HOUSE }
 /**
  * 赛季 ID。
  *
- * 枚举序与 C++ `scene` 参数一致：`SWEET_FACTORY = 0`，`BAMBOO_BOOKSTORE = 1`。
- * 两赛季共用比例坐标体系。
+ * 枚举序与 C++ `scene` 参数一致：
+ * `SWEET_FACTORY = 0`，`BAMBOO_BOOKSTORE = 1`，`SEA_SALT_LIVING_ROOM = 2`。
+ * 三赛季共用同一套算法引擎与比例坐标体系，差异只在赛季参数。
  */
-enum class SceneId { SWEET_FACTORY, BAMBOO_BOOKSTORE }
+enum class SceneId { SWEET_FACTORY, BAMBOO_BOOKSTORE, SEA_SALT_LIVING_ROOM }
 
 /**
  * 截图后端。
@@ -121,15 +122,21 @@ enum class McpPermissionLevel {
  *
  * 设置过滤、C++ 位掩码、报告与赛季过滤器共用此集合。
  * 增删时必须同步 Kotlin 枚举、JNI 位、C++ Kind 与标注工具。
+ *
+ * 命名与算法引擎 / 研究版 kind 对齐（如 GREEN_BOTTLE）。
+ * 枚举序：Native Kind = ObstacleKind.ordinal + 1（0 保留给 PLAYER）。
  */
 enum class ObstacleKind {
-    POISON_BOTTLE,
+    GREEN_BOTTLE,
     CAKE_STRUCTURE,
     HANGING_SPIKE,
     PIT,
     PANDA_STATUE,
     BAMBOO_GAP,
     HANGING_BRUSH,
+    SAND_CASTLE,
+    HANGING_ANCHOR,
+    SEA_PIT,
 }
 
 /**
@@ -384,7 +391,8 @@ data class AppConfig(
          * **唯一写死点**：变更产品默认赛季时只改这里，并跑设置/迁移相关单测。
          * README / CLAUDE / AGENTS / PROGRESS 等文档不得再抄写具体赛季名。
          */
-        val DEFAULT_SELECTED_SCENE: SceneId = SceneId.BAMBOO_BOOKSTORE
+        /** 产品默认永远指向当前最新赛季（海盐客厅）。 */
+        val DEFAULT_SELECTED_SCENE: SceneId = SceneId.SEA_SALT_LIVING_ROOM
     }
 }
 

@@ -284,11 +284,33 @@ fun ViewportConfig.validated(): ViewportConfig {
     }
 }
 
+/** 各赛季算法引擎可识别的障碍集合（与 C++ 三槽参数绑定一致）。 */
+fun obstaclesForScene(scene: SceneId): Set<ObstacleKind> = when (scene) {
+    SceneId.SWEET_FACTORY -> setOf(
+        ObstacleKind.GREEN_BOTTLE,
+        ObstacleKind.CAKE_STRUCTURE,
+        ObstacleKind.HANGING_SPIKE,
+        ObstacleKind.PIT,
+    )
+    SceneId.BAMBOO_BOOKSTORE -> setOf(
+        ObstacleKind.PANDA_STATUE,
+        ObstacleKind.BAMBOO_GAP,
+        ObstacleKind.HANGING_BRUSH,
+        ObstacleKind.PIT,
+    )
+    SceneId.SEA_SALT_LIVING_ROOM -> setOf(
+        ObstacleKind.SAND_CASTLE,
+        ObstacleKind.HANGING_ANCHOR,
+        ObstacleKind.SEA_PIT,
+        ObstacleKind.PIT,
+    )
+}
+
 /**
  * 将任意 [AppConfig] 清洗为可安全落盘/生效的快照。
  *
  * 关键策略：
- * - 补齐两赛季配置，并过滤掉不属于该赛季的障碍关闭项
+ * - 补齐全部赛季配置，并过滤掉不属于该赛季的障碍关闭项
  * - 数值 clamp 到产品允许区间
  * - 自动操作：免责声明版本不足时强制 `enabled=false`
  * - 包名与默认白名单求交
@@ -302,20 +324,7 @@ fun AppConfig.validated(): AppConfig {
             sceneId = id,
             // 只保留当前赛季合法障碍，防止跨赛季脏数据。
             disabledObstacles = scene.disabledObstacles.filterTo(mutableSetOf()) { obstacle ->
-                when (id) {
-                    SceneId.SWEET_FACTORY -> obstacle in setOf(
-                        ObstacleKind.POISON_BOTTLE,
-                        ObstacleKind.CAKE_STRUCTURE,
-                        ObstacleKind.HANGING_SPIKE,
-                        ObstacleKind.PIT,
-                    )
-                    SceneId.BAMBOO_BOOKSTORE -> obstacle in setOf(
-                        ObstacleKind.PANDA_STATUE,
-                        ObstacleKind.BAMBOO_GAP,
-                        ObstacleKind.HANGING_BRUSH,
-                        ObstacleKind.PIT,
-                    )
-                }
+                obstacle in obstaclesForScene(id)
             },
             thresholds = scene.thresholds.copy(
                 workWidth = scene.thresholds.workWidth.coerceIn(192, 960),

@@ -9,12 +9,13 @@
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
 - Material 3 首次引导、主题包、悬浮窗样式、设置预览和开发者入口。
 - MCP 四级权限、回环监听、随机令牌和应用内语义操作。
-- 两赛季障碍类别过滤、比例坐标和三种玩家基准模式。
+- 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
-- C++ 视觉入口、输入边界、JNI 失败隔离与宿主机测试脚手架。
-- 项目级静态门禁、Native sanitizer 与数据集评估工具。
+- C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。
+- 项目级静态门禁、Native sanitizer 与数据集评估 / 批跑工具。
 - 双源签名更新库与发布脚本（`tools/release/*`）。
 - 官方算法包系统 v1 工具链（`tools/algorithm/*`、`algorithm-packs/*`、`algorithm-release.yml`）；真实算法目录尚未对外发布。
+- **算法引擎 + 赛季参数**：内置 `builtin.hzzs.base` 2.0.0；`POISON_BOTTLE`→`GREEN_BOTTLE`；海盐 `SAND_CASTLE`/`HANGING_ANCHOR`/`SEA_PIT`。
 
 ## 进行中 / 对齐历史 main
 
@@ -23,7 +24,8 @@
 | 优先级 | 项 | 状态 |
 | --- | --- | --- |
 | P0 | 从 main 移植 vision2/bamboo 检测核心并映射统一协议 | 已落地（含启发式回退） |
-| P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地 |
+| P0 | 三赛季协议 + 海盐参数路径接入引擎调度 | 已落地（统一扫描引擎完整 1:1 研究版仍可深化） |
+| P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地（海盐沿用竹影距离档） |
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
 | P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
 | P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地（含统一离开守卫，外层导航不再静默丢弃草稿） |

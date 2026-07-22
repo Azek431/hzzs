@@ -259,7 +259,8 @@ class NativeVisionEngine @Inject constructor(
 
     private companion object {
         const val MAX_NATIVE_DETECTIONS = 128
-        const val ALL_NATIVE_KINDS_MASK = 0xFF
+        /** PLAYER(0) + 10 障碍 Kind(1..10) → 低 11 位。 */
+        const val ALL_NATIVE_KINDS_MASK = 0x7FF
     }
 }
 

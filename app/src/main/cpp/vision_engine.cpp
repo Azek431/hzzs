@@ -152,7 +152,7 @@ Result analyze_sweet_main(
         push_if_enabled(
             out,
             enabled_kind_mask,
-            Kind::POISON_BOTTLE,
+            Kind::GREEN_BOTTLE,
             Avoidance::JUMP,
             hint++,
             raw.bottle.left,
@@ -387,14 +387,60 @@ Result analyze_with_profile(
     }
 
     const SceneAlgorithmParamsNative& params = profile.scenes[scene];
-    Result result = scene == 1
-        ? analyze_bamboo_main(
-              frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params)
-        : analyze_sweet_main(
-              frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    Result result;
+    if (scene == 2) {
+        result = analyze_sea_salt(
+            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    } else if (scene == 1) {
+        result = analyze_bamboo_main(
+            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    } else {
+        result = analyze_sweet_main(
+            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    }
 
-    // 主路径过弱时回退启发式；阈值来自运行时 profile。
-    if (result.error.empty() &&
+    // 后过滤：用 profile 尺寸窗剔除明显越界障碍（viewport 归一化），不改核心扫描。
+    if (result.error.empty()) {
+        result.detections.erase(
+            std::remove_if(
+                result.detections.begin(),
+                result.detections.end(),
+                [&](const Detection& d) {
+                    if (d.kind == Kind::PLAYER) return false;
+                    const float w = d.bounds.right - d.bounds.left;
+                    const float h = d.bounds.bottom - d.bounds.top;
+                    switch (d.kind) {
+                        case Kind::GREEN_BOTTLE:
+                            return w < params.bottle_width_min || w > params.bottle_width_max ||
+                                   h < params.bottle_height_min || h > params.bottle_height_max;
+                        case Kind::CAKE_STRUCTURE:
+                        case Kind::PIT:
+                        case Kind::SEA_PIT:
+                            return w < params.cake_width_min || w > params.cake_width_max ||
+                                   h < params.cake_height_min;
+                        case Kind::HANGING_SPIKE:
+                            return w < params.spike_width_min || w > params.spike_width_max ||
+                                   h < params.spike_height_min || h > params.spike_height_max;
+                        case Kind::PANDA_STATUE:
+                        case Kind::SAND_CASTLE:
+                            return w < params.statue_width_min || w > params.statue_width_max ||
+                                   h < params.statue_height_min || h > params.statue_height_max;
+                        case Kind::BAMBOO_GAP:
+                            return w < params.gap_width_min || w > params.gap_width_max ||
+                                   h < params.gap_height_min;
+                        case Kind::HANGING_BRUSH:
+                        case Kind::HANGING_ANCHOR:
+                            return w < params.brush_width_min || w > params.brush_width_max ||
+                                   h < params.brush_height_min || h > params.brush_height_max;
+                        default:
+                            return false;
+                    }
+                }),
+            result.detections.end());
+    }
+
+    // 主路径过弱时回退启发式（海盐无独立回退路径）。
+    if (scene != 2 && result.error.empty() &&
         static_cast<int>(result.detections.size()) <= params.fallback_max_detections &&
         result.scene_confidence < params.fallback_scene_confidence_max) {
         result = scene == 1

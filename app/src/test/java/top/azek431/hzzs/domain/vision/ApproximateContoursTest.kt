@@ -28,7 +28,7 @@ class ApproximateContoursTest {
     fun displayContourDoesNotChangeActionGeometry() {
         val original = Detection(
             id = 7L,
-            kind = ObjectKind.POISON_BOTTLE,
+            kind = ObjectKind.GREEN_BOTTLE,
             bounds = bounds,
             confidence = .91f,
             actionable = true,

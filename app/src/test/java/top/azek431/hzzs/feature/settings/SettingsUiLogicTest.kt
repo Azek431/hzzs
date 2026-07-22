@@ -37,7 +37,7 @@ class SettingsUiLogicTest {
         val original = AppConfig(
             algorithm = AlgorithmConfig(
                 selectionMode = AlgorithmSelectionMode.MANUAL,
-                pinnedAlgorithmId = "builtin-hzzs-1.0.0",
+                pinnedAlgorithmId = "builtin-hzzs-base-2.0.0",
                 channel = AlgorithmChannel.BETA,
                 autoCheck = false,
                 autoDownload = true,
@@ -48,7 +48,7 @@ class SettingsUiLogicTest {
         )
         val decoded = ConfigJson.decode(ConfigJson.encode(original))
         assertEquals(AlgorithmSelectionMode.MANUAL, decoded.algorithm.selectionMode)
-        assertEquals("builtin-hzzs-1.0.0", decoded.algorithm.pinnedAlgorithmId)
+        assertEquals("builtin-hzzs-base-2.0.0", decoded.algorithm.pinnedAlgorithmId)
         assertEquals(AlgorithmChannel.BETA, decoded.algorithm.channel)
         assertTrue(decoded.algorithm.autoDownload)
         assertEquals(UpdateSourcePreference.PREFER_GITHUB, decoded.update.sourcePreference)
