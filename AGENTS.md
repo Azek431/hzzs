@@ -140,7 +140,7 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 - 执行任务前识别模糊需求；不确定处先提问（用户明确授权自行决定除外）。
 - 日常开发默认在 **`main`**；除非用户要求，不主动开 feature 分支。
 - 改代码后同步相关 **README / CLAUDE / docs**，并跑质量门禁；触及硬约束或对外能力时更新 `CLAUDE.md` 与 `README.md`。
-- 更新 `README.md` 时**不得**改动 `## Star History` 图链与 `sealed_token`。
+- 更新 `README.md` 时**不得**改动 `## Star History` 图链与 `sealed_token`；也不得无故删除徽章、免责、版本/构建/签名、MCP、仓库与许可证等关键信息。
 - 可复用坑与取舍可记入 `docs/AGENT_EXPERIENCE.md` 与代理记忆；**冲突以当前源码为准**。
 - 不提交密钥、签名文件、`keystore.properties`、`local.properties`、本地备份与生成二进制。
 - Release 签名只从环境变量或 gitignore 的本地 properties 读取；**不要**把真实路径/密码写进会提交的文档。

@@ -52,7 +52,9 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 1. 阅读目标目录 `README.md` / `CLAUDE.md` 与 `docs/PROGRESS.md`、`docs/ARCHITECTURE.md`；触及算法包时读 `docs/ALGORITHM_SYSTEM_V1.md`。
 2. 改代码后同步职责、数据流或不变量文档；用户可见行为更新 `CHANGELOG.md` `[Unreleased]`。
 3. 若改动触及**硬约束 / 工作流 / 安全门控 / 默认行为 / 对外能力**，**同一任务内**同步更新本文件、**根 `README.md`**、`AGENTS.md` 与相关 `docs/*`（见下节）；表述宜短，可随源码迭代**持续润色**，禁止只改代码留文档。
-4. **README 硬禁区**：更新 `README.md` 时**不得**删除、改写或替换 `## Star History` 整节及其 `<picture>` / `star-history.com` / `api.star-history.com` 图链与 `sealed_token`；只改该节之上的正文，文档表链接插在 Star History **之前**。
+4. **README / 关键文档保全**：
+   - **硬禁区**：不得删除、改写或替换 `## Star History` 整节及其 `<picture>` / `star-history.com` / `api.star-history.com` 图链与 `sealed_token`；文档表链接插在 Star History **之前**。
+   - **其它关键信息也不得无故删除**（除非用户明确要求）：顶部 badges、免责声明、当前版本表、截图后端表、MCP 安全边界、构建与 Release 签名说明、仓库 GitHub/Gitee 链接、许可证；`CLAUDE.md`/`AGENTS.md`/`docs/*` 中的安全不变量与门禁命令列表同理。更新策略为**在原结构上增补或修正过期句**，禁止整文件重写或清空无关章节；改完 diff 自检上述区块仍在。
 5. 运行 `python tools/quality/check_resources.py` 与 `python tools/quality/check_project.py`。
 6. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
 7. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
