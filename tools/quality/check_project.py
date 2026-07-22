@@ -26,7 +26,13 @@ settings = read("settings.gradle.kts")
 modules = re.findall(r'include\("(:[^"]+)"\)', settings)
 check(modules == [":app"], "architecture:single-app-module", f"declared modules: {modules}")
 for legacy in ("core", "domain", "data", "feature", "service", "native"):
-    check(not (ROOT / legacy).exists(), f"architecture:no-root-{legacy}", "legacy source module remains")
+    legacy_root = ROOT / legacy
+    legacy_files = list(legacy_root.rglob("*")) if legacy_root.exists() else []
+    check(
+        not any(path.is_file() for path in legacy_files),
+        f"architecture:no-root-{legacy}",
+        "legacy source module remains",
+    )
 
 app_build = read("app/build.gradle.kts")
 for token in ("minSdk = 24", "compileSdk = 37", "externalNativeBuild"):
@@ -89,8 +95,13 @@ settings_ui_all = settings_ui
 if settings_ui_dir.is_dir():
     for path in sorted(settings_ui_dir.rglob("*.kt")):
         settings_ui_all += "\n" + path.read_text(encoding="utf-8")
-for token in ("DisposableEffect", "discardSilently", "主题已临时预览", "请等待 ${remaining}s"):
+for token in ("DisposableEffect", "clearPreviewSilently", "SettingsExitCoordinator", "主题已临时预览", "请等待 ${remaining}s"):
     check(token in settings_ui_all, f"settings-ui:{token}", "preview/risk UI missing")
+check(
+    "discardSilently" not in settings_ui_all,
+    "settings-ui:no-silent-draft-discard",
+    "settings dispose must not silently discard drafts",
+)
 
 onboarding = read("app/src/main/java/top/azek431/hzzs/feature/onboarding/OnboardingScreen.kt")
 for token in ("onboardingPages", "acceptedDisclaimerVersion", "enabled = false", "请等待 ${remaining}s"):
