@@ -62,6 +62,20 @@ data class NormalizedRect(
 }
 
 /**
+ * 归一化轮廓点；仅用于显示，不参与跟踪、距离或动作规划。
+ * 坐标必须位于全屏归一化 `[0,1]`。
+ */
+data class NormalizedPoint(
+    val x: Float,
+    val y: Float,
+) {
+    init {
+        require(x.isFinite() && y.isFinite())
+        require(x in 0f..1f && y in 0f..1f)
+    }
+}
+
+/**
  * 视觉目标类别。
  *
  * 含玩家与全部障碍；与设置侧 [ObstacleKind] 通过 [asObstacleKind] 映射。
@@ -107,6 +121,7 @@ enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE }
  * @property actionable 是否允许进入自动操作规划
  * @property diagnosticOnly 仅调试展示，不可与 actionable 同时为 true
  * @property avoidance 建议规避；actionable 为 true 时不得为 [Avoidance.NONE]
+ * @property displayContour HUD 显示轮廓；动作与跟踪不得读取
  */
 data class Detection(
     val id: Long,
@@ -116,6 +131,8 @@ data class Detection(
     val actionable: Boolean,
     val diagnosticOnly: Boolean = false,
     val avoidance: Avoidance = Avoidance.NONE,
+    /** HUD 显示轮廓；动作与跟踪不得读取。 */
+    val displayContour: List<NormalizedPoint> = emptyList(),
 ) {
     init {
         require(confidence.isFinite() && confidence in 0f..1f)
