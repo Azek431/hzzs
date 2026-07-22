@@ -19,7 +19,7 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 .\gradlew.bat -Phzzs.native.abis=arm64-v8a :app:assembleDebug
 ```
 
-完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`（应注释掉 `org.gradle.configuration-cache=false`）。
+完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`（应删除/注释 `org.gradle.configuration-cache=false`）。仓库 `gradlew`/`gradlew.bat` 默认会 `-Dorg.gradle.configuration-cache=true` 覆盖用户级 false；调试用户关闭时设 `HZZS_ALLOW_USER_CC_OVERRIDE=1`。`CMAKE_BUILD_PARALLEL_LEVEL` 在 wrapper 未设置时默认为 `2`。
 
 ### 本机 Kotlin IC / 低内存
 
@@ -83,7 +83,7 @@ python tools/vision/evaluate_dataset.py --dataset /path/to/images --output build
 - 数据集路径也可通过环境变量 `HZZS_TEST_DATASET` 或目录 `test_images/`、`.test-data/` 提供。
 - **无人工真值时只报告稳定性与耗时，不报告准确率。**
 
-`app/src/test/cpp/native_tests.cpp` 由 sanitizer 脚本编译运行。
+`app/src/test/cpp/native_tests.cpp` 由 sanitizer 脚本编译运行（须链接 `sea_salt_living_room.cpp` 等与 `CMakeLists.txt` 一致的源；含 scene 0..`kSceneCount-1` 边界断言）。
 
 ## Android 场景矩阵
 

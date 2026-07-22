@@ -40,6 +40,8 @@
 ## 诊断与日志
 
 - `AppLog` 为进程内 Logcat + 内存 ring buffer；不写外部存储、不上传。
+- 应用内 `LogViewerScreen` 仅展示 ring buffer，支持筛选/复制/分享；**不含**系统 logcat 全量采集。
+- `AlgorithmPipelineScreen` 仅展示进程内激活阶段与最近一帧摘要，不含检测框像素与密钥。
 - 诊断导出（设置 / 关于）含版本、机型、配置摘要与最近日志；**不含** Bearer、签名密钥与调试帧像素。
 - 日志路径对 `Bearer …` 与常见 `token/secret/password` 键值做脱敏；MCP 连接串仅经用户显式「复制连接信息」进剪贴板，不得写入日志。
 - 关闭开发者选项后，DEBUG/VERBOSE 不再进入 ring buffer。

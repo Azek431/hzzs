@@ -62,7 +62,8 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 ### 本机构建注意（非产品行为）
 
 - Hilt 使用 **KSP**（`com.google.devtools.ksp` + `ksp(libs.hilt.compiler)`），**不要**再引入 `legacy-kapt` / `kapt`。
-- 日常真机 Debug：`gradle.local.properties` 的 `hzzs.native.abis=arm64-v8a` + `CMAKE_BUILD_PARALLEL_LEVEL=2`；CI/发布保持默认完整 ABI。
+- 日常真机 Debug：`gradle.local.properties` 的 `hzzs.native.abis=arm64-v8a`；`gradlew`/`gradlew.bat` 默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`；CI/发布保持默认完整 ABI。
+- **勿**在 `%GRADLE_USER_HOME%\gradle.properties` 写 `org.gradle.configuration-cache=false`（会覆盖项目 true）。wrapper 默认 `-D` 强制开回；调试关闭设 `HZZS_ALLOW_USER_CC_OVERRIDE=1`。
 - Kotlin IC 损坏（`*classpath-snapshot*.bin`）或 daemon 被 stop：`tools/dev/repair_gradle_kotlin_cache.ps1`；全量 unit test 在 low-memory profile + IDE 下可能 OOM，优先缩范围。
 
 ## Git 提交规范

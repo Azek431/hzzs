@@ -5,6 +5,9 @@
 
 ## 2026-07-22
 
+- **内置算法首版号是 0.1.0**：runtime `builtin.hzzs.base` + Catalog `builtin-hzzs-base-0.1.0`；不要再写 `2.0.0`（那是误标）。与外装包 `official-bamboo-baseline` 0.1.0 语义独立。
+- **诊断时间用本地时区+偏移**：`DiagnosticsExporter` / 算法「最近检查」用 `yyyy-MM-dd HH:mm:ss.SSSXXX`，禁止再标假 `Z`。
+- **拉不到新算法的两道门**：① 远端 `release-index` 上 `algorithms/{channel}.json` 尚不存在（当前双源 404）→ 检查失败但内置可用；② 公钥 `AlgorithmTrustAnchors` 为空 → 即使有目录也拒绝下载。修体验≠已发布包。
 - **应用内悬浮窗开关 ≠ 系统权限**：`OverlayConfig.enabled` 只控制是否尝试加窗；真正门闩是 `Settings.canDrawOverlays`。缺权限时帧循环可正常、芯片「无悬浮窗」，须引导用户进系统设置。
 - **信任锚 fail-closed**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空，外装「官方」算法包应被拒绝；内置算法仍可用。
 - **算法发布无 tag**：包与目录都在 `release-index`（`algorithms/packages/` + `algorithms/{channel}.json`）；客户端不读 `releases/download`。用户说「上传到 GitHub 就能检测」= 更新该分支目录/包，不是 push main，也不是发 alg tag。
@@ -16,5 +19,12 @@
 - **文档同步**：硬约束/对外能力变更时同一任务更新 `CLAUDE.md` 与 `README.md`；**禁止改动 Star History**；也不得无故删除徽章、免责、版本表、构建/签名、MCP 边界、仓库链与许可证等关键信息。
 - **本机测试**：全量 unit test 可能 OOM；优先相关单测 + compile，再视情况 assemble。
 - **构建慢/IC 损坏**：本机 low-memory 且 VS Code+Claude+Serena+Kotlin LS 常驻时可用内存常 <1GiB；症状为 `shrunk-classpath-snapshot.bin` FileNotFound、IC 回退全量、daemon stop command。先 `gradlew --stop` + `tools/dev/repair_gradle_kotlin_cache.ps1`；Hilt 已迁 KSP（勿回 legacy-kapt）；日常 `hzzs.native.abis=arm64-v8a` + `CMAKE_BUILD_PARALLEL_LEVEL=2`。
+- **配置缓存被用户级关掉**：`GRADLE_USER_HOME`（如 `%GRADLE_USER_HOME%\gradle.properties`）里的 `org.gradle.configuration-cache=false` 会覆盖项目 true，导致「几乎全 UP-TO-DATE 的 installDebug」仍要数分钟（冷配置+装机）。应删该行；仓库 wrapper 默认 `-D` 强制开回。
 - **Motion**：`animationScale`/`reduceMotion`/系统 animator 经 `HzzsMotionPolicy` 统一消费；禁止用动画倍率当业务超时。
 - **几何**：动作与 Tracker 只读 `Detection.bounds`；`displayContour` 仅 HUD。
+- **截图后端 API 门闩**：`ACCESSIBILITY` 仅 API 30+；Android 10 上强制/选择无障碍须经 `resolveEffectiveCaptureBackend` fail-soft 回退 MediaProjection/用户主配置，避免启动即 Failed。诊断字段 `capture.requested/effective/fallbackReason` 可对账。
+- **targetSdk 34+ FGS type**：`startForeground` 必须带 `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION` / `SPECIAL_USE`，Manifest 声明不够。
+- **MCP/导入 harden**：外部 JSON 相对 baseline 不得静默开自动操作、自提 `FULL_ACCESS`、升权截图后端；用 `hardenedForExternalIngest`。
+- **disarm 须 abort 在飞动作**：只清 `automationArmed` 不够；`actionJob.cancel` + `dispatchPlan` 重检 enabled/arm。
+- **analysisRunning 与帧循环对称**：`runLoop` 异常 finally 也要 `setAnalysisRunning(false)`，否则算法切换永久 pending。
+- **JNI 赛季闸门须跟 `kSceneCount`**：引擎/宿主/Kotlin 已支持海盐（scene=2）时，`jni_bridge` 若仍 `scene > 1` 会真机 `invalid scene` 连败；扩赛季时同步 JNI、CMake、`run_native_sanitizers.sh` 源列表与 native 边界测。

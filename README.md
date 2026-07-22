@@ -151,13 +151,17 @@ Copy-Item gradle.local.properties.example gradle.local.properties
 也可单次传入：`.\gradlew.bat -Phzzs.native.abis=arm64-v8a assembleDebug`。  
 **发布 / CI 不要设置该属性**，默认仍编 `arm64-v8a,armeabi-v7a,x86_64`。
 
-4 核机器上建议限制 Ninja 并行，避免与 Kotlin 互抢：
+4 核 / 低内存机器上限制 Ninja 并行，避免与 Kotlin/IDE 互抢：
 
 ```powershell
+# 可选：仓库 gradlew.bat / gradlew 在未设置时默认即为 2；VS Code 任务也会注入
 $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 ```
 
-项目已开启 Build Cache 与 Configuration Cache。若本机 `GRADLE_USER_HOME/gradle.properties` 写了 `org.gradle.configuration-cache=false`，会覆盖项目设置——**请注释掉该行**，否则配置阶段每次都全量重算。
+项目已开启 Build Cache 与 Configuration Cache。  
+**常见慢因**：`%GRADLE_USER_HOME%\gradle.properties`（本机常为 `%GRADLE_USER_HOME%\gradle.properties`）若写了 `org.gradle.configuration-cache=false`，会覆盖项目级 `true`，配置阶段每次全量重算（[low-core CPU] 上可多 1～2 分钟）。请**删除或注释该行**。仓库 `gradlew` / `gradlew.bat` 默认再注入 `-Dorg.gradle.configuration-cache=true` 作为保险；若要调试用户级关闭，设 `HZZS_ALLOW_USER_CC_OVERRIDE=1`。
+
+另一常见慢因：low-memory profile + VS Code/Claude/Serena/多路 Kotlin LS 常使空闲内存 &lt;1 GiB，增量任务也会因换页与 daemon 抖动变慢——构建前尽量释放语言服务与多余 agent。
 
 依赖注入使用 **Hilt + KSP**（无 kapt 双编译）。根 `gradle.properties` 按约 low-memory profile / 4 线程收紧 Daemon/Kotlin 堆与 `workers.max=2`；空闲内存充足时在 `%GRADLE_USER_HOME%\gradle.properties` 覆盖堆（`gradle.local.properties` 仅读 `hzzs.*` 如 ABI）。
 

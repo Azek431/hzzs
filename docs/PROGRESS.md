@@ -12,10 +12,11 @@
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
 - C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。
+- **JNI 三赛季闸门对齐**：`jni_bridge` analyze 入口与 `kSceneCount` 一致（修复海盐 `invalid scene` 真机连续失败）。
 - 项目级静态门禁、Native sanitizer 与数据集评估 / 批跑工具。
 - 双源签名更新库与发布脚本（`tools/release/*`）。
 - 官方算法包系统 v1 工具链（`tools/algorithm/*`、`algorithm-packs/*`、`algorithm-release.yml`）；真实算法目录尚未对外发布。
-- **算法引擎 + 赛季参数**：内置 `builtin.hzzs.base` 2.0.0；`POISON_BOTTLE`→`GREEN_BOTTLE`；海盐 `SAND_CASTLE`/`HANGING_ANCHOR`/`SEA_PIT`。
+- **算法引擎 + 赛季参数**：内置 `builtin.hzzs.base` **0.1.0**（Catalog `builtin-hzzs-base-0.1.0`）；`POISON_BOTTLE`→`GREEN_BOTTLE`；海盐 `SAND_CASTLE`/`HANGING_ANCHOR`/`SEA_PIT`。
 
 ## 进行中 / 对齐历史 main
 
@@ -33,9 +34,9 @@
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
-| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录 StateFlow；安装器/下载器待接真实 `.hzzsalg`） |
-| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中（M0：算法演示标注、reset/rules 契约纠偏） |
-| P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（安装器/下载器未接；主路径尺寸/颜色仍硬编码） |
+| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录/下载/验签安装路径；远端 release-index 目录尚未发布时为空态） |
+| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中（内置算法 0.1.0、诊断本地时区已对齐） |
+| P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（外装包需信任锚公钥 + release-index 目录；主路径颜色谓词仍部分硬编码） |
 | P1 | 算法包闭环 M0 | 已落地：APK 安装前 verifyPackage、忽略版本不整稿保存、更新源偏好、UI/文档诚实 |
 | P1 | 算法包闭环 M1 | 已落地：rules v2 双段 tools/示例包、`AlgorithmRulesParser`、统一 `AlgorithmIds` |
 | P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、`AlgorithmPackVerifier` Ed25519、Catalog 接真链路；**信任锚公钥列表默认为空（fail-closed）** |
@@ -46,7 +47,7 @@
 | P2 | 完成驱动取帧 + HUD 临时隐身 + 近似显示轮廓 | 已落地（非 C++ 像素轮廓；动作仍只读 bounds） |
 | P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
 | P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导步骤/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
-| P2 | 开发者设置补齐 + AppLog ring buffer + 诊断导出 | 已落地（设置/关于对齐；无文件日志；HUD 性能叠层未做） |
+| P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地（会话阶段可视化 + 最近一帧摘要；无文件日志；无 C++ 热路径逐步日志） |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |
 | P2 | 数据集人工真值与召回评估 | 未完成 |
 

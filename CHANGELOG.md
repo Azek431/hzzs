@@ -9,10 +9,28 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **本机构建加速**：`gradlew` / `gradlew.bat` 在未设置时默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`，并默认 `-Dorg.gradle.configuration-cache=true`，避免用户级 `gradle.properties` 关闭配置缓存导致每次 install/assemble 全量配置；可用 `HZZS_ALLOW_USER_CC_OVERRIDE=1` 退回用户设置。文档同步说明内存争用与 CC 覆盖。
+
+### 修复
+
+- **前台服务 type（targetSdk 37）**：`MediaProjectionCaptureService` / `McpForegroundService` 在 API 34+ 调用带 `FOREGROUND_SERVICE_TYPE_*` 的 `startForeground`，避免 `MissingForegroundServiceTypeException`。
+- **录屏服务 `stopping` 闩**：stop 后同一 Service 实例再次 START 会重置 `stopping`，避免快速重开捕获永久空转；`fail/idle` 同步排空帧通道。
+- **MCP/外部配置摄入 harden**：`hardenedForExternalIngest` 禁止静默开自动操作、自提 MCP 权限级、静默开开发者/升权截图后端；MCP `preview_settings`/`save_settings` 相对 baseline 收敛。
+- **disarm fail-closed**：`disarmAutomation` 取消在飞 `actionJob`；`dispatchPlan` 重检 enabled/arm；配置变更含 enabled/requireSessionArm/disclaimer 时解除 arm。
+- **帧循环异常清 `analysisRunning`**：`runLoop` finally / start 失败路径与 `stop` 对称，避免算法切换永久 pending。
+- **帧龄门控**：完成驱动下将 `MAX_FRAME_AGE_MS` 从 120ms 放宽到 1000ms，避免分析耗时导致自动操作系统性不触发。
+- **内置算法首版号对齐 0.1.0**：`AlgorithmIds` / `AlgorithmRuntimeProfile` / C++ `make_builtin_profile` 的内置版本由错误的 `2.0.0` 改为 **`0.1.0`**，Catalog ID 为 `builtin-hzzs-base-0.1.0`（runtime 仍为 `builtin.hzzs.base`）；旧 pin 以 `builtin-` 前缀仍识别为内置。
+- **诊断时间戳时区**：`DiagnosticsExporter` 的 `generatedAt` 与附带日志时间改为**设备本地时区 + 真实偏移**（`yyyy-MM-dd HH:mm:ss.SSSXXX`），不再用 UTC 格式却标假 `Z`；算法设置「最近检查」同步同一格式。
+- **算法目录检查体验**：远端 `algorithms/{channel}.json` 404/双源失败时给出中文原因（目录尚未发布可继续用内置）；设置页说明与空态不再暗示「安装器未接入」；自动/手动选择文案与 ActivationCoordinator 行为一致。
+- **海盐赛季 JNI `invalid scene`**：`jni_bridge` 分析入口仍按双赛季拒绝 `scene > 1`，真机选 `SEA_SALT_LIVING_ROOM`（ordinal=2）会连续 5 帧失败并停分析；已与 `kSceneCount=3` / `vision_engine` 对齐，并补 native 边界回归。
+- **截图后端 fail-soft（Android 10 等）**：开发者「强制无障碍」或用户选择无障碍时，若本机 API&lt;30，不再硬启动 `AccessibilityFrameSource` 立即失败；`resolveEffectiveCaptureBackend` 回退到可用的用户主配置 / MediaProjection，诊断摘要增加 `capture.requested/effective/fallbackReason`，开发者页标注本机不可用。
+
 ### 新增
 
 - **系统权限引导与悬浮窗双层绘制**：设置/引导/运行页可查看并跳转系统悬浮窗与无障碍设置；`RuntimeStatus.overlayBlockReason` 区分权限/关闭/加窗失败；`OverlayController` 双 Window（穿透检测框 + 可拖 HUD 同时存在）；缺权限时分析不中断并给出可行动提示。
-- **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` 2.0.0 覆盖三赛季参数。
+- **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` **0.1.0** 覆盖三赛季参数。
 - **海盐召回修复**：宿主批跑 kind 掩码 `0xFF`→`0x7FF`（原先静默关掉海盐三类）；海盐专用尺寸后过滤；玩家失败仍用固定框继续扫；海坑改为「地面线下方非木地板列 + 暗/水色」；船锚每帧最多一个并提高金属门槛。
 - **竹影主路径性能**：`workWidth` 降采样 + 缩放时一次 ARGB→RGB；引擎侧 ROI/步进、减弱形态学、移除不进动作协议的收藏品/能量球全图扫描。
 - **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出按赛季分子目录（耗时与叠加图，不宣称准确率）。
@@ -21,6 +39,8 @@
 - **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`。
 - **主路径尺寸后过滤 + M3A**：profile 尺寸窗剔除越界检测；甜甜圈 scene_confidence 质量度量；竹影 player floor / workWidth 校验。
 - **开发者设置补齐与诊断日志**：设置「MCP 与开发者」对齐关于页能力（强制截图后端、调试帧刷新/清除、日志级别、Native 自检、诊断导出）；`AppLog` 内存 ring buffer + 脱敏；`DiagnosticsExporter` 导出版本/机型/配置摘要/算法激活/运行态/最近日志（不含 Bearer 与调试帧像素）；`DeveloperConfig.logLevel` 持久化；复制诊断经 `ClipboardHelper` 并有 Snackbar/Toast 反馈；算法激活/配置/帧循环安全点写入 `AppLog(tag=algorithm)`。
+- **应用内运行日志查看器**：设置/关于开发者入口进入 `LogViewerScreen`；支持级别/标签/关键字筛选、新在前、自动滚动、复制/分享/清空；`AppLog.query`/`revision` 驱动刷新；视觉 start/stop 写入详细会话日志。
+- **算法执行流程可视化**：`AlgorithmPipelineTrace` 追踪 resolve→profile→validate→activate→native→ready→最近一帧；设置/关于开发者入口进入 `AlgorithmPipelineScreen` 直观查看阶段状态与最近分析摘要（类别直方图/置信度/耗时/错误）；会话级 `algorithm` 日志字段更全。
 - **Motion Policy 与导航转场**：`HzzsMotionPolicy` 统一消费 `animationScale` / `reduceMotion` 与系统 animator 倍率；一级导航 fade-through、设置分类 shared-axis X、引导步骤 AnimatedContent；减少动效时即时终态。设计 token 增加断点与 `contentMaxWidth`；`HzzsScrollPage` 宽屏限宽；设置保存栏窄屏纵向动作区。
 - **文案资源化深化**：一级导航、通用动作、MCP 审批、设置分类/首页、引导全流程、关于赞赏对话框、首页与运行控制台迁入 `strings.xml`。
 - **颜色对比工具**：`HzzsColorContrast`（WCAG 相对亮度/对比度/合成）与 JVM 单测；外观自定义色输入显示与白底对比提示。
@@ -52,7 +72,7 @@
 - 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **海盐客厅**（`AppConfig.DEFAULT_SELECTED_SCENE`，产品默认永远指向当前最新赛季）。
 - 障碍枚举与研究版对齐：`POISON_BOTTLE` → `GREEN_BOTTLE`；新增海盐三类障碍。
-- 内置算法 ID：`builtin.hzzs.v1` → `builtin.hzzs.base`（2.0.0）。
+- 内置算法 ID：`builtin.hzzs.v1` → `builtin.hzzs.base`（首版语义化版本 **0.1.0**）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
 - Release 签名解析增强：兼容 `ANDROID_KEYSTORE_*` 与历史 `AZEK431_RELEASE_*`，并支持 gitignore 的 `keystore.properties`；恢复 README 本机构建说明与 `keystore.properties.example`；minSdk 24 启用 V2/V3 签名。
@@ -64,6 +84,7 @@
 ### 安全
 
 - 自动操作默认关闭；导入与迁移不得静默开启；需当前免责声明版本。
+- **MCP/外部配置摄入**：`hardenedForExternalIngest` 相对 baseline 收敛 automation/MCP/developer/captureBackend；禁止自提 `FULL_ACCESS` 与静默开自动操作。
 - MCP 仅回环监听；写操作默认每次确认。
 - 主题包不执行脚本、不加载远程资源。
 - 截图帧、MCP 令牌与 DataStore 配置不进入系统云备份。

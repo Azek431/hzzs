@@ -38,7 +38,7 @@ python tools/quality/check_project.py
 .\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
 
-本机 Debug 加速与 IC 修复：`gradle.local.properties`（`hzzs.native.abis=arm64-v8a`）、`CMAKE_BUILD_PARALLEL_LEVEL=2`、`tools/dev/repair_gradle_kotlin_cache.ps1`。Hilt 使用 **KSP**（非 kapt）。详见 `docs/testing.md` / README「本机构建加速」。
+本机 Debug 加速与 IC 修复：`gradle.local.properties`（`hzzs.native.abis=arm64-v8a`）、wrapper 默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`、勿在用户级关 configuration-cache、`tools/dev/repair_gradle_kotlin_cache.ps1`。Hilt 使用 **KSP**（非 kapt）。详见 `docs/testing.md` / README「本机构建加速」。
 
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`（包名 `top.azek431.hzzs.debug`）
 
