@@ -8,8 +8,6 @@
  */
 package top.azek431.hzzs.feature.about
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -50,6 +48,7 @@ import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.designsystem.SectionCard
 import top.azek431.hzzs.core.designsystem.HzzsCallout
 import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
+import top.azek431.hzzs.core.logging.AlgorithmDiagnosticsSnapshot
 import top.azek431.hzzs.core.logging.DiagnosticsExporter
 import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
 import top.azek431.hzzs.core.model.AppConfig
@@ -58,12 +57,17 @@ import top.azek431.hzzs.core.model.DeveloperConfig
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.core.model.developerLabel
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.core.platform.ClipboardHelper
 import top.azek431.hzzs.core.preferences.SettingsRepository
+import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.data.vision.DebugFrameRecorder
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
 import top.azek431.hzzs.data.vision.NativeBenchmarkRunner
+import top.azek431.hzzs.data.vision.VisionRuntimeController
+import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.mcp.McpServerState
 import top.azek431.hzzs.mcp.McpUiBridge
+import top.azek431.hzzs.nativevision.NativeVision
 import javax.inject.Inject
 
 enum class DonationKind { WECHAT, ALIPAY }
@@ -76,6 +80,9 @@ class AboutViewModel @Inject constructor(
     mcpUiBridge: McpUiBridge,
     private val debugFrames: DebugFrameRecorder,
     private val benchmarkRunner: NativeBenchmarkRunner,
+    private val visionEngine: VisionEngine,
+    private val visionRuntime: VisionRuntimeController,
+    private val algorithmActivation: AlgorithmActivationCoordinator,
 ) : ViewModel() {
     val config: StateFlow<AppConfig> = repository.config.stateIn(
         viewModelScope,
@@ -117,7 +124,7 @@ class AboutViewModel @Inject constructor(
         viewModelScope.launch { mutableBenchmark.value = benchmarkRunner.run(iterations) }
     }
 
-    /** 脱敏诊断摘要：版本 / 机型 / 配置摘要 / 最近日志；不含 Bearer。 */
+    /** 脱敏诊断摘要：版本 / 机型 / 配置 / 算法激活 / 运行态 / 最近日志；不含 Bearer。 */
     fun buildDiagnosticsReport(): String {
         val current = config.value
         val mcp = mcpState.value
@@ -131,6 +138,7 @@ class AboutViewModel @Inject constructor(
             @Suppress("DEPRECATION")
             packageInfo?.versionCode?.toLong() ?: 0L
         }
+        val activation = runCatching { visionEngine.currentActivation() }.getOrNull()
         return DiagnosticsExporter.buildReport(
             versionName = versionName,
             versionCode = versionCode,
@@ -141,6 +149,19 @@ class AboutViewModel @Inject constructor(
                 lastError = mcp.lastError,
             ),
             debugFrameCount = mutableDebugFrameCount.value,
+            algorithm = activation?.let {
+                AlgorithmDiagnosticsSnapshot(
+                    algorithmId = it.profile.algorithmId,
+                    version = it.profile.version,
+                    generation = it.generation,
+                    usingBuiltinFallback = it.usingBuiltinFallback,
+                    loadError = it.loadError,
+                    nativeAvailable = NativeVision.isAvailable,
+                    pendingCatalogId = algorithmActivation.pendingCatalogId(),
+                    analysisRunning = algorithmActivation.isAnalysisRunning(),
+                )
+            },
+            runtime = visionRuntime.status.value,
         )
     }
 }
@@ -412,8 +433,16 @@ private fun DeveloperScreen(
                                 val command =
                                     "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
                                         "Authorization: Bearer ${mcpState.token}"
-                                context.getSystemService(ClipboardManager::class.java)
-                                    .setPrimaryClip(ClipData.newPlainText("HZZS MCP", command))
+                                val ok = ClipboardHelper.copyText(context, "HZZS MCP", command)
+                                Toast.makeText(
+                                    context,
+                                    if (ok) {
+                                        "MCP 连接信息已复制（含 Bearer，勿公开分享）"
+                                    } else {
+                                        "复制失败：剪贴板不可用"
+                                    },
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }) {
                                 Icon(Icons.Rounded.ContentCopy, null)
                                 Spacer(Modifier.width(6.dp))
@@ -426,12 +455,22 @@ private fun DeveloperScreen(
             item {
                 OutlinedButton(
                     onClick = {
-                        val report = onBuildDiagnostics()
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, report)
+                        runCatching {
+                            val report = onBuildDiagnostics()
+                            check(report.isNotBlank()) { "诊断内容为空" }
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, report)
+                                putExtra(Intent.EXTRA_SUBJECT, "HZZS diagnostics")
+                            }
+                            context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
+                        }.onFailure { error ->
+                            Toast.makeText(
+                                context,
+                                "导出失败：${error.message ?: error.javaClass.simpleName}",
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
-                        context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -443,9 +482,28 @@ private fun DeveloperScreen(
             item {
                 TextButton(
                     onClick = {
-                        val report = onBuildDiagnostics()
-                        context.getSystemService(ClipboardManager::class.java)
-                            .setPrimaryClip(ClipData.newPlainText("HZZS diagnostics", report))
+                        val report = runCatching { onBuildDiagnostics() }.getOrElse { error ->
+                            Toast.makeText(
+                                context,
+                                "生成诊断失败：${error.message ?: error.javaClass.simpleName}",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            return@TextButton
+                        }
+                        if (report.isBlank()) {
+                            Toast.makeText(context, "诊断内容为空", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        val ok = ClipboardHelper.copyText(context, "HZZS diagnostics", report)
+                        Toast.makeText(
+                            context,
+                            if (ok) {
+                                "诊断摘要已复制（${report.lines().size} 行）"
+                            } else {
+                                "复制失败：剪贴板不可用"
+                            },
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     },
                 ) {
                     Text("复制诊断摘要到剪贴板")

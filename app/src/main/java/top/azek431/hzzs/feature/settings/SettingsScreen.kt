@@ -340,6 +340,7 @@ private fun SettingsNavHost(
                 onClearDebugFrames = vm::clearDebugFrames,
                 onRunBenchmark = vm::runNativeBenchmark,
                 onBuildDiagnostics = vm::buildDiagnosticsReport,
+                onMessage = onMessage,
             )
         }
     }

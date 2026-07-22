@@ -1,5 +1,5 @@
 /**
- * 诊断摘要构建：版本 / 机型 / 配置摘要 / 最近日志。
+ * 诊断摘要构建：版本 / 机型 / 配置摘要 / 算法激活 / 运行态 / 最近日志。
  *
  * 安全：不包含 MCP Bearer、签名密钥、调试帧像素；配置仅摘要字段。
  */
@@ -7,6 +7,7 @@ package top.azek431.hzzs.core.logging
 
 import android.os.Build
 import top.azek431.hzzs.core.model.AppConfig
+import top.azek431.hzzs.core.model.RuntimeStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,6 +18,18 @@ data class McpDiagnosticsSnapshot(
     val running: Boolean,
     val port: Int?,
     val lastError: String?,
+)
+
+/** 算法激活快照摘要（供诊断导出，不含 profile 大字段）。 */
+data class AlgorithmDiagnosticsSnapshot(
+    val algorithmId: String,
+    val version: String,
+    val generation: Long,
+    val usingBuiltinFallback: Boolean,
+    val loadError: String?,
+    val nativeAvailable: Boolean,
+    val pendingCatalogId: String?,
+    val analysisRunning: Boolean,
 )
 
 object DiagnosticsExporter {
@@ -31,6 +44,8 @@ object DiagnosticsExporter {
      * @param versionCode 应用 versionCode
      * @param config 当前已保存（或草稿）配置
      * @param mcp MCP 状态；可为 null
+     * @param algorithm 当前算法激活摘要；可为 null
+     * @param runtime 视觉运行时状态；可为 null
      * @param debugFrameCount 私有目录调试帧张数
      * @param logLimit 附带最近日志条数
      */
@@ -40,6 +55,8 @@ object DiagnosticsExporter {
         config: AppConfig,
         mcp: McpDiagnosticsSnapshot?,
         debugFrameCount: Int,
+        algorithm: AlgorithmDiagnosticsSnapshot? = null,
+        runtime: RuntimeStatus? = null,
         logLimit: Int = 200,
     ): String = buildString {
         appendLine("HZZS diagnostics")
@@ -51,7 +68,7 @@ object DiagnosticsExporter {
         appendLine("schema=${config.schemaVersion}")
         appendLine()
         appendLine("== Device ==")
-        // JVM 单测中 Build 字段可能为 null，全部用 toString/默认值兜底。
+        // JVM 单测中 Build 字段可能为 null，全部用默认值兜底。
         appendLine("manufacturer=${Build.MANUFACTURER ?: "unknown"}")
         appendLine("model=${Build.MODEL ?: "unknown"}")
         appendLine("device=${Build.DEVICE ?: "unknown"}")
@@ -82,11 +99,41 @@ object DiagnosticsExporter {
         appendLine("developer.logLevel=${config.developer.logLevel.name}")
         appendLine("algorithm.mode=${config.algorithm.selectionMode.name}")
         appendLine("algorithm.pinned=${config.algorithm.pinnedAlgorithmId ?: "-"}")
+        appendLine("algorithm.channel=${config.algorithm.channel.name}")
         appendLine("update.channel=${config.update.channel.name}")
         appendLine("update.source=${config.update.sourcePreference.name}")
         appendLine()
+        appendLine("== Algorithm activation ==")
+        if (algorithm != null) {
+            appendLine("id=${algorithm.algorithmId}")
+            appendLine("version=${algorithm.version}")
+            appendLine("generation=${algorithm.generation}")
+            appendLine("usingBuiltinFallback=${algorithm.usingBuiltinFallback}")
+            appendLine("loadError=${algorithm.loadError?.let(AppLog::redact) ?: "-"}")
+            appendLine("nativeAvailable=${algorithm.nativeAvailable}")
+            appendLine("pendingCatalogId=${algorithm.pendingCatalogId ?: "-"}")
+            appendLine("analysisRunning=${algorithm.analysisRunning}")
+        } else {
+            appendLine("(unavailable)")
+        }
+        appendLine()
         appendLine("== Runtime bits ==")
         appendLine("debugFrameCount=$debugFrameCount")
+        if (runtime != null) {
+            appendLine("vision.running=${runtime.running}")
+            appendLine("vision.captureReady=${runtime.captureReady}")
+            appendLine("vision.overlayVisible=${runtime.overlayVisible}")
+            appendLine("vision.overlayBlockReason=${runtime.overlayBlockReason?.name ?: "-"}")
+            appendLine("vision.automationArmed=${runtime.automationArmed}")
+            appendLine("vision.activeScene=${runtime.activeScene.name}")
+            appendLine("vision.activeBackend=${runtime.activeBackend.name}")
+            appendLine("vision.fps=${"%.2f".format(runtime.fps)}")
+            appendLine("vision.processingMs=${"%.2f".format(runtime.processingMs)}")
+            appendLine("vision.obstacleCount=${runtime.obstacleCount}")
+            appendLine("vision.lastError=${runtime.lastError?.let(AppLog::redact) ?: "-"}")
+        } else {
+            appendLine("vision.running=unknown")
+        }
         if (mcp != null) {
             appendLine("mcp.running=${mcp.running}")
             appendLine("mcp.port=${mcp.port ?: "-"}")

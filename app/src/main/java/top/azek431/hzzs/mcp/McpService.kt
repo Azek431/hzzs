@@ -611,6 +611,7 @@ private fun top.azek431.hzzs.core.model.RuntimeStatus.toJson() = JSONObject().ap
     put("running", running)
     put("captureReady", captureReady)
     put("overlayVisible", overlayVisible)
+    put("overlayBlockReason", overlayBlockReason?.name ?: JSONObject.NULL)
     put("automationArmed", automationArmed)
     put("activeScene", activeScene.name)
     put("activeBackend", activeBackend.name)

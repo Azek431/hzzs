@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
+import top.azek431.hzzs.core.logging.AlgorithmDiagnosticsSnapshot
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.logging.DiagnosticsExporter
 import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
@@ -43,8 +44,11 @@ import top.azek431.hzzs.core.update.UpdateRepository
 import top.azek431.hzzs.data.vision.DebugFrameRecorder
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
 import top.azek431.hzzs.data.vision.NativeBenchmarkRunner
+import top.azek431.hzzs.data.vision.VisionRuntimeController
+import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.mcp.McpServerState
 import top.azek431.hzzs.mcp.McpUiBridge
+import top.azek431.hzzs.nativevision.NativeVision
 import top.azek431.hzzs.platform.compat.CaptureCapabilityResolver
 import java.io.File
 import javax.inject.Inject
@@ -73,6 +77,8 @@ class SettingsViewModel @Inject constructor(
     private val updateRepository: UpdateRepository,
     private val algorithmCatalog: AlgorithmCatalogController,
     private val algorithmActivation: AlgorithmActivationCoordinator,
+    private val visionEngine: VisionEngine,
+    private val visionRuntime: VisionRuntimeController,
     private val debugFrames: DebugFrameRecorder,
     private val benchmarkRunner: NativeBenchmarkRunner,
     mcpUiBridge: McpUiBridge,
@@ -134,6 +140,7 @@ class SettingsViewModel @Inject constructor(
             @Suppress("DEPRECATION")
             packageInfo?.versionCode?.toLong() ?: 0L
         }
+        val activation = runCatching { visionEngine.currentActivation() }.getOrNull()
         return DiagnosticsExporter.buildReport(
             versionName = versionName,
             versionCode = versionCode,
@@ -144,6 +151,19 @@ class SettingsViewModel @Inject constructor(
                 lastError = mcp.lastError,
             ),
             debugFrameCount = mutableDebugFrameCount.value,
+            algorithm = activation?.let {
+                AlgorithmDiagnosticsSnapshot(
+                    algorithmId = it.profile.algorithmId,
+                    version = it.profile.version,
+                    generation = it.generation,
+                    usingBuiltinFallback = it.usingBuiltinFallback,
+                    loadError = it.loadError,
+                    nativeAvailable = NativeVision.isAvailable,
+                    pendingCatalogId = algorithmActivation.pendingCatalogId(),
+                    analysisRunning = algorithmActivation.isAnalysisRunning(),
+                )
+            },
+            runtime = visionRuntime.status.value,
         )
     }
 

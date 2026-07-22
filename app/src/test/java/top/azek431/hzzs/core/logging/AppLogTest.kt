@@ -8,6 +8,8 @@ import org.junit.Test
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.AppLogLevel
 import top.azek431.hzzs.core.model.DeveloperConfig
+import top.azek431.hzzs.core.model.OverlayBlockReason
+import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.core.preferences.ConfigJson
 
 class AppLogTest {
@@ -69,12 +71,31 @@ class DiagnosticsExporterTest {
             config = AppConfig(developer = DeveloperConfig(enabled = true, logLevel = AppLogLevel.DEBUG)),
             mcp = McpDiagnosticsSnapshot(running = true, port = 8765, lastError = null),
             debugFrameCount = 3,
+            algorithm = AlgorithmDiagnosticsSnapshot(
+                algorithmId = "builtin.hzzs.base",
+                version = "2.0.0",
+                generation = 3L,
+                usingBuiltinFallback = true,
+                loadError = null,
+                nativeAvailable = false,
+                pendingCatalogId = null,
+                analysisRunning = false,
+            ),
+            runtime = RuntimeStatus(
+                running = true,
+                overlayVisible = false,
+                overlayBlockReason = OverlayBlockReason.PERMISSION,
+            ),
             logLimit = 50,
         )
         assertTrue(report.contains("versionName=0.1.0-test"))
         assertTrue(report.contains("mcp.port=8765"))
         assertTrue(report.contains("debugFrameCount=3"))
         assertTrue(report.contains("developer.logLevel=DEBUG"))
+        assertTrue(report.contains("id=builtin.hzzs.base"))
+        assertTrue(report.contains("generation=3"))
+        assertTrue(report.contains("== Algorithm activation =="))
+        assertTrue(report.contains("vision.overlayBlockReason=PERMISSION"))
         assertFalse(report.contains("should-not-appear"))
         assertFalse(report.contains("Bearer should"))
         assertTrue(report.contains("Bearer <redacted>") || report.contains("<redacted>"))

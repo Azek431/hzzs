@@ -7,9 +7,6 @@
  */
 package top.azek431.hzzs.feature.settings.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,6 +37,7 @@ import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.core.model.McpPermissionLevel
 import top.azek431.hzzs.core.model.developerLabel
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.core.platform.ClipboardHelper
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
@@ -65,6 +63,7 @@ fun McpDeveloperSettingsScreen(
     onClearDebugFrames: () -> Unit,
     onRunBenchmark: () -> Unit,
     onBuildDiagnostics: () -> String,
+    onMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dimensions = LocalHzzsDimensions.current
@@ -140,8 +139,14 @@ fun McpDeveloperSettingsScreen(
                             val command =
                                 "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
                                     "Authorization: Bearer ${mcpState.token}"
-                            context.getSystemService(ClipboardManager::class.java)
-                                .setPrimaryClip(ClipData.newPlainText("HZZS MCP", command))
+                            val ok = ClipboardHelper.copyText(context, "HZZS MCP", command)
+                            onMessage(
+                                if (ok) {
+                                    "MCP 连接信息已复制（含 Bearer，勿公开分享）"
+                                } else {
+                                    "复制失败：剪贴板不可用"
+                                },
+                            )
                         },
                     ) {
                         Text("复制 MCP 连接信息")
@@ -310,16 +315,22 @@ fun McpDeveloperSettingsScreen(
             item {
                 SettingsSectionCard(
                     title = "诊断导出",
-                    description = "包含版本、机型、配置摘要与最近日志；不含 Bearer 与调试帧像素。",
+                    description = "包含版本、机型、配置摘要、算法激活、运行态与最近日志；不含 Bearer 与调试帧像素。",
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val report = onBuildDiagnostics()
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, report)
+                            runCatching {
+                                val report = onBuildDiagnostics()
+                                check(report.isNotBlank()) { "诊断内容为空" }
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, report)
+                                    putExtra(Intent.EXTRA_SUBJECT, "HZZS diagnostics")
+                                }
+                                context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
+                            }.onFailure { error ->
+                                onMessage("导出失败：${error.message ?: error.javaClass.simpleName}")
                             }
-                            context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -327,9 +338,22 @@ fun McpDeveloperSettingsScreen(
                     }
                     TextButton(
                         onClick = {
-                            val report = onBuildDiagnostics()
-                            context.getSystemService(ClipboardManager::class.java)
-                                .setPrimaryClip(ClipData.newPlainText("HZZS diagnostics", report))
+                            val report = runCatching { onBuildDiagnostics() }.getOrElse { error ->
+                                onMessage("生成诊断失败：${error.message ?: error.javaClass.simpleName}")
+                                return@TextButton
+                            }
+                            if (report.isBlank()) {
+                                onMessage("诊断内容为空")
+                                return@TextButton
+                            }
+                            val ok = ClipboardHelper.copyText(context, "HZZS diagnostics", report)
+                            onMessage(
+                                if (ok) {
+                                    "诊断摘要已复制（${report.lines().size} 行）"
+                                } else {
+                                    "复制失败：剪贴板不可用"
+                                },
+                            )
                         },
                     ) {
                         Text("复制诊断摘要到剪贴板")
