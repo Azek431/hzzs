@@ -18,7 +18,15 @@
 | 模块 | **仅** `:app` |
 | 仓库 | [Azek431/hzzs](https://github.com/Azek431/hzzs) |
 
-主要能力：MediaProjection 截图、C++ 双赛季障碍识别、可配置悬浮窗、受控自动操作、本地 MCP、主题包、双源更新库。
+主要能力：MediaProjection 截图、C++ 多赛季障碍识别、可配置悬浮窗、受控自动操作、本地 MCP、主题包、双源 APK 更新、算法包（`release-index` 目录 + packages，**无** alg tag）。
+
+### 算法包（代理速查）
+
+- **检测更新**：读 `release-index` 的 `algorithms/stable.json|beta.json`，不是扫 Release。
+- **下载**：`algorithms/packages/<filename>` 的 raw URL（Gitee/GitHub 双源）。
+- **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。
+- **信任锚**：`AlgorithmTrustAnchors`；公钥空则外装 fail-closed。私钥永不入库。
+- **完整步骤与 AI 代发流程**：根目录 `CLAUDE.md` 节「算法包网络更新」；规范 `docs/ALGORITHM_SYSTEM_V1.md`。
 
 ## 快速开始
 
@@ -131,7 +139,8 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 - 与用户沟通默认使用**中文**。
 - 执行任务前识别模糊需求；不确定处先提问（用户明确授权自行决定除外）。
 - 日常开发默认在 **`main`**；除非用户要求，不主动开 feature 分支。
-- 改代码后同步相关 README/CLAUDE/docs，并跑质量门禁；触及硬约束时更新 `CLAUDE.md` / 对应 docs。
+- 改代码后同步相关 **README / CLAUDE / docs**，并跑质量门禁；触及硬约束或对外能力时更新 `CLAUDE.md` 与 `README.md`。
+- 更新 `README.md` 时**不得**改动 `## Star History` 图链与 `sealed_token`。
 - 可复用坑与取舍可记入 `docs/AGENT_EXPERIENCE.md` 与代理记忆；**冲突以当前源码为准**。
 - 不提交密钥、签名文件、`keystore.properties`、`local.properties`、本地备份与生成二进制。
 - Release 签名只从环境变量或 gitignore 的本地 properties 读取；**不要**把真实路径/密码写进会提交的文档。

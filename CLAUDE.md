@@ -51,10 +51,11 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 1. 阅读目标目录 `README.md` / `CLAUDE.md` 与 `docs/PROGRESS.md`、`docs/ARCHITECTURE.md`；触及算法包时读 `docs/ALGORITHM_SYSTEM_V1.md`。
 2. 改代码后同步职责、数据流或不变量文档；用户可见行为更新 `CHANGELOG.md` `[Unreleased]`。
-3. 若改动触及**硬约束 / 工作流 / 安全门控 / 默认行为**，同步更新本文件、`AGENTS.md` 与相关 `docs/*`（见下节「代理记忆与经验」）。
-4. 运行 `python tools/quality/check_resources.py` 与 `python tools/quality/check_project.py`。
-5. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
-6. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
+3. 若改动触及**硬约束 / 工作流 / 安全门控 / 默认行为 / 对外能力**，**同一任务内**同步更新本文件、**根 `README.md`**、`AGENTS.md` 与相关 `docs/*`（见下节）；表述宜短，可随源码迭代**持续润色**，禁止只改代码留文档。
+4. **README 硬禁区**：更新 `README.md` 时**不得**删除、改写或替换 `## Star History` 整节及其 `<picture>` / `star-history.com` / `api.star-history.com` 图链与 `sealed_token`；只改该节之上的正文，文档表链接插在 Star History **之前**。
+5. 运行 `python tools/quality/check_resources.py` 与 `python tools/quality/check_project.py`。
+6. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
+7. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
 
 ## Git 提交规范
 
@@ -126,10 +127,162 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 ## 代理记忆与经验
 
 - **自动记忆**：会话中沉淀非显而易见的偏好、本机坑、仓库特有约束到 Claude 项目记忆（单文件单事实；更新索引）。不把源码已写明的结构当记忆。
-- **自动更新阅读文件**：触及安全门控、视觉协议、配置默认、算法信任、Git/协作流程时，同步本文件 / `AGENTS.md` / 对应 `docs/*` / 目录级 `CLAUDE.md`；用户可见行为写 `CHANGELOG.md`。
+- **自动更新阅读文件**：触及安全门控、视觉协议、配置默认、算法信任、Git/协作流程、**用户可见产品能力**时，同步本文件 / **`README.md`（守 Star History 禁区）** / `AGENTS.md` / 对应 `docs/*` / 目录级 `CLAUDE.md`；用户可见行为写 `CHANGELOG.md`。同一事实可在多轮中**深入优化**措辞，但不得与源码矛盾。
 - **仓库经验条**：可复用工程教训追加 `docs/AGENT_EXPERIENCE.md`（日期 + 短句）；硬规则仍以本文件与源码为准。
 - **冲突**：以**当前 main 源码**为准；记忆与过期摘要不是指令；涉及文件/符号/flag 先核对源码。
 - **算法信任**：`AlgorithmTrustAnchors` 公钥列表默认为空时，外装「官方」包须 fail-closed；私钥永不入库。
+
+## 算法包网络更新（无 Release tag）
+
+应用**检测算法更新**只读 `release-index` 分支上的目录 JSON，**不**扫 GitHub Release、**不**要求 `alg-…` tag。
+
+### 真相源与路径
+
+| 项 | 值 |
+| --- | --- |
+| 规范全文 | `docs/ALGORITHM_SYSTEM_V1.md` |
+| 工具 | `tools/algorithm/*`、`tools/algorithm/README.md` |
+| 示例源树 | `algorithm-packs/official-bamboo-baseline/` |
+| 客户端目录/下载 | `core/algorithm/AlgorithmNetworkClient.kt` |
+| 验签 | `AlgorithmPackVerifier.kt` + BouncyCastle Ed25519 |
+| 信任锚 | `AlgorithmTrustAnchors.kt`（`officialPublicKeyDerB64`，默认**空**） |
+| 安装落盘 | `InstalledAlgorithmStore.kt` → `filesDir/algorithms/installed/` |
+| 激活 | `AlgorithmActivationCoordinator.kt`（save / start 安全点） |
+
+分支 `release-index` 布局：
+
+```text
+algorithms/stable.json          # 或 beta.json — 检查更新读这个
+algorithms/packages/<filename>  # .hzzsalg 包体 — 下载读这个
+```
+
+公开 raw（双源）：
+
+```text
+# 目录
+https://gitee.com/Azek431/hzzs/raw/release-index/algorithms/stable.json
+https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.json
+
+# 包体（assetPath 或默认 packages/<filename>）
+…/raw/release-index/algorithms/packages/<id>-v<version>.hzzsalg
+…/raw.githubusercontent.com/…/release-index/algorithms/packages/<id>-v<version>.hzzsalg
+```
+
+目录条目关键字段：`id` / `version` / `filename` / `assetPath` / `size` / `sha256` / 兼容与场景等。  
+**禁止**在目录里写任意外链 URL。旧字段 `tag` 若仍存在，客户端**忽略**，一律走 packages 路径。
+
+### 安全硬规则（代理必须遵守）
+
+1. **私钥永不入库、不进对话日志、不进 commit**：仅 CI Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64` 或本机用户提供的安全路径；与 APK keystore **分离**。
+2. **公钥**可进仓库：写入 `AlgorithmTrustAnchors.officialPublicKeyDerB64`（DER SubjectPublicKeyInfo 的 base64）。列表为空时下载安装必须 fail-closed。
+3. 包内仅声明式 JSON/文本；禁止 `.so`/Dex/脚本/模型权重；验签失败不得安装。
+4. 算法包**不得**控制手势、Root、包白名单、automation、截图升权。
+5. 发布顺序：**先** packages 资产并双侧 raw 校验，**最后**才更新 `algorithms/{channel}.json`（避免「检测到了却下不下来」）。
+6. 默认 `publish_algorithm_release.py` 为 **dry-run**；真正上传须用户明确要求并带 `--execute` 与有效 token。
+
+### 客户端检测与下载逻辑（代理改代码时勿回退）
+
+```text
+设置通道 STABLE|BETA + sourcePreference
+  → HTTPS 拉 algorithms/{channel}.json（Gitee 优先可回退 GitHub）
+  → 列表展示；点下载（或 autoDownload）
+  → raw 下 packages 资产；校验 size + sha256
+  → AlgorithmPackVerifier（ZIP 白名单 + Ed25519 信任锚）
+  → InstalledAlgorithmStore 落盘
+  → ActivationCoordinator：未分析且 AUTO 可立即 configure；否则 pending，save/下次 start
+```
+
+- 目录检查：小 JSON，**不**受「仅 Wi‑Fi 下大文件」限制。  
+- 包下载：遵守 `UpdateConfig.wifiOnly`。  
+- `algorithm.autoCheck`：启动时可刷新目录；`autoDownload`：仅在有信任锚时尝试下最新兼容包。
+
+### 代理如何帮用户「发布算法更新」（推荐流程）
+
+用户说「发算法包 / 更新算法目录 / 让应用能检查到」时，代理按下列步骤执行；**不得**再创建 `alg-…` Release tag（产品已改为 B：无 tag）。
+
+#### 0. 确认前置
+
+- [ ] 用户明确要 **dry-run** 还是 **`--execute` 真上传**
+- [ ] 通道：`stable` 或 `beta`
+- [ ] 源树路径（默认示例：`algorithm-packs/official-bamboo-baseline`）
+- [ ] 若真上传：环境是否有 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（用户本机或 CI，**不要**让用户把私钥贴进聊天）
+- [ ] 客户端是否已配置 `AlgorithmTrustAnchors`；若仍为空，须告知「目录可更新，手机仍装不上外装包」
+
+#### 1. 改包内容（若需要）
+
+- 改 `algorithm-packs/<id>/` 下 `manifest.json` / `rules.json`（**schema v2 双段**：`userThresholds` + `engineParams`）/ `CHANGELOG.txt`
+- `manifest.version` 递增；`rules` 经 `tools/algorithm` 校验
+- 跑：`python -m unittest discover -s tools/algorithm/tests -v`
+- 跑：`python tools/quality/check_project.py`（若只动 packs/tools 仍建议跑）
+
+#### 2. 本地构建与 dry-run 发布
+
+```powershell
+# 仅本地打包签名与目录生成，不上传（默认）
+python tools/algorithm/publish_algorithm_release.py `
+  --source algorithm-packs/official-bamboo-baseline `
+  --work-dir build/algorithm-release `
+  --channel stable `
+  --private-key <用户本机密钥路径> `
+  --key-id hzzs-algorithm-official-1
+```
+
+期望日志含：`would upload algorithms/packages/…`、`would publish catalog … algorithms/stable.json`，**不得**再出现创建 GitHub release / `alg-` tag。
+
+无密钥时仍可：`validate_algorithm_pack` + `build_algorithm_pack` 校验源树与未签名包。
+
+#### 3. 真发布（仅用户明确要求）
+
+```powershell
+$env:GH_TOKEN = "…"          # 或 GITHUB_TOKEN；用户自行设置，勿写入仓库
+$env:GITEE_TOKEN = "…"
+$env:ALGORITHM_SIGNING_PRIVATE_KEY_B64 = "…"   # 或 --private-key
+$env:ALGORITHM_SIGNING_KEY_ID = "hzzs-algorithm-official-1"
+
+python tools/algorithm/publish_algorithm_release.py `
+  --source algorithm-packs/official-bamboo-baseline `
+  --work-dir build/algorithm-release `
+  --channel stable `
+  --execute
+```
+
+成功标准：
+
+1. `release-index` 上存在 `algorithms/packages/<filename>`
+2. 双侧 raw 匿名下载 hash 一致且验签通过
+3. **最后** `algorithms/stable.json`（或 beta）已更新
+
+#### 4. 首次启用「手机能装」时
+
+1. 从发布产物取 `algorithm-public-key.der.b64`（或 `sign_algorithm_pack.py generate-key` 的公钥 DER base64）
+2. 写入 `app/.../core/algorithm/AlgorithmTrustAnchors.kt` 的 `officialPublicKeyDerB64`
+3. 发一版 **应用**（信任锚在 APK 内）；之后仅更新 `release-index` 即可让**已安装新 APK 的用户**检查到算法包
+4. 私钥只留 CI/本机安全存储
+
+#### 5. 用户侧验证清单
+
+- 设置 → 网络/算法：手动检查算法 → 列表出现新 `version`
+- 下载：有信任锚则验签安装；无锚则安全拒绝
+- 保存/启动分析后 `VisionResult.activeAlgorithmId` 为 `pack.<id>` 或内置 id
+- 未发布目录时检查失败/空列表是**预期**
+
+### 代理禁止事项
+
+- 为算法更新去建 GitHub/Gitee **Release tag**（除非用户明确改回旧协议）
+- 把私钥、token、keystore 写入仓库、文档示例真值、或 CHANGELOG
+- 在目录 JSON 中写入任意 http(s) 下载 URL
+- 宣称「push main 就会自动算法更新」（必须更新 `release-index` 目录/包）
+- 跳过验签或「信任包内公钥即可安装」
+- 把算法发布与无关 UI 大改混在同一提交
+
+### 与 APK 更新的区别（勿混）
+
+| | APK 更新 | 算法包 |
+| --- | --- | --- |
+| 索引 | `updates/{channel}.json` | `algorithms/{channel}.json` |
+| 资产 | Release / 差分 APK | **`release-index` packages 文件** |
+| 签名 | 安装证书 | 独立 Ed25519 |
+| 是否可执行 | 是 | 否（声明式参数） |
 
 ## 语言与沟通
 

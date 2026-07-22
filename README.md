@@ -49,17 +49,18 @@
 ## 主要能力
 
 - 单一 `app` 模块，业务代码按职责分包（Compose + Hilt）。
-- 甜甜圈、竹影书屋两个赛季配置，共用比例坐标体系；首次安装默认赛季由 `AppConfig.DEFAULT_SELECTED_SCENE` 决定。
-- 默认识别全部障碍类别，可按赛季关闭具体类别。
+- **多赛季**障碍配置，共用视口比例坐标；首次安装默认赛季**只**由源码 `AppConfig.DEFAULT_SELECTED_SCENE` 决定（文档不写死赛季名）。
+- 默认识别当前赛季可用障碍类别，可按赛季关闭具体类别。
 - 固定比例、启动检测一次、持续检测三种玩家基准策略。
-- **MediaProjection 默认截图**；`CaptureBackend.AUTO` 只选低权限公开接口，**不探测 Root / Shizuku / 无障碍**。
+- **完成驱动取帧**（非固定 FPS 丢帧）；**MediaProjection 默认截图**；`CaptureBackend.AUTO` 只选低权限公开接口，**不探测 Root / Shizuku / 无障碍**。
 - 无障碍、Shizuku、Root 仅由用户主动选择（Shizuku 适配器见进度文档）。
-- 极简、紧凑、调试 HUD 三种悬浮窗。
-- Material 3 内置主题、动态取色、AMOLED、高对比、自定义颜色与 `.hzzstheme` 主题包。
-- 设置修改可临时预览；取消或离开恢复；点击保存后永久生效。权限型设置（截图后端、MCP、自动操作等）不在预览阶段启动。
+- 极简、紧凑、调试 HUD 三种悬浮窗；HUD 可显示近似轮廓（仅显示，不参与动作几何）。
+- Material 3 内置主题、动态取色、AMOLED、高对比、自定义颜色与 `.hzzstheme` 主题包；动效受应用「减少动效 / 动画强度」与系统 animator 倍率约束。
+- 设置修改可临时预览；取消或离开恢复；点击保存后永久生效。权限型设置（截图后端、MCP、自动操作、算法等）不在预览阶段启动。
 - 首次启动引导、简体中文免责声明、自动操作风险等待确认与**会话解锁（arm）**。
-- 关于页连续点击版本号 7 次解锁开发者设置。
+- 关于页连续点击版本号 7 次解锁开发者设置；可选诊断导出（脱敏，不含 Bearer）。
 - MCP 本地服务：只读 / 每次确认 / 会话信任 / 完整访问四级权限。
+- 声明式算法包（验签安装；官方信任锚未发布时外装 fail-closed）；内置算法回退。
 - C++ 输入边界、JNI 失败隔离、宿主机 Sanitizer、数据集回归与发布门禁。
 - Gitee 优先的双源签名更新与增量补丁工具链（应用内检查入口见设置/关于）。
 
@@ -107,9 +108,11 @@ tools/              质量检查、视觉回归和发布工具
 主数据路径：
 
 ```text
-FrameSource → VisionRuntimeController → NativeVisionEngine
+FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
+  → NativeVisionEngine (JNI)
   → VisionResultValidator → MultiObjectTracker
-  → OverlayController / GestureArbiter
+  → displayContour（仅 HUD，可选）→ OverlayController
+  → (arm 后) GestureArbiter → 无障碍手势
 ```
 
 ## 构建
@@ -249,13 +252,14 @@ CI 工作流：`.github/workflows/algorithm-release.yml`。
 
 | 文档 | 说明 |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md) | AI / Claude Code 协作硬约束 |
+| [`CLAUDE.md`](CLAUDE.md) | AI / Claude Code 协作硬约束、记忆与文档同步流程 |
 | [`AGENTS.md`](AGENTS.md) | Codex / 通用 AI 代理导航（与当前架构同步） |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 架构与数据流 |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | 安全与权限模型 |
 | [`docs/TESTING.md`](docs/TESTING.md) | 测试与门禁 |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 进度与未完成项 |
 | [`docs/ALGORITHM_SYSTEM_V1.md`](docs/ALGORITHM_SYSTEM_V1.md) | 官方算法包格式、签名与发布 |
+| [`docs/AGENT_EXPERIENCE.md`](docs/AGENT_EXPERIENCE.md) | 代理可复用工程经验短条 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更日志 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 贡献说明 |
 
