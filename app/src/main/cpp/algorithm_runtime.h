@@ -19,7 +19,8 @@ namespace hzzs {
 
 /** 与 Kotlin AlgorithmRuntimeProfile.SCHEMA_VERSION 对齐。 */
 constexpr int32_t kAlgorithmSchemaVersion = 1;
-constexpr int32_t kSceneCount = 2;
+/** 与 Kotlin SceneId.entries.size 对齐：甜品 / 竹影 / 海盐。 */
+constexpr int32_t kSceneCount = 3;
 constexpr int32_t kMaxAlgorithmIdLen = 64;
 constexpr int32_t kMaxAlgorithmVersionLen = 32;
 

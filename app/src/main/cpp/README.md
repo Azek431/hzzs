@@ -1,6 +1,7 @@
-# C++ 视觉引擎
+# C++ 算法引擎
 
-视觉引擎接收 RGBA 像素、视口和场景参数，输出归一化检测框。甜甜圈与竹影书屋共享坐标体系，但使用独立颜色与几何检测器。
+算法引擎接收 RGBA 像素、视口和**赛季参数**，输出归一化检测框。  
+**一套引擎 + 三份赛季参数**（甜品 / 竹影 / 海盐）；玩法不变时优先改参数而非换引擎。
 
 库名：`hzzs_vision`（`System.loadLibrary("hzzs_vision")`）。
 
@@ -8,8 +9,9 @@
 
 | scene | 赛季 |
 | --- | --- |
-| 0 | 甜甜圈 `SWEET_FACTORY` |
+| 0 | 甜品工厂 `SWEET_FACTORY` |
 | 1 | 竹影书屋 `BAMBOO_BOOKSTORE` |
+| 2 | 海盐客厅 `SEA_SALT_LIVING_ROOM` |
 
 ## 设计原则
 
@@ -19,13 +21,13 @@
 - 固定玩家比例模式跳过玩家检测；检测一次与连续检测由 Kotlin 运行时控制。
 - 所有面积、乘法、缓冲索引和 JNI 数组长度在使用前校验。
 - Native 不持有 Java 数组或 Bitmap 生命周期之外的内存。
-- 算法参数经 `AlgorithmRuntime` 不可变快照注入；`configureAlgorithm` 与 `analyze` 串行，失败保留旧配置或由 Kotlin 回退 `builtin.hzzs.v1`。
+- 算法参数经 `AlgorithmRuntime` 不可变快照注入；`configureAlgorithm` 与 `analyze` 串行，失败保留旧配置或由 Kotlin 回退 `builtin.hzzs.base`。
 - `reset()` 不强制回退算法；跨帧状态在 Kotlin tracker / runtime。算法回退使用 `configure_builtin` / `configureAlgorithm(builtin)`。
 
-## 与历史 main
+## 路径
 
-- `legacy_main/vision2` 与 `legacy_main/vision_bamboo` 为**当前主检测路径**（历史 main 核心，无旧 JNI 类名）。
-- `vision_engine.cpp` 优先调用主路径，并映射到统一 `Detection` / 位掩码协议；仅当场景置信度很低且检测过少时，回退 `sweet_factory.cpp` / `bamboo_bookstore.cpp`。
-- 宽 cake 输出 `PIT`，窄 cake 输出 `CAKE_STRUCTURE`；竹隙优先 `BAMBOO_GAP`，仅在关闭该类别时退化为 `PIT`，避免同一框双写导致双动作。
-- 历史 `main` 的 analysis 状态机与模拟 HUD 路径不再编译。
-- 宿主机脚本 `tools/vision/build_host.sh` 与 `tools/vision/run_native_sanitizers.sh` 必须与本目录 `CMakeLists.txt` 使用相同源文件与 include（含 `legacy_main/vision2`、`legacy_main/vision_bamboo`）。
+- 甜品 / 竹影：`legacy_main/vision2` 与 `legacy_main/vision_bamboo` 为主路径；过弱时回退 `sweet_factory.cpp` / `bamboo_bookstore.cpp`。
+- 海盐：`sea_salt_living_room.cpp` 参数驱动主路径（沙堡 / 船锚 / 海坑）。
+- `vision_engine.cpp` 统一调度并映射 `Detection` / 位掩码；尺寸窗后过滤读 profile。
+- 宽 cake 输出 `PIT`，窄 cake 输出 `CAKE_STRUCTURE`；竹隙优先 `BAMBOO_GAP`；海坑优先 `SEA_PIT`。
+- 宿主机脚本 `tools/vision/build_host.sh`、`build_host.ps1` 与本目录 `CMakeLists.txt` 源文件列表保持一致。

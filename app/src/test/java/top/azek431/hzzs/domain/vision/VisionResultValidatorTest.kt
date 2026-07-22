@@ -13,10 +13,10 @@ class VisionResultValidatorTest {
     fun disabledObstacleNeverLeavesValidator() {
         val config = SceneConfig(
             sceneId = SceneId.SWEET_FACTORY,
-            disabledObstacles = setOf(ObstacleKind.POISON_BOTTLE),
+            disabledObstacles = setOf(ObstacleKind.GREEN_BOTTLE),
         )
         val result = result(
-            detection(ObjectKind.POISON_BOTTLE, 0.30f, Avoidance.JUMP),
+            detection(ObjectKind.GREEN_BOTTLE, 0.30f, Avoidance.JUMP),
             detection(ObjectKind.CAKE_STRUCTURE, 0.50f, Avoidance.DOUBLE_JUMP),
         )
 

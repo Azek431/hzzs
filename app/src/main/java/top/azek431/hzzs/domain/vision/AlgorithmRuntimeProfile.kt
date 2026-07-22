@@ -55,8 +55,8 @@ data class AlgorithmRuntimeProfile(
 
     companion object {
         const val SCHEMA_VERSION = 1
-        const val BUILTIN_ID = "builtin.hzzs.v1"
-        const val BUILTIN_VERSION = "1.0.0"
+        const val BUILTIN_ID = "builtin.hzzs.base"
+        const val BUILTIN_VERSION = "2.0.0"
 
         private const val MAX_ID_LEN = 64
         private const val MAX_VERSION_LEN = 32
@@ -75,6 +75,7 @@ data class AlgorithmRuntimeProfile(
             scenes = mapOf(
                 SceneId.SWEET_FACTORY to SceneAlgorithmParams.sweetBuiltin(),
                 SceneId.BAMBOO_BOOKSTORE to SceneAlgorithmParams.bambooBuiltin(),
+                SceneId.SEA_SALT_LIVING_ROOM to SceneAlgorithmParams.seaSaltBuiltin(),
             ),
         )
     }
@@ -211,6 +212,45 @@ data class SceneAlgorithmParams(
             spikeHeightMax = 0.54f,
             colors = SceneColorThresholds.bambooBuiltin(),
         )
+
+        /** 海盐客厅赛季内置默认参数（与算法引擎研究版几何先验对齐）。 */
+        fun seaSaltBuiltin() = SceneAlgorithmParams(
+            sceneConfidenceFloor = 0.80f,
+            playerConfidenceFloor = 0.45f,
+            fixedPlayerTop = 0.70f,
+            fixedPlayerBottom = 0.94f,
+            fixedPlayerWidthDivisor = 18,
+            fallbackSceneConfidenceMax = 0.20f,
+            fallbackMaxDetections = 1,
+            groundSearchTop = 0.54f,
+            groundSearchBottom = 0.84f,
+            groundConfidenceMin = 0.26f,
+            bottleWidthMin = 0.028f,
+            bottleWidthMax = 0.19f,
+            bottleHeightMin = 0.045f,
+            bottleHeightMax = 0.28f,
+            cakeWidthMin = 0.105f,
+            cakeWidthMax = 0.60f,
+            cakeHeightMin = 0.10f,
+            cakeWideWidthRatio = 0.22f,
+            statueWidthMin = 0.05f,
+            statueWidthMax = 0.40f,
+            statueHeightMin = 0.08f,
+            statueHeightMax = 0.42f,
+            gapWidthMin = 0.12f,
+            gapWidthMax = 0.80f,
+            gapHeightMin = 0.10f,
+            gapWideWidthRatio = 0.24f,
+            brushWidthMin = 0.04f,
+            brushWidthMax = 0.28f,
+            brushHeightMin = 0.12f,
+            brushHeightMax = 0.58f,
+            spikeWidthMin = 0.09f,
+            spikeWidthMax = 0.42f,
+            spikeHeightMin = 0.16f,
+            spikeHeightMax = 0.54f,
+            colors = SceneColorThresholds.seaSaltBuiltin(),
+        )
     }
 }
 
@@ -274,6 +314,25 @@ data class SceneColorThresholds(
             bambooBlueMax = 125,
             brushDarkMax = 94,
             statueChromaMax = 48,
+        )
+
+        fun seaSaltBuiltin() = SceneColorThresholds(
+            bottleGreenMin = 72,
+            bottleGreenOverRed = 1.08f,
+            bottleGreenOverBlue = 1.18f,
+            bottleRedMax = 170,
+            cakeRedMin = 145,
+            cakeGreenMin = 90,
+            cakeBlueMax = 170,
+            spikeRedMin = 150,
+            spikeBlueMin = 88,
+            spikeRedOverGreen = 1.14f,
+            bambooGreenMin = 80,
+            bambooGreenOverRed = 0.78f,
+            bambooGreenOverBlue = 1.25f,
+            bambooBlueMax = 125,
+            brushDarkMax = 100,
+            statueChromaMax = 55,
         )
     }
 }

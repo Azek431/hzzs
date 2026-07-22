@@ -43,7 +43,7 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
     const int stride = adaptive_stride(f, work_width);
     int hint = 100;
     const auto& colors = params.colors;
-    if (kind_enabled(enabled_kind_mask, Kind::POISON_BOTTLE)) {
+    if (kind_enabled(enabled_kind_mask, Kind::GREEN_BOTTLE)) {
         auto bottles = components(
             f,
             [&](int r, int g, int b, int, int y) {
@@ -64,7 +64,7 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
                 continue;
             }
             out.detections.push_back(
-                {hint++, Kind::POISON_BOTTLE, norm(c, f), .84f, true, false, Avoidance::JUMP});
+                {hint++, Kind::GREEN_BOTTLE, norm(c, f), .84f, true, false, Avoidance::JUMP});
         }
     }
 

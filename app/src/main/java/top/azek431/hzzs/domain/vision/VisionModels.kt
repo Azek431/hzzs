@@ -83,25 +83,31 @@ data class NormalizedPoint(
  */
 enum class ObjectKind {
     PLAYER,
-    POISON_BOTTLE,
+    GREEN_BOTTLE,
     CAKE_STRUCTURE,
     HANGING_SPIKE,
     PIT,
     PANDA_STATUE,
     BAMBOO_GAP,
     HANGING_BRUSH,
+    SAND_CASTLE,
+    HANGING_ANCHOR,
+    SEA_PIT,
 }
 
 /** 将检测类别映射为设置/场景可关闭的障碍 ID；玩家返回 `null`。 */
 fun ObjectKind.asObstacleKind(): ObstacleKind? = when (this) {
     ObjectKind.PLAYER -> null
-    ObjectKind.POISON_BOTTLE -> ObstacleKind.POISON_BOTTLE
+    ObjectKind.GREEN_BOTTLE -> ObstacleKind.GREEN_BOTTLE
     ObjectKind.CAKE_STRUCTURE -> ObstacleKind.CAKE_STRUCTURE
     ObjectKind.HANGING_SPIKE -> ObstacleKind.HANGING_SPIKE
     ObjectKind.PIT -> ObstacleKind.PIT
     ObjectKind.PANDA_STATUE -> ObstacleKind.PANDA_STATUE
     ObjectKind.BAMBOO_GAP -> ObstacleKind.BAMBOO_GAP
     ObjectKind.HANGING_BRUSH -> ObstacleKind.HANGING_BRUSH
+    ObjectKind.SAND_CASTLE -> ObstacleKind.SAND_CASTLE
+    ObjectKind.HANGING_ANCHOR -> ObstacleKind.HANGING_ANCHOR
+    ObjectKind.SEA_PIT -> ObstacleKind.SEA_PIT
 }
 
 /**

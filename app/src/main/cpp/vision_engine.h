@@ -5,16 +5,16 @@
 namespace hzzs {
 
 /**
- * 视觉引擎入口（主路径 + 启发式回退调度）。
+ * 视觉引擎入口（算法引擎调度 + 历史路径 fallback）。
  *
- * 主路径：legacy_main vision2 / vision_bamboo。
- * 回退：sweet_factory / bamboo_bookstore（主路径过弱时）。
+ * - 甜品/竹影：优先 legacy_main 主路径，过弱时启发式回退。
+ * - 海盐：算法引擎参数驱动路径（sea_salt_living_room）。
  *
  * 线程：JNI 层用互斥串行化 analyze / configure / reset。
  * 帧路径禁止读文件、解析 JSON、分配大型规则对象。
  */
 
-/** 甜甜圈赛季分析（显式 params，供测试与回退路径）。 */
+/** 甜品工厂赛季分析（显式 params，供测试与回退路径）。 */
 Result analyze_sweet(const FrameView& frame, int work_width, int enabled_kind_mask,
                      bool detect_player, float fixed_player_x_ratio,
                      const SceneAlgorithmParamsNative& params);
@@ -24,9 +24,14 @@ Result analyze_bamboo(const FrameView& frame, int work_width, int enabled_kind_m
                       bool detect_player, float fixed_player_x_ratio,
                       const SceneAlgorithmParamsNative& params);
 
+/** 海盐客厅赛季分析（参数驱动主路径）。 */
+Result analyze_sea_salt(const FrameView& frame, int work_width, int enabled_kind_mask,
+                        bool detect_player, float fixed_player_x_ratio,
+                        const SceneAlgorithmParamsNative& params);
+
 /**
  * 使用当前 AlgorithmRuntime 快照分析。
- * @param scene 0=甜甜圈，1=竹影（与 Kotlin SceneId 序一致）
+ * @param scene 0=甜品，1=竹影，2=海盐（与 Kotlin SceneId 序一致）
  */
 Result analyze(int scene, const FrameView& frame, int work_width, int enabled_kind_mask,
                bool detect_player, float fixed_player_x_ratio);

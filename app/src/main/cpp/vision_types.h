@@ -12,16 +12,19 @@ namespace hzzs {
  * Kind 枚举序与 JNI 位掩码、Kotlin ObjectKind 一致，增删须三方同步。
  */
 
-/** 检测类别；数值参与 enabled_kind_mask 位运算。 */
+/** 检测类别；数值参与 enabled_kind_mask 位运算，与 Kotlin ObjectKind.ordinal 对齐。 */
 enum class Kind : int32_t {
     PLAYER = 0,
-    POISON_BOTTLE = 1,
+    GREEN_BOTTLE = 1,
     CAKE_STRUCTURE = 2,
     HANGING_SPIKE = 3,
     PIT = 4,
     PANDA_STATUE = 5,
     BAMBOO_GAP = 6,
     HANGING_BRUSH = 7,
+    SAND_CASTLE = 8,
+    HANGING_ANCHOR = 9,
+    SEA_PIT = 10,
 };
 
 /** 建议规避动作；NONE 表示不可动作或仅诊断。 */

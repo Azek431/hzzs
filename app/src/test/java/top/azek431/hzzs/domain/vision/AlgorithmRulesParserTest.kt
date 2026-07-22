@@ -97,12 +97,12 @@ class AlgorithmRulesParserTest {
               "schemaVersion": 2,
               "scenes": {
                 "BAMBOO_BOOKSTORE": {
-                  "engineParams": { "sceneConfidenceFloor": "NaN" }
+                  "engineParams": { "sceneConfidenceFloor": 1.5 }
                 }
               }
             }
         """.trimIndent()
-        // optDouble on "NaN" string may yield NaN → validator fails.
+        // 超范围字段应由 AlgorithmProfileValidator 拒绝。
         val result = AlgorithmRulesParser.parse(
             rulesJson = rules,
             algorithmId = "pack.bad",

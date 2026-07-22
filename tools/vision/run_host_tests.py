@@ -19,8 +19,12 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 
 def scene_for(path: Path) -> int:
     text = "/".join(part.lower() for part in path.parts)
-    if "竹影书屋" in text or "#u7af9" in text or "bamboo" in text:
+    if "海盐客厅" in text or "sea" in text or "salt" in text:
+        return 2
+    if "竹影书屋" in text or "bamboo" in text:
         return 1
+    if "甜品工厂" in text or "甜甜圈" in text or "sweet" in text:
+        return 0
     return 0
 
 
