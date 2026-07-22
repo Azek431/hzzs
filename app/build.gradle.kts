@@ -79,11 +79,23 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// 本机可用 -Phzzs.native.abis=arm64-v8a 或 gradle.properties 加速 Debug 原生编译。
-// 未设置时保持完整 ABI，避免发布/CI 漏架构。
+// 本机可用 -Phzzs.native.abis=arm64-v8a、环境变量 HZZS_NATIVE_ABIS，
+// 或 gitignore 的 gradle.local.properties。未设置时保持完整 ABI。
+val localGradleProperties = Properties().apply {
+    val file = rootProject.file("gradle.local.properties")
+    if (file.isFile) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun localOrGradleOrEnv(key: String, envName: String): String? {
+    providers.gradleProperty(key).orNull?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    localGradleProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    return providers.environmentVariable(envName).orNull?.trim()?.takeIf { it.isNotEmpty() }
+}
+
 val configuredNativeAbis: List<String> = (
-    providers.gradleProperty("hzzs.native.abis").orNull
-        ?: providers.environmentVariable("HZZS_NATIVE_ABIS").orNull
+    localOrGradleOrEnv("hzzs.native.abis", "HZZS_NATIVE_ABIS")
         ?: "arm64-v8a,armeabi-v7a,x86_64"
     )
     .split(',')
@@ -95,7 +107,6 @@ require(configuredNativeAbis.isNotEmpty()) { "hzzs.native.abis must not be empty
 require(configuredNativeAbis.all { it in allowedNativeAbis }) {
     "Unsupported ABI in hzzs.native.abis: $configuredNativeAbis (allowed=$allowedNativeAbis)"
 }
-
 android {
     namespace = "top.azek431.hzzs"
     compileSdk = 37
@@ -128,7 +139,7 @@ android {
                     "-ffunction-sections",
                     "-fdata-sections",
                 )
-                // 不覆盖 ANDROID_STL（沿用 AGP/NDK 默认）；仅声明标准与异常能力。
+                // 不覆盖 ANDROID_STL（沿用 AGP/NDK 默认）。
                 arguments += listOf(
                     "-DANDROID_CPP_FEATURES=exceptions",
                     "-DCMAKE_CXX_STANDARD=17",
@@ -189,6 +200,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // 显式关闭未使用能力，减少 AGP 配置与资源管线工作
+        aidl = false
+        resValues = false
+        shaders = false
+        viewBinding = false
     }
     externalNativeBuild {
         cmake {
@@ -217,7 +233,10 @@ android {
     }
 }
 
-kapt { correctErrorTypes = true }
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
 
 tasks.matching {
     it.name.contains("Release", ignoreCase = true) &&
