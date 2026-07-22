@@ -119,13 +119,13 @@ fun SettingsScreen(
     val settingsLabel = stringResource(R.string.nav_settings)
     val title = when (route) {
         SettingsRoutes.HOME -> settingsLabel
-        SettingsCategory.APPEARANCE.route -> SettingsCategory.APPEARANCE.title
-        SettingsCategory.ALGORITHM.route -> SettingsCategory.ALGORITHM.title
-        SettingsCategory.CAPTURE.route -> SettingsCategory.CAPTURE.title
-        SettingsCategory.OVERLAY.route -> SettingsCategory.OVERLAY.title
-        SettingsCategory.AUTOMATION.route -> SettingsCategory.AUTOMATION.title
-        SettingsCategory.NETWORK.route -> SettingsCategory.NETWORK.title
-        SettingsCategory.MCP.route -> SettingsCategory.MCP.title
+        SettingsCategory.APPEARANCE.route -> stringResource(SettingsCategory.APPEARANCE.titleRes)
+        SettingsCategory.ALGORITHM.route -> stringResource(SettingsCategory.ALGORITHM.titleRes)
+        SettingsCategory.CAPTURE.route -> stringResource(SettingsCategory.CAPTURE.titleRes)
+        SettingsCategory.OVERLAY.route -> stringResource(SettingsCategory.OVERLAY.titleRes)
+        SettingsCategory.AUTOMATION.route -> stringResource(SettingsCategory.AUTOMATION.titleRes)
+        SettingsCategory.NETWORK.route -> stringResource(SettingsCategory.NETWORK.titleRes)
+        SettingsCategory.MCP.route -> stringResource(SettingsCategory.MCP.titleRes)
         else -> settingsLabel
     }
 

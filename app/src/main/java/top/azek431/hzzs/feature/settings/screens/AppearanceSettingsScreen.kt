@@ -43,7 +43,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.azek431.hzzs.R
+import top.azek431.hzzs.core.designsystem.HzzsColorContrast
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.AppThemeMode
@@ -235,11 +238,15 @@ internal fun LabeledSlider(
     }
 }
 
-/** 十六进制颜色输入；解析成功即回调，供主题/悬浮窗自定义色使用。 */
+/** 十六进制颜色输入；解析成功即回调，供主题/悬浮窗自定义色使用。显示与白底对比度提示。 */
 @Composable
 internal fun HexColorField(title: String, color: Int, onColorChange: (Int) -> Unit) {
     var text by remember(color) { mutableStateOf("#%08X".format(color)) }
     val parsed = remember(text) { parseHexColor(text) }
+    val contrastRatio = remember(parsed, color) {
+        HzzsColorContrast.contrastRatio(parsed ?: color, 0xFFFFFFFF.toInt())
+    }
+    val contrastOk = contrastRatio >= HzzsColorContrast.AA_NORMAL_TEXT
     OutlinedTextField(
         value = text,
         onValueChange = { next ->
@@ -250,7 +257,29 @@ internal fun HexColorField(title: String, color: Int, onColorChange: (Int) -> Un
         },
         label = { Text(title) },
         supportingText = {
-            Text(if (parsed == null) "格式：#RRGGBB 或 #AARRGGBB" else "颜色预览会立即应用，保存后永久生效")
+            Column {
+                Text(
+                    if (parsed == null) {
+                        stringResource(R.string.color_hex_hint_bad)
+                    } else {
+                        stringResource(R.string.color_hex_hint_ok)
+                    },
+                )
+                if (parsed != null) {
+                    Text(
+                        if (contrastOk) {
+                            stringResource(R.string.color_contrast_ok, contrastRatio)
+                        } else {
+                            stringResource(R.string.color_contrast_warn, contrastRatio)
+                        },
+                        color = if (contrastOk) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                    )
+                }
+            }
         },
         isError = parsed == null,
         leadingIcon = {

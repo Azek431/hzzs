@@ -11,12 +11,15 @@
 
 ### 新增
 
+- **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。
 - **算法包 rules schema v2（双段）**：`userThresholds` + `engineParams`；tools 兼容 v1；示例包 `official-bamboo-baseline` 升 v2；Kotlin `AlgorithmRulesParser` 合成双场景 profile 并填洞。
-- **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`（内置单一 catalog/runtime ID）。
-- **主路径 M3A**：甜甜圈 `scene_confidence` 改为检测质量度量（floor 作下限）；竹影主路径消费 `player_confidence_floor` 并校验 `work_width`。
+- **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`。
+- **主路径尺寸后过滤 + M3A**：profile 尺寸窗剔除越界检测；甜甜圈 scene_confidence 质量度量；竹影 player floor / workWidth 校验。
 - **开发者设置补齐与诊断日志**：设置「MCP 与开发者」对齐关于页能力（强制截图后端、调试帧刷新/清除、日志级别、Native 自检、诊断导出）；`AppLog` 内存 ring buffer + 脱敏；`DiagnosticsExporter` 导出版本/机型/配置摘要/最近日志（不含 Bearer 与调试帧像素）；`DeveloperConfig.logLevel` 持久化。
-- **Motion Policy 与导航转场**：`HzzsMotionPolicy` 统一消费 `animationScale` / `reduceMotion` 与系统 animator 倍率；一级导航 fade-through、设置分类 shared-axis X；减少动效时即时终态。设计 token 增加断点与 `contentMaxWidth`；`HzzsScrollPage` 宽屏限宽；设置保存栏窄屏纵向动作区。
-- **文案资源化起步**：一级导航、通用动作、MCP 审批、设置离开/保存栏、首页与运行控制台关键字符串迁入 `strings.xml`。
+- **Motion Policy 与导航转场**：`HzzsMotionPolicy` 统一消费 `animationScale` / `reduceMotion` 与系统 animator 倍率；一级导航 fade-through、设置分类 shared-axis X、引导步骤 AnimatedContent；减少动效时即时终态。设计 token 增加断点与 `contentMaxWidth`；`HzzsScrollPage` 宽屏限宽；设置保存栏窄屏纵向动作区。
+- **文案资源化深化**：一级导航、通用动作、MCP 审批、设置分类/首页、引导全流程、关于赞赏对话框、首页与运行控制台迁入 `strings.xml`。
+- **颜色对比工具**：`HzzsColorContrast`（WCAG 相对亮度/对比度/合成）与 JVM 单测；外观自定义色输入显示与白底对比提示。
+- **无障碍小改进**：`PageHeader` / `HzzsSection` 标题 heading 语义；赞赏改为标准 Dialog + 显式「保存到相册」。
 - **完成驱动取帧与 HUD 近似轮廓**：分析循环按上一轮完成拉取最新帧；MediaProjection/AUTO 在 HUD 显示时临时隐身并排空可能含旧合成层的一帧；`displayContour` 仅供 HUD 绘制，动作与 Tracker 仍只读 `bounds`。
 - **UI 工具专业风重设计（第一期）**：Design System 2.0（中性表面、状态语义色、统一页面积木）；首页/运行控制台信息架构重排；设置首页选中高亮与预览说明；引导文案压缩；关于页对齐令牌。
 
@@ -82,8 +85,8 @@
 - 数据集缺少独立人工真值，不得宣称准确率指标。
 - 厂商 ROM、Root、Shizuku 与真实游戏链路需真机验证。
 - `Shizuku.newProcess` 依赖设备端 Shizuku 版本与授权状态。
-- 算法目录/下载仍为演示（无 HTTPS/Ed25519 包下载）；本地安装骨架可用，网络闭环未完成。
-- 主路径颜色谓词与尺寸窗仍硬编码；M3B/C 与 autoCheck 调度（M4）未做。
+- `AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空：算法包下载安装会安全拒绝，直至发布官方公钥写入客户端。
+- legacy 主路径颜色谓词仍硬编码；尺寸仅后过滤，非扫描几何全参数化。
 
 ## [0.1.0] — 未发布
 

@@ -18,7 +18,17 @@
     <string name="action_import">导入</string>
     <string name="action_export">导出</string>
     <string name="action_back">返回</string>
+    <string name="action_close">关闭</string>
     <string name="action_copy_json">复制 JSON</string>
+    <string name="action_next">下一步</string>
+    <string name="action_previous">上一步</string>
+    <string name="action_finish">完成</string>
+    <string name="action_select">选择</string>
+    <string name="action_save_to_gallery">保存到相册</string>
+    <string name="state_unsupported">系统不支持</string>
+    <string name="state_enabled">已开启</string>
+    <string name="state_disabled">已关闭</string>
+    <string name="state_default_off">默认关闭</string>
 
     <!-- MCP 审批 -->
     <string name="mcp_approval_title">MCP 操作确认</string>
@@ -32,6 +42,34 @@
     <!-- 设置保存栏 -->
     <string name="settings_dirty_chip">未保存</string>
     <string name="settings_save_and_apply">保存并应用</string>
+
+    <!-- 设置分类 -->
+    <string name="settings_cat_appearance_title">外观与显示</string>
+    <string name="settings_cat_appearance_desc">主题、动态取色、字体与动效</string>
+    <string name="settings_cat_algorithm_title">算法与识别</string>
+    <string name="settings_cat_algorithm_desc">算法包、赛季与识别参数</string>
+    <string name="settings_cat_capture_title">截图与权限</string>
+    <string name="settings_cat_capture_desc">截图后端与能力状态</string>
+    <string name="settings_cat_overlay_title">悬浮窗</string>
+    <string name="settings_cat_overlay_desc">样式、透明度与显示项</string>
+    <string name="settings_cat_automation_title">自动操作与安全</string>
+    <string name="settings_cat_automation_desc">风险开关与会话解锁</string>
+    <string name="settings_cat_network_title">网络与更新</string>
+    <string name="settings_cat_network_desc">下载来源、算法与应用更新</string>
+    <string name="settings_cat_mcp_title">MCP 与开发者</string>
+    <string name="settings_cat_mcp_desc">本地 MCP 权限与调试选项</string>
+
+    <!-- 设置首页 -->
+    <string name="settings_home_intro">分类管理外观、算法、截图与安全选项。子页共享草稿，返回本页不丢失未保存更改。</string>
+    <string name="settings_home_preview_callout">外观与悬浮窗可即时预览；截图、自动操作、MCP、更新与算法选择需「保存并应用」后生效。</string>
+    <string name="settings_summary_overlay">%1$s · %2$s</string>
+    <string name="settings_summary_automation_arm">已开启 · 需手动解锁</string>
+    <string name="settings_summary_automation_auto">已开启 · 自动窗口</string>
+    <string name="settings_summary_network">%1$s · 应用%2$s</string>
+    <string name="settings_summary_mcp_off">MCP 关闭</string>
+    <string name="settings_summary_dev_on">开发者开</string>
+    <string name="settings_summary_dev_off">开发者关</string>
+    <string name="settings_summary_mcp_dev">%1$s · %2$s</string>
 
     <!-- 权限与反馈（导航壳） -->
     <string name="permission_save_image_denied">未授予图片保存权限</string>
@@ -89,4 +127,92 @@
     <string name="runtime_auto_wait">自动模式：等待分析与截图就绪</string>
     <string name="runtime_auto_settings_hint">可在设置中重新打开“每次运行需手动解锁窗口”。</string>
     <string name="runtime_error_title">需要处理</string>
+
+    <!-- 引导 -->
+    <string name="onboarding_top_title">欢迎使用 HZZS</string>
+    <string name="onboarding_step_counter">%1$d/%2$d</string>
+    <string name="onboarding_page0_title">认识 HZZS</string>
+    <string name="onboarding_page0_subtitle">本地分析工具，默认低权限</string>
+    <string name="onboarding_page1_title">隐私与边界</string>
+    <string name="onboarding_page1_subtitle">本机处理与风险说明</string>
+    <string name="onboarding_page2_title">选择赛季</string>
+    <string name="onboarding_page2_subtitle">甜甜圈或竹影书屋</string>
+    <string name="onboarding_page3_title">截图方式</string>
+    <string name="onboarding_page3_subtitle">AUTO 不升权</string>
+    <string name="onboarding_page4_title">外观</string>
+    <string name="onboarding_page4_subtitle">主题与悬浮窗（可预览）</string>
+    <string name="onboarding_page5_title">自动操作</string>
+    <string name="onboarding_page5_subtitle">默认关闭，需风险确认</string>
+    <string name="onboarding_page6_title">准备完成</string>
+    <string name="onboarding_page6_subtitle">保存配置并进入首页</string>
+    <string name="onboarding_intro_section">这是什么</string>
+    <string name="onboarding_intro_desc">本地画面分析，不是游戏官方产品</string>
+    <string name="onboarding_intro_p1">HZZS 在本机处理你授权的屏幕帧，输出障碍识别结果。不保证识别准确或持续兼容。</string>
+    <string name="onboarding_intro_p2">默认仅低权限分析。Root、Shizuku、自动操作与 MCP 完整访问须你主动开启。</string>
+    <string name="onboarding_privacy_section">隐私与免责</string>
+    <string name="onboarding_privacy_desc">继续前请确认边界</string>
+    <string name="onboarding_privacy_p1">屏幕帧默认仅在本机内存处理，不上传。只有你主动打开调试帧保存时才会落盘。</string>
+    <string name="onboarding_privacy_p2">自动操作、Root 与 Shell 能力有账号与设备风险，须自行判断。</string>
+    <string name="onboarding_privacy_p3">完成引导即表示接受当前版本免责声明。</string>
+    <string name="onboarding_season_section">选择赛季</string>
+    <string name="onboarding_season_desc">两个算法共享比例坐标，但障碍贴图与规则独立</string>
+    <string name="onboarding_capture_section">截图方式</string>
+    <string name="onboarding_capture_desc">默认推荐屏幕录制，不会自动请求 Root 或 Shell</string>
+    <string name="onboarding_capture_advanced_hint">Shizuku 与 Root 位于高级/开发者设置中，首次引导不会推荐它们。</string>
+    <string name="onboarding_appearance_section">主题与悬浮窗</string>
+    <string name="onboarding_appearance_desc">此处会立即预览，完成引导后才保存</string>
+    <string name="onboarding_label_theme">主题</string>
+    <string name="onboarding_label_overlay">悬浮窗</string>
+    <string name="onboarding_automation_section">自动操作</string>
+    <string name="onboarding_automation_desc">默认关闭，可稍后在设置中开启</string>
+    <string name="onboarding_automation_allow">允许自动操作</string>
+    <string name="onboarding_automation_hint">需要无障碍服务、风险确认和每次会话解锁。</string>
+    <string name="onboarding_finish_section">配置完成</string>
+    <string name="onboarding_finish_desc">点击完成后进入首页</string>
+    <string name="onboarding_finish_scene">赛季：%1$s</string>
+    <string name="onboarding_finish_capture">截图：%1$s</string>
+    <string name="onboarding_finish_theme">主题：%1$s</string>
+    <string name="onboarding_finish_overlay">悬浮窗：%1$s</string>
+    <string name="onboarding_finish_automation_on">自动操作：已启用，仍需会话解锁</string>
+    <string name="onboarding_finish_automation_off">自动操作：关闭</string>
+    <string name="onboarding_finish_footer">所有配置以后都能在设置中修改。修改会先临时预览，点击保存后才永久生效。</string>
+    <string name="onboarding_risk_title">自动操作风险提示</string>
+    <string name="onboarding_risk_body">自动操作会通过无障碍服务发送手势，可能因游戏更新、误识别、设备卡顿或规则变化产生错误操作。请勿在不能承担风险的账号或设备上使用。</string>
+    <string name="onboarding_risk_checkbox">我已阅读并理解风险</string>
+    <string name="onboarding_risk_wait">请等待 %1$ds</string>
+    <string name="onboarding_risk_confirm">确认开启</string>
+    <string name="onboarding_risk_keep_off">保持关闭</string>
+    <string name="scene_sweet_factory">甜甜圈赛季</string>
+    <string name="scene_bamboo_bookstore">竹影书屋赛季</string>
+
+    <!-- 关于 / 赞赏 -->
+    <string name="about_title">关于</string>
+    <string name="about_tagline">本地识别 · 多赛季障碍分析 · 高度自定义</string>
+    <string name="about_version_chip">版本 %1$s</string>
+    <string name="about_unlock_remaining">再点击 %1$d 次即可开启开发者设置</string>
+    <string name="about_unlock_done">开发者设置已开启</string>
+    <string name="about_developer_entry">开发者设置</string>
+    <string name="about_developer_entry_sub">诊断、MCP、截图覆盖、坐标网格与 Native Benchmark</string>
+    <string name="about_project_title">项目说明</string>
+    <string name="about_project_body">HZZS 用于火崽崽奇妙屋的本地画面分析。截图与识别默认仅在设备本地完成，不上传画面。自动操作高风险且默认关闭。</string>
+    <string name="about_disclaimer_title">免责声明</string>
+    <string name="about_disclaimer_body">第三方技术研究工具，与游戏及平台官方无关。请遵守规则与法律，并自行承担识别误差、自动操作与权限配置风险。</string>
+    <string name="about_support_title">支持开发</string>
+    <string name="about_wechat">微信</string>
+    <string name="about_alipay">支付宝</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_sub">源码、Issue 与版本记录</string>
+    <string name="about_license">开源许可</string>
+    <string name="about_license_sub">查看项目许可证</string>
+    <string name="about_donation_wechat">微信赞赏</string>
+    <string name="about_donation_alipay">支付宝赞赏</string>
+    <string name="about_donation_hint">可保存二维码到相册；长按图片也可快捷保存。</string>
+    <string name="about_donation_qr_cd">赞赏二维码</string>
+    <string name="about_open_link_failed">没有可打开此链接的应用</string>
+
+    <!-- 外观颜色 -->
+    <string name="color_hex_hint_ok">颜色预览会立即应用，保存后永久生效</string>
+    <string name="color_hex_hint_bad">格式：#RRGGBB 或 #AARRGGBB</string>
+    <string name="color_contrast_ok">与白底对比约 %1$.1f:1（AA 文本达标）</string>
+    <string name="color_contrast_warn">与白底对比约 %1$.1f:1（低于 4.5:1，正文可能难读）</string>
 </resources>

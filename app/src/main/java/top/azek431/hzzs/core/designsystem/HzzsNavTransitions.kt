@@ -61,3 +61,19 @@ fun HzzsMotionPolicy.sharedAxisXPopExit(): ExitTransition {
         targetOffsetX = offsetPx,
     ) + fadeOut(animationSpec = tween(durationMillis = exitMs))
 }
+
+/** 同层内容切换（引导步骤等）：短淡变；减少动效时 None。 */
+fun HzzsMotionPolicy.contentFadeEnter(): EnterTransition = fadeThroughEnter()
+
+fun HzzsMotionPolicy.contentFadeExit(): ExitTransition = fadeThroughExit()
+
+/**
+ * 引导前进：自右向左 shared-axis；后退请用 [contentStepBackwardEnter]/[contentStepBackwardExit]。
+ */
+fun HzzsMotionPolicy.contentStepForwardEnter(): EnterTransition = sharedAxisXEnter()
+
+fun HzzsMotionPolicy.contentStepForwardExit(): ExitTransition = sharedAxisXExit()
+
+fun HzzsMotionPolicy.contentStepBackwardEnter(): EnterTransition = sharedAxisXPopEnter()
+
+fun HzzsMotionPolicy.contentStepBackwardExit(): ExitTransition = sharedAxisXPopExit()

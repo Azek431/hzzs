@@ -8,6 +8,7 @@ package top.azek431.hzzs.feature.settings
 
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
 import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
@@ -61,8 +62,8 @@ private fun PreviewCategoryCard() {
     HzzsTheme(ThemeConfig()) {
         Surface {
             SettingsCategoryCard(
-                title = SettingsCategory.ALGORITHM.title,
-                description = SettingsCategory.ALGORITHM.description,
+                title = stringResource(SettingsCategory.ALGORITHM.titleRes),
+                description = stringResource(SettingsCategory.ALGORITHM.descriptionRes),
                 summary = SettingsCategory.ALGORITHM.summary(AppConfig(), previewAlgorithmState()),
                 icon = SettingsCategory.ALGORITHM.icon,
                 onClick = {},
@@ -111,7 +112,7 @@ private fun previewAlgorithmState() = AlgorithmCatalogState(
 )
 
 private fun previewPackage() = AlgorithmPackageInfo(
-    id = "builtin-hzzs-1.0.0",
+    id = "builtin-hzzs-base-2.0.0",
     name = "竹影书屋内置算法",
     versionName = "1.0.0",
     versionCode = 1000,
