@@ -31,6 +31,7 @@
 ### 变更
 
 - **构建性能**：`gradle.properties` 按 low-memory / 4 线程画像收紧 Daemon 堆与 worker；开启增量 kapt/Kotlin；支持 `hzzs.native.abis` 本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`。
+- 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。
 - 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **竹影书屋**（与历史 main 线默认一致）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。

@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AlgorithmConfig
 import top.azek431.hzzs.core.model.AlgorithmSelectionMode
+import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.UpdateSourcePreference
 import top.azek431.hzzs.core.update.UpdateSourceId
@@ -56,7 +57,7 @@ class AlgorithmCatalogController @Inject constructor(
     /** 来自设置草稿的算法配置（未保存也会驱动列表解析）。 */
     private var draftConfig: AlgorithmConfig = AlgorithmConfig()
     private var sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO
-    private var selectedScene: SceneId = SceneId.BAMBOO_BOOKSTORE
+    private var selectedScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE
 
     /**
      * 绑定设置页草稿上下文，重算 active / pending。

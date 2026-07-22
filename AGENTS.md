@@ -14,7 +14,7 @@
 | 最低 SDK | 24（Android 7.0） |
 | 目标 / 编译 SDK | 37 |
 | 版本 | **0.1.0** / `versionCode = 1`（首发目标，尚未正式 release） |
-| 默认赛季 | **竹影书屋** `SceneId.BAMBOO_BOOKSTORE` |
+| 默认赛季 | `AppConfig.DEFAULT_SELECTED_SCENE`（源码唯一真相；文档不写死赛季名） |
 | 模块 | **仅** `:app` |
 | 仓库 | [Azek431/hzzs](https://github.com/Azek431/hzzs) |
 

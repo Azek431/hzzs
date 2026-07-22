@@ -40,16 +40,16 @@
 | 包名 | `top.azek431.hzzs` |
 | 最低系统 | Android 7.0（API 24） |
 | 目标 / 编译 SDK | 37 |
-| 默认赛季 | **竹影书屋**（`BAMBOO_BOOKSTORE`） |
+| 默认赛季 | 见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（文档不写死，避免与代码漂移） |
 | 模块形态 | 单一 `app` Gradle 模块 |
-| 配置 schema | DataStore v5 |
+| 配置 schema | DataStore v6 |
 
 首要目标：低权限默认、Android 7+ 兼容、比例坐标适配、设置可回滚、算法结果可测试，以及让开发者和 AI 能快速理解并安全修改代码。
 
 ## 主要能力
 
 - 单一 `app` 模块，业务代码按职责分包（Compose + Hilt）。
-- 甜甜圈、竹影书屋两个赛季配置，共用比例坐标体系；**首次安装默认竹影书屋**。
+- 甜甜圈、竹影书屋两个赛季配置，共用比例坐标体系；首次安装默认赛季由 `AppConfig.DEFAULT_SELECTED_SCENE` 决定。
 - 默认识别全部障碍类别，可按赛季关闭具体类别。
 - 固定比例、启动检测一次、持续检测三种玩家基准策略。
 - **MediaProjection 默认截图**；`CaptureBackend.AUTO` 只选低权限公开接口，**不探测 Root / Shizuku / 无障碍**。
