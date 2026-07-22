@@ -3,11 +3,11 @@
   "configurations": [
     {
       "type": "java",
-      "name": "🐛 [HZZS] Android JDWP 调试",
+      "name": "🐛 [HZZS] Android JDWP 调试 (Debug 包)",
       "request": "attach",
       "hostName": "localhost",
       "port": 5005,
-      "preLaunchTask": "🔌 [HZZS] 调试前置：安装+启动+JDWP转发",
+      "preLaunchTask": "🔌 [HZZS] 调试前置：安装+启动+JDWP",
       "stopOnEntry": false,
       "sourceFileEncoding": "UTF-8",
       "skipClasses": [
@@ -15,7 +15,30 @@
         "java.*",
         "android.*",
         "com.android.*",
-        "org.apache.*"
+        "org.apache.*",
+        "kotlin.*",
+        "kotlinx.*",
+        "androidx.*"
+      ]
+    },
+    {
+      "type": "java",
+      "name": "🐛 [HZZS] 附加 JDWP（进程已在跑）",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005,
+      "preLaunchTask": "🔌 [HZZS] 仅转发 JDWP（已在运行）",
+      "stopOnEntry": false,
+      "sourceFileEncoding": "UTF-8",
+      "skipClasses": [
+        "javax.*",
+        "java.*",
+        "android.*",
+        "com.android.*",
+        "org.apache.*",
+        "kotlin.*",
+        "kotlinx.*",
+        "androidx.*"
       ]
     }
   ]
