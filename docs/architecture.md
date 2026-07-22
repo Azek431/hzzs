@@ -23,13 +23,14 @@ platform 仅通过接口向运行时暴露能力
 ## 运行时
 
 1. `FrameSourceFactory` 根据已保存后端创建截图源。
-2. `VisionRuntimeController` 获取帧、校验视口与配置并调用引擎。
+2. `VisionRuntimeController` **完成驱动**拉取最新帧（不再按固定 FPS 主动丢帧），校验视口与配置并调用引擎。
 3. `NativeVisionEngine` 经 `NativeVision` JNI 调用 C++，再映射为领域模型。
 4. `VisionResultValidator` 应用类别过滤、置信度与坐标不变量。
-5. `MultiObjectTracker` 做跨帧稳定。
-6. 结果进入持久 Canvas 悬浮窗；自动操作只有通过全部门控后才进入 `GestureArbiter`。
+5. `MultiObjectTracker` 做跨帧稳定；稳定帧序号按已分析帧计数，避免 CONFLATED/排空导致跳跃。
+6. Tracker 之后可为障碍附加仅 HUD 使用的 `displayContour`（近似模板，非 C++ 像素轮廓）；动作仍只读 `bounds`。
+7. 结果进入持久 Canvas 悬浮窗；若 HUD 已显示，取帧前临时 `INVISIBLE` 并等待一次显示提交，MediaProjection/AUTO 再排空可能含旧合成层的一帧后恢复 HUD。自动操作只有通过全部门控后才进入 `GestureArbiter`。
 
-帧循环是 native 引擎与 tracker 的**唯一所有者**。配置收集器只替换不可变快照。`generation` 令牌防止已停止会话的陈旧帧写回 UI。
+帧循环是 native 引擎与 tracker 的**唯一所有者**。配置收集器只替换不可变快照。`generation` 令牌防止已停止会话的陈旧帧写回 UI。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md`。
 
 ## 截图
 
