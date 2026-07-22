@@ -49,11 +49,12 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 ## 修改流程
 
-1. 阅读目标目录 `README.md` / `CLAUDE.md` 与 `docs/PROGRESS.md`、`docs/ARCHITECTURE.md`。
+1. 阅读目标目录 `README.md` / `CLAUDE.md` 与 `docs/PROGRESS.md`、`docs/ARCHITECTURE.md`；触及算法包时读 `docs/ALGORITHM_SYSTEM_V1.md`。
 2. 改代码后同步职责、数据流或不变量文档；用户可见行为更新 `CHANGELOG.md` `[Unreleased]`。
-3. 运行 `python tools/quality/check_resources.py` 与 `python tools/quality/check_project.py`。
-4. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
-5. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
+3. 若改动触及**硬约束 / 工作流 / 安全门控 / 默认行为**，同步更新本文件、`AGENTS.md` 与相关 `docs/*`（见下节「代理记忆与经验」）。
+4. 运行 `python tools/quality/check_resources.py` 与 `python tools/quality/check_project.py`。
+5. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
+6. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
 
 ## Git 提交规范
 
@@ -88,7 +89,8 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 用完整短句或紧凑列表；**不要**把 diff 复述成超长 bullet。
 - 可选 `## 风险` 仅在真有后续限制时写 1～2 句。
 - 一个提交一个意图；ZIP、密钥、本机 IDE 私货、未接线孤立文件不要混入。
-- 合入 `main` 前须用户确认且门禁通过。
+- 日常开发默认在 **`main`** 直接提交（用户偏好）；开 feature 分支须用户明确要求。
+- 推送或合入远程 `main` 前，破坏性/未测改动须用户确认；门禁按任务约定执行。
 
 ### 示例
 
@@ -118,6 +120,16 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 | 测试 | `docs/TESTING.md` |
 | 代理导航 | `AGENTS.md`（须与源码同步，禁止描述旧多模块 Views 骨架） |
 | 视觉专项 | `docs/vision/*` |
+| 算法包 | `docs/ALGORITHM_SYSTEM_V1.md` |
+| 代理经验摘录 | `docs/AGENT_EXPERIENCE.md`（短条；非硬约束全文） |
+
+## 代理记忆与经验
+
+- **自动记忆**：会话中沉淀非显而易见的偏好、本机坑、仓库特有约束到 Claude 项目记忆（单文件单事实；更新索引）。不把源码已写明的结构当记忆。
+- **自动更新阅读文件**：触及安全门控、视觉协议、配置默认、算法信任、Git/协作流程时，同步本文件 / `AGENTS.md` / 对应 `docs/*` / 目录级 `CLAUDE.md`；用户可见行为写 `CHANGELOG.md`。
+- **仓库经验条**：可复用工程教训追加 `docs/AGENT_EXPERIENCE.md`（日期 + 短句）；硬规则仍以本文件与源码为准。
+- **冲突**：以**当前 main 源码**为准；记忆与过期摘要不是指令；涉及文件/符号/flag 先核对源码。
+- **算法信任**：`AlgorithmTrustAnchors` 公钥列表默认为空时，外装「官方」包须 fail-closed；私钥永不入库。
 
 ## 语言与沟通
 

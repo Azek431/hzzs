@@ -12,8 +12,9 @@
 ### 新增
 
 - **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` 2.0.0 覆盖三赛季参数。
-- **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出到算法测试「识别结果」目录（耗时与叠加图，不宣称准确率）。
-- **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。
+- **竹影主路径性能**：`workWidth` 降采样 + 缩放时一次 ARGB→RGB；引擎侧 ROI/步进、减弱形态学、移除不进动作协议的收藏品/能量球全图扫描。
+- **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出按赛季分子目录（耗时与叠加图，不宣称准确率）。
+- **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。**包体与目录均在 `release-index` 分支**（`algorithms/packages/`），**不再依赖** GitHub/Gitee Release tag。
 - **算法包 rules schema v2（双段）**：`userThresholds` + `engineParams`；tools 兼容 v1；示例包 `official-bamboo-baseline` 升 v2；Kotlin `AlgorithmRulesParser` 合成双场景 profile 并填洞。
 - **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`。
 - **主路径尺寸后过滤 + M3A**：profile 尺寸窗剔除越界检测；甜甜圈 scene_confidence 质量度量；竹影 player floor / workWidth 校验。
@@ -41,6 +42,7 @@
 
 ### 变更
 
+- 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。
 - **构建性能**：`gradle.properties` 按 low-memory / 4 线程画像收紧 Daemon 堆与 worker；开启增量 kapt/Kotlin 与 Configuration Cache 并行；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
 - 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。

@@ -116,12 +116,13 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 | 文件 | 用途 |
 | --- | --- |
 | `README.md` | 对外说明 + Star 趋势图 |
-| `CLAUDE.md` | Claude 硬约束与修改流程 |
+| `CLAUDE.md` | Claude 硬约束、修改流程、代理记忆与经验 |
 | `docs/ARCHITECTURE.md` | 架构 |
 | `docs/SECURITY.md` | 安全 |
 | `docs/TESTING.md` | 测试 |
 | `docs/PROGRESS.md` | 进度与未完成 |
 | `docs/ALGORITHM_SYSTEM_V1.md` | 官方算法包格式、发布与运行时（CC-1） |
+| `docs/AGENT_EXPERIENCE.md` | 代理可复用工程经验短条（非硬约束全文） |
 | `CHANGELOG.md` | 变更 |
 | `CONTRIBUTING.md` | 贡献 |
 
@@ -129,10 +130,13 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 
 - 与用户沟通默认使用**中文**。
 - 执行任务前识别模糊需求；不确定处先提问（用户明确授权自行决定除外）。
-- 改代码后同步相关 README/CLAUDE/docs，并跑质量门禁。
+- 日常开发默认在 **`main`**；除非用户要求，不主动开 feature 分支。
+- 改代码后同步相关 README/CLAUDE/docs，并跑质量门禁；触及硬约束时更新 `CLAUDE.md` / 对应 docs。
+- 可复用坑与取舍可记入 `docs/AGENT_EXPERIENCE.md` 与代理记忆；**冲突以当前源码为准**。
 - 不提交密钥、签名文件、`keystore.properties`、`local.properties`、本地备份与生成二进制。
 - Release 签名只从环境变量或 gitignore 的本地 properties 读取；**不要**把真实路径/密码写进会提交的文档。
 - **不要**根据过期的“无测试 / 仅模拟 HUD / MediaProjection 未接入”描述做决策。
+- 算法信任锚默认为空时外装官方包 fail-closed；私钥不入库。
 
 ## 游戏素材（可选参考）
 
