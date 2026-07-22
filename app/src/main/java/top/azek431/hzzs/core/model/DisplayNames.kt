@@ -22,6 +22,24 @@ fun CaptureBackend.displayName(): String = when (this) {
     CaptureBackend.ROOT -> "Root"
 }
 
+/** 开发者强制截图后端的短标签（FilterChip）。 */
+fun CaptureBackend.developerLabel(): String = when (this) {
+    CaptureBackend.AUTO -> "自动"
+    CaptureBackend.MEDIA_PROJECTION -> "屏幕录制"
+    CaptureBackend.ACCESSIBILITY -> "无障碍"
+    CaptureBackend.SHIZUKU -> "Shizuku"
+    CaptureBackend.ROOT -> "Root"
+}
+
+/** 应用日志级别显示名。 */
+fun AppLogLevel.displayName(): String = when (this) {
+    AppLogLevel.VERBOSE -> "详细 (VERBOSE)"
+    AppLogLevel.DEBUG -> "调试 (DEBUG)"
+    AppLogLevel.INFO -> "信息 (INFO)"
+    AppLogLevel.WARN -> "警告 (WARN)"
+    AppLogLevel.ERROR -> "错误 (ERROR)"
+}
+
 /** MCP 权限级别显示名。 */
 fun McpPermissionLevel.displayName(): String = when (this) {
     McpPermissionLevel.READ_ONLY -> "只读"

@@ -88,5 +88,9 @@ object NativeVision {
 
     external fun activeAlgorithmGeneration(): Long
 
+    /**
+     * 重置 native 分析侧瞬时状态（若有）。
+     * **不**回退算法 profile，也**不**递增 generation；回退请 [configureAlgorithm] 传入 builtin。
+     */
     external fun reset()
 }
