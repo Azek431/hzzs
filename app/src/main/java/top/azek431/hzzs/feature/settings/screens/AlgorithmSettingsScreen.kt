@@ -4,7 +4,8 @@
  * 职责：选择自动/手动算法、赛季与识别阈值；展示远端/已安装算法卡。
  * 数据流：草稿经 [update]；检查/下载/取消/选用经 ViewModel 即时任务；
  * 算法字段预览被 baseline 锁定；识别赛季/阈值可预览热更新。
- * 边界：不直接网络/JNI；目录/下载当前为演示态（未接真实 .hzzsalg 安装器）。
+ * 边界：不直接网络/JNI；目录/下载经 ViewModel → AlgorithmCatalogController。
+ * 远端目录未发布或未配置信任锚时，仍可使用内置算法。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -148,7 +149,7 @@ fun AlgorithmSettingsScreen(
         item {
             SettingsWarningCard(
                 title = "算法网络与安装说明",
-                body = "目录走 HTTPS 双源；下载需 AlgorithmTrustAnchors 官方公钥与 Ed25519 验签后才落盘。未配置公钥时下载被拒绝。识别赛季/阈值可预览即时生效；算法选择保存后经 ActivationCoordinator 在安全点切换。",
+                body = "目录走 HTTPS 双源（release-index 分支 algorithms/{channel}.json）。若返回 404，表示远端尚未发布目录，属正常空态，请继续用内置算法。下载安装还需要 App 内置官方公钥（AlgorithmTrustAnchors）与 Ed25519 验签；未配置公钥时拒绝外装。识别赛季/阈值可预览即时生效；算法选择保存后经 ActivationCoordinator 在安全点切换。",
             )
         }
 
@@ -159,7 +160,7 @@ fun AlgorithmSettingsScreen(
             ) {
                 SettingsRadioCard(
                     title = "自动选择（推荐）",
-                    subtitle = "计划：自动使用当前场景下最新且兼容的官方算法。当前仅更新目录 UI，不激活引擎。",
+                    subtitle = "优先使用当前场景下已安装且兼容的最新算法；无外装时回退内置。远端目录刷新成功且开启自动下载时，才会尝试拉包（仍受信任锚约束）。",
                     selected = config.algorithm.selectionMode == AlgorithmSelectionMode.AUTO,
                     onClick = {
                         update {
@@ -175,7 +176,7 @@ fun AlgorithmSettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SettingsRadioCard(
                     title = "手动选择",
-                    subtitle = "从列表钉选版本并保存到配置；安装器接入前仍不会切换运行时引擎。",
+                    subtitle = "从已安装列表钉选版本并保存；分析运行中仅待启用，下次启动分析或保存后切换。",
                     selected = config.algorithm.selectionMode == AlgorithmSelectionMode.MANUAL,
                     onClick = {
                         update {
@@ -293,7 +294,14 @@ fun AlgorithmSettingsScreen(
             item {
                 SettingsEmptyState(
                     title = "暂无远端算法目录",
-                    body = "可以检查更新，或继续使用已安装 / 内置算法。网络失败时会保留本地缓存。",
+                    body = when (val phase = algorithmState.phase) {
+                        is AlgorithmCatalogPhase.Error ->
+                            phase.message.take(160)
+                        is AlgorithmCatalogPhase.OfflineWithCache ->
+                            phase.message.take(160)
+                        else ->
+                            "远端 algorithms 目录尚未发布或为空时属正常。可点检查更新；失败也不影响内置算法。"
+                    },
                     actionLabel = "检查更新",
                     onAction = onRefresh,
                 )
@@ -506,5 +514,7 @@ private fun obstaclesFor(scene: SceneId): List<ObstacleKind> = when (scene) {
 
 private fun formatTime(epochMs: Long): String =
     runCatching {
-        SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(epochMs))
+        // 本地时区 + 偏移，与诊断导出一致（避免假 UTC Z）。
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSXXX", Locale.CHINA)
+            .format(Date(epochMs))
     }.getOrDefault("—")

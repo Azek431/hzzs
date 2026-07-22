@@ -17,6 +17,7 @@ import javax.inject.Singleton
  *
  * 线程：configure 须在分析安全点（start 前 / 未运行时 save 后）。
  * 分析运行中仅记录 pending，不半热切换。
+ * 同步写入 [AlgorithmPipelineTrace] 供开发者流程页展示。
  */
 @Singleton
 class AlgorithmActivationCoordinator @Inject constructor(
@@ -42,19 +43,30 @@ class AlgorithmActivationCoordinator @Inject constructor(
      */
     fun onConfigCommitted(config: AlgorithmConfig, selectedScene: SceneId): Result<AlgorithmActivation> {
         val target = resolveCatalogId(config, selectedScene)
+        AlgorithmPipelineTrace.setContext(
+            catalogId = target,
+            selectionMode = config.selectionMode.name,
+            selectedScene = selectedScene.name,
+        )
         if (analysisRunning.get()) {
             pendingCatalogId.set(target)
+            AlgorithmPipelineTrace.markWarning(
+                "resolve",
+                "分析中，待下次 start 激活 catalog=$target mode=${config.selectionMode.name}",
+            )
             AppLog.i(
                 "algorithm",
-                "config committed while analyzing; pending=$target mode=${config.selectionMode.name}",
+                "config committed while analyzing; pending=$target mode=${config.selectionMode.name} " +
+                    "scene=${selectedScene.name} pinned=${config.pinnedAlgorithmId ?: "-"}",
             )
             return Result.success(engine.currentActivation())
         }
         AppLog.i(
             "algorithm",
-            "config committed; activating=$target mode=${config.selectionMode.name} scene=${selectedScene.name}",
+            "config committed; activating=$target mode=${config.selectionMode.name} " +
+                "scene=${selectedScene.name} pinned=${config.pinnedAlgorithmId ?: "-"}",
         )
-        return activateCatalog(target)
+        return activateCatalog(target, selectionMode = config.selectionMode.name, scene = selectedScene.name)
     }
 
     /**
@@ -63,34 +75,139 @@ class AlgorithmActivationCoordinator @Inject constructor(
     fun ensureConfigured(config: AlgorithmConfig, selectedScene: SceneId): Result<AlgorithmActivation> {
         val pending = pendingCatalogId.getAndSet(null)
         val target = pending ?: resolveCatalogId(config, selectedScene)
+        AlgorithmPipelineTrace.setContext(
+            catalogId = target,
+            selectionMode = config.selectionMode.name,
+            selectedScene = selectedScene.name,
+        )
         AppLog.i(
             "algorithm",
-            "ensureConfigured target=$target pendingWas=${pending ?: "-"} scene=${selectedScene.name}",
+            "ensureConfigured target=$target pendingWas=${pending ?: "-"} " +
+                "mode=${config.selectionMode.name} scene=${selectedScene.name} " +
+                "pinned=${config.pinnedAlgorithmId ?: "-"}",
         )
-        return activateCatalog(target)
+        return activateCatalog(target, selectionMode = config.selectionMode.name, scene = selectedScene.name)
     }
 
-    fun activateCatalog(catalogId: String): Result<AlgorithmActivation> {
-        val profile = store.getProfile(catalogId) ?: AlgorithmRuntimeProfile.builtin()
-        val usedBuiltinProfile = store.getProfile(catalogId) == null &&
-            !AlgorithmIds.isBuiltinCatalog(catalogId)
-        if (usedBuiltinProfile) {
-            AppLog.w("algorithm", "catalog missing id=$catalogId → fallback builtin profile")
+    fun activateCatalog(catalogId: String): Result<AlgorithmActivation> =
+        activateCatalog(catalogId, selectionMode = null, scene = null)
+
+    private fun activateCatalog(
+        catalogId: String,
+        selectionMode: String?,
+        scene: String?,
+    ): Result<AlgorithmActivation> {
+        AlgorithmPipelineTrace.beginActivationAttempt()
+        AlgorithmPipelineTrace.setContext(catalogId, selectionMode, scene)
+        AlgorithmPipelineTrace.markRunning("resolve", "catalogId=$catalogId")
+        AppLog.i("algorithm", "resolve catalogId=$catalogId")
+
+        val isBuiltin = AlgorithmIds.isBuiltinCatalog(catalogId)
+        val installed = if (isBuiltin) null else store.get(catalogId)
+        val profile: AlgorithmRuntimeProfile
+        val profileSource: String
+        when {
+            isBuiltin -> {
+                profile = AlgorithmRuntimeProfile.builtin()
+                profileSource = "builtin"
+                AlgorithmPipelineTrace.markSuccess(
+                    "resolve",
+                    "内置 catalog → runtime=${profile.algorithmId} v${profile.version}",
+                )
+                AlgorithmPipelineTrace.markSuccess(
+                    "profile",
+                    "builtin schema=${profile.schemaVersion} scenes=${profile.scenes.size}",
+                )
+            }
+            installed != null -> {
+                profile = installed.profile
+                profileSource = "installed"
+                AlgorithmPipelineTrace.markSuccess(
+                    "resolve",
+                    "已安装 ${installed.displayName} runtime=${installed.runtimeId} v${installed.version}",
+                )
+                AlgorithmPipelineTrace.markSuccess(
+                    "profile",
+                    "disk schema=${profile.schemaVersion} scenes=${profile.scenes.keys.joinToString { it.name }} " +
+                        "sha=${installed.sha256?.take(12) ?: "-"}",
+                )
+                AppLog.i(
+                    "algorithm",
+                    "profile loaded catalog=$catalogId runtime=${installed.runtimeId} " +
+                        "ver=${installed.version} code=${installed.versionCode} " +
+                        "scenes=${installed.supportedScenes.joinToString { it.name }}",
+                )
+            }
+            else -> {
+                profile = AlgorithmRuntimeProfile.builtin()
+                profileSource = "missing→builtin"
+                AlgorithmPipelineTrace.markWarning(
+                    "resolve",
+                    "catalog 缺失 id=$catalogId → 回退内置",
+                )
+                AlgorithmPipelineTrace.markWarning(
+                    "profile",
+                    "使用 builtin.hzzs.base（原 catalog 不存在）",
+                )
+                AppLog.w("algorithm", "catalog missing id=$catalogId → fallback builtin profile")
+            }
         }
+
+        AlgorithmPipelineTrace.markRunning("validate", "id=${profile.algorithmId}")
+        AlgorithmPipelineTrace.markRunning("activate", "source=$profileSource")
+        AlgorithmPipelineTrace.markRunning(
+            "native",
+            if (top.azek431.hzzs.nativevision.NativeVision.isAvailable) {
+                "JNI available"
+            } else {
+                "JNI unavailable"
+            },
+        )
+
         return engine.configureAlgorithm(profile).also { result ->
             result.onSuccess { activation ->
                 pendingCatalogId.set(null)
+                val sceneHint = scene?.let { " scene=$it" }.orEmpty()
                 AppLog.i(
                     "algorithm",
                     "activated id=${activation.profile.algorithmId} ver=${activation.profile.version} " +
-                        "gen=${activation.generation} builtinFallback=${activation.usingBuiltinFallback}",
+                        "gen=${activation.generation} builtinFallback=${activation.usingBuiltinFallback} " +
+                        "source=$profileSource schema=${activation.profile.schemaVersion}$sceneHint",
                 )
                 activation.loadError?.let { AppLog.w("algorithm", "activation loadError=$it") }
+                AlgorithmPipelineTrace.markSuccess(
+                    "validate",
+                    "ok id=${activation.profile.algorithmId} schema=${activation.profile.schemaVersion}",
+                )
+                AlgorithmPipelineTrace.markSuccess(
+                    "activate",
+                    "gen=${activation.generation} fallback=${activation.usingBuiltinFallback}",
+                )
+                if (top.azek431.hzzs.nativevision.NativeVision.isAvailable) {
+                    AlgorithmPipelineTrace.markSuccess(
+                        "native",
+                        "configured gen=${activation.generation}",
+                    )
+                } else {
+                    AlgorithmPipelineTrace.markWarning(
+                        "native",
+                        "库不可用，仅 Kotlin 激活",
+                    )
+                }
+                AlgorithmPipelineTrace.markSuccess(
+                    "ready",
+                    "可分析 id=${activation.profile.algorithmId} v${activation.profile.version}",
+                )
             }.onFailure { error ->
                 AppLog.e(
                     "algorithm",
-                    "activate failed catalogId=$catalogId: ${error.message ?: error.javaClass.simpleName}",
+                    "activate failed catalogId=$catalogId source=$profileSource: " +
+                        "${error.message ?: error.javaClass.simpleName}",
                     error,
+                )
+                AlgorithmPipelineTrace.markFailed(
+                    "ready",
+                    error.message?.take(200) ?: error.javaClass.simpleName,
                 )
             }
         }

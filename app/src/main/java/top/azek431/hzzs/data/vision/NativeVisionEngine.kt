@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.PlayerReferenceMode
 import top.azek431.hzzs.core.model.SceneConfig
@@ -121,7 +122,8 @@ class NativeVisionEngine @Inject constructor(
                 avoidance = avoidance,
             )
         }.toList()
-        VisionResultValidator.sanitize(
+        val rawCount = detections.size
+        val sanitized = VisionResultValidator.sanitize(
             VisionResult(
                 scene = config.sceneId,
                 sceneConfidence = native.sceneConfidence,
@@ -137,6 +139,34 @@ class NativeVisionEngine @Inject constructor(
             ),
             config,
         )
+        // 最近一帧摘要供流程页展示；不默认写 AppLog，避免刷屏。
+        val kindHistogram = sanitized.detections
+            .groupingBy { it.kind.name }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .joinToString(",") { "${it.key}:${it.value}" }
+        AlgorithmPipelineTrace.updateLastFrame(
+            top.azek431.hzzs.core.algorithm.AlgorithmLastFrameSummary(
+                epochMs = System.currentTimeMillis(),
+                scene = sanitized.scene.name,
+                sceneConfidence = sanitized.sceneConfidence,
+                hasPlayer = sanitized.player != null,
+                obstacleCount = sanitized.detections.size,
+                actionableCount = sanitized.actionableDetections.size,
+                kindHistogram = kindHistogram,
+                processingMs = sanitized.processingNanos / 1_000_000f,
+                algorithmId = sanitized.activeAlgorithmId,
+                algorithmVersion = sanitized.activeAlgorithmVersion,
+                generation = sanitized.algorithmGeneration,
+                usingBuiltinFallback = sanitized.usingBuiltinFallback,
+                loadError = sanitized.algorithmLoadError,
+                frameError = sanitized.error,
+                disabledObstaclesDropped = rawCount > sanitized.detections.size +
+                    (if (sanitized.player != null) 1 else 0),
+            ),
+        )
+        sanitized
     }
 
     /**
@@ -147,6 +177,10 @@ class NativeVisionEngine @Inject constructor(
      * 应由帧循环外或帧循环安全点调用，避免与 analyze 半热竞态。
      */
     override fun configureAlgorithm(profile: AlgorithmRuntimeProfile): Result<AlgorithmActivation> {
+        AlgorithmPipelineTrace.markRunning(
+            "validate",
+            "id=${profile.algorithmId} ver=${profile.version} schema=${profile.schemaVersion}",
+        )
         val validated = AlgorithmProfileValidator.validate(profile)
         if (validated.isFailure) {
             // 校验失败：默认回退内置，保证 NativeVision 仍可用。
@@ -155,25 +189,51 @@ class NativeVisionEngine @Inject constructor(
                 "algorithm",
                 "profile validate failed id=${profile.algorithmId}: $reason → builtin fallback",
             )
+            AlgorithmPipelineTrace.markFailed("validate", reason)
+            AlgorithmPipelineTrace.markRunning("activate", "fallback builtin after validate fail")
             val fallback = algorithmProvider.activate(
                 profile = AlgorithmRuntimeProfile.builtin(),
                 fallbackToBuiltinOnError = true,
             ).getOrElse {
                 algorithmProvider.activateBuiltin(reason)
             }
+            AlgorithmPipelineTrace.markWarning(
+                "activate",
+                "builtin gen=${fallback.generation} loadError=${fallback.loadError ?: "-"}",
+            )
             if (NativeVision.isAvailable) {
+                AlgorithmPipelineTrace.markRunning("native", "configure builtin fallback")
                 runCatching { NativeVision.configureAlgorithm(fallback.profile) }
-                    .onFailure { AppLog.e("algorithm", "native configure builtin failed", it) }
+                    .onSuccess {
+                        AlgorithmPipelineTrace.markWarning("native", "builtin configured after validate fail")
+                    }
+                    .onFailure {
+                        AppLog.e("algorithm", "native configure builtin failed", it)
+                        AlgorithmPipelineTrace.markFailed("native", it.message)
+                    }
+            } else {
+                AlgorithmPipelineTrace.markWarning("native", "JNI unavailable")
             }
             lastActivation.set(fallback)
             return Result.failure(IllegalArgumentException(reason))
         }
+        AlgorithmPipelineTrace.markSuccess(
+            "validate",
+            "ok id=${profile.algorithmId} scenes=${profile.scenes.size}",
+        )
+        AlgorithmPipelineTrace.markRunning("activate", "id=${profile.algorithmId}")
         val activation = algorithmProvider.activate(validated.getOrThrow(), fallbackToBuiltinOnError = false)
             .getOrElse { error ->
                 AppLog.e("algorithm", "kotlin activate failed: ${error.message}", error)
+                AlgorithmPipelineTrace.markFailed("activate", error.message)
                 return Result.failure(error)
             }
+        AlgorithmPipelineTrace.markSuccess(
+            "activate",
+            "gen=${activation.generation} fallback=${activation.usingBuiltinFallback}",
+        )
         if (NativeVision.isAvailable) {
+            AlgorithmPipelineTrace.markRunning("native", "configure id=${activation.profile.algorithmId}")
             val native = runCatching { NativeVision.configureAlgorithm(activation.profile) }
                 .getOrElse { error ->
                     val fallback = algorithmProvider.activateBuiltin(
@@ -185,6 +245,14 @@ class NativeVisionEngine @Inject constructor(
                         "algorithm",
                         "native configure threw; fallback builtin gen=${fallback.generation}",
                         error,
+                    )
+                    AlgorithmPipelineTrace.markFailed(
+                        "native",
+                        error.message?.take(160) ?: error.javaClass.simpleName,
+                    )
+                    AlgorithmPipelineTrace.markWarning(
+                        "activate",
+                        "rolled back builtin gen=${fallback.generation}",
                     )
                     return Result.failure(
                         IllegalStateException(fallback.loadError ?: "Native 配置失败"),
@@ -200,17 +268,25 @@ class NativeVisionEngine @Inject constructor(
                     "algorithm",
                     "native rejected profile id=${activation.profile.algorithmId}: ${native.error}",
                 )
+                AlgorithmPipelineTrace.markFailed("native", native.error.ifBlank { "rejected" })
                 return Result.failure(IllegalStateException(fallback.loadError ?: native.error))
             }
-            AppLog.d(
+            AppLog.i(
                 "algorithm",
-                "native configure ok id=${activation.profile.algorithmId} gen=${activation.generation}",
+                "native configure ok id=${activation.profile.algorithmId} " +
+                    "ver=${activation.profile.version} gen=${activation.generation} " +
+                    "nativeGen=${native.generation} builtinFlag=${native.usingBuiltinFallback}",
+            )
+            AlgorithmPipelineTrace.markSuccess(
+                "native",
+                "ok nativeGen=${native.generation} kotlinGen=${activation.generation}",
             )
         } else {
             AppLog.w(
                 "algorithm",
                 "native unavailable; kotlin-only activation id=${activation.profile.algorithmId}",
             )
+            AlgorithmPipelineTrace.markWarning("native", "JNI unavailable; kotlin-only")
         }
         lastActivation.set(activation)
         return Result.success(activation)
@@ -238,25 +314,51 @@ class NativeVisionEngine @Inject constructor(
         }
     }
 
-    /** 构造无检测的错误结果，仍带上当前算法元数据便于 UI/诊断。 */
     private fun errorResult(
         config: SceneConfig,
         activation: AlgorithmActivation,
         message: String,
         elapsed: Long = 0L,
-    ) = VisionResult(
-        scene = config.sceneId,
-        sceneConfidence = 0f,
-        player = null,
-        detections = emptyList(),
-        processingNanos = elapsed,
-        error = message,
-        activeAlgorithmId = activation.profile.algorithmId,
-        activeAlgorithmVersion = activation.profile.version,
-        algorithmGeneration = activation.generation,
-        usingBuiltinFallback = activation.usingBuiltinFallback,
-        algorithmLoadError = activation.loadError,
-    )
+    ): VisionResult {
+        val result = VisionResult(
+            scene = config.sceneId,
+            sceneConfidence = 0f,
+            player = null,
+            detections = emptyList(),
+            processingNanos = elapsed,
+            error = message,
+            activeAlgorithmId = activation.profile.algorithmId,
+            activeAlgorithmVersion = activation.profile.version,
+            algorithmGeneration = activation.generation,
+            usingBuiltinFallback = activation.usingBuiltinFallback,
+            algorithmLoadError = activation.loadError,
+        )
+        AlgorithmPipelineTrace.updateLastFrame(
+            top.azek431.hzzs.core.algorithm.AlgorithmLastFrameSummary(
+                epochMs = System.currentTimeMillis(),
+                scene = config.sceneId.name,
+                sceneConfidence = 0f,
+                hasPlayer = false,
+                obstacleCount = 0,
+                actionableCount = 0,
+                kindHistogram = "",
+                processingMs = elapsed / 1_000_000f,
+                algorithmId = activation.profile.algorithmId,
+                algorithmVersion = activation.profile.version,
+                generation = activation.generation,
+                usingBuiltinFallback = activation.usingBuiltinFallback,
+                loadError = activation.loadError,
+                frameError = message,
+                disabledObstaclesDropped = false,
+            ),
+        )
+        AppLog.w(
+            "algorithm",
+            "analyze error scene=${config.sceneId.name} id=${activation.profile.algorithmId} " +
+                "gen=${activation.generation}: $message",
+        )
+        return result
+    }
 
     /** 视口内归一化框 → 全屏归一化框；非法结果返回 null（fail-closed 丢弃）。 */
     private fun NormalizedRect.toFullScreen(viewport: ViewportConfig): NormalizedRect? =

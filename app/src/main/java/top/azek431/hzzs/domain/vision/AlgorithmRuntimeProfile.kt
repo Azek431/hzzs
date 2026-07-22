@@ -56,7 +56,8 @@ data class AlgorithmRuntimeProfile(
     companion object {
         const val SCHEMA_VERSION = 1
         const val BUILTIN_ID = "builtin.hzzs.base"
-        const val BUILTIN_VERSION = "2.0.0"
+        /** 首版内置算法语义化版本；与 [top.azek431.hzzs.core.algorithm.AlgorithmIds.BUILTIN_VERSION] 对齐。 */
+        const val BUILTIN_VERSION = "0.1.0"
 
         private const val MAX_ID_LEN = 64
         private const val MAX_VERSION_LEN = 32

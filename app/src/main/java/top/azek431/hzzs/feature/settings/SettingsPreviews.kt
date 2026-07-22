@@ -112,10 +112,10 @@ private fun previewAlgorithmState() = AlgorithmCatalogState(
 )
 
 private fun previewPackage() = AlgorithmPackageInfo(
-    id = "builtin-hzzs-base-2.0.0",
+    id = "builtin-hzzs-base-0.1.0",
     name = "竹影书屋内置算法",
-    versionName = "1.0.0",
-    versionCode = 1000,
+    versionName = "0.1.0",
+    versionCode = 100,
     channel = AlgorithmChannel.STABLE,
     summary = "随应用分发的默认竹影识别引擎。",
     supportedScenes = setOf(SceneId.BAMBOO_BOOKSTORE),

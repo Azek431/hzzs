@@ -72,9 +72,17 @@ class AlgorithmNetworkClient @Inject constructor(
                 }
                 break
             }
-            lastError = result.exceptionOrNull()?.message
+            val error = result.exceptionOrNull()
+            val code = error?.message
+                ?.substringAfter("HTTP ", missingDelimiterValue = "")
+                ?.takeWhile { it.isDigit() }
+                ?.toIntOrNull()
+            lastError = friendlyNetworkError(url, code, error)
         }
-        val source = active ?: error(lastError ?: "Gitee 与 GitHub 算法目录均不可用")
+        val source = active ?: error(
+            lastError
+                ?: "Gitee 与 GitHub 的 algorithms/$path 均不可用；请继续使用内置算法，或稍后在 release-index 发布目录后再检查。",
+        )
         val text = body ?: error("目录为空")
         val remote = parseCatalog(text, channel, source)
         RemoteCatalog(
@@ -251,6 +259,19 @@ class AlgorithmNetworkClient @Inject constructor(
             }
         } finally {
             connection.disconnect()
+        }
+    }
+
+    /** 把 HTTP/网络异常转成用户可读中文原因，避免只显示「HTTP 404」。 */
+    private fun friendlyNetworkError(url: String, code: Int?, cause: Throwable?): String {
+        val host = runCatching { URL(url).host }.getOrDefault("更新源")
+        return when (code) {
+            404 -> "算法目录尚未发布（$host 返回 404）。当前可继续使用内置算法；完整外装需先在 release-index 发布 algorithms/{channel}.json。"
+            403 -> "算法目录访问被拒绝（$host HTTP 403）。"
+            in 500..599 -> "算法目录服务暂时不可用（$host HTTP $code）。"
+            null -> cause?.message?.takeIf { it.isNotBlank() }?.let { "网络错误：$it" }
+                ?: "网络不可用"
+            else -> "拉取算法目录失败（$host HTTP $code）"
         }
     }
 

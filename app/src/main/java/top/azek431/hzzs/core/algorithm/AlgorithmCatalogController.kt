@@ -524,18 +524,19 @@ class AlgorithmCatalogController @Inject constructor(
     }
 
     private fun builtinPackages(): List<AlgorithmPackageInfo> {
-        val now = 1_750_000_000_000L
+        // versionCode 与语义化 0.1.0 对齐：major*1e6 + minor*1e3 + patch
+        val versionCode = 100L
         return listOf(
             AlgorithmPackageInfo(
                 id = AlgorithmIds.BUILTIN_CATALOG_ID,
                 name = "内置算法",
                 versionName = AlgorithmIds.BUILTIN_VERSION,
-                versionCode = 1_000,
+                versionCode = versionCode,
                 channel = AlgorithmChannel.STABLE,
-                summary = "随应用分发的双赛季默认识别引擎（runtime ${AlgorithmIds.BUILTIN_RUNTIME_ID}）。",
+                summary = "随应用分发的三赛季默认识别引擎（runtime ${AlgorithmIds.BUILTIN_RUNTIME_ID} v${AlgorithmIds.BUILTIN_VERSION}）。",
                 supportedScenes = SceneId.entries.toSet(),
                 minAppVersionCode = 1,
-                publishedAtEpochMs = now,
+                publishedAtEpochMs = 0L,
                 sizeBytes = 0,
                 origin = AlgorithmOrigin.BUILTIN,
                 signature = AlgorithmSignatureState.OFFICIAL,

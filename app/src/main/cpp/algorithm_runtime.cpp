@@ -202,7 +202,8 @@ SceneAlgorithmParamsNative sea_salt_builtin_params() {
 AlgorithmRuntimeProfileNative make_builtin_profile(int64_t generation) {
     AlgorithmRuntimeProfileNative profile{};
     copy_cstr(profile.algorithm_id, sizeof(profile.algorithm_id), "builtin.hzzs.base");
-    copy_cstr(profile.version, sizeof(profile.version), "2.0.0");
+    // 与 Kotlin AlgorithmRuntimeProfile.BUILTIN_VERSION / AlgorithmIds.BUILTIN_VERSION 对齐。
+    copy_cstr(profile.version, sizeof(profile.version), "0.1.0");
     profile.schema_version = kAlgorithmSchemaVersion;
     profile.is_builtin = 1;
     profile.generation = generation;
