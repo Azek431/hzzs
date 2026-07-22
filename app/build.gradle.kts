@@ -79,6 +79,23 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// 本机可用 -Phzzs.native.abis=arm64-v8a 或 gradle.properties 加速 Debug 原生编译。
+// 未设置时保持完整 ABI，避免发布/CI 漏架构。
+val configuredNativeAbis: List<String> = (
+    providers.gradleProperty("hzzs.native.abis").orNull
+        ?: providers.environmentVariable("HZZS_NATIVE_ABIS").orNull
+        ?: "arm64-v8a,armeabi-v7a,x86_64"
+    )
+    .split(',')
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+    .distinct()
+val allowedNativeAbis = setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+require(configuredNativeAbis.isNotEmpty()) { "hzzs.native.abis must not be empty" }
+require(configuredNativeAbis.all { it in allowedNativeAbis }) {
+    "Unsupported ABI in hzzs.native.abis: $configuredNativeAbis (allowed=$allowedNativeAbis)"
+}
+
 android {
     namespace = "top.azek431.hzzs"
     compileSdk = 37
@@ -100,11 +117,28 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags += listOf("-std=c++17", "-Wall", "-Wextra", "-Werror")
+                // RTTI 未使用；异常需保留（jni_bridge 捕获 bad_alloc）。
+                cppFlags += listOf(
+                    "-std=c++17",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-fno-rtti",
+                    "-fvisibility=hidden",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                )
+                // 不覆盖 ANDROID_STL（沿用 AGP/NDK 默认）；仅声明标准与异常能力。
+                arguments += listOf(
+                    "-DANDROID_CPP_FEATURES=exceptions",
+                    "-DCMAKE_CXX_STANDARD=17",
+                    "-DCMAKE_CXX_STANDARD_REQUIRED=ON",
+                )
             }
         }
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters.clear()
+            abiFilters += configuredNativeAbis
         }
     }
 
@@ -129,13 +163,25 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // Debug 仍链接可调试符号；原生优化留给 CMake Debug 配置
+            isJniDebuggable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isJniDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
+            }
+            externalNativeBuild {
+                cmake {
+                    // Release 原生：O3 + 段回收，体积与热路径速度兼顾
+                    cppFlags += listOf("-O3", "-DNDEBUG")
+                    arguments += listOf("-DCMAKE_BUILD_TYPE=Release")
+                }
             }
         }
     }
@@ -164,6 +210,10 @@ android {
     }
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
+        // 现代压缩 .so，减小 APK 与安装 I/O
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
 
