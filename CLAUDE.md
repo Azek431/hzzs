@@ -59,6 +59,12 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 6. 运行相关 JVM 单测；涉及 native 时跑宿主机/Native 门禁；再视范围跑 `:app:testDebugUnitTest` / `lintDebug` / `assembleDebug`。
 7. 未验证的算法补丁、本地 ZIP、孤立头文件**不要**与无关 UI 改动混提交或合入 main。
 
+### 本机构建注意（非产品行为）
+
+- Hilt 使用 **KSP**（`com.google.devtools.ksp` + `ksp(libs.hilt.compiler)`），**不要**再引入 `legacy-kapt` / `kapt`。
+- 日常真机 Debug：`gradle.local.properties` 的 `hzzs.native.abis=arm64-v8a` + `CMAKE_BUILD_PARALLEL_LEVEL=2`；CI/发布保持默认完整 ABI。
+- Kotlin IC 损坏（`*classpath-snapshot*.bin`）或 daemon 被 stop：`tools/dev/repair_gradle_kotlin_cache.ps1`；全量 unit test 在 low-memory profile + IDE 下可能 OOM，优先缩范围。
+
 ## Git 提交规范
 
 正文使用 **Markdown**，**适度详细**：说清动机、关键改动、不变量与验证即可，避免长篇清单与重复。
@@ -198,47 +204,88 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 - 包下载：遵守 `UpdateConfig.wifiOnly`。  
 - `algorithm.autoCheck`：启动时可刷新目录；`autoDownload`：仅在有信任锚时尝试下最新兼容包。
 
+### 版本号与通道（算法包语义化版本）
+
+算法包版本写在 **`algorithm-packs/<id>/manifest.json` 的 `version`**，与 **App 的 `0.1.0` / versionCode 相互独立**。  
+格式：`MAJOR.MINOR.PATCH`（可加预发布后缀，如 `0.2.0-beta.1`，仅建议上 **beta** 通道）。
+
+| 变更类型 | 版本怎么加 | 典型场景 |
+| --- | --- | --- |
+| **首版** | 固定从 **`0.1.0`** 起（产品约定；官方示例包同此） | 首次对外可检测/可安装的算法包 |
+| **补丁** | `PATCH +1`（`x.y.z` → `x.y.(z+1)`） | 修阈值/文案/小回归、兼容修复、changelog 勘误 |
+| **次要** | `MINOR +1`，`PATCH` 归零（`x.y.z` → `x.(y+1).0`） | 完整一波识别改进、新场景参数段、行为可感知的一轮交付 |
+| **主要** | `MAJOR +1`，`MINOR/PATCH` 归零 | 破坏性 schema、不兼容旧引擎 API、强制抬 `minimumAppVersionCode` / `engineApiVersion` |
+
+**硬规则（代理必须遵守）：**
+
+1. **禁止「改完就先 bump」**。顺序永远是：改内容 → **验证全过** → 再改 `manifest.version`（及 `CHANGELOG.txt`）→ 再打包/发布。  
+2. **验证未通过不得升高版本号、不得 `--execute` 上传**。  
+3. 用户未指定时：默认按上表推断；有歧义先问（补丁 vs 次要）。  
+4. **通道**（与版本独立，用户可选）：  
+   - **`beta`（测试）**：实验、预发布后缀、未充分真机验证 → `algorithms/beta.json`  
+   - **`stable`（稳定）**：验证通过且用户确认可给大众 → `algorithms/stable.json`  
+5. App 设置已有 **算法通道 STABLE / BETA**（`AlgorithmConfig.channel`）；用户自选订阅。代理 `--channel` 须与用户意图一致，**不得**把未验证包写进 stable。  
+6. 同一 `(id, version)` 不可重复；修正已发布错误应 **升 PATCH 再发**，禁止静默改同版本包体哈希。
+
+### 发布前验证门禁（通过后才允许 bump + 发布）
+
+| 级别 | 命令 / 动作 | 何时必须 |
+| --- | --- | --- |
+| L0 包结构 | `python tools/algorithm/validate_algorithm_pack.py --source <源树>`（或等价） | 任何 pack 改动 |
+| L1 工具链单测 | `python -m unittest discover -s tools/algorithm/tests -v` | 任何 pack/tools 改动 |
+| L2 项目门禁 | `python tools/quality/check_resources.py` 与 `check_project.py` | 默认真发前；仅改 packs 也建议 |
+| L3 引擎相关 | 动 `engineParams` 或识别行为时：相关 JVM 单测；有条件 native/代表帧/批跑 | 识别行为变更 |
+| L4 真机 | 装包激活无崩溃、无明显误动作（与用户确认） | 上 **stable** 前强烈建议 |
+
+失败时修问题并**保持原 version**，不得为过门禁跳过断言。
+
 ### 代理如何帮用户「发布算法更新」（推荐流程）
 
-用户说「发算法包 / 更新算法目录 / 让应用能检查到」时，代理按下列步骤执行；**不得**再创建 `alg-…` Release tag（产品已改为 B：无 tag）。
+用户说「发算法包 / 更新算法目录 / 让应用能检查到 / 修完发一版」时执行下列步骤；**不得**再创建 `alg-…` Release tag（产品 B：无 tag）。
 
 #### 0. 确认前置
 
-- [ ] 用户明确要 **dry-run** 还是 **`--execute` 真上传**
-- [ ] 通道：`stable` 或 `beta`
-- [ ] 源树路径（默认示例：`algorithm-packs/official-bamboo-baseline`）
-- [ ] 若真上传：环境是否有 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（用户本机或 CI，**不要**让用户把私钥贴进聊天）
-- [ ] 客户端是否已配置 `AlgorithmTrustAnchors`；若仍为空，须告知「目录可更新，手机仍装不上外装包」
+- [ ] **dry-run** 还是 **`--execute` 真上传**
+- [ ] 通道：`stable` 或 `beta`（未说清时实验默认 **beta**；明确「正式/稳定」才 stable）
+- [ ] 版本意图：补丁 `+0.0.1` / 次要 `+0.1.0` / 主要 `+1.0.0`（或目标版本号）
+- [ ] 源树（默认：`algorithm-packs/official-bamboo-baseline`）
+- [ ] 真上传：本机/CI 是否有 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（**禁止**用户把私钥贴进聊天）
+- [ ] `AlgorithmTrustAnchors` 是否已配置；若空须告知「目录可更新，手机仍装不上外装包」
 
-#### 1. 改包内容（若需要）
+#### 1. 改包内容（若需要）— **先不改 version**
 
-- 改 `algorithm-packs/<id>/` 下 `manifest.json` / `rules.json`（**schema v2 双段**：`userThresholds` + `engineParams`）/ `CHANGELOG.txt`
-- `manifest.version` 递增；`rules` 经 `tools/algorithm` 校验
-- 跑：`python -m unittest discover -s tools/algorithm/tests -v`
-- 跑：`python tools/quality/check_project.py`（若只动 packs/tools 仍建议跑）
+- 改 `rules.json`（schema v2：`userThresholds` + `engineParams`）等  
+- **不要**先改 `manifest.version`
 
-#### 2. 本地构建与 dry-run 发布
+#### 2. 跑验证门禁（L0–L3；stable 确认 L4）
+
+- 全过 → 步骤 3；失败 → 修复重跑，**不 bump、不上传**
+
+#### 3. 验证通过后：递增版本 + changelog
+
+- 按上表改 `manifest.json` 的 `version`  
+- 更新 `CHANGELOG.txt`（禁止准确率吹嘘）  
+- 再跑 L0 确认版本合法  
+
+#### 4. 本地 dry-run 发布
 
 ```powershell
-# 仅本地打包签名与目录生成，不上传（默认）
 python tools/algorithm/publish_algorithm_release.py `
   --source algorithm-packs/official-bamboo-baseline `
   --work-dir build/algorithm-release `
-  --channel stable `
+  --channel beta `
   --private-key <用户本机密钥路径> `
   --key-id hzzs-algorithm-official-1
 ```
 
-期望日志含：`would upload algorithms/packages/…`、`would publish catalog … algorithms/stable.json`，**不得**再出现创建 GitHub release / `alg-` tag。
+期望：`would upload algorithms/packages/…`、`would publish catalog … algorithms/beta.json`（或 stable）；**不得**出现 create GitHub release / `alg-` tag。
 
-无密钥时仍可：`validate_algorithm_pack` + `build_algorithm_pack` 校验源树与未签名包。
-
-#### 3. 真发布（仅用户明确要求）
+#### 5. 真发布（用户明确 + 门禁已过）
 
 ```powershell
-$env:GH_TOKEN = "…"          # 或 GITHUB_TOKEN；用户自行设置，勿写入仓库
+$env:GH_TOKEN = "…"
 $env:GITEE_TOKEN = "…"
-$env:ALGORITHM_SIGNING_PRIVATE_KEY_B64 = "…"   # 或 --private-key
+$env:ALGORITHM_SIGNING_PRIVATE_KEY_B64 = "…"
 $env:ALGORITHM_SIGNING_KEY_ID = "hzzs-algorithm-official-1"
 
 python tools/algorithm/publish_algorithm_release.py `
@@ -248,34 +295,31 @@ python tools/algorithm/publish_algorithm_release.py `
   --execute
 ```
 
-成功标准：
+成功：packages 有新 filename；双侧 raw hash 一致且验签过；**最后**目录 JSON 含新 version。
 
-1. `release-index` 上存在 `algorithms/packages/<filename>`
-2. 双侧 raw 匿名下载 hash 一致且验签通过
-3. **最后** `algorithms/stable.json`（或 beta）已更新
+#### 6. 首次「手机能装」
 
-#### 4. 首次启用「手机能装」时
+1. 公钥 DER base64 写入 `AlgorithmTrustAnchors.officialPublicKeyDerB64`  
+2. 发一版应用；之后只更 `release-index` 即可让新 APK 用户检查到算法  
+3. 私钥只留 CI/本机  
 
-1. 从发布产物取 `algorithm-public-key.der.b64`（或 `sign_algorithm_pack.py generate-key` 的公钥 DER base64）
-2. 写入 `app/.../core/algorithm/AlgorithmTrustAnchors.kt` 的 `officialPublicKeyDerB64`
-3. 发一版 **应用**（信任锚在 APK 内）；之后仅更新 `release-index` 即可让**已安装新 APK 的用户**检查到算法包
-4. 私钥只留 CI/本机安全存储
+#### 7. 用户侧验证
 
-#### 5. 用户侧验证清单
-
-- 设置 → 网络/算法：手动检查算法 → 列表出现新 `version`
-- 下载：有信任锚则验签安装；无锚则安全拒绝
-- 保存/启动分析后 `VisionResult.activeAlgorithmId` 为 `pack.<id>` 或内置 id
-- 未发布目录时检查失败/空列表是**预期**
+- 设置算法通道与发布 `--channel` 一致  
+- 检查到新 version；有锚可装，无锚拒绝  
+- 激活后 `activeAlgorithmId` 为 `pack.<id>` 或内置  
 
 ### 代理禁止事项
 
-- 为算法更新去建 GitHub/Gitee **Release tag**（除非用户明确改回旧协议）
-- 把私钥、token、keystore 写入仓库、文档示例真值、或 CHANGELOG
-- 在目录 JSON 中写入任意 http(s) 下载 URL
-- 宣称「push main 就会自动算法更新」（必须更新 `release-index` 目录/包）
-- 跳过验签或「信任包内公钥即可安装」
-- 把算法发布与无关 UI 大改混在同一提交
+- 为算法更新建 **Release tag**（除非用户改回旧协议）  
+- **验证未通过就 bump 或 `--execute`**  
+- 未验证包发 **stable**  
+- 私钥/token/keystore 入库或进对话日志  
+- 目录 JSON 写任意外链 URL  
+- 宣称「push main 即算法更新」  
+- 跳过验签 / 只信包内公钥  
+- 算法发布与无关 UI 混提交  
+- 同 `(id, version)` 改包体哈希
 
 ### 与 APK 更新的区别（勿混）
 

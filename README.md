@@ -54,10 +54,11 @@
 - 固定比例、启动检测一次、持续检测三种玩家基准策略。
 - **完成驱动取帧**（非固定 FPS 丢帧）；**MediaProjection 默认截图**；`CaptureBackend.AUTO` 只选低权限公开接口，**不探测 Root / Shizuku / 无障碍**。
 - 无障碍、Shizuku、Root 仅由用户主动选择（Shizuku 适配器见进度文档）。
-- 极简、紧凑、调试 HUD 三种悬浮窗；HUD 可显示近似轮廓（仅显示，不参与动作几何）。
+- 极简、紧凑、调试 HUD 三种悬浮窗；**双层绘制**（穿透检测框 + 可拖 HUD 同时存在）；HUD 可显示近似轮廓（仅显示，不参与动作几何）。
+- 设置 / 首次引导 / 运行页提供系统悬浮窗与无障碍权限状态与跳转；缺系统悬浮窗权限时分析可继续，但不绘制。
 - Material 3 内置主题、动态取色、AMOLED、高对比、自定义颜色与 `.hzzstheme` 主题包；动效受应用「减少动效 / 动画强度」与系统 animator 倍率约束。
 - 设置修改可临时预览；取消或离开恢复；点击保存后永久生效。权限型设置（截图后端、MCP、自动操作、算法等）不在预览阶段启动。
-- 首次启动引导、简体中文免责声明、自动操作风险等待确认与**会话解锁（arm）**。
+- 首次启动引导（含可选系统权限步骤）、简体中文免责声明、自动操作风险等待确认与**会话解锁（arm）**。
 - 关于页连续点击版本号 7 次解锁开发者设置；可选诊断导出（脱敏，不含 Bearer）。
 - MCP 本地服务：只读 / 每次确认 / 会话信任 / 完整访问四级权限。
 - 声明式算法包（验签安装；官方信任锚未发布时外装 fail-closed）；内置算法回退。
@@ -74,7 +75,7 @@
 | Shizuku | 高级 | 否 | 用户显式选择；经 Shizuku 执行 `screencap -p`（需安装/启动/授权） |
 | Root | Root 设备 | 否 | 每帧执行受超时和大小限制的 `screencap`，兼容性和风险最高 |
 
-应用不会自动调用 `su`、自动启动 Shizuku、自动开启无障碍，也不能绕过 Android 系统授权界面。
+应用不会自动调用 `su`、自动启动 Shizuku、自动开启无障碍或悬浮窗，也不能绕过 Android 系统授权界面。录屏在开始分析时由系统对话框授予；悬浮窗与无障碍须进入系统设置。
 
 ## MCP
 
@@ -111,7 +112,7 @@ tools/              质量检查、视觉回归和发布工具
 FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
   → NativeVisionEngine (JNI)
   → VisionResultValidator → MultiObjectTracker
-  → displayContour（仅 HUD，可选）→ OverlayController
+  → displayContour（仅 HUD，可选）→ OverlayController（双层：穿透框 + 可拖 HUD）
   → (arm 后) GestureArbiter → 无障碍手势
 ```
 
@@ -157,6 +158,16 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 ```
 
 项目已开启 Build Cache 与 Configuration Cache。若本机 `GRADLE_USER_HOME/gradle.properties` 写了 `org.gradle.configuration-cache=false`，会覆盖项目设置——**请注释掉该行**，否则配置阶段每次都全量重算。
+
+依赖注入使用 **Hilt + KSP**（无 kapt 双编译）。根 `gradle.properties` 按约 low-memory profile / 4 线程收紧 Daemon/Kotlin 堆与 `workers.max=2`；空闲内存充足时在 `%GRADLE_USER_HOME%\gradle.properties` 覆盖堆（`gradle.local.properties` 仅读 `hzzs.*` 如 ABI）。
+
+Kotlin 增量损坏（`*classpath-snapshot*.bin` 找不到）或 daemon 被 stop 时：
+
+```powershell
+.\tools\dev\repair_gradle_kotlin_cache.ps1 -Compile
+```
+
+可用内存过低时先释放 IDE/语言服务再构建；详见 [`docs/testing.md`](docs/testing.md)。
 
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`
 

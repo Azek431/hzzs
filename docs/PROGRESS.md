@@ -44,6 +44,7 @@
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 完成驱动取帧 + HUD 临时隐身 + 近似显示轮廓 | 已落地（非 C++ 像素轮廓；动作仍只读 bounds） |
+| P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
 | P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导步骤/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
 | P2 | 开发者设置补齐 + AppLog ring buffer + 诊断导出 | 已落地（设置/关于对齐；无文件日志；HUD 性能叠层未做） |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |

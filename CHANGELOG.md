@@ -11,7 +11,9 @@
 
 ### 新增
 
+- **系统权限引导与悬浮窗双层绘制**：设置/引导/运行页可查看并跳转系统悬浮窗与无障碍设置；`RuntimeStatus.overlayBlockReason` 区分权限/关闭/加窗失败；`OverlayController` 双 Window（穿透检测框 + 可拖 HUD 同时存在）；缺权限时分析不中断并给出可行动提示。
 - **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` 2.0.0 覆盖三赛季参数。
+- **海盐召回修复**：宿主批跑 kind 掩码 `0xFF`→`0x7FF`（原先静默关掉海盐三类）；海盐专用尺寸后过滤；玩家失败仍用固定框继续扫；海坑改为「地面线下方非木地板列 + 暗/水色」；船锚每帧最多一个并提高金属门槛。
 - **竹影主路径性能**：`workWidth` 降采样 + 缩放时一次 ARGB→RGB；引擎侧 ROI/步进、减弱形态学、移除不进动作协议的收藏品/能量球全图扫描。
 - **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出按赛季分子目录（耗时与叠加图，不宣称准确率）。
 - **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。**包体与目录均在 `release-index` 分支**（`algorithms/packages/`），**不再依赖** GitHub/Gitee Release tag。
@@ -44,7 +46,7 @@
 
 - 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；改完须同步 `README.md`（**保留 Star History**）与 `CLAUDE.md`；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。
-- **构建性能**：`gradle.properties` 按 low-memory / 4 线程画像收紧 Daemon 堆与 worker；开启增量 kapt/Kotlin 与 Configuration Cache 并行；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
+- **构建性能**：Hilt 从 legacy-kapt 迁至 **KSP**（去掉 stub 双编译）；`gradle.properties` 按 low-memory / 4 线程再收紧 Daemon/Kotlin 堆与 `workers.max=2`；`tools/dev/repair_gradle_kotlin_cache.ps1` 修复 IC 损坏；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
 - 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。
 - 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **海盐客厅**（`AppConfig.DEFAULT_SELECTED_SCENE`，产品默认永远指向当前最新赛季）。

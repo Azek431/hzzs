@@ -24,6 +24,8 @@
 
 - **检测更新**：读 `release-index` 的 `algorithms/stable.json|beta.json`，不是扫 Release。
 - **下载**：`algorithms/packages/<filename>` 的 raw URL（Gitee/GitHub 双源）。
+- **版本**：`manifest.json` 语义化 `MAJOR.MINOR.PATCH`（**首版 `0.1.0`**；与 App `0.1.0` 独立）。修一点 → `+PATCH`；完整一波 → `+MINOR`；破坏性 → `+MAJOR`。**先验证门禁通过再 bump**，禁止先改版本再测。
+- **通道**：`beta` 测试 / `stable` 稳定；用户设置 `AlgorithmConfig.channel` 自选；未验证勿上 stable。
 - **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。
 - **信任锚**：`AlgorithmTrustAnchors`；公钥空则外装 fail-closed。私钥永不入库。
 - **完整步骤与 AI 代发流程**：根目录 `CLAUDE.md` 节「算法包网络更新」；规范 `docs/ALGORITHM_SYSTEM_V1.md`。
@@ -35,6 +37,8 @@ python tools/quality/check_resources.py
 python tools/quality/check_project.py
 .\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
+
+本机 Debug 加速与 IC 修复：`gradle.local.properties`（`hzzs.native.abis=arm64-v8a`）、`CMAKE_BUILD_PARALLEL_LEVEL=2`、`tools/dev/repair_gradle_kotlin_cache.ps1`。Hilt 使用 **KSP**（非 kapt）。详见 `docs/testing.md` / README「本机构建加速」。
 
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`（包名 `top.azek431.hzzs.debug`）
 
@@ -63,7 +67,7 @@ top.azek431.hzzs/
 ├─ data/vision/    VisionRuntimeController、NativeVisionEngine、Tracker
 ├─ feature/        onboarding / home / runtime / settings / about
 ├─ service/        capture / overlay / automation
-├─ platform/compat CaptureCapabilities
+├─ platform/compat CaptureCapabilities、SystemCapabilityAccess（悬浮窗/无障碍跳转）
 ├─ mcp/            McpService、ActionRegistry
 └─ nativevision/   NativeVision JNI 边界
 
@@ -77,7 +81,7 @@ app/src/test/      JVM 单测 + cpp/native_tests.cpp
 FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
   → NativeVisionEngine (JNI)
   → VisionResultValidator → MultiObjectTracker（分析序号）
-  → displayContour（仅 HUD，可选）→ OverlayController
+  → displayContour（仅 HUD，可选）→ OverlayController（双层：穿透框 + 可拖 HUD；缺权限 fail-closed）
   → (arm 后，独立 actionJob) GestureArbiter → HzzsAccessibilityService
 ```
 
