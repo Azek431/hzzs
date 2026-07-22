@@ -4,14 +4,16 @@
  * 职责：分步编辑内存草稿 [AppConfig]；主题等可经 [onPreview] 即时预览。
  * 数据流：完成前不落盘；点“完成”时才 [onComplete] 写入并标记 onboarding/免责声明版本。
  * 边界：自动操作默认强制关闭；开启须风险对话框倒计时确认。不直接申请 Root/Shizuku/JNI。
+ * 动效：步骤切换走 [LocalHzzsMotion] shared-axis；减少动效时即时切换。
  */
 package top.azek431.hzzs.feature.onboarding
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +37,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,14 +54,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.HzzsSection
+import top.azek431.hzzs.core.designsystem.LocalHzzsMotion
+import top.azek431.hzzs.core.designsystem.contentStepBackwardEnter
+import top.azek431.hzzs.core.designsystem.contentStepBackwardExit
+import top.azek431.hzzs.core.designsystem.contentStepForwardEnter
+import top.azek431.hzzs.core.designsystem.contentStepForwardExit
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.core.model.OverlayStyle
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.ThemePreset
+import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -71,10 +80,12 @@ fun OnboardingScreen(
     onComplete: (AppConfig) -> Unit,
 ) {
     var page by remember { mutableIntStateOf(0) }
-    // 内存草稿；进入向导时强制关闭自动操作，完成前不持久化
-    var draft by remember(initial) { mutableStateOf(initial.copy(automation = initial.automation.copy(enabled = false))) }
+    var draft by remember(initial) {
+        mutableStateOf(initial.copy(automation = initial.automation.copy(enabled = false)))
+    }
     var showAutomationRisk by remember { mutableStateOf(false) }
-    val pages = onboardingPages
+    val pageMetas = onboardingPageMetas()
+    val motion = LocalHzzsMotion.current
 
     fun update(transform: (AppConfig) -> AppConfig) {
         draft = transform(draft)
@@ -84,24 +95,35 @@ fun OnboardingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("欢迎使用 HZZS") },
-                actions = { Text("${page + 1}/${pages.size}", modifier = Modifier.padding(end = 16.dp)) },
+                title = { Text(stringResource(R.string.onboarding_top_title)) },
+                actions = {
+                    Text(
+                        stringResource(R.string.onboarding_step_counter, page + 1, pageMetas.size),
+                        modifier = Modifier.padding(end = 16.dp),
+                    )
+                },
             )
         },
         bottomBar = {
             Column {
                 LinearProgressIndicator(
-                    progress = { (page + 1f) / pages.size },
+                    progress = { (page + 1f) / pageMetas.size },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                 ) {
-                    if (page > 0) OutlinedButton(onClick = { page-- }) { Text("上一步") }
+                    if (page > 0) {
+                        OutlinedButton(onClick = { page-- }) {
+                            Text(stringResource(R.string.action_previous))
+                        }
+                    }
                     Button(
                         onClick = {
-                            if (page == pages.lastIndex) {
+                            if (page == pageMetas.lastIndex) {
                                 onComplete(
                                     draft.copy(
                                         onboarding = draft.onboarding.copy(
@@ -114,49 +136,80 @@ fun OnboardingScreen(
                                 page++
                             }
                         },
-                    ) { Text(if (page == pages.lastIndex) "完成" else "下一步") }
+                    ) {
+                        Text(
+                            if (page == pageMetas.lastIndex) {
+                                stringResource(R.string.action_finish)
+                            } else {
+                                stringResource(R.string.action_next)
+                            },
+                        )
+                    }
                 }
             }
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item {
-                val meta = pages[page]
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(meta.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Column {
-                        Text(meta.title, style = MaterialTheme.typography.headlineSmall)
-                        Text(meta.subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AnimatedContent(
+            targetState = page,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            transitionSpec = {
+                val forward = targetState >= initialState
+                if (forward) {
+                    motion.contentStepForwardEnter() togetherWith motion.contentStepForwardExit()
+                } else {
+                    motion.contentStepBackwardEnter() togetherWith motion.contentStepBackwardExit()
+                }
+            },
+            label = "onboarding-step",
+        ) { current ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                item {
+                    val meta = pageMetas[current]
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(meta.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Column {
+                            Text(meta.title, style = MaterialTheme.typography.headlineSmall)
+                            Text(
+                                meta.subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-            }
-            item { HorizontalDivider() }
-            item {
-                when (page) {
-                    0 -> IntroPage()
-                    1 -> PrivacyPage()
-                    2 -> SeasonPage(draft) { scene -> update { it.copy(selectedScene = scene) } }
-                    3 -> CapturePage(draft) { backend -> update { it.copy(captureBackend = backend) } }
-                    4 -> AppearancePage(
-                        draft = draft,
-                        onTheme = { preset -> update { it.copy(theme = it.theme.copy(preset = preset)) } },
-                        onOverlay = { style -> update { it.copy(overlay = it.overlay.copy(style = style)) } },
-                    )
-                    5 -> AutomationPage(
-                        enabled = draft.automation.enabled,
-                        onChange = { enabled ->
-                            if (enabled) showAutomationRisk = true
-                            else update { it.copy(automation = it.automation.copy(enabled = false)) }
-                        },
-                    )
-                    else -> FinishPage(draft)
+                item { HorizontalDivider() }
+                item {
+                    when (current) {
+                        0 -> IntroPage()
+                        1 -> PrivacyPage()
+                        2 -> SeasonPage(draft) { scene -> update { it.copy(selectedScene = scene) } }
+                        3 -> CapturePage(draft) { backend -> update { it.copy(captureBackend = backend) } }
+                        4 -> AppearancePage(
+                            draft = draft,
+                            onTheme = { preset -> update { it.copy(theme = it.theme.copy(preset = preset)) } },
+                            onOverlay = { style -> update { it.copy(overlay = it.overlay.copy(style = style)) } },
+                        )
+                        5 -> AutomationPage(
+                            enabled = draft.automation.enabled,
+                            onChange = { enabled ->
+                                if (enabled) showAutomationRisk = true
+                                else update { it.copy(automation = it.automation.copy(enabled = false)) }
+                            },
+                        )
+                        else -> FinishPage(draft)
+                    }
                 }
+                item { Spacer(Modifier.height(72.dp)) }
             }
-            item { Spacer(Modifier.height(72.dp)) }
         }
     }
 
@@ -179,33 +232,45 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun IntroPage() = HzzsSection("这是什么", "本地画面分析，不是游戏官方产品") {
-    Text("HZZS 在本机处理你授权的屏幕帧，输出障碍识别结果。不保证识别准确或持续兼容。")
-    Text("默认仅低权限分析。Root、Shizuku、自动操作与 MCP 完整访问须你主动开启。")
+private fun IntroPage() = HzzsSection(
+    stringResource(R.string.onboarding_intro_section),
+    stringResource(R.string.onboarding_intro_desc),
+) {
+    Text(stringResource(R.string.onboarding_intro_p1))
+    Text(stringResource(R.string.onboarding_intro_p2))
 }
 
 @Composable
-private fun PrivacyPage() = HzzsSection("隐私与免责", "继续前请确认边界") {
-    Text("屏幕帧默认仅在本机内存处理，不上传。只有你主动打开调试帧保存时才会落盘。")
-    Text("自动操作、Root 与 Shell 能力有账号与设备风险，须自行判断。")
-    Text("完成引导即表示接受当前版本免责声明。")
+private fun PrivacyPage() = HzzsSection(
+    stringResource(R.string.onboarding_privacy_section),
+    stringResource(R.string.onboarding_privacy_desc),
+) {
+    Text(stringResource(R.string.onboarding_privacy_p1))
+    Text(stringResource(R.string.onboarding_privacy_p2))
+    Text(stringResource(R.string.onboarding_privacy_p3))
 }
 
 @Composable
-private fun SeasonPage(config: AppConfig, onSelect: (SceneId) -> Unit) = HzzsSection("选择赛季", "两个算法共享比例坐标，但障碍贴图与规则独立") {
+private fun SeasonPage(config: AppConfig, onSelect: (SceneId) -> Unit) = HzzsSection(
+    stringResource(R.string.onboarding_season_section),
+    stringResource(R.string.onboarding_season_desc),
+) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SceneId.entries.forEach { scene ->
             FilterChip(
                 selected = config.selectedScene == scene,
                 onClick = { onSelect(scene) },
-                label = { Text(scene.label()) },
+                label = { Text(scene.displayName()) },
             )
         }
     }
 }
 
 @Composable
-private fun CapturePage(config: AppConfig, onSelect: (CaptureBackend) -> Unit) = HzzsSection("截图方式", "默认推荐屏幕录制，不会自动请求 Root 或 Shell") {
+private fun CapturePage(config: AppConfig, onSelect: (CaptureBackend) -> Unit) = HzzsSection(
+    stringResource(R.string.onboarding_capture_section),
+    stringResource(R.string.onboarding_capture_desc),
+) {
     listOf(CaptureBackend.AUTO, CaptureBackend.MEDIA_PROJECTION, CaptureBackend.ACCESSIBILITY).forEach { backend ->
         val supported = backend.isSupportedOnThisDevice()
         Row(
@@ -214,18 +279,30 @@ private fun CapturePage(config: AppConfig, onSelect: (CaptureBackend) -> Unit) =
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(backend.label())
-                Text(backend.summary(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(backend.displayName())
+                Text(
+                    backend.onboardingSummary(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             FilterChip(
                 selected = config.captureBackend == backend,
                 enabled = supported,
                 onClick = { onSelect(backend) },
-                label = { Text(if (supported) "选择" else "系统不支持") },
+                label = {
+                    Text(
+                        if (supported) stringResource(R.string.action_select)
+                        else stringResource(R.string.state_unsupported),
+                    )
+                },
             )
         }
     }
-    Text("Shizuku 与 Root 位于高级/开发者设置中，首次引导不会推荐它们。", style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(R.string.onboarding_capture_advanced_hint),
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
@@ -233,40 +310,67 @@ private fun AppearancePage(
     draft: AppConfig,
     onTheme: (ThemePreset) -> Unit,
     onOverlay: (OverlayStyle) -> Unit,
-) = HzzsSection("主题与悬浮窗", "此处会立即预览，完成引导后才保存") {
-    Text("主题")
+) = HzzsSection(
+    stringResource(R.string.onboarding_appearance_section),
+    stringResource(R.string.onboarding_appearance_desc),
+) {
+    Text(stringResource(R.string.onboarding_label_theme))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(ThemePreset.FIRE_ORANGE, ThemePreset.BAMBOO, ThemePreset.OCEAN, ThemePreset.BLACK_GOLD).forEach { preset ->
-            FilterChip(selected = draft.theme.preset == preset, onClick = { onTheme(preset) }, label = { Text(preset.label()) })
+            FilterChip(
+                selected = draft.theme.preset == preset,
+                onClick = { onTheme(preset) },
+                label = { Text(preset.displayName()) },
+            )
         }
     }
-    Text("悬浮窗")
+    Text(stringResource(R.string.onboarding_label_overlay))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OverlayStyle.entries.forEach { style ->
-            FilterChip(selected = draft.overlay.style == style, onClick = { onOverlay(style) }, label = { Text(style.label()) })
+            FilterChip(
+                selected = draft.overlay.style == style,
+                onClick = { onOverlay(style) },
+                label = { Text(style.displayName()) },
+            )
         }
     }
 }
 
 @Composable
-private fun AutomationPage(enabled: Boolean, onChange: (Boolean) -> Unit) = HzzsSection("自动操作", "默认关闭，可稍后在设置中开启") {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+private fun AutomationPage(enabled: Boolean, onChange: (Boolean) -> Unit) = HzzsSection(
+    stringResource(R.string.onboarding_automation_section),
+    stringResource(R.string.onboarding_automation_desc),
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
-            Text("允许自动操作")
-            Text("需要无障碍服务、风险确认和每次会话解锁。", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.onboarding_automation_allow))
+            Text(
+                stringResource(R.string.onboarding_automation_hint),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         Switch(checked = enabled, onCheckedChange = onChange)
     }
 }
 
 @Composable
-private fun FinishPage(config: AppConfig) = HzzsSection("配置完成", "点击完成后进入首页") {
-    Text("赛季：${config.selectedScene.label()}")
-    Text("截图：${config.captureBackend.label()}")
-    Text("主题：${config.theme.preset.label()}")
-    Text("悬浮窗：${config.overlay.style.label()}")
-    Text("自动操作：${if (config.automation.enabled) "已启用，仍需会话解锁" else "关闭"}")
-    Text("所有配置以后都能在设置中修改。修改会先临时预览，点击保存后才永久生效。")
+private fun FinishPage(config: AppConfig) = HzzsSection(
+    stringResource(R.string.onboarding_finish_section),
+    stringResource(R.string.onboarding_finish_desc),
+) {
+    Text(stringResource(R.string.onboarding_finish_scene, config.selectedScene.displayName()))
+    Text(stringResource(R.string.onboarding_finish_capture, config.captureBackend.displayName()))
+    Text(stringResource(R.string.onboarding_finish_theme, config.theme.preset.displayName()))
+    Text(stringResource(R.string.onboarding_finish_overlay, config.overlay.style.displayName()))
+    Text(
+        if (config.automation.enabled) stringResource(R.string.onboarding_finish_automation_on)
+        else stringResource(R.string.onboarding_finish_automation_off),
+    )
+    Text(stringResource(R.string.onboarding_finish_footer))
 }
 
 @Composable
@@ -282,72 +386,53 @@ private fun OnboardingAutomationRiskDialog(onDismiss: () -> Unit, onConfirm: () 
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.Security, contentDescription = null) },
-        title = { Text("自动操作风险提示") },
+        title = { Text(stringResource(R.string.onboarding_risk_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("自动操作会通过无障碍服务发送手势，可能因游戏更新、误识别、设备卡顿或规则变化产生错误操作。请勿在不能承担风险的账号或设备上使用。")
+                Text(stringResource(R.string.onboarding_risk_body))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = accepted, onCheckedChange = { accepted = it })
-                    Text("我已阅读并理解风险")
+                    Text(stringResource(R.string.onboarding_risk_checkbox))
                 }
             }
         },
         confirmButton = {
             Button(onClick = onConfirm, enabled = remaining == 0 && accepted) {
-                Text(if (remaining > 0) "请等待 ${remaining}s" else "确认开启")
+                Text(
+                    if (remaining > 0) stringResource(R.string.onboarding_risk_wait, remaining)
+                    else stringResource(R.string.onboarding_risk_confirm),
+                )
             }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("保持关闭") } },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.onboarding_risk_keep_off))
+            }
+        },
     )
 }
 
-private data class OnboardingPage(val title: String, val subtitle: String, val icon: ImageVector)
-private val onboardingPages = listOf(
-    OnboardingPage("认识 HZZS", "本地分析工具，默认低权限", Icons.Rounded.Info),
-    OnboardingPage("隐私与边界", "本机处理与风险说明", Icons.Rounded.Security),
-    OnboardingPage("选择赛季", "甜甜圈或竹影书屋", Icons.Rounded.Analytics),
-    OnboardingPage("截图方式", "AUTO 不升权", Icons.Rounded.DesktopWindows),
-    OnboardingPage("外观", "主题与悬浮窗（可预览）", Icons.Rounded.ColorLens),
-    OnboardingPage("自动操作", "默认关闭，需风险确认", Icons.Rounded.Tune),
-    OnboardingPage("准备完成", "保存配置并进入首页", Icons.Rounded.CheckCircle),
+private data class OnboardingPageMeta(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
 )
 
-private fun SceneId.label() = when (this) {
-    SceneId.SWEET_FACTORY -> "甜甜圈赛季"
-    SceneId.BAMBOO_BOOKSTORE -> "竹影书屋赛季"
-}
+@Composable
+private fun onboardingPageMetas(): List<OnboardingPageMeta> = listOf(
+    OnboardingPageMeta(stringResource(R.string.onboarding_page0_title), stringResource(R.string.onboarding_page0_subtitle), Icons.Rounded.Info),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page1_title), stringResource(R.string.onboarding_page1_subtitle), Icons.Rounded.Security),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page2_title), stringResource(R.string.onboarding_page2_subtitle), Icons.Rounded.Analytics),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page3_title), stringResource(R.string.onboarding_page3_subtitle), Icons.Rounded.DesktopWindows),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page4_title), stringResource(R.string.onboarding_page4_subtitle), Icons.Rounded.ColorLens),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page5_title), stringResource(R.string.onboarding_page5_subtitle), Icons.Rounded.Tune),
+    OnboardingPageMeta(stringResource(R.string.onboarding_page6_title), stringResource(R.string.onboarding_page6_subtitle), Icons.Rounded.CheckCircle),
+)
 
-private fun CaptureBackend.label() = when (this) {
-    CaptureBackend.AUTO -> "自动推荐"
-    CaptureBackend.MEDIA_PROJECTION -> "屏幕录制"
-    CaptureBackend.ACCESSIBILITY -> "无障碍截图"
-    CaptureBackend.SHIZUKU -> "Shizuku / ADB"
-    CaptureBackend.ROOT -> "Root"
-}
-
-private fun CaptureBackend.summary() = when (this) {
-    CaptureBackend.AUTO -> "使用稳定的低权限路径，不会自动升级到 Root。"
-    CaptureBackend.MEDIA_PROJECTION -> "Android 7+ 推荐，系统会显示屏幕捕获授权。"
-    CaptureBackend.ACCESSIBILITY -> "Android 11+，仅适合已经主动开启无障碍的用户。"
-    CaptureBackend.SHIZUKU -> "高级 Shell 能力，需要用户单独安装并授权。"
-    CaptureBackend.ROOT -> "高风险实验能力，只在开发者设置提供。"
-}
-
-private fun ThemePreset.label() = when (this) {
-    ThemePreset.DYNAMIC -> "动态取色"
-    ThemePreset.FIRE_ORANGE -> "焰火橙"
-    ThemePreset.CORAL -> "珊瑚"
-    ThemePreset.BAMBOO -> "竹影青"
-    ThemePreset.OCEAN -> "深海蓝"
-    ThemePreset.INDIGO -> "靛青"
-    ThemePreset.LAVENDER -> "紫晶夜"
-    ThemePreset.BLACK_GOLD -> "黑金"
-    ThemePreset.HIGH_CONTRAST -> "高对比"
-    ThemePreset.CUSTOM -> "自定义"
-}
-
-private fun OverlayStyle.label() = when (this) {
-    OverlayStyle.MINIMAL -> "极简"
-    OverlayStyle.COMPACT -> "紧凑"
-    OverlayStyle.DEBUG_HUD -> "调试 HUD"
+@Composable
+private fun CaptureBackend.onboardingSummary(): String = when (this) {
+    CaptureBackend.AUTO -> "仅 MediaProjection，永不升权"
+    CaptureBackend.MEDIA_PROJECTION -> "系统屏幕录制，需用户授权"
+    CaptureBackend.ACCESSIBILITY -> "API 30+ 无障碍截图"
+    else -> displayName()
 }

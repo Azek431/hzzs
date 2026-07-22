@@ -32,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -262,7 +263,7 @@ fun AboutScreen(
     }
 
     donation?.let { kind ->
-        DonationDialog(kind, onDismiss = { donation = null }, onLongPress = { onSaveQr(kind) })
+        DonationDialog(kind, onDismiss = { donation = null }, onSave = { onSaveQr(kind) })
     }
 }
 
@@ -463,32 +464,81 @@ private fun DeveloperSwitch(title: String, checked: Boolean, onChange: (Boolean)
 }
 
 @Composable
-private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onLongPress: () -> Unit) {
-    Box(Modifier.fillMaxSize().clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
-        Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 8.dp, modifier = Modifier.padding(28.dp).clickable(enabled = false) {}) {
-            Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (kind == DonationKind.WECHAT) "微信赞赏" else "支付宝赞赏", style = MaterialTheme.typography.titleLarge)
-                val id = if (kind == DonationKind.WECHAT) R.drawable.donation_wechat else R.drawable.donation_alipay
-                Image(bitmap = androidx.compose.ui.graphics.ImageBitmap.imageResource(id), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.sizeIn(maxWidth = 340.dp, maxHeight = 460.dp).pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) })
-                Text("长按保存图片", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onDismiss) { Text("关闭") }
+private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (kind == DonationKind.WECHAT) {
+                    stringResource(R.string.about_donation_wechat)
+                } else {
+                    stringResource(R.string.about_donation_alipay)
+                },
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val id = if (kind == DonationKind.WECHAT) {
+                    R.drawable.donation_wechat
+                } else {
+                    R.drawable.donation_alipay
+                }
+                Image(
+                    bitmap = androidx.compose.ui.graphics.ImageBitmap.imageResource(id),
+                    contentDescription = stringResource(R.string.about_donation_qr_cd),
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .sizeIn(maxWidth = 340.dp, maxHeight = 460.dp)
+                        .pointerInput(Unit) {
+                            detectTapGestures(onLongPress = { onSave() })
+                        },
+                )
+                Text(
+                    stringResource(R.string.about_donation_hint),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
-        }
-    }
+        },
+        confirmButton = {
+            Button(onClick = onSave) {
+                Text(stringResource(R.string.action_save_to_gallery))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
 }
 
 @Composable
-private fun AboutRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, url: String? = null) {
+private fun AboutRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    url: String? = null,
+) {
     val context = LocalContext.current
     ListItem(
-        leadingContent = { Icon(icon, null) },
+        leadingContent = { Icon(icon, contentDescription = null) },
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
-        trailingContent = { if (url != null) Icon(Icons.Rounded.ChevronRight, null) },
+        trailingContent = { if (url != null) Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
         modifier = Modifier.clickable(enabled = url != null) {
             url?.let { target ->
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
-                    .onFailure { Toast.makeText(context, "没有可打开此链接的应用", Toast.LENGTH_SHORT).show() }
+                    .onFailure {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.about_open_link_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
             }
         },
     )
