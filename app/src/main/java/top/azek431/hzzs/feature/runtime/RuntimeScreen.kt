@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.HeroCard
 import top.azek431.hzzs.core.designsystem.HzzsCallout
 import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
@@ -110,33 +112,49 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
         ) {
             item {
                 PageHeader(
-                    title = "运行控制台",
+                    title = stringResource(R.string.runtime_title),
                     subtitle = if (requireSessionArm) {
-                        "先启动分析，再按需解锁自动操作"
+                        stringResource(R.string.runtime_subtitle_arm)
                     } else {
-                        "自动窗口模式：满足条件即可规划手势"
+                        stringResource(R.string.runtime_subtitle_auto)
                     },
                 )
             }
 
             item {
                 HeroCard(
-                    title = if (status.running) "视觉分析运行中" else "视觉分析已停止",
+                    title = if (status.running) {
+                        stringResource(R.string.runtime_hero_running)
+                    } else {
+                        stringResource(R.string.runtime_hero_stopped)
+                    },
                     subtitle = "${status.activeScene.displayName()} · ${status.activeBackend.displayName()}",
                     icon = if (status.running) Icons.Rounded.Visibility else Icons.Rounded.Stop,
                 ) {
                     HzzsStatusStrip {
                         StatusChip(
-                            if (status.running) "分析中" else "未运行",
+                            if (status.running) {
+                                stringResource(R.string.runtime_chip_analyzing)
+                            } else {
+                                stringResource(R.string.runtime_chip_idle)
+                            },
                             active = status.running,
                             activeColor = statusColors.running,
                         )
                         StatusChip(
-                            if (status.captureReady) "截图就绪" else "等待截图",
+                            if (status.captureReady) {
+                                stringResource(R.string.runtime_chip_capture_ready)
+                            } else {
+                                stringResource(R.string.runtime_chip_capture_wait)
+                            },
                             active = status.captureReady,
                         )
                         StatusChip(
-                            if (status.overlayVisible) "悬浮窗" else "无悬浮窗",
+                            if (status.overlayVisible) {
+                                stringResource(R.string.runtime_chip_overlay_on)
+                            } else {
+                                stringResource(R.string.runtime_chip_overlay_off)
+                            },
                             active = status.overlayVisible,
                         )
                     }
@@ -144,17 +162,17 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                     if (status.running) {
                         HzzsMetricGrid {
                             MetricTile(
-                                label = "帧率",
+                                label = stringResource(R.string.runtime_metric_fps),
                                 value = "${"%.1f".format(status.fps)}",
                                 modifier = Modifier.weight(1f),
                             )
                             MetricTile(
-                                label = "耗时 ms",
+                                label = stringResource(R.string.runtime_metric_ms),
                                 value = "${"%.1f".format(status.processingMs)}",
                                 modifier = Modifier.weight(1f),
                             )
                             MetricTile(
-                                label = "障碍",
+                                label = stringResource(R.string.runtime_metric_obstacles),
                                 value = "${status.obstacleCount}",
                                 modifier = Modifier.weight(1f),
                             )
@@ -162,7 +180,11 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                     }
 
                     HzzsPrimaryAction(
-                        text = if (status.running) "停止分析" else "开始分析",
+                        text = if (status.running) {
+                            stringResource(R.string.runtime_stop)
+                        } else {
+                            stringResource(R.string.runtime_start)
+                        },
                         onClick = vm::toggle,
                         icon = if (status.running) Icons.Rounded.Stop else Icons.Rounded.Visibility,
                     )
@@ -172,24 +194,28 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
             item {
                 SectionCard {
                     Text(
-                        "自动操作",
+                        stringResource(R.string.runtime_automation_section),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     if (!config.automation.enabled) {
                         Text(
-                            "设置中尚未启用自动操作。启用后仍受会话锁与白名单约束。",
+                            stringResource(R.string.runtime_automation_disabled),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else if (requireSessionArm) {
                         Text(
-                            "只会绑定本次会话的当前游戏窗口。切换页面、场景、截图方式或执行失败后会自动解除。",
+                            stringResource(R.string.runtime_arm_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         StatusChip(
-                            if (status.automationArmed) "已解锁：可发送手势" else "已上锁：仅分析不操作",
+                            if (status.automationArmed) {
+                                stringResource(R.string.runtime_armed)
+                            } else {
+                                stringResource(R.string.runtime_locked)
+                            },
                             active = status.automationArmed,
                             activeColor = if (status.automationArmed) {
                                 statusColors.armed
@@ -199,21 +225,21 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                         )
                         if (status.automationArmed) {
                             HzzsSecondaryAction(
-                                text = "立即解除",
+                                text = stringResource(R.string.runtime_disarm),
                                 onClick = vm::disarm,
                                 icon = Icons.Rounded.Lock,
                                 tonal = true,
                             )
                         } else {
                             HzzsPrimaryAction(
-                                text = "确认当前页面并临时启用",
+                                text = stringResource(R.string.runtime_arm),
                                 onClick = vm::arm,
                                 enabled = status.running && status.captureReady,
                                 icon = Icons.Rounded.LockOpen,
                             )
                             if (!status.running || !status.captureReady) {
                                 Text(
-                                    "请先开始分析并完成截图授权，才能解锁自动操作。",
+                                    stringResource(R.string.runtime_arm_need_ready),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -221,21 +247,21 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                         }
                     } else {
                         Text(
-                            "当前为自动窗口模式：分析运行中且前台应用在白名单时，将直接按当前页面规划手势。",
+                            stringResource(R.string.runtime_auto_mode_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         StatusChip(
                             if (status.running && status.captureReady) {
-                                "自动模式：满足条件即可发送手势"
+                                stringResource(R.string.runtime_auto_ready)
                             } else {
-                                "自动模式：等待分析与截图就绪"
+                                stringResource(R.string.runtime_auto_wait)
                             },
                             active = status.running && status.captureReady,
                             activeColor = statusColors.armed,
                         )
                         Text(
-                            "可在设置中重新打开“每次运行需手动解锁窗口”。",
+                            stringResource(R.string.runtime_auto_settings_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -246,7 +272,7 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
             status.lastError?.let { error ->
                 item {
                     HzzsCallout(
-                        title = "需要处理",
+                        title = stringResource(R.string.runtime_error_title),
                         text = error,
                         tone = HzzsCalloutTone.ERROR,
                         icon = Icons.Rounded.Warning,

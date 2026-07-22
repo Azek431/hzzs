@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -65,7 +66,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import top.azek431.hzzs.core.designsystem.HzzsBreakpoints
 import top.azek431.hzzs.core.designsystem.HzzsTheme
+import top.azek431.hzzs.core.designsystem.LocalHzzsMotion
+import top.azek431.hzzs.core.designsystem.fadeThroughEnter
+import top.azek431.hzzs.core.designsystem.fadeThroughExit
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.feature.about.AboutScreen
@@ -104,7 +109,7 @@ class MainActivity : ComponentActivity() {
         if (granted && pending != null) {
             saveDonationImage(pending)
         } else if (!granted) {
-            Toast.makeText(this, "未授予图片保存权限", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.permission_save_image_denied), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -198,7 +203,10 @@ class AppViewModel @Inject constructor(
             val snapshot = repository.snapshot()
             if (!snapshot.update.autoCheck) return@launch
             runCatching {
-                updateRepository.check(beta = snapshot.update.channel == top.azek431.hzzs.core.model.UpdateChannel.BETA)
+                updateRepository.check(
+                    beta = snapshot.update.channel == top.azek431.hzzs.core.model.UpdateChannel.BETA,
+                    sourcePreference = snapshot.update.sourcePreference,
+                )
             }
         }
     }
@@ -222,11 +230,11 @@ class AppViewModel @Inject constructor(
     }
 }
 
-private enum class Destination(val route: String, val label: String, val icon: ImageVector) {
-    HOME("home", "首页", Icons.Rounded.Home),
-    RUNTIME("runtime", "运行", Icons.Rounded.PlayCircle),
-    SETTINGS("settings", "设置", Icons.Rounded.Settings),
-    ABOUT("about", "关于", Icons.Rounded.Info),
+private enum class Destination(val route: String, val labelRes: Int, val icon: ImageVector) {
+    HOME("home", R.string.nav_home, Icons.Rounded.Home),
+    RUNTIME("runtime", R.string.nav_runtime, Icons.Rounded.PlayCircle),
+    SETTINGS("settings", R.string.nav_settings, Icons.Rounded.Settings),
+    ABOUT("about", R.string.nav_about, Icons.Rounded.Info),
 }
 
 /** 主题、引导分流、主导航与 MCP 审批叠层的根 Composable。 */
@@ -307,17 +315,18 @@ private fun MainNavigation(
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val wide = maxWidth >= 720.dp
+        val wide = maxWidth >= HzzsBreakpoints.NavigationExpanded
         if (wide) {
             Row {
                 NavigationRail {
                     Spacer(Modifier.height(12.dp))
                     Destination.entries.forEach { destination ->
+                        val label = stringResource(destination.labelRes)
                         NavigationRailItem(
                             selected = current == destination.route,
                             onClick = { openDestination(destination.route) },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(destination.label) },
+                            icon = { Icon(destination.icon, contentDescription = label) },
+                            label = { Text(label) },
                         )
                     }
                 }
@@ -334,11 +343,12 @@ private fun MainNavigation(
                 bottomBar = {
                     NavigationBar {
                         Destination.entries.forEach { destination ->
+                            val label = stringResource(destination.labelRes)
                             NavigationBarItem(
                                 selected = current == destination.route,
                                 onClick = { openDestination(destination.route) },
-                                icon = { Icon(destination.icon, contentDescription = null) },
-                                label = { Text(destination.label) },
+                                icon = { Icon(destination.icon, contentDescription = label) },
+                                label = { Text(label) },
                             )
                         }
                     }
@@ -362,10 +372,15 @@ private fun AppNavHost(
     settingsExitCoordinator: SettingsExitCoordinator,
     modifier: Modifier,
 ) {
+    val motion = LocalHzzsMotion.current
     NavHost(
         navController = nav,
         startDestination = Destination.HOME.route,
         modifier = modifier,
+        enterTransition = { motion.fadeThroughEnter() },
+        exitTransition = { motion.fadeThroughExit() },
+        popEnterTransition = { motion.fadeThroughEnter() },
+        popExitTransition = { motion.fadeThroughExit() },
     ) {
         composable(Destination.HOME.route) {
             HomeScreen(
@@ -398,12 +413,26 @@ private fun McpApprovalDialog(
     AlertDialog(
         onDismissRequest = { onResolve(false) },
         icon = { Icon(Icons.Rounded.SmartToy, contentDescription = null) },
-        title = { Text("MCP 操作确认") },
+        title = { Text(stringResource(R.string.mcp_approval_title)) },
         text = {
-            Text("工具：${request.tool}\n\n${request.summary}\n\n仅批准你理解并信任的 AI 操作。")
+            Text(
+                stringResource(
+                    R.string.mcp_approval_body,
+                    request.tool,
+                    request.summary,
+                ),
+            )
         },
-        confirmButton = { Button(onClick = { onResolve(true) }) { Text("允许一次") } },
-        dismissButton = { OutlinedButton(onClick = { onResolve(false) }) { Text("拒绝") } },
+        confirmButton = {
+            Button(onClick = { onResolve(true) }) {
+                Text(stringResource(R.string.action_allow_once))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = { onResolve(false) }) {
+                Text(stringResource(R.string.action_deny))
+            }
+        },
     )
 }
 
