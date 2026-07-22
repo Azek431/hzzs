@@ -107,6 +107,8 @@ require(configuredNativeAbis.isNotEmpty()) { "hzzs.native.abis must not be empty
 require(configuredNativeAbis.all { it in allowedNativeAbis }) {
     "Unsupported ABI in hzzs.native.abis: $configuredNativeAbis (allowed=$allowedNativeAbis)"
 }
+// CMake/ninja 并行：由 gradlew.bat / VS Code tasks 设 CMAKE_BUILD_PARALLEL_LEVEL（默认 2），
+// 勿在此用反射改进程环境（脆弱且对已启动的 daemon 无效）。
 android {
     namespace = "top.azek431.hzzs"
     compileSdk = 37

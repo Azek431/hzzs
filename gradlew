@@ -204,6 +204,17 @@ fi
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
 
+# HZZS local knobs: ninja parallel default 2; force configuration-cache unless
+# HZZS_ALLOW_USER_CC_OVERRIDE=1 (user gradle.properties may set false and slow config).
+if [ -z "${CMAKE_BUILD_PARALLEL_LEVEL+x}" ] || [ -z "$CMAKE_BUILD_PARALLEL_LEVEL" ]; then
+    CMAKE_BUILD_PARALLEL_LEVEL=2
+    export CMAKE_BUILD_PARALLEL_LEVEL
+fi
+if [ "${HZZS_ALLOW_USER_CC_OVERRIDE:-}" != "1" ]; then
+    GRADLE_OPTS="${GRADLE_OPTS:+$GRADLE_OPTS }-Dorg.gradle.configuration-cache=true"
+    export GRADLE_OPTS
+fi
+
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
 #     and any embedded shellness will be escaped.

@@ -7,11 +7,14 @@ hzzs.native.abis=arm64-v8a
 # 仅 x86_64 模拟器：
 # hzzs.native.abis=x86_64
 #
-# 建议在启动终端前设置（与 workers 对齐，防 4 核过订阅）：
+# CMake/ninja 并行：仓库 gradlew.bat / gradlew 未设置时默认 CMAKE_BUILD_PARALLEL_LEVEL=2；
+# VS Code 任务 options.env 同样写入。也可手动：
 #   $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 #
 # 注意：本文件目前只被 app/build.gradle.kts 读取 hzzs.* 键（如 native.abis）。
-# org.gradle.jvmargs / kotlin.daemon.jvmargs 必须在 daemon 启动前生效，
-# 请改根 gradle.properties，或写入 %GRADLE_USER_HOME%\gradle.properties（用户级覆盖）。
+# org.gradle.jvmargs / kotlin.daemon.jvmargs / configuration-cache 须在 daemon 启动前生效：
+#   - 堆：根 gradle.properties 或 %GRADLE_USER_HOME%\gradle.properties
+#   - 勿在用户级写 org.gradle.configuration-cache=false（会覆盖项目 true）；
+#     仓库 wrapper 默认 -D 强制开回 CC；调试可设 HZZS_ALLOW_USER_CC_OVERRIDE=1
 #
 # 恢复完整 ABI：删除本文件或注释掉 hzzs.native.abis
