@@ -3,7 +3,7 @@
  *
  * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；仅离开整个模块时询问保存/丢弃。
  * 数据流：订阅 draft/baseline/update/algorithm；子页经 [SettingsViewModel.update] 改草稿。
- * 边界：不直接 JNI/权限运行时；dispose 时 [discardSilently] 清理未提交预览。
+ * 边界：不直接 JNI/权限运行时；dispose 只清除临时预览，不替用户决定保存或丢弃。
  */
 package top.azek431.hzzs.feature.settings
 
@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -63,6 +64,7 @@ import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
 @Composable
 fun SettingsScreen(
     onExit: () -> Unit,
+    exitCoordinator: SettingsExitCoordinator? = null,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val config by vm.draft.collectAsState()
@@ -75,14 +77,27 @@ fun SettingsScreen(
     val route = entry?.destination?.route ?: SettingsRoutes.HOME
     val onHome = route == SettingsRoutes.HOME
     var confirmExit by remember { mutableStateOf(false) }
+    var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    DisposableEffect(vm) {
-        onDispose { vm.discardSilently() }
+    val currentDirty by rememberUpdatedState(dirty)
+    val currentOnExit by rememberUpdatedState(onExit)
+
+    fun requestExit(action: () -> Unit = currentOnExit) {
+        if (currentDirty) {
+            pendingExitAction = action
+            confirmExit = true
+        } else {
+            vm.discard(action)
+        }
     }
 
-    fun requestExit() {
-        if (dirty) confirmExit = true else vm.discard(onExit)
+    DisposableEffect(exitCoordinator, vm) {
+        val registration = exitCoordinator?.attach(::requestExit)
+        onDispose {
+            registration?.dispose()
+            vm.clearPreviewSilently()
+        }
     }
 
     BackHandler {
@@ -191,22 +206,29 @@ fun SettingsScreen(
 
     if (confirmExit) {
         AlertDialog(
-            onDismissRequest = { confirmExit = false },
+            onDismissRequest = {
+                confirmExit = false
+                pendingExitAction = null
+            },
             title = { Text("未保存的更改") },
             text = { Text("要保存当前设置，还是丢弃更改并离开？") },
             confirmButton = {
                 TextButton(
                     onClick = {
+                        val action = pendingExitAction ?: currentOnExit
                         confirmExit = false
-                        vm.save(onExit)
+                        pendingExitAction = null
+                        vm.save(action)
                     },
                 ) { Text("保存并离开") }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
+                        val action = pendingExitAction ?: currentOnExit
                         confirmExit = false
-                        vm.discard(onExit)
+                        pendingExitAction = null
+                        vm.discard(action)
                     },
                 ) { Text("丢弃") }
             },

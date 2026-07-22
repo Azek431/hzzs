@@ -44,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ import top.azek431.hzzs.feature.about.DonationKind
 import top.azek431.hzzs.feature.home.HomeScreen
 import top.azek431.hzzs.feature.onboarding.OnboardingScreen
 import top.azek431.hzzs.feature.runtime.RuntimeScreen
+import top.azek431.hzzs.feature.settings.SettingsExitCoordinator
 import top.azek431.hzzs.feature.settings.SettingsScreen
 import top.azek431.hzzs.mcp.McpApprovalRequest
 import top.azek431.hzzs.mcp.McpForegroundService
@@ -283,14 +285,26 @@ private fun MainNavigation(
     onRouteConsumed: (String) -> Unit,
 ) {
     val nav = rememberNavController()
-    LaunchedEffect(requestedRoute) {
+    val settingsExitCoordinator = remember { SettingsExitCoordinator() }
+    val entry by nav.currentBackStackEntryAsState()
+    val current = entry?.destination?.route
+
+    fun openDestination(route: String) {
+        if (route == current) return
+        val navigate = { nav.open(route) }
+        if (current == Destination.SETTINGS.route) {
+            settingsExitCoordinator.request(navigate)
+        } else {
+            navigate()
+        }
+    }
+
+    LaunchedEffect(requestedRoute, current) {
         requestedRoute?.let { route ->
-            nav.open(route)
+            openDestination(route)
             onRouteConsumed(route)
         }
     }
-    val entry by nav.currentBackStackEntryAsState()
-    val current = entry?.destination?.route
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 720.dp
@@ -301,14 +315,19 @@ private fun MainNavigation(
                     Destination.entries.forEach { destination ->
                         NavigationRailItem(
                             selected = current == destination.route,
-                            onClick = { nav.open(destination.route) },
+                            onClick = { openDestination(destination.route) },
                             icon = { Icon(destination.icon, contentDescription = null) },
                             label = { Text(destination.label) },
                         )
                     }
                 }
                 HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                AppNavHost(nav, onSaveDonation, Modifier.weight(1f))
+                AppNavHost(
+                    nav = nav,
+                    onSaveDonation = onSaveDonation,
+                    settingsExitCoordinator = settingsExitCoordinator,
+                    modifier = Modifier.weight(1f),
+                )
             }
         } else {
             Scaffold(
@@ -317,7 +336,7 @@ private fun MainNavigation(
                         Destination.entries.forEach { destination ->
                             NavigationBarItem(
                                 selected = current == destination.route,
-                                onClick = { nav.open(destination.route) },
+                                onClick = { openDestination(destination.route) },
                                 icon = { Icon(destination.icon, contentDescription = null) },
                                 label = { Text(destination.label) },
                             )
@@ -325,7 +344,12 @@ private fun MainNavigation(
                     }
                 },
             ) { padding ->
-                AppNavHost(nav, onSaveDonation, Modifier.padding(padding))
+                AppNavHost(
+                    nav = nav,
+                    onSaveDonation = onSaveDonation,
+                    settingsExitCoordinator = settingsExitCoordinator,
+                    modifier = Modifier.padding(padding),
+                )
             }
         }
     }
@@ -335,6 +359,7 @@ private fun MainNavigation(
 private fun AppNavHost(
     nav: NavHostController,
     onSaveDonation: (DonationKind) -> Unit,
+    settingsExitCoordinator: SettingsExitCoordinator,
     modifier: Modifier,
 ) {
     NavHost(
@@ -350,7 +375,10 @@ private fun AppNavHost(
         }
         composable(Destination.RUNTIME.route) { RuntimeScreen() }
         composable(Destination.SETTINGS.route) {
-            SettingsScreen(onExit = { nav.popBackStack() })
+            SettingsScreen(
+                exitCoordinator = settingsExitCoordinator,
+                onExit = { nav.popBackStack() },
+            )
         }
         composable(Destination.ABOUT.route) {
             AboutScreen(

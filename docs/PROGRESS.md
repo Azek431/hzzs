@@ -26,7 +26,7 @@
 | P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地 |
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
 | P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
-| P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地 |
+| P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地（含统一离开守卫，外层导航不再静默丢弃草稿） |
 | P1 | requireSessionArm 生效并暴露设置项 | 已落地 |
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
@@ -56,7 +56,7 @@
 ## 版本叙事
 
 | 名称 | 含义 |
-|---|---|
+| --- | --- |
 | 分支名 `rewrite-v0.2.0-unified` | 工程内部重构代号，**不是**已发布的 0.2.0 |
 | 产品首发版本 | **0.1.0** / code **1** |
 | `main` 历史线 | 多模块 Views + 叠层视觉运行时；本分支以其为算法供体与行为对照基线 |

@@ -76,7 +76,6 @@ class SettingsViewModel @Inject constructor(
     private var previewJob: Job? = null
     private var updateJob: Job? = null
     private var pendingDraft: AppConfig? = null
-    private var leaveCommitted = false
 
     init {
         viewModelScope.launch {
@@ -89,7 +88,6 @@ class SettingsViewModel @Inject constructor(
         mutableBaseline.value = original
         mutableDraft.value = original
         pendingDraft = null
-        leaveCommitted = false
         bindAlgorithm(original)
         session = SettingsEditSession(
             original = original,
@@ -145,13 +143,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** 持久化草稿并重建会话；成功后 [leaveCommitted] 防止 dispose 再次 discard。 */
+    /** 持久化草稿并重建会话，完成后执行离开动作。 */
     fun save(onDone: () -> Unit = {}) = viewModelScope.launch {
         previewJob?.cancel()
         flushPendingDraft()
         val active = session ?: return@launch
         val saved = active.save()
-        leaveCommitted = true
         openSession(saved)
         onDone()
     }
@@ -163,7 +160,6 @@ class SettingsViewModel @Inject constructor(
         val active = session
         if (active != null) {
             val restored = active.discard()
-            leaveCommitted = true
             openSession(restored)
         } else {
             repository.clearPreview()
@@ -191,22 +187,13 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    /** 导航移除整个设置模块时清理未提交预览；已保存/已取消则跳过。 */
-    fun discardSilently() {
-        if (leaveCommitted) return
+    /**
+     * Composition 暂时移除时只清除仓库预览，不篡改草稿与 baseline。
+     * 真正保存或丢弃必须由显式离开决策触发，避免断点切换/导航重建静默丢失编辑。
+     */
+    fun clearPreviewSilently() {
         previewJob?.cancel()
-        pendingDraft = null
-        viewModelScope.launch {
-            val active = session
-            if (active != null) {
-                val restored = active.discard()
-                openSession(restored)
-            } else {
-                repository.clearPreview()
-                mutableDraft.value = mutableBaseline.value
-                bindAlgorithm(mutableBaseline.value)
-            }
-        }
+        viewModelScope.launch { repository.clearPreview() }
     }
 
     fun checkForUpdates() {
