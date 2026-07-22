@@ -281,9 +281,23 @@ data class McpConfig(
 )
 
 /**
+ * 应用日志最低级别（开发者可配置）。
+ *
+ * 关闭开发者选项时，ring buffer 仍保留 INFO 及以上；DEBUG/VERBOSE 仅在开启后生效。
+ */
+enum class AppLogLevel {
+    VERBOSE,
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+}
+
+/**
  * 开发者选项。
  *
  * 需关于页连续点击版本号解锁；预览阶段不强制切换截图后端等副作用。
+ * [frameRateLimit] 字段保留并校验，但完成驱动取帧下运行时暂不消费。
  */
 data class DeveloperConfig(
     val enabled: Boolean = false,
@@ -292,6 +306,8 @@ data class DeveloperConfig(
     val showCoordinateGrid: Boolean = false,
     val frameRateLimit: Int = 60,
     val nativeBenchmarkIterations: Int = 200,
+    /** 写入 ring buffer / Logcat 的最低级别；关闭开发者时 DEBUG 以下仍被压制。 */
+    val logLevel: AppLogLevel = AppLogLevel.INFO,
 )
 
 /** 首次引导与免责声明接受状态。 */
