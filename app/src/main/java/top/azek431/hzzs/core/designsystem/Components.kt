@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -50,7 +52,7 @@ import androidx.compose.ui.unit.dp
 
 enum class HzzsCalloutTone { INFO, WARNING, ERROR, SUCCESS }
 
-/** 带标题与可选说明的分区。 */
+/** 带标题与可选说明的分区；标题带 heading 语义。 */
 @Composable
 fun HzzsSection(
     title: String,
@@ -64,6 +66,7 @@ fun HzzsSection(
                 title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.semantics { heading() },
             )
             description?.let {
                 Text(
@@ -292,7 +295,7 @@ fun SectionCard(
     }
 }
 
-/** 页面大标题。 */
+/** 页面大标题；标题带 heading 语义供 TalkBack。 */
 @Composable
 fun PageHeader(
     title: String,
@@ -303,6 +306,7 @@ fun PageHeader(
             title,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
         )
         subtitle?.let {
             Text(

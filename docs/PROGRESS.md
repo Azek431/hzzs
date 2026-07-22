@@ -36,12 +36,13 @@
 | P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（安装器/下载器未接；主路径尺寸/颜色仍硬编码） |
 | P1 | 算法包闭环 M0 | 已落地：APK 安装前 verifyPackage、忽略版本不整稿保存、更新源偏好、UI/文档诚实 |
 | P1 | 算法包闭环 M1 | 已落地：rules v2 双段 tools/示例包、`AlgorithmRulesParser`、统一 `AlgorithmIds` |
-| P1 | 算法包闭环 M2 | 部分落地：`InstalledAlgorithmStore` + `AlgorithmActivationCoordinator`；start/save 激活；目录仍演示下载 |
-| P2 | 主路径全参数化 M3 | 部分落地：M3A scene_confidence 质量度量、竹影 player floor / workWidth 校验；颜色/尺寸全量未做 |
+| P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、`AlgorithmPackVerifier` Ed25519、Catalog 接真链路；**信任锚公钥列表默认为空（fail-closed）** |
+| P1 | 算法包闭环 M4 | 已落地：启动 `algorithm.autoCheck` 刷新目录；`autoDownload` 在有信任锚时尝试下载最新 |
+| P2 | 主路径参数化 | 部分：M3A confidence/floor；主路径尺寸窗**后过滤**；颜色谓词核心仍硬编码（legacy） |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 完成驱动取帧 + HUD 临时隐身 + 近似显示轮廓 | 已落地（非 C++ 像素轮廓；动作仍只读 bounds） |
-| P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/断点/首页·运行文案已落地；设置分类全文案、颜色对比、HUD 字号、Roborazzi 未做） |
+| P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导步骤/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
 | P2 | 开发者设置补齐 + AppLog ring buffer + 诊断导出 | 已落地（设置/关于对齐；无文件日志；HUD 性能叠层未做） |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |
 | P2 | 数据集人工真值与召回评估 | 未完成 |
