@@ -11,6 +11,13 @@
 
 ### 新增
 
+- **算法包 rules schema v2（双段）**：`userThresholds` + `engineParams`；tools 兼容 v1；示例包 `official-bamboo-baseline` 升 v2；Kotlin `AlgorithmRulesParser` 合成双场景 profile 并填洞。
+- **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`（内置单一 catalog/runtime ID）。
+- **主路径 M3A**：甜甜圈 `scene_confidence` 改为检测质量度量（floor 作下限）；竹影主路径消费 `player_confidence_floor` 并校验 `work_width`。
+- **开发者设置补齐与诊断日志**：设置「MCP 与开发者」对齐关于页能力（强制截图后端、调试帧刷新/清除、日志级别、Native 自检、诊断导出）；`AppLog` 内存 ring buffer + 脱敏；`DiagnosticsExporter` 导出版本/机型/配置摘要/最近日志（不含 Bearer 与调试帧像素）；`DeveloperConfig.logLevel` 持久化。
+- **Motion Policy 与导航转场**：`HzzsMotionPolicy` 统一消费 `animationScale` / `reduceMotion` 与系统 animator 倍率；一级导航 fade-through、设置分类 shared-axis X；减少动效时即时终态。设计 token 增加断点与 `contentMaxWidth`；`HzzsScrollPage` 宽屏限宽；设置保存栏窄屏纵向动作区。
+- **文案资源化起步**：一级导航、通用动作、MCP 审批、设置离开/保存栏、首页与运行控制台关键字符串迁入 `strings.xml`。
+- **完成驱动取帧与 HUD 近似轮廓**：分析循环按上一轮完成拉取最新帧；MediaProjection/AUTO 在 HUD 显示时临时隐身并排空可能含旧合成层的一帧；`displayContour` 仅供 HUD 绘制，动作与 Tracker 仍只读 `bounds`。
 - **UI 工具专业风重设计（第一期）**：Design System 2.0（中性表面、状态语义色、统一页面积木）；首页/运行控制台信息架构重排；设置首页选中高亮与预览说明；引导文案压缩；关于页对齐令牌。
 
 - 单一 `app` Gradle 模块与 Compose + Hilt 产品壳（引导 / 首页 / 运行 / 设置 / 关于）。
@@ -29,6 +36,10 @@
 
 ### 变更
 
+- 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。
+- **构建性能**：`gradle.properties` 按 12GiB / 4 线程画像收紧 Daemon 堆与 worker；开启增量 kapt/Kotlin 与 Configuration Cache 并行；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
+- 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。
+- 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **竹影书屋**（与历史 main 线默认一致）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
@@ -44,8 +55,13 @@
 - MCP 仅回环监听；写操作默认每次确认。
 - 主题包不执行脚本、不加载远程资源。
 - 截图帧、MCP 令牌与 DataStore 配置不进入系统云备份。
+- 诊断导出与 `AppLog` 对 Bearer / token / secret 等做脱敏；复制 MCP 连接信息仅经显式按钮进剪贴板，不写入日志。
 
 ### 修复 / 对齐
+
+- VS Code 启动任务误用正式包名 `top.azek431.hzzs`：Debug 实际包名为 `top.azek431.hzzs.debug`（`applicationIdSuffix=.debug`），导致 monkey「No activities found」。任务与 `.vscode/scripts/*` 已改为 Debug 包 + `am start`，并单独提供 Release 启动/卸载任务。
+- VS Code tasks 深化：共享 `hzzs-common.ps1`、任务分组、默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`、质量门禁/强停/清数据任务、JDWP 双入口（完整安装 vs 仅转发）。
+- 设置模块新增统一离开守卫：底部导航、宽屏侧栏、系统返回、顶部返回与 MCP 路由都必须经过未保存确认；Composition 重建仅清除预览，不再静默丢弃草稿。
 
 - 接入历史 main 的 vision2 / bamboo 检测核心，并映射到统一归一化 Detection 协议。
 - 自动操作加入 main 风格触发距离、双跳时序、下滑 TTL 与竹影实验锁。
@@ -66,6 +82,8 @@
 - 数据集缺少独立人工真值，不得宣称准确率指标。
 - 厂商 ROM、Root、Shizuku 与真实游戏链路需真机验证。
 - `Shizuku.newProcess` 依赖设备端 Shizuku 版本与授权状态。
+- 算法目录/下载仍为演示（无 HTTPS/Ed25519 包下载）；本地安装骨架可用，网络闭环未完成。
+- 主路径颜色谓词与尺寸窗仍硬编码；M3B/C 与 autoCheck 调度（M4）未做。
 
 ## [0.1.0] — 未发布
 

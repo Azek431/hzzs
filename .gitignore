@@ -1,51 +1,89 @@
 # ============================================================
-# HZZS（火崽崽数据分析）- Git 忽略规则
+# HZZS（火崽崽奇妙屋）— Git 忽略规则
 # ============================================================
 #
-# 项目定位：
-# - Android 原生：Kotlin + Jetpack Compose + Hilt + C++17/JNI
-# - 单模块 app/；根目录保留 Gradle、CI、tools、文档
-# - Android Studio / VS Code + Claude Code 协作
-# - Windows / Linux；可能通过 Syncthing 同步工作目录
+# 项目形态：单一 app/ Android 模块，Kotlin / Compose / Hilt + C++17/JNI，
+# 并包含 Python、PowerShell、Shell 质量与发布工具。
 #
-# 核心原则：
-# 1. 提交：源码、资源、Gradle Wrapper、共享配置、文档、质量脚本。
-# 2. 忽略：构建产物、本机缓存、SDK 路径、IDE 私有状态、日志、密钥、
-#    本地备份、拷机 APK、AI 本机权限配置。
-# 3. 白名单：.vscode 共享配置、CLAUDE.md、AGENTS.md、.serena 项目配置、
-#    .github/ 工作流。
+# 维护原则：
+# 1. 提交源码、资源、Gradle Wrapper、共享配置、文档与质量脚本。
+# 2. 忽略可再生成的构建产物、机器状态、隐私数据、凭据和发布私钥。
+# 3. 规则尽量按“精确目录或明确后缀”书写，不用 *-local* 等过宽模式。
+# 4. 根目录数据集、截图和诊断目录默认视为本机隐私数据；需要入库的已脱敏
+#    测试夹具应放在明确的源码/测试目录并接受代码审查。
 #
-# 重要说明：
-# - .gitignore 只影响“尚未被 Git 跟踪”的文件。
-# - 已跟踪文件需用 `git rm --cached` 停止跟踪，不会改写历史。
-# - Syncthing 排除规则写在本机 .stignore，不由本文件控制。
+# 注意：.gitignore 只影响未跟踪文件。已跟踪文件必须通过
+# `git rm --cached <path>` 从当前索引移除；这不会删除本地文件或改写历史。
+# Syncthing 的同步排除由每台机器的 .stignore 独立维护。
 # ============================================================
 
 
 # ============================================================
-# 1. Gradle 缓存与 Android 构建产物
+# 1. Gradle、Kotlin 与 Android 构建产物
 # ============================================================
 
-/.gradle/
-/build/
-**/build/
-/.kotlin/
-/out/
+# 无斜杠的目录模式匹配仓库内任意层级，覆盖根项目和 app 模块。
+.gradle/
+.kotlin/
+build/
+out/
 *.class
 
-# 本地导出的可安装包（手动拷机用，不入库）
-/dist/
+# 本地导出、安装与发布制品。
+dist/
+/release/
+*.apk
+*.aab
+*.apks
+*.ap_
+*.aar
+*.idsig
+*.hzzsdelta
+*.hzzsalg
+output-metadata.json
+mapping.txt
+native-debug-symbols.zip
 
-# CMake / NDK / externalNativeBuild 中间产物
-/.cxx/
-**/.cxx/
-/.externalNativeBuild/
-**/.externalNativeBuild/
-/app/.cxx/
+# Android Studio 采集、Profiler 与系统追踪文件。
+captures/
+*.hprof
+*.heapdump
+*.trace
+*.perfetto-trace
 
 
 # ============================================================
-# 2. Android SDK、本机路径与 IDE 本地状态
+# 2. CMake、NDK 与本机原生编译产物
+# ============================================================
+
+.cxx/
+.externalNativeBuild/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+
+# 编译器和链接器产物；源码头文件与 CMake 配置不受影响。
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.pdb
+*.dSYM/
+*.d
+*.su
+*.gcov
+
+
+# ============================================================
+# 3. Android SDK 与 IDE 本机状态
 # ============================================================
 
 /local.properties
@@ -53,38 +91,51 @@
 *.iml
 *.ipr
 *.iws
-/captures/
-*.hprof
-*.trace
+/.fleet/
+
+# VS Code：默认忽略工作区私有状态，仅保留已约定的共享配置。
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/extensions.json
+!/.vscode/*.code-snippets
+!/.vscode/scripts/
+!/.vscode/scripts/**
+/.vscode/*.local.json
+/.vscode/*.local.*
+/.vscode/*.log
 
 
 # ============================================================
-# 3. 打包、安装与发布生成物
-# ============================================================
-
-*.apk
-*.aab
-*.apks
-*.ap_
-*.idsig
-*.hzzsdelta
-*.hzzsalg
-output-metadata.json
-
-
-# ============================================================
-# 4. 签名文件、密钥与发布私密配置
+# 4. 签名材料、密钥与服务私密配置
 # ============================================================
 
 *.jks
 *.keystore
 *.p12
 *.pfx
-/key.properties
-/keystore.properties
-/signing.properties
-/secrets.properties
-/local.secrets.properties
+*.pk8
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.csr
+*.mobileprovision
+
+# 官方算法公钥属于可审计发布资料；该目录只允许提交公钥 PEM。
+!/algorithm-packs/official-public-keys/hzzs-algorithm-official-*.pem
+
+key.properties
+keystore.properties
+signing.properties
+secrets.properties
+local.secrets.properties
+credentials.json
+service-account*.json
+*.credentials
+*.token
 /keystore/
 /keys/
 /secrets/
@@ -92,61 +143,41 @@ output-metadata.json
 
 
 # ============================================================
-# 5. 环境变量与本机私有配置
+# 5. 环境变量与本机 Gradle 覆盖
 # ============================================================
 
-/.env
-/.env.*
-!/.env.example
-!/.env.sample
-!/.env.template
-!/.env.*.example
+# 任意层级的真实环境文件均忽略，示例模板可提交且不得含真实秘密。
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
 
-# 私人机器专用 Gradle 覆盖（共享 gradle.properties 仍提交）
-/gradle.local.properties
-/gradle-local.properties
+gradle.local.properties
+gradle-local.properties
 /gradle/gradle-daemon-jvm.properties.backup-*
 
 
 # ============================================================
-# 6. VS Code 共享配置与本机局部配置
-# ============================================================
-
-/.vscode/*
-!/.vscode/settings.json
-!/.vscode/tasks.json
-!/.vscode/launch.json
-!/.vscode/extensions.json
-!/.vscode/*.code-snippets
-/.vscode/*.local.json
-/.vscode/*.local.*
-/.vscode/settings.local.json
-/.vscode/*.log
-
-
-# ============================================================
-# 7. Claude Code、Serena 与 AI 协作本地文件
+# 6. Claude Code、Serena 与本机 AI 协作状态
 # ============================================================
 #
-# 提交：CLAUDE.md、AGENTS.md、.serena/project.yml 等共享规则。
-# 忽略：本机权限、状态栏、私人设置、技能锁与本地缓存。
+# CLAUDE.md、AGENTS.md、.serena/project.yml 与 .serena/memories/ 是共享资料。
+# .claude/ 当前仅承载本机权限、技能链接、任务状态、缓存和临时 worktree；
+# 整目录忽略可避免把完整仓库副本、令牌附近状态或失效符号链接误上传。
 
-/.claude/settings.json
-/.claude/settings.local.json
-/.claude/*.local.json
-/.claude/*.local.md
-/.claude/cache/
+/.claude/
 /CLAUDE.local.md
 /skills-lock.json
 /.history/
+/.serena/cache/
+/.serena/project.local.yml
 
 
 # ============================================================
-# 8. Syncthing 内部文件与冲突副本
+# 7. Syncthing 内部文件、版本库与冲突副本
 # ============================================================
-#
-# 下列规则只防 Git 提交；同步排除写本机 .stignore。
-# 不忽略 .git/：跨设备可同步仓库，但勿两机同时重写历史。
 
 /.stfolder/
 /.stfolder.removed-*
@@ -158,18 +189,49 @@ output-metadata.json
 
 
 # ============================================================
-# 9. Node.js / 前端辅助缓存（若后续加入文档站/脚本）
+# 8. Python 工具缓存、虚拟环境与报告
 # ============================================================
 
-/node_modules/
-/.pnpm-store/
-/.npm/
-/.yarn/
-/.pnp.*
-/.parcel-cache/
-/.turbo/
-/.vite/
-/.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.pyright/
+.hypothesis/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+*.egg-info/
+pip-wheel-metadata/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+
+# ============================================================
+# 9. Node.js / 文档站辅助工具缓存
+# ============================================================
+#
+# 当前产品不依赖 Node；保留这些规则用于文档和自动化脚本，锁文件仍可提交。
+
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.pnp.*
+.parcel-cache/
+.turbo/
+.vite/
+.cache/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
@@ -177,62 +239,72 @@ yarn-error.log*
 
 
 # ============================================================
-# 10. Python 质量/视觉脚本缓存
-# ============================================================
-#
-# tools/quality、tools/vision、tools/release、tools/algorithm 使用 Python。
-
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-
-
-# ============================================================
-# 11. 测试报告、本地诊断与备份目录
+# 10. 测试输出、覆盖率与本机诊断
 # ============================================================
 
-/coverage/
-/test-results/
-/playwright-report/
-/.nyc_output/
+coverage/
+test-results/
+playwright-report/
+.nyc_output/
 /.hzzs-test-results/
-.hzzs-test-results/
-/.backups/
-.backups/
-/hzzs-lint-errors*.txt
+/local-diagnostics/
+/test-output/
+/.hzzs-migration-state.json
+
+# 视觉数据可能包含用户画面；根目录默认不作为可提交数据集位置。
+/recognition-results/
+/screenshots/
+/datasets/
+/test_images/
+/.test-data/
+/device-artifacts/
+/device-logs/
+/recordings/
+/benchmark-results/
+/profiling/
+
+# 项目门禁和 Native 覆盖率工具的散落输出。
 hzzs-lint-errors*.txt
+*.gcda
+*.gcno
+*.profraw
+*.profdata
 
 
 # ============================================================
-# 12. 日志、临时文件、编辑器备份
+# 11. 本地备份、日志、临时文件与合并残留
 # ============================================================
 
+/.backups/
 *.log
 hs_err_pid*.log
 replay_pid*.log
+*.dmp
+*.stackdump
 *.tmp
 *.temp
 *.bak
+*.backup
 *.old
 *.orig
 *.rej
 *.swp
 *.swo
+*.swn
 *~
 
 
 # ============================================================
-# 13. 操作系统垃圾文件
+# 12. 操作系统元数据
 # ============================================================
 
+# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# macOS
 .DS_Store
 .DS_Store?
 ._*
@@ -240,16 +312,7 @@ $RECYCLE.BIN/
 .LSOverride
 .Spotlight-V100
 .Trashes
+
+# Linux 桌面环境
 .directory
 .Trash-*/
-
-
-# ============================================================
-# 14. 原生库编译产物
-# ============================================================
-
-*.so
-*.o
-*.a
-*.dll
-*.dylib

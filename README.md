@@ -40,16 +40,16 @@
 | 包名 | `top.azek431.hzzs` |
 | 最低系统 | Android 7.0（API 24） |
 | 目标 / 编译 SDK | 37 |
-| 默认赛季 | **竹影书屋**（`BAMBOO_BOOKSTORE`） |
+| 默认赛季 | 见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（文档不写死，避免与代码漂移） |
 | 模块形态 | 单一 `app` Gradle 模块 |
-| 配置 schema | DataStore v5 |
+| 配置 schema | DataStore v6 |
 
 首要目标：低权限默认、Android 7+ 兼容、比例坐标适配、设置可回滚、算法结果可测试，以及让开发者和 AI 能快速理解并安全修改代码。
 
 ## 主要能力
 
 - 单一 `app` 模块，业务代码按职责分包（Compose + Hilt）。
-- 甜甜圈、竹影书屋两个赛季配置，共用比例坐标体系；**首次安装默认竹影书屋**。
+- 甜甜圈、竹影书屋两个赛季配置，共用比例坐标体系；首次安装默认赛季由 `AppConfig.DEFAULT_SELECTED_SCENE` 决定。
 - 默认识别全部障碍类别，可按赛季关闭具体类别。
 - 固定比例、启动检测一次、持续检测三种玩家基准策略。
 - **MediaProjection 默认截图**；`CaptureBackend.AUTO` 只选低权限公开接口，**不探测 Root / Shizuku / 无障碍**。
@@ -134,6 +134,26 @@ Windows：
 ```powershell
 .\gradlew.bat --no-daemon clean testDebugUnitTest lintDebug assembleDebug
 ```
+
+### 本机构建加速（可选）
+
+复制示例并按需修改（已 gitignore，不入库）：
+
+```powershell
+Copy-Item gradle.local.properties.example gradle.local.properties
+# 默认示例为 hzzs.native.abis=arm64-v8a（仅真机 ABI）
+```
+
+也可单次传入：`.\gradlew.bat -Phzzs.native.abis=arm64-v8a assembleDebug`。  
+**发布 / CI 不要设置该属性**，默认仍编 `arm64-v8a,armeabi-v7a,x86_64`。
+
+4 核机器上建议限制 Ninja 并行，避免与 Kotlin 互抢：
+
+```powershell
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
+```
+
+项目已开启 Build Cache 与 Configuration Cache。若本机 `GRADLE_USER_HOME/gradle.properties` 写了 `org.gradle.configuration-cache=false`，会覆盖项目设置——**请注释掉该行**，否则配置阶段每次都全量重算。
 
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`
 

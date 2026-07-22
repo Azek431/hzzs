@@ -6,6 +6,7 @@
 #include "BambooVisionEngine.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -16,7 +17,6 @@ namespace {
 constexpr int kGroundOffset = 12;
 constexpr int kGapOffset = 28;
 constexpr int kOverheadOffset = 44;
-constexpr float kMinimumPlayerConfidence = 0.45f;
 constexpr int kMaximumFrameDimension = 8192;
 
 Detection convertObject(
@@ -78,7 +78,7 @@ void writeDetection(const Detection& detection, std::int32_t* out, int offset) n
 }
 } // namespace
 
-AnalysisResult analyze(const FrameView& frame) noexcept {
+AnalysisResult analyze(const FrameView& frame, float player_confidence_floor) noexcept {
     AnalysisResult out{};
     out.width = frame.width;
     out.height = frame.height;
@@ -121,8 +121,13 @@ AnalysisResult analyze(const FrameView& frame) noexcept {
         1000);
 
     if (rc != 0 || engine.scene_state != HZZS_SCENE_RUNNING) return out;
+    const float floor =
+        (std::isfinite(player_confidence_floor) && player_confidence_floor >= 0.0f &&
+         player_confidence_floor <= 1.0f)
+            ? player_confidence_floor
+            : 0.45f;
     if (engine.player_width <= 0 || engine.player_height <= 0 ||
-        engine.player_confidence < kMinimumPlayerConfidence) {
+        engine.player_confidence < floor) {
         out.sceneState = HZZS_SCENE_UNSAFE;
         return out;
     }

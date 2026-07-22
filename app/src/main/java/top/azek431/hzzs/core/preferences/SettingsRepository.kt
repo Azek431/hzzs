@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -100,7 +101,9 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun snapshot(): AppConfig {
         migrateLegacyOnce()
-        return stored.first()
+        val config = stored.first()
+        syncLogging(config)
+        return config
     }
 
     override suspend fun preview(config: AppConfig) {
@@ -115,6 +118,16 @@ class DataStoreSettingsRepository @Inject constructor(
         val safe = config.validated()
         context.settingsDataStore.edit { it[configKey] = ConfigJson.encode(safe) }
         preview.value = null
+        syncLogging(safe)
+        AppLog.i("settings", "config saved schema=${safe.schemaVersion} developer=${safe.developer.enabled}")
+    }
+
+    /** 将已保存开发者日志策略同步到 [AppLog]（预览不改日志级别）。 */
+    private fun syncLogging(config: AppConfig) {
+        AppLog.configure(
+            enabled = config.developer.enabled,
+            level = config.developer.logLevel,
+        )
     }
 
     override suspend fun importJson(json: String): AppConfig = ConfigJson.decode(json).validated()
@@ -363,6 +376,7 @@ fun AppConfig.validated(): AppConfig {
         developer = developer.copy(
             frameRateLimit = developer.frameRateLimit.coerceIn(1, 120),
             nativeBenchmarkIterations = developer.nativeBenchmarkIterations.coerceIn(10, 10_000),
+            logLevel = developer.logLevel,
         ),
         onboarding = onboarding.copy(
             acceptedDisclaimerVersion = onboarding.acceptedDisclaimerVersion.coerceAtLeast(0),
@@ -449,6 +463,7 @@ object ConfigJson {
                 put("showCoordinateGrid", safe.developer.showCoordinateGrid)
                 put("frameRateLimit", safe.developer.frameRateLimit)
                 put("nativeBenchmarkIterations", safe.developer.nativeBenchmarkIterations)
+                put("logLevel", safe.developer.logLevel.name)
             })
             put("onboarding", JSONObject().apply {
                 put("completed", safe.onboarding.completed)
@@ -582,6 +597,10 @@ object ConfigJson {
                 showCoordinateGrid = developer?.optBoolean("showCoordinateGrid", false) ?: false,
                 frameRateLimit = developer?.optInt("frameRateLimit", 60) ?: 60,
                 nativeBenchmarkIterations = developer?.optInt("nativeBenchmarkIterations", 200) ?: 200,
+                logLevel = developer?.optString("logLevel")
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { raw -> AppLogLevel.entries.firstOrNull { it.name == raw } }
+                    ?: AppLogLevel.INFO,
             ),
             onboarding = defaults.onboarding.copy(
                 completed = onboarding?.optBoolean("completed", false) ?: false,

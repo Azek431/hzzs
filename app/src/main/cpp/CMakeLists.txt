@@ -20,6 +20,25 @@ target_include_directories(hzzs_vision PRIVATE
 )
 
 target_compile_features(hzzs_vision PRIVATE cxx_std_17)
-target_compile_options(hzzs_vision PRIVATE -fvisibility=hidden -fstack-protector-strong)
+
+# 公共编译选项：隐藏符号、栈保护、无 RTTI（工程未使用 dynamic_cast/typeid）。
+# 异常保留：jni_bridge 捕获 std::bad_alloc。
+target_compile_options(hzzs_vision PRIVATE
+    -fvisibility=hidden
+    -fstack-protector-strong
+    -fno-rtti
+    -ffunction-sections
+    -fdata-sections
+    $<$<CONFIG:Release>:-O3 -DNDEBUG>
+    $<$<CONFIG:RelWithDebInfo>:-O2 -DNDEBUG>
+    $<$<CONFIG:Debug>:-O0 -g>
+)
+
+# 回收未引用段，减小 .so；与 -ffunction-sections/-fdata-sections 配对。
+target_link_options(hzzs_vision PRIVATE
+    -Wl,--gc-sections
+    -Wl,--exclude-libs,ALL
+)
+
 find_library(log-lib log)
 target_link_libraries(hzzs_vision PRIVATE ${log-lib})

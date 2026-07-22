@@ -281,9 +281,23 @@ data class McpConfig(
 )
 
 /**
+ * 应用日志最低级别（开发者可配置）。
+ *
+ * 关闭开发者选项时，ring buffer 仍保留 INFO 及以上；DEBUG/VERBOSE 仅在开启后生效。
+ */
+enum class AppLogLevel {
+    VERBOSE,
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+}
+
+/**
  * 开发者选项。
  *
  * 需关于页连续点击版本号解锁；预览阶段不强制切换截图后端等副作用。
+ * [frameRateLimit] 字段保留并校验，但完成驱动取帧下运行时暂不消费。
  */
 data class DeveloperConfig(
     val enabled: Boolean = false,
@@ -292,6 +306,8 @@ data class DeveloperConfig(
     val showCoordinateGrid: Boolean = false,
     val frameRateLimit: Int = 60,
     val nativeBenchmarkIterations: Int = 200,
+    /** 写入 ring buffer / Logcat 的最低级别；关闭开发者时 DEBUG 以下仍被压制。 */
+    val logLevel: AppLogLevel = AppLogLevel.INFO,
 )
 
 /** 首次引导与免责声明接受状态。 */
@@ -333,14 +349,15 @@ data class AlgorithmConfig(
  * 完整应用配置快照。
  *
  * DataStore schema 版本见 [CURRENT_SCHEMA]。
- * 默认赛季为竹影书屋；自动操作与 MCP 默认关闭。
+ * 默认赛季只定义在 [DEFAULT_SELECTED_SCENE]；自动操作与 MCP 默认关闭。
+ * 文档与代理说明应引用该常量，不要写死赛季中文名。
  */
 data class AppConfig(
     val schemaVersion: Int = CURRENT_SCHEMA,
     val theme: ThemeConfig = ThemeConfig(),
     val overlay: OverlayConfig = OverlayConfig(),
     val gameProfile: GameProfileId = GameProfileId.HUO_ZAI_ZAI_WONDER_HOUSE,
-    val selectedScene: SceneId = SceneId.BAMBOO_BOOKSTORE,
+    val selectedScene: SceneId = DEFAULT_SELECTED_SCENE,
     val captureBackend: CaptureBackend = CaptureBackend.AUTO,
     val viewport: ViewportConfig = ViewportConfig(),
     val scenes: Map<SceneId, SceneConfig> = SceneId.entries.associateWith { SceneConfig(it) },
@@ -360,6 +377,14 @@ data class AppConfig(
          * 用户接受版本低于此值时不得 arm。
          */
         const val DISCLAIMER_VERSION = 1
+
+        /**
+         * 首次安装、配置重置与运行时回退时的默认赛季。
+         *
+         * **唯一写死点**：变更产品默认赛季时只改这里，并跑设置/迁移相关单测。
+         * README / CLAUDE / AGENTS / PROGRESS 等文档不得再抄写具体赛季名。
+         */
+        val DEFAULT_SELECTED_SCENE: SceneId = SceneId.BAMBOO_BOOKSTORE
     }
 }
 
@@ -373,7 +398,7 @@ data class RuntimeStatus(
     val captureReady: Boolean = false,
     val overlayVisible: Boolean = false,
     val automationArmed: Boolean = false,
-    val activeScene: SceneId = SceneId.BAMBOO_BOOKSTORE,
+    val activeScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE,
     val activeBackend: CaptureBackend = CaptureBackend.AUTO,
     val fps: Float = 0f,
     val processingMs: Float = 0f,

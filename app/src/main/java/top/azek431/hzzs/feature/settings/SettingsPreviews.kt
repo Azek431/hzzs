@@ -111,7 +111,7 @@ private fun previewAlgorithmState() = AlgorithmCatalogState(
 )
 
 private fun previewPackage() = AlgorithmPackageInfo(
-    id = "builtin-bamboo-1.0.0",
+    id = "builtin-hzzs-1.0.0",
     name = "竹影书屋内置算法",
     versionName = "1.0.0",
     versionCode = 1000,

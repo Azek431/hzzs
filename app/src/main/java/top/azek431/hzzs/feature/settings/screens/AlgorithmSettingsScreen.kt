@@ -3,8 +3,8 @@
  *
  * 职责：选择自动/手动算法、赛季与识别阈值；展示远端/已安装算法卡。
  * 数据流：草稿经 [update]；检查/下载/取消/选用经 ViewModel 即时任务；
- * 算法字段预览被 baseline 锁定，保存后才真正切换运行时。
- * 边界：不直接网络/JNI；目录状态来自 [AlgorithmCatalogState]。
+ * 算法字段预览被 baseline 锁定；识别赛季/阈值可预览热更新。
+ * 边界：不直接网络/JNI；目录/下载当前为演示态（未接真实 .hzzsalg 安装器）。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -146,13 +146,20 @@ fun AlgorithmSettingsScreen(
         }
 
         item {
+            SettingsWarningCard(
+                title = "算法目录与下载仍为演示",
+                body = "检查/下载不会落盘或验签真实 .hzzsalg，也不会切换 Native 引擎；分析始终使用内置 builtin.hzzs.v1，直至安装器接入。识别赛季与下方阈值可预览即时生效，算法选择须保存且当前仍不驱动引擎。",
+            )
+        }
+
+        item {
             SettingsSectionCard(
                 title = "选择方式",
                 description = null,
             ) {
                 SettingsRadioCard(
                     title = "自动选择（推荐）",
-                    subtitle = "自动获取并使用当前场景下最新且兼容的官方算法。网络失败时继续使用已安装算法或内置算法。",
+                    subtitle = "计划：自动使用当前场景下最新且兼容的官方算法。当前仅更新目录 UI，不激活引擎。",
                     selected = config.algorithm.selectionMode == AlgorithmSelectionMode.AUTO,
                     onClick = {
                         update {
@@ -168,7 +175,7 @@ fun AlgorithmSettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SettingsRadioCard(
                     title = "手动选择",
-                    subtitle = "从已安装算法中指定版本；下载不会自动激活，需保存选择。",
+                    subtitle = "从列表钉选版本并保存到配置；安装器接入前仍不会切换运行时引擎。",
                     selected = config.algorithm.selectionMode == AlgorithmSelectionMode.MANUAL,
                     onClick = {
                         update {
@@ -188,7 +195,7 @@ fun AlgorithmSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "当前赛季与识别",
-                description = "采用比例坐标适配不同分辨率；默认识别当前赛季的全部障碍。",
+                description = "比例坐标适配分辨率。赛季、障碍开关与阈值预览会即时进入运行配置；算法包选择除外。",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SceneId.entries.forEach { id ->
@@ -257,7 +264,7 @@ fun AlgorithmSettingsScreen(
                     }
                 }
                 LabeledSlider(
-                    "最低置信度",
+                    "自动操作最低置信度",
                     scene.thresholds.minimumConfidence,
                     0.4f..0.95f,
                 ) { value ->
@@ -265,13 +272,18 @@ fun AlgorithmSettingsScreen(
                         it.copy(thresholds = it.thresholds.copy(minimumConfidence = value))
                     }
                 }
+                Text(
+                    "仅过滤自动动作候选，不改变 HUD 检测框产出。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
         item {
             Text("最新算法", style = MaterialTheme.typography.titleMedium)
             Text(
-                "按兼容性与发布时间排序。下载是即时任务；手动模式下不会自动激活。",
+                "演示列表按兼容性排序。下载为模拟进度；完整尺寸/颜色优化依赖后续引擎参数化与安装器。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -30,6 +31,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.HeroCard
 import top.azek431.hzzs.core.designsystem.HzzsCallout
 import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
@@ -76,15 +78,19 @@ fun HomeScreen(
     HzzsScrollPage(modifier = Modifier.fillMaxSize()) {
         item {
             PageHeader(
-                title = "HZZS",
-                subtitle = "本地画面分析 · 低权限默认 · 受控自动操作",
+                title = stringResource(R.string.home_title),
+                subtitle = stringResource(R.string.home_subtitle),
             )
         }
 
         item {
             HzzsStatusStrip {
                 StatusChip(
-                    if (status.running) "分析运行中" else "分析未启动",
+                    if (status.running) {
+                        stringResource(R.string.home_status_running)
+                    } else {
+                        stringResource(R.string.home_status_idle)
+                    },
                     active = status.running,
                 )
                 StatusChip(config.selectedScene.displayName(), active = true)
@@ -94,17 +100,25 @@ fun HomeScreen(
 
         item {
             HeroCard(
-                title = if (status.running) "分析正在进行" else "准备开始分析",
+                title = if (status.running) {
+                    stringResource(R.string.home_hero_running)
+                } else {
+                    stringResource(R.string.home_hero_idle)
+                },
                 subtitle = "${config.selectedScene.displayName()} · ${config.captureBackend.displayName()}",
                 icon = Icons.Rounded.Visibility,
             ) {
                 Text(
-                    "识别仅在本机完成。自动操作默认关闭，需在运行页按会话解锁后才会向白名单窗口发送手势。",
+                    stringResource(R.string.home_hero_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 HzzsPrimaryAction(
-                    text = if (status.running) "打开运行控制台" else "进入运行控制",
+                    text = if (status.running) {
+                        stringResource(R.string.home_open_runtime_running)
+                    } else {
+                        stringResource(R.string.home_open_runtime)
+                    },
                     onClick = onOpenRuntime,
                     icon = Icons.Rounded.PlayArrow,
                 )
@@ -114,44 +128,48 @@ fun HomeScreen(
         item {
             SectionCard {
                 Text(
-                    "当前生效配置",
+                    stringResource(R.string.home_config_section),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "已保存配置，不是设置页临时预览。",
+                    stringResource(R.string.home_config_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     HzzsMetricGrid {
                         MetricTile(
-                            label = "赛季",
+                            label = stringResource(R.string.home_metric_scene),
                             value = config.selectedScene.displayName(),
                             modifier = Modifier.weight(1f),
                         )
                         MetricTile(
-                            label = "截图",
+                            label = stringResource(R.string.home_metric_capture),
                             value = config.captureBackend.displayName(),
                             modifier = Modifier.weight(1f),
                         )
                     }
                     HzzsMetricGrid {
                         MetricTile(
-                            label = "自动操作",
+                            label = stringResource(R.string.home_metric_automation),
                             value = if (config.automation.enabled) {
-                                if (status.automationArmed) "已解锁" else "待解锁"
+                                if (status.automationArmed) {
+                                    stringResource(R.string.home_automation_armed)
+                                } else {
+                                    stringResource(R.string.home_automation_locked)
+                                }
                             } else {
-                                "关闭"
+                                stringResource(R.string.home_closed)
                             },
                             modifier = Modifier.weight(1f),
                         )
                         MetricTile(
-                            label = "MCP",
+                            label = stringResource(R.string.home_metric_mcp),
                             value = if (config.mcp.enabled) {
                                 config.mcp.permissionLevel.displayName()
                             } else {
-                                "关闭"
+                                stringResource(R.string.home_closed)
                             },
                             modifier = Modifier.weight(1f),
                         )
@@ -162,8 +180,8 @@ fun HomeScreen(
 
         item {
             HzzsCallout(
-                title = "安全边界",
-                text = "自动操作默认关闭。开启后仍须在运行页确认当前游戏页面；切页、失败或停止分析会自动解除。",
+                title = stringResource(R.string.home_security_title),
+                text = stringResource(R.string.home_security_body),
                 tone = HzzsCalloutTone.INFO,
                 icon = Icons.Rounded.Security,
             )
@@ -171,7 +189,7 @@ fun HomeScreen(
 
         item {
             HzzsSecondaryAction(
-                text = "打开设置",
+                text = stringResource(R.string.home_open_settings),
                 onClick = onOpenSettings,
                 icon = Icons.Rounded.Settings,
                 tonal = true,

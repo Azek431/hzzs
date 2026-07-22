@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
@@ -143,7 +145,10 @@ fun MetricTile(
     }
 }
 
-/** 2/3 列指标网格。 */
+/**
+ * 指标网格：横排等分；子项应自带 [Modifier.weight]。
+ * 调用方在极窄场景可拆成多行 [HzzsMetricGrid]。
+ */
 @Composable
 fun HzzsMetricGrid(
     modifier: Modifier = Modifier,
@@ -431,7 +436,7 @@ fun HzzsSecondaryAction(
 }
 
 /**
- * 统一滚动页骨架：标准 contentPadding 与区块间距。
+ * 统一滚动页骨架：标准 contentPadding、区块间距，并在宽屏限制 [HzzsDimensions.contentMaxWidth]。
  * 调用方在 [content] 中写 LazyList item。
  */
 @Composable
@@ -440,15 +445,22 @@ fun HzzsScrollPage(
     content: LazyListScope.() -> Unit,
 ) {
     val dimensions = LocalHzzsDimensions.current
-    LazyColumn(
+    Box(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(
-            start = dimensions.screenPadding,
-            end = dimensions.screenPadding,
-            top = dimensions.screenPadding,
-            bottom = dimensions.screenPadding + 8.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap),
-        content = content,
-    )
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .widthIn(max = dimensions.contentMaxWidth)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(
+                start = dimensions.screenPadding,
+                end = dimensions.screenPadding,
+                top = dimensions.screenPadding,
+                bottom = dimensions.screenPadding + 8.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(dimensions.sectionGap),
+            content = content,
+        )
+    }
 }

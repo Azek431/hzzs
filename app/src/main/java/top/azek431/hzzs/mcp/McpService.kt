@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import top.azek431.hzzs.R
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.McpPermissionLevel
 import top.azek431.hzzs.core.preferences.ConfigJson
 import top.azek431.hzzs.core.preferences.SettingsRepository
@@ -317,6 +318,7 @@ class McpForegroundService : Service() {
 
     private suspend fun startServer() {
         val config = runCatching { settings.snapshot().mcp }.getOrElse {
+            AppLog.e("mcp", "read mcp config failed: ${it.message}", it)
             uiBridge.updateServerState(McpServerState(lastError = it.message))
             stopSelf()
             return
@@ -332,6 +334,8 @@ class McpForegroundService : Service() {
                 bind(InetSocketAddress(InetAddress.getLoopbackAddress(), config.port), 8)
             }
             server = socket
+            // 不写 token 到日志；仅记录端口与权限级。
+            AppLog.i("mcp", "MCP listening on 127.0.0.1:${config.port} level=${config.permissionLevel.name}")
             uiBridge.updateServerState(McpServerState(true, config.port, token))
             getSystemService(NotificationManager::class.java).notify(
                 NOTIFICATION_ID,
@@ -342,6 +346,7 @@ class McpForegroundService : Service() {
                 scope.launch { handle(client, token) }
             }
         } catch (error: Throwable) {
+            AppLog.e("mcp", "MCP server failed: ${error.message}", error)
             uiBridge.updateServerState(McpServerState(lastError = error.message ?: error.javaClass.simpleName))
         } finally {
             stopServer()
