@@ -14,6 +14,7 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-om
   "$CPP/vision_engine.cpp" \
   "$CPP/sweet_factory.cpp" \
   "$CPP/bamboo_bookstore.cpp" \
+  "$CPP/sea_salt_living_room.cpp" \
   "$CPP/legacy_main/vision2/HzzsVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionEngine.cpp" \

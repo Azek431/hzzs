@@ -439,7 +439,9 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
     jfloat viewport_right,
     jfloat viewport_bottom) {
     std::lock_guard<std::mutex> analysis_lock(g_analysis_mutex);
-    if (scene < 0 || scene > 1) return error_result(env, "invalid scene");
+    // 与 Kotlin SceneId.ordinal / hzzs::kSceneCount 对齐：0 甜品 / 1 竹影 / 2 海盐。
+    // 历史双赛季闸门 `scene > 1` 会把海盐永久打成 invalid scene。
+    if (scene < 0 || scene >= hzzs::kSceneCount) return error_result(env, "invalid scene");
     if (!pixels || width <= 0 || height <= 0 || width > kMaximumDimension || height > kMaximumDimension) {
         return error_result(env, "invalid frame dimensions");
     }

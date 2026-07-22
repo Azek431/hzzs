@@ -94,6 +94,13 @@ void test_analyze_uses_snapshot_and_reset() {
     assert(!analyze(0, {nullptr, 0, 0}, 320, 0xFF, true, 0.185f).error.empty());
     assert(!analyze(0, frame, 100, 0xFF, true, 0.185f).error.empty());
 
+    // 赛季边界：0/1/2 合法；-1 与 kSceneCount 及以上为 invalid scene。
+    // 回归：引擎曾支持 scene=2，但 JNI 仍按双赛季拒绝，真机海盐连续失败。
+    assert(analyze(-1, frame, 320, 0x7FF, true, 0.185f).error == "invalid scene");
+    assert(analyze(kSceneCount, frame, 320, 0x7FF, true, 0.185f).error == "invalid scene");
+    const auto sea = analyze(2, frame, 320, 0x7FF, true, 0.185f);
+    assert(sea.error != "invalid scene");
+
     AlgorithmRuntime::instance().configure(valid_network_profile());
     const auto blank = analyze(0, frame, 320, 0xFF, true, 0.185f);
     for (const auto& d : blank.detections) assert(!d.actionable || d.kind != Kind::PLAYER);
