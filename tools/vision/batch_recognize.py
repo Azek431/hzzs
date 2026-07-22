@@ -26,6 +26,12 @@ from evaluate_dataset import COLORS, KINDS, HostVision, scene_for  # noqa: E402
 DEFAULT_INPUT = Path(r"D:\Code\AI\火崽崽\火崽崽奇妙屋\算法测试\测试图片")
 DEFAULT_OUTPUT = Path(r"D:\Code\AI\火崽崽\火崽崽奇妙屋\算法测试\识别结果")
 
+SCENE_DIR_NAMES = {
+    0: "甜品工厂",
+    1: "竹影书屋",
+    2: "海盐客厅",
+}
+
 
 def collect_images(root: Path) -> list[Path]:
     files: list[Path] = []
@@ -33,6 +39,28 @@ def collect_images(root: Path) -> list[Path]:
         if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
             files.append(path)
     return files
+
+
+def clear_output_dir(output: Path) -> None:
+    """清空识别结果目录（含旧扁平文件与赛季子目录）。"""
+    if not output.exists():
+        output.mkdir(parents=True, exist_ok=True)
+        return
+    for child in output.iterdir():
+        if child.is_file():
+            child.unlink()
+        elif child.is_dir():
+            import shutil
+
+            shutil.rmtree(child)
+    output.mkdir(parents=True, exist_ok=True)
+
+
+def season_output_dir(output: Path, scene: int) -> Path:
+    name = SCENE_DIR_NAMES.get(scene, f"scene_{scene}")
+    path = output / name
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def draw_result(bgr: np.ndarray, result: dict) -> np.ndarray:
@@ -82,6 +110,11 @@ def main() -> int:
     parser.add_argument("--max-images", type=int, default=0)
     parser.add_argument("--library", type=Path, default=None)
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument(
+        "--no-clear",
+        action="store_true",
+        help="do not wipe output directory before writing",
+    )
     args = parser.parse_args()
 
     if not args.input.is_dir():
@@ -113,7 +146,13 @@ def main() -> int:
     if not images:
         raise SystemExit("no images found")
 
-    args.output.mkdir(parents=True, exist_ok=True)
+    if args.no_clear:
+        args.output.mkdir(parents=True, exist_ok=True)
+    else:
+        clear_output_dir(args.output)
+        for scene_id in SCENE_DIR_NAMES:
+            season_output_dir(args.output, scene_id)
+
     rows: list[dict] = []
     by_scene: dict[int, list[float]] = defaultdict(list)
     total_dets = 0
@@ -135,7 +174,26 @@ def main() -> int:
         by_scene[scene].append(native_ms)
 
         rel = path.relative_to(args.input)
-        out_img = args.output / f"{str(rel).replace(chr(92), '__').replace('/', '__')}_vision.jpg"
+        season_dir = season_output_dir(args.output, scene)
+        # Keep relative structure under the season folder when possible.
+        try:
+            # Prefer path relative to the season source folder if present.
+            season_src = None
+            for part in path.parts:
+                if part in SCENE_DIR_NAMES.values():
+                    season_src = part
+                    break
+            if season_src and season_src in path.parts:
+                idx = path.parts.index(season_src)
+                nested = Path(*path.parts[idx + 1 : -1]) if idx + 1 < len(path.parts) - 1 else Path()
+                dest_dir = season_dir / nested if str(nested) not in ("", ".") else season_dir
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                out_img = dest_dir / f"{path.stem}_vision.jpg"
+            else:
+                out_img = season_dir / f"{str(rel).replace(chr(92), '__').replace('/', '__')}_vision.jpg"
+        except Exception:
+            out_img = season_dir / f"{str(rel).replace(chr(92), '__').replace('/', '__')}_vision.jpg"
+
         overlay = draw_result(bgr, result)
         ok, buf = cv2.imencode(".jpg", overlay)
         if ok:
@@ -146,12 +204,14 @@ def main() -> int:
                 "index": index,
                 "file": str(rel),
                 "scene": scene,
+                "scene_name": SCENE_DIR_NAMES.get(scene, str(scene)),
                 "cost_ms": round(native_ms, 3),
                 "wall_ms": round(wall_ms, 3),
                 "scene_confidence": round(float(result.get("sceneConfidence", 0.0)), 4),
                 "detections": len(dets),
                 "kinds": ",".join(str(d.get("kind")) for d in dets),
                 "error": result.get("error", ""),
+                "output": str(out_img.relative_to(args.output)),
             }
         )
         if index % 25 == 0 or index == len(images):
@@ -192,12 +252,14 @@ def main() -> int:
                 "index",
                 "file",
                 "scene",
+                "scene_name",
                 "cost_ms",
                 "wall_ms",
                 "scene_confidence",
                 "detections",
                 "kinds",
                 "error",
+                "output",
             ],
         )
         writer.writeheader()

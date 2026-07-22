@@ -209,13 +209,14 @@ Result analyze_bamboo_main(
     float fixed_player_x_ratio,
     const SceneAlgorithmParamsNative& params) {
     Result out;
-    // work_width 保留供未来主路径降采样；当前 bamboo 引擎全分辨率，至少校验合法。
     if (work_width < 160 || work_width > 960) {
         out.error = "invalid work width";
         return out;
     }
     const hzzs::vision_bamboo::FrameView view{frame.pixels, frame.width, frame.height, frame.width};
-    const auto raw = hzzs::vision_bamboo::analyze(view, params.player_confidence_floor);
+    // work_width 驱动竹影主路径降采样，再映射回原图像素框。
+    const auto raw = hzzs::vision_bamboo::analyze(
+        view, params.player_confidence_floor, work_width);
 
     const float player_conf = raw.playerConfidencePermille / 1000.0f;
     if (raw.sceneState != 1 /* HZZS_SCENE_RUNNING */) {
@@ -415,23 +416,27 @@ Result analyze_with_profile(
                                    h < params.bottle_height_min || h > params.bottle_height_max;
                         case Kind::CAKE_STRUCTURE:
                         case Kind::PIT:
-                        case Kind::SEA_PIT:
                             return w < params.cake_width_min || w > params.cake_width_max ||
                                    h < params.cake_height_min;
+                        // 海盐专用窗：避免复用蛋糕/雕像/毛笔阈值误杀。
+                        case Kind::SEA_PIT:
+                            return w < 0.07f || w > 0.90f || h < 0.05f || h > 0.70f;
                         case Kind::HANGING_SPIKE:
                             return w < params.spike_width_min || w > params.spike_width_max ||
                                    h < params.spike_height_min || h > params.spike_height_max;
                         case Kind::PANDA_STATUE:
-                        case Kind::SAND_CASTLE:
                             return w < params.statue_width_min || w > params.statue_width_max ||
                                    h < params.statue_height_min || h > params.statue_height_max;
+                        case Kind::SAND_CASTLE:
+                            return w < 0.035f || w > 0.48f || h < 0.04f || h > 0.50f;
                         case Kind::BAMBOO_GAP:
                             return w < params.gap_width_min || w > params.gap_width_max ||
                                    h < params.gap_height_min;
                         case Kind::HANGING_BRUSH:
-                        case Kind::HANGING_ANCHOR:
                             return w < params.brush_width_min || w > params.brush_width_max ||
                                    h < params.brush_height_min || h > params.brush_height_max;
+                        case Kind::HANGING_ANCHOR:
+                            return w < 0.025f || w > 0.35f || h < 0.08f || h > 0.65f;
                         default:
                             return false;
                     }

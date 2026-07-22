@@ -57,13 +57,16 @@ extern "C" int hzzs_analyze_host(
     int work_width,
     float* output,
     int max_detections) {
+    // 低 11 位：PLAYER + 10 种障碍（含海盐 SAND_CASTLE/HANGING_ANCHOR/SEA_PIT）。
+    // 旧 0xFF 只开到 HANGING_BRUSH，会静默关掉海盐三类障碍。
+    constexpr int kAllKindsMask = 0x7FF;
     return hzzs_analyze_host_config(
         scene,
         pixels,
         width,
         height,
         work_width,
-        0xFF,
+        kAllKindsMask,
         true,
         0.185f,
         output,

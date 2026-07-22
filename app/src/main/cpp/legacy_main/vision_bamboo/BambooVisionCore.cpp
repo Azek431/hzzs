@@ -78,7 +78,10 @@ void writeDetection(const Detection& detection, std::int32_t* out, int offset) n
 }
 } // namespace
 
-AnalysisResult analyze(const FrameView& frame, float player_confidence_floor) noexcept {
+AnalysisResult analyze(
+    const FrameView& frame,
+    float player_confidence_floor,
+    int work_width) noexcept {
     AnalysisResult out{};
     out.width = frame.width;
     out.height = frame.height;
@@ -89,30 +92,53 @@ AnalysisResult analyze(const FrameView& frame, float player_confidence_floor) no
         return out;
     }
 
-    const std::size_t pixelCount = static_cast<std::size_t>(frame.width) * static_cast<std::size_t>(frame.height);
+    // 工作图宽度：与设置 VisionThresholds.workWidth 对齐。原图更宽时降采样，
+    // 避免 legacy 全图 Mask/形态学/连通域在 1080p 上掉到百毫秒级。
+    int target_w = work_width;
+    if (target_w < 160) target_w = 160;
+    if (target_w > 960) target_w = 960;
+
+    const bool downscale = frame.width > target_w;
+    const int work_w = downscale ? target_w : frame.width;
+    const int work_h = downscale
+        ? std::max(64, (frame.height * target_w + frame.width / 2) / frame.width)
+        : frame.height;
+    const float scale_x = static_cast<float>(frame.width) / static_cast<float>(std::max(1, work_w));
+    const float scale_y = static_cast<float>(frame.height) / static_cast<float>(std::max(1, work_h));
+
+    const std::size_t pixelCount =
+        static_cast<std::size_t>(work_w) * static_cast<std::size_t>(work_h);
     if (pixelCount > std::numeric_limits<std::size_t>::max() / 3U) return out;
 
     thread_local std::vector<std::uint8_t> rgb;
     const std::size_t needed = pixelCount * 3U;
     if (rgb.size() != needed) rgb.resize(needed);
 
-    std::size_t dst = 0;
-    for (int y = 0; y < frame.height; ++y) {
-        const auto* row = frame.pixels + static_cast<std::size_t>(y) * frame.stride;
-        for (int x = 0; x < frame.width; ++x) {
-            const std::uint32_t argb = row[x];
-            rgb[dst++] = static_cast<std::uint8_t>((argb >> 16U) & 0xFFU);
-            rgb[dst++] = static_cast<std::uint8_t>((argb >> 8U) & 0xFFU);
-            rgb[dst++] = static_cast<std::uint8_t>(argb & 0xFFU);
+    // 最近邻缩放 + ARGB→RGB，一次完成，避免「全图拆通道再缩放」。
+    for (int y = 0; y < work_h; ++y) {
+        const int src_y = downscale
+            ? std::min(frame.height - 1, static_cast<int>((y + 0.5f) * scale_y))
+            : y;
+        const auto* row = frame.pixels + static_cast<std::size_t>(src_y) * frame.stride;
+        std::uint8_t* dst_row = rgb.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(work_w) * 3U;
+        for (int x = 0; x < work_w; ++x) {
+            const int src_x = downscale
+                ? std::min(frame.width - 1, static_cast<int>((x + 0.5f) * scale_x))
+                : x;
+            const std::uint32_t argb = row[src_x];
+            const std::size_t o = static_cast<std::size_t>(x) * 3U;
+            dst_row[o + 0] = static_cast<std::uint8_t>((argb >> 16U) & 0xFFU);
+            dst_row[o + 1] = static_cast<std::uint8_t>((argb >> 8U) & 0xFFU);
+            dst_row[o + 2] = static_cast<std::uint8_t>(argb & 0xFFU);
         }
     }
 
     HzzsFrameResult engine{};
     const int rc = hzzs_bamboo_analyze_rgb_internal(
         rgb.data(),
-        frame.width,
-        frame.height,
-        frame.width * 3,
+        work_w,
+        work_h,
+        work_w * 3,
         &engine);
     out.sceneState = engine.scene_state;
     out.playerConfidencePermille = std::clamp(
@@ -132,14 +158,41 @@ AnalysisResult analyze(const FrameView& frame, float player_confidence_floor) no
         return out;
     }
 
-    out.playerWidth = engine.player_width;
-    out.playerLeft = engine.player_x;
+    auto map_x = [&](int v) -> int {
+        if (!downscale) return v;
+        return std::clamp(static_cast<int>(std::lround(v * scale_x)), 0, frame.width);
+    };
+    auto map_y = [&](int v) -> int {
+        if (!downscale) return v;
+        return std::clamp(static_cast<int>(std::lround(v * scale_y)), 0, frame.height);
+    };
+    auto map_object = [&](HzzsObject object) -> HzzsObject {
+        if (!downscale) return object;
+        const int x0 = map_x(object.x);
+        const int y0 = map_y(object.y);
+        const int x1 = map_x(object.x + std::max(0, object.width));
+        const int y1 = map_y(object.y + std::max(0, object.height));
+        object.x = x0;
+        object.y = y0;
+        object.width = std::max(1, x1 - x0);
+        object.height = std::max(1, y1 - y0);
+        return object;
+    };
+
+    // 玩家框映射回原图。
+    const int mapped_player_x = map_x(engine.player_x);
+    const int mapped_player_y = map_y(engine.player_y);
+    const int mapped_player_w = std::max(1, map_x(engine.player_x + engine.player_width) - mapped_player_x);
+    const int mapped_player_h = std::max(1, map_y(engine.player_y + engine.player_height) - mapped_player_y);
+
+    out.playerWidth = mapped_player_w;
+    out.playerLeft = mapped_player_x;
     out.playerRight = out.playerLeft + out.playerWidth;
     out.playerCenterX = out.playerLeft + out.playerWidth / 2;
-    out.playerCenterY = engine.player_y + engine.player_height / 2;
+    out.playerCenterY = mapped_player_y + mapped_player_h / 2;
 
     for (int i = 0; i < engine.object_count; ++i) {
-        const auto& object = engine.objects[i];
+        const auto object = map_object(engine.objects[i]);
         Detection candidate{};
         if (object.kind == HZZS_OBJECT_GROUND && object.appearance == HZZS_APPEARANCE_PANDA_STATUE) {
             candidate = convertObject(
@@ -215,6 +268,7 @@ extern "C" int hzzs_bamboo_analyze_packed(
     std::int32_t* out,
     int capacity) noexcept {
     const hzzs::vision_bamboo::FrameView frame{pixels, width, height, stride};
-    const auto result = hzzs::vision_bamboo::analyze(frame);
+    // 打包入口无 workWidth 时用 384 默认，与产品默认阈值一致。
+    const auto result = hzzs::vision_bamboo::analyze(frame, 0.45f, 384);
     return hzzs::vision_bamboo::pack(result, out, capacity);
 }

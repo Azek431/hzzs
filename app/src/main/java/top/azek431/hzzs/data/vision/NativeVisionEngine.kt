@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.PlayerReferenceMode
 import top.azek431.hzzs.core.model.SceneConfig
 import top.azek431.hzzs.core.model.ViewportConfig
@@ -149,24 +150,27 @@ class NativeVisionEngine @Inject constructor(
         val validated = AlgorithmProfileValidator.validate(profile)
         if (validated.isFailure) {
             // 校验失败：默认回退内置，保证 NativeVision 仍可用。
+            val reason = validated.exceptionOrNull()?.message ?: "算法配置校验失败"
+            AppLog.w(
+                "algorithm",
+                "profile validate failed id=${profile.algorithmId}: $reason → builtin fallback",
+            )
             val fallback = algorithmProvider.activate(
                 profile = AlgorithmRuntimeProfile.builtin(),
                 fallbackToBuiltinOnError = true,
             ).getOrElse {
-                algorithmProvider.activateBuiltin(validated.exceptionOrNull()?.message)
+                algorithmProvider.activateBuiltin(reason)
             }
             if (NativeVision.isAvailable) {
                 runCatching { NativeVision.configureAlgorithm(fallback.profile) }
+                    .onFailure { AppLog.e("algorithm", "native configure builtin failed", it) }
             }
             lastActivation.set(fallback)
-            return Result.failure(
-                IllegalArgumentException(
-                    validated.exceptionOrNull()?.message ?: "算法配置校验失败",
-                ),
-            )
+            return Result.failure(IllegalArgumentException(reason))
         }
         val activation = algorithmProvider.activate(validated.getOrThrow(), fallbackToBuiltinOnError = false)
             .getOrElse { error ->
+                AppLog.e("algorithm", "kotlin activate failed: ${error.message}", error)
                 return Result.failure(error)
             }
         if (NativeVision.isAvailable) {
@@ -177,6 +181,11 @@ class NativeVisionEngine @Inject constructor(
                     )
                     runCatching { NativeVision.configureAlgorithm(fallback.profile) }
                     lastActivation.set(fallback)
+                    AppLog.e(
+                        "algorithm",
+                        "native configure threw; fallback builtin gen=${fallback.generation}",
+                        error,
+                    )
                     return Result.failure(
                         IllegalStateException(fallback.loadError ?: "Native 配置失败"),
                     )
@@ -187,8 +196,21 @@ class NativeVisionEngine @Inject constructor(
                 )
                 runCatching { NativeVision.configureAlgorithm(fallback.profile) }
                 lastActivation.set(fallback)
+                AppLog.e(
+                    "algorithm",
+                    "native rejected profile id=${activation.profile.algorithmId}: ${native.error}",
+                )
                 return Result.failure(IllegalStateException(fallback.loadError ?: native.error))
             }
+            AppLog.d(
+                "algorithm",
+                "native configure ok id=${activation.profile.algorithmId} gen=${activation.generation}",
+            )
+        } else {
+            AppLog.w(
+                "algorithm",
+                "native unavailable; kotlin-only activation id=${activation.profile.algorithmId}",
+            )
         }
         lastActivation.set(activation)
         return Result.success(activation)

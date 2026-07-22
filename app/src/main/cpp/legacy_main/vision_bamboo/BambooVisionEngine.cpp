@@ -108,13 +108,19 @@ struct PlayerInfo { Rect box; float confidence=0.f; };
 PlayerInfo detectPlayer(const View& v){
     Mask m(v.w,v.h);
     int x1=static_cast<int>(v.w*.47f), y0=static_cast<int>(v.h*.32f), y1=static_cast<int>(v.h*.76f);
-    for(int y=y0;y<y1;++y) for(int x=0;x<x1;++x){
+    // 步进采样 + 一次 dilate 补洞：玩家 ROI 像素访问约降为 1/4。
+    for(int y=y0;y<y1;y+=2) for(int x=0;x<x1;x+=2){
         auto p=v.at(x,y);
         // The avatar's cap/body is red-magenta: blue stays above green.  This relative
         // condition rejects both the yellow bamboo background and the pale pink sky.
         const bool magenta=p.r>145&&p.r-p.g>35&&p.b-p.g>3&&p.r-p.b>0;
         const bool deepRed=p.r>165&&p.r-p.g>55&&p.g<130&&p.b<145;
-        m.at(x,y)=static_cast<uint8_t>(magenta||deepRed);
+        if(magenta||deepRed){
+            m.at(x,y)=1;
+            if(x+1<x1) m.at(x+1,y)=1;
+            if(y+1<y1) m.at(x,y+1)=1;
+            if(x+1<x1&&y+1<y1) m.at(x+1,y+1)=1;
+        }
     }
     m=closeOpen(m,1,1);
     auto cs=components(m,std::max(8,v.w*v.h/20000),0,y0,x1,y1);
@@ -148,7 +154,8 @@ FloorInfo detectFloor(const View& v,int season){
     int lo=int(v.h*.52f),hi=int(v.h*.675f);
     float best=-1e9f;int bestY=int(v.h*.60f);float bestSupport=0.f;
     const float prior=.60f*v.h;
-    for(int y=lo;y<hi;++y){
+    // y 步进 2：地面扫描行数减半，足够定位 floor 带。
+    for(int y=lo;y<hi;y+=2){
         long edge=0;int samples=0;
         for(int x=0;x<v.w;x+=2){
             if(x>int(v.w*.15f)&&x<int(v.w*.31f))continue;
@@ -168,20 +175,20 @@ FloorInfo detectFloor(const View& v,int season){
 bool overlapsX(const Rect& a,const Rect& b){return std::max(a.x,b.x)<std::min(a.x+a.w,b.x+b.w);}
 
 void detectBamboo(const View& v,int floor,HzzsFrameResult& out){
-    Mask stone(v.w,v.h),white(v.w,v.h),panda(v.w,v.h),orb(v.w,v.h);
-    int xMin=0,yMin=int(v.h*.18f),yMax=clampi(floor+int(v.h*.03f),0,v.h);
+    // 产品路径只映射：熊猫像 / 竹隙 / 毛笔。
+    // 不再构建 white/panda/orb 全图 Mask 与收藏品连通域（历史诊断路径，Kotlin 不消费）。
+    Mask stone(v.w,v.h);
+    // 雕像主要在玩家右侧；左侧仅保留窄边以防边缘目标。
+    const int xMin=std::max(0,int(v.w*.06f));
+    const int yMin=int(v.h*.31f);
+    const int yMax=clampi(floor+int(v.h*.03f),0,v.h);
     for(int y=yMin;y<yMax;++y)for(int x=xMin;x<v.w;++x){
         auto p=v.at(x,y);int mx=max3(p.r,p.g,p.b),mn=min3(p.r,p.g,p.b),range=mx-mn;
-        if(y>=int(v.h*.31f)&&mx>42&&mx<210&&range<62&&p.b>=p.r-22)stone.at(x,y)=1;
-        if(mx>190&&range<60)white.at(x,y)=1;
-        // expanded white/black face seeds; dilation later merges ears and face.
-        bool pw=(mx>205&&range<45);bool pb=(mx<80&&range<45);
-        panda.at(x,y)=static_cast<uint8_t>(pw||pb);
-        bool blue=(p.b>145&&p.b-p.r>18&&p.b-p.g>5);bool orange=(p.r>180&&p.g>100&&p.b<100);bool mag=(p.r>175&&p.b>110&&p.r-p.g>15);
-        orb.at(x,y)=static_cast<uint8_t>(blue||orange||mag);
+        if(mx>42&&mx<210&&range<62&&p.b>=p.r-22)stone.at(x,y)=1;
     }
-    stone=closeOpen(stone,3,1);std::vector<Rect> groundBoxes;
-    for(const auto& c:components(stone,std::max(5,v.w*v.h/8000),xMin,int(v.h*.31f),v.w,yMax)){
+    // close 迭代从 3→2：降采样工作图上足够合并雕像碎块。
+    stone=closeOpen(stone,2,1);std::vector<Rect> groundBoxes;
+    for(const auto& c:components(stone,std::max(5,v.w*v.h/8000),xMin,yMin,v.w,yMax)){
         float wr=float(c.w)/v.w,hr=float(c.h)/v.h,fill=float(c.area)/(c.w*c.h);
         const bool edgePartial=c.x<=int(v.w*.018f)||c.x+c.w>=v.w-int(v.w*.018f);
         const float minWr=edgePartial?.012f:.032f;
@@ -196,7 +203,10 @@ void detectBamboo(const View& v,int floor,HzzsFrameResult& out){
     }
     // Brush: dark pointed tip near the floor, white bristles above it and brown handle above the bristles.
     Mask tipMask(v.w,v.h);
-    for(int y=int(v.h*.34f);y<std::min(v.h,floor+int(v.h*.02f));++y)for(int x=int(v.w*.16f);x<v.w;++x){
+    const int tipX0=int(v.w*.16f);
+    const int tipY0=int(v.h*.34f);
+    const int tipY1=std::min(v.h,floor+int(v.h*.02f));
+    for(int y=tipY0;y<tipY1;++y)for(int x=tipX0;x<v.w;++x){
         auto p=v.at(x,y);int mx=max3(p.r,p.g,p.b),mn=min3(p.r,p.g,p.b);
         if(mx<160&&mn<105&&mx-mn<105)tipMask.at(x,y)=1;
     }
@@ -223,7 +233,14 @@ void detectBamboo(const View& v,int floor,HzzsFrameResult& out){
     }
     // Gap: loss of green bamboo support + dark void below.
     std::vector<uint8_t> support(v.w,0);int by0=clampi(floor-int(v.h*.02f),0,v.h),by1=clampi(floor+int(v.h*.02f),0,v.h);
-    for(int x=0;x<v.w;++x){int hit=0,n=0;for(int y=by0;y<by1;++y){auto p=v.at(x,y);++n;if(p.g>62&&p.g-p.r>4&&p.g-p.b>18)++hit;}support[x]=n&&float(hit)/n>.22f;}
+    // 列采样步进 2：support 曲线仍平滑，像素访问约减半。
+    for(int x=0;x<v.w;x+=2){
+        int hit=0,n=0;
+        for(int y=by0;y<by1;y+=1){auto p=v.at(x,y);++n;if(p.g>62&&p.g-p.r>4&&p.g-p.b>18)++hit;}
+        const uint8_t val=static_cast<uint8_t>(n&&float(hit)/n>.22f);
+        support[x]=val;
+        if(x+1<v.w) support[x+1]=val;
+    }
     int smooth=std::max(3,int(v.w*.016f));std::vector<uint8_t> sup=support;
     for(int x=0;x<v.w;++x){int hit=0,n=0;for(int k=-smooth;k<=smooth;++k){int xx=x+k;if(xx>=0&&xx<v.w){++n;hit+=support[xx];}}sup[x]=hit>=std::max(1,n/3);}
     int start=int(v.w*.23f),end=int(v.w*.992f);
@@ -270,17 +287,21 @@ void detectBamboo(const View& v,int floor,HzzsFrameResult& out){
         const int dy0=clampi(floor+int(v.h*.02f),0,v.h);
         const int dy1=clampi(floor+int(v.h*.23f),dy0+1,v.h);
         std::vector<float> darkColumn(v.w,0.f);
-        for(int x=0;x<v.w;++x){
+        for(int x=0;x<v.w;x+=2){
             int dark=0,n=0;
             for(int y=dy0;y<dy1;y+=2){++n;auto p=v.at(x,y);if(max3(p.r,p.g,p.b)<108)++dark;}
-            darkColumn[x]=n?float(dark)/n:0.f;
+            const float val=n?float(dark)/n:0.f;
+            darkColumn[x]=val;
+            if(x+1<v.w) darkColumn[x+1]=val;
         }
         const int radius=std::max(2,int(v.w*.006f));
         std::vector<uint8_t> active(v.w,0);
-        for(int x=0;x<v.w;++x){
+        for(int x=0;x<v.w;x+=2){
             float sum=0.f;int n=0;
-            for(int k=-radius;k<=radius;++k){int xx=x+k;if(xx>=0&&xx<v.w){sum+=darkColumn[xx];++n;}}
-            active[x]=static_cast<uint8_t>(n&&sum/n>.70f);
+            for(int k=-radius;k<=radius;k+=2){int xx=x+k;if(xx>=0&&xx<v.w){sum+=darkColumn[xx];++n;}}
+            const uint8_t val=static_cast<uint8_t>(n&&sum/n>.70f);
+            active[x]=val;
+            if(x+1<v.w) active[x+1]=val;
         }
         for(int i=0;i<v.w;){
             if(!active[i]){++i;continue;}
@@ -295,24 +316,7 @@ void detectBamboo(const View& v,int floor,HzzsFrameResult& out){
             i=std::max(j,i+1);
         }
     }
-
-    // Panda tokens: merge black/white face features; require white and dark mixture and floating position.
-    panda=dilate3(panda,2);panda=closeOpen(panda,1,1);
-    for(const auto& c:components(panda,std::max(4,v.w*v.h/45000),int(v.w*.08f),int(v.h*.25f),v.w,std::min(v.h,floor+int(v.h*.02f)))){
-        float wr=float(c.w)/v.w,hr=float(c.h)/v.h,ar=float(c.w)/std::max(1,c.h);
-        if(wr<.025f||wr>.15f||hr<.018f||hr>.11f||ar<.55f||ar>2.3f)continue;
-        int whiteN=0,darkN=0,n=0;
-        for(int y=c.y;y<c.y+c.h;++y)for(int x=c.x;x<c.x+c.w;++x){auto p=v.at(x,y);int mx=max3(p.r,p.g,p.b),mn=min3(p.r,p.g,p.b);++n;if(mx>205&&mx-mn<50)++whiteN;if(mx<85&&mx-mn<50)++darkN;}
-        float wrat=n?float(whiteN)/n:0.f,drat=n?float(darkN)/n:0.f;
-        bool groundLike=c.y+c.h>floor-int(v.h*.03f)&&c.h>int(v.h*.06f);
-        if(!groundLike&&wrat>.08f&&drat>.018f)addObject(out,HZZS_OBJECT_COLLECTIBLE,HZZS_APPEARANCE_PANDA_TOKEN,HZZS_SIZE_SMALL,c,.55f+std::min(.35f,wrat+drat));
-    }
-    orb=closeOpen(orb,1,1);
-    for(const auto& c:components(orb,std::max(4,v.w*v.h/50000),int(v.w*.10f),int(v.h*.28f),v.w,std::min(v.h,floor+int(v.h*.03f)))){
-        float wr=float(c.w)/v.w,hr=float(c.h)/v.h,ar=float(c.w)/std::max(1,c.h),fill=float(c.area)/(c.w*c.h);
-        if(wr<.018f||wr>.15f||hr<.014f||hr>.11f||ar<.45f||ar>2.4f||fill<.06f)continue;
-        addObject(out,HZZS_OBJECT_POWERUP,HZZS_APPEARANCE_BONUS_ORB,HZZS_SIZE_SMALL,c,.45f+std::min(.35f,fill));
-    }
+    // 收藏品 / 能量球扫描已移除：不进入产品 ObstacleKind / 动作协议。
 }
 
 

@@ -65,7 +65,14 @@ struct AnalysisResult {
     Detection overhead;
 };
 
-AnalysisResult analyze(const FrameView& frame, float player_confidence_floor = 0.45f) noexcept;
+/**
+ * @param work_width 工作图目标宽度（约 160..960）。大于该宽度的输入会先降采样再分析，
+ *                   结果框映射回原图像素坐标。用于消费设置里的 VisionThresholds.workWidth。
+ */
+AnalysisResult analyze(
+    const FrameView& frame,
+    float player_confidence_floor = 0.45f,
+    int work_width = 384) noexcept;
 int pack(const AnalysisResult& result, std::int32_t* out, int capacity) noexcept;
 
 } // namespace hzzs::vision_bamboo
