@@ -11,6 +11,7 @@
 
 ### 新增
 
+- **完成驱动取帧与 HUD 近似轮廓**：分析循环按上一轮完成拉取最新帧；MediaProjection/AUTO 在 HUD 显示时临时隐身并排空可能含旧合成层的一帧；`displayContour` 仅供 HUD 绘制，动作与 Tracker 仍只读 `bounds`。
 - **UI 工具专业风重设计（第一期）**：Design System 2.0（中性表面、状态语义色、统一页面积木）；首页/运行控制台信息架构重排；设置首页选中高亮与预览说明；引导文案压缩；关于页对齐令牌。
 
 - 单一 `app` Gradle 模块与 Compose + Hilt 产品壳（引导 / 首页 / 运行 / 设置 / 关于）。
@@ -29,6 +30,7 @@
 
 ### 变更
 
+- 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **竹影书屋**（与历史 main 线默认一致）。
 - 默认 `versionCode` 固定为 **1**，`versionName` 为 **0.1.0**。
 - 文档体系收敛为 `README` / `CLAUDE` / `AGENTS` / `docs/{ARCHITECTURE,SECURITY,TESTING,PROGRESS}`。
