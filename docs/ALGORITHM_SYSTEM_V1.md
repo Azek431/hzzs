@@ -50,8 +50,11 @@
 
 ### `rules.json`
 
-按 `supportedScenes` 提供 `thresholds`（对齐 `VisionThresholds`）与可选 `disabledObstacles`。  
-第一版不包含脚本、模型权重或远程 URL。
+**现状（schema v1 / 工具链）**：按 `supportedScenes` 提供 `thresholds`（对齐用户侧 `VisionThresholds`）与可选 `disabledObstacles`。  
+**目标（schema v2，设计中）**：双段 `userThresholds` + `engineParams`——前者映射 `SceneConfig`，后者映射 `AlgorithmRuntimeProfile` / C++ 快照；v1 包仅当 user 段，engine 用 builtin 填洞。
+
+第一版不包含脚本、模型权重或远程 URL。  
+**应用内安装器尚未接入**：设置页目录/下载为 UI 演示，不会落盘 `.hzzsalg` 或调用 `configureAlgorithm`。
 
 ### `signature.json`
 
@@ -210,21 +213,24 @@ python tools/algorithm/publish_algorithm_release.py \
 | `NativeVision.configureAlgorithm` | JNI 配置入口；与 `analyze` 串行 |
 | `NativeVision.analyze` | 只读当前 generation 快照 |
 | `NativeVision.activeAlgorithmGeneration` | 诊断 / 防旧帧写回 |
-| `NativeVision.reset` | 回退 `builtin.hzzs.v1` 并递增 generation |
+| `NativeVision.reset` | **仅**清分析瞬时状态（当前实现可为空操作）；**不**回退 builtin、**不**递增 generation。回退请 `configureAlgorithm(builtin)` |
 
 ### 数据流
 
 ```text
-ActiveAlgorithmProvider.activate(profile)
+（目标）安装器验签 → 解析 rules → AlgorithmRuntimeProfile
+ActiveAlgorithmProvider.activate / VisionEngine.configureAlgorithm(profile)
   → AlgorithmProfileValidator（finite / 范围 / 白名单 / schema）
   → NativeVision.configureAlgorithm(profile)   // 安全切换点
   → AlgorithmRuntime 替换不可变快照，generation++
   → 帧循环观察到 generation 变化后清空 tracker / ledger / 动作缓存
 analyze(frame) 只读当前 generation 对应快照
 失败 → 保留旧配置或回退 builtin，NativeVision 保持可用
+
+（现状）进程默认 builtin.hzzs.v1；设置里的 AlgorithmConfig / 目录选择尚未桥接到上述激活路径。
 ```
 
-### 允许外部化的参数
+### 允许外部化的参数（目标完整列表）
 
 - 场景 / 玩家置信度下限
 - 固定玩家参考框比例
@@ -233,11 +239,21 @@ analyze(frame) 只读当前 generation 对应快照
 - 障碍尺寸比例窗口（瓶 / 蛋糕 / 雕像 / 竹隙 / 笔刷 / 刺）
 - 启发式颜色通道阈值
 
-### 故意仍硬编码
+### 当前引擎消费边界（诚实）
+
+| 路径 | 实际读取的 profile 字段 |
+| --- | --- |
+| 主路径 `legacy_main`（vision2 / bamboo） | 主要是 confidence floor、固定玩家框几何；尺寸/颜色谓词仍硬编码 |
+| 启发式回退（主路径过弱时） | 尺寸窗、地面搜索、颜色通道等完整 `SceneAlgorithmParams` |
+| 用户 `VisionThresholds` | 经 `SceneConfig` 每帧传入（workWidth、玩家 X、障碍 mask 等），**不是**算法包 engine 段 |
+
+主路径全参数化按里程碑分阶段推进；完成前不得宣称「装包即可全面调识别」。
+
+### 故意仍硬编码（直至参数化里程碑）
 
 | 项 | 原因 |
 | --- | --- |
-| `legacy_main` 主路径内部像素谓词与扫描步长 | 历史核心完整参数化成本高，易破坏回归 |
+| `legacy_main` 主路径内部像素谓词与扫描步长 | 历史核心完整参数化成本高，易破坏回归（目标分阶段注入） |
 | 玩家连通域合并与密度阈值 | 与设备采样强耦合 |
 | 手势、双跳间隔、包名白名单、自动化门禁 | **安全边界**：算法包不得控制操作与权限 |
 | 输入尺寸 / 检测数上限 | 防 DoS 与整数溢出 |
@@ -268,8 +284,10 @@ UpdateConfig.sourcePreference: AUTO | PREFER_GITEE | PREFER_GITHUB
 
 - 选择模式、通道、来源偏好属于**草稿**，保存后才持久化。
 - 检查目录 / 下载 / 校验是**即时任务**，不走主题预览。
-- 手动下载不自动激活；需用户保存选择。运行中切换显示 pending（下次启动分析时应用）。
+- **现状**：`AlgorithmCatalogController` 使用样本目录与模拟下载；`autoCheck` / `autoDownload` 可落盘但**无后台调度**；保存 `pinnedAlgorithmId` **尚未**调用 `configureAlgorithm`。
+- **目标**：手动下载不自动激活；需用户保存选择。运行中切换显示 pending（下次启动分析时应用）。
 - 第一版算法包是声明式视觉参数，不是任意代码；不得动态加载 `.so` / Dex。
+- 识别赛季 / `VisionThresholds` 预览可热更新；算法包字段预览锁定 baseline。
 
 ### 页面状态
 

@@ -123,7 +123,13 @@ Result analyze_sweet_main(
     const int player_right = raw.playerRight;
     const int player_top = std::max(0, raw.playerCenterY - raw.playerWidth);
     const int player_bottom = std::min(frame.height - 1, raw.playerCenterY + raw.playerWidth);
-    out.scene_confidence = params.scene_confidence_floor;
+    // 场景置信度取检测质量（有障碍则抬升），floor 仅作下限，不再直接写常数。
+    float quality = 0.35f;
+    if (raw.bottle.found) quality = std::max(quality, raw.bottle.scorePermille / 1000.0f);
+    if (raw.cake.found) quality = std::max(quality, raw.cake.scorePermille / 1000.0f);
+    if (raw.spike.found) quality = std::max(quality, raw.spike.scorePermille / 1000.0f);
+    if (detect_player && raw.playerWidth > 0) quality = std::max(quality, 0.72f);
+    out.scene_confidence = finite_confidence(std::max(params.scene_confidence_floor * 0.25f, quality));
 
     {
         Detection player{};
@@ -197,14 +203,19 @@ Result analyze_sweet_main(
 
 Result analyze_bamboo_main(
     const FrameView& frame,
-    int /*work_width*/,
+    int work_width,
     int enabled_kind_mask,
     bool detect_player,
     float fixed_player_x_ratio,
     const SceneAlgorithmParamsNative& params) {
     Result out;
+    // work_width 保留供未来主路径降采样；当前 bamboo 引擎全分辨率，至少校验合法。
+    if (work_width < 160 || work_width > 960) {
+        out.error = "invalid work width";
+        return out;
+    }
     const hzzs::vision_bamboo::FrameView view{frame.pixels, frame.width, frame.height, frame.width};
-    const auto raw = hzzs::vision_bamboo::analyze(view);
+    const auto raw = hzzs::vision_bamboo::analyze(view, params.player_confidence_floor);
 
     const float player_conf = raw.playerConfidencePermille / 1000.0f;
     if (raw.sceneState != 1 /* HZZS_SCENE_RUNNING */) {

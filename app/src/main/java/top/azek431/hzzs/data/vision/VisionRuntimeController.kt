@@ -21,6 +21,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
+import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.core.model.RuntimeStatus
@@ -81,6 +83,7 @@ class VisionRuntimeController @Inject constructor(
     private val engine: VisionEngine,
     private val overlay: OverlayController,
     private val debugFrameRecorder: DebugFrameRecorder,
+    private val algorithmActivation: AlgorithmActivationCoordinator,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lifecycleMutex = Mutex()
@@ -156,10 +159,19 @@ class VisionRuntimeController @Inject constructor(
             val source = sources.source(backend)
             val token = generation.incrementAndGet()
             resetPipeline()
-            // 启动时把当前激活算法快照同步到 native（默认 builtin）；失败保留 native 默认。
+            // 启动分析前按已保存 AlgorithmConfig 解析并激活（含 pending）；失败回退内置。
             runCatching {
-                engine.configureAlgorithm(engine.currentActivation().profile)
+                algorithmActivation.ensureConfigured(
+                    config = config.algorithm,
+                    selectedScene = config.selectedScene,
+                )
+            }.onFailure { error ->
+                AppLog.w(
+                    "vision",
+                    "algorithm ensureConfigured failed: ${error.message ?: error.javaClass.simpleName}",
+                )
             }
+            algorithmActivation.setAnalysisRunning(true)
             activeSource = source
             mutableStatus.value = RuntimeStatus(
                 running = true,
@@ -179,6 +191,7 @@ class VisionRuntimeController @Inject constructor(
             } catch (error: Throwable) {
                 activeSource = null
                 runCatching { source.stop() }
+                AppLog.e("vision", "start capture failed: ${error.message}", error)
                 mutableStatus.value = RuntimeStatus(
                     running = false,
                     activeScene = config.selectedScene,
@@ -208,6 +221,7 @@ class VisionRuntimeController @Inject constructor(
         runCatching { source?.stop() }
         overlay.hide()
         resetPipeline()
+        algorithmActivation.setAnalysisRunning(false)
         mutableStatus.value = mutableStatus.value.copy(
             running = false,
             captureReady = false,
@@ -465,6 +479,7 @@ class VisionRuntimeController @Inject constructor(
             throw cancelled
         } catch (error: Throwable) {
             disarmAutomation()
+            AppLog.e("vision", "frame loop failed: ${error.message}", error)
             mutableStatus.update {
                 it.copy(lastError = error.message ?: error.javaClass.simpleName)
             }
