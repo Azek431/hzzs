@@ -45,6 +45,8 @@ import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
 import top.azek431.hzzs.domain.vision.withApproximateDisplayContour
+import top.azek431.hzzs.platform.compat.CaptureBackendResolution
+import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
@@ -130,8 +132,14 @@ class VisionRuntimeController @Inject constructor(
                 val safetyBoundaryChanged =
                     previous.selectedScene != next.selectedScene ||
                         previousBackend != nextBackend ||
-                        previous.automation.allowedPackages != next.automation.allowedPackages
-                // 安全边界变化：立即解除 arm，防止旧会话权限延续到新场景/后端。
+                        previous.automation.allowedPackages != next.automation.allowedPackages ||
+                        previous.automation.enabled != next.automation.enabled ||
+                        previous.automation.requireSessionArm != next.automation.requireSessionArm ||
+                        previous.automation.disclaimerAcceptedVersion !=
+                        next.automation.disclaimerAcceptedVersion ||
+                        previous.automation.bambooExperimentalAutoAction !=
+                        next.automation.bambooExperimentalAutoAction
+                // 安全边界变化：立即解除 arm 并取消在飞动作，防止旧会话权限延续。
                 if (safetyBoundaryChanged) disarmAutomation()
                 mutableStatus.update { it.copy(activeScene = next.selectedScene) }
                 if (
@@ -156,9 +164,23 @@ class VisionRuntimeController @Inject constructor(
             if (runtimeJob?.isActive == true) return@withLock
 
             val config = settingsRepository.config.first().also(latestConfig::set)
-            val backend = config.effectiveCaptureBackend()
+            val resolution = config.resolveCaptureBackend()
+            val backend = resolution.effective
             val source = sources.source(backend)
             val token = generation.incrementAndGet()
+            if (resolution.fellBack) {
+                AppLog.w(
+                    "vision",
+                    "capture backend fallback requested=${resolution.requested.name} " +
+                        "effective=${backend.name} reason=${resolution.fallbackReason}",
+                )
+            }
+            AppLog.i(
+                "vision",
+                "start session gen=$token backend=${backend.name} " +
+                    "requested=${resolution.requested.name} scene=${config.selectedScene.name} " +
+                    "overlay=${config.overlay.enabled} automation=${config.automation.enabled}",
+            )
             resetPipeline()
             // 启动分析前按已保存 AlgorithmConfig 解析并激活（含 pending）；失败回退内置。
             runCatching {
@@ -170,6 +192,14 @@ class VisionRuntimeController @Inject constructor(
                 AppLog.w(
                     "vision",
                     "algorithm ensureConfigured failed: ${error.message ?: error.javaClass.simpleName}",
+                )
+            }
+            val activation = runCatching { engine.currentActivation() }.getOrNull()
+            if (activation != null) {
+                AppLog.i(
+                    "vision",
+                    "active algorithm id=${activation.profile.algorithmId} ver=${activation.profile.version} " +
+                        "gen=${activation.generation} fallback=${activation.usingBuiltinFallback}",
                 )
             }
             algorithmActivation.setAnalysisRunning(true)
@@ -192,6 +222,7 @@ class VisionRuntimeController @Inject constructor(
             } catch (error: Throwable) {
                 activeSource = null
                 runCatching { source.stop() }
+                algorithmActivation.setAnalysisRunning(false)
                 AppLog.e("vision", "start capture failed: ${error.message}", error)
                 mutableStatus.value = RuntimeStatus(
                     running = false,
@@ -214,7 +245,9 @@ class VisionRuntimeController @Inject constructor(
      * 先递增 [generation] 使进行中的循环/动作 fail-closed，再 cancelAndJoin、隐藏悬浮窗并重置管线。
      */
     suspend fun stop() = lifecycleMutex.withLock {
+        val prevGen = generation.get()
         generation.incrementAndGet()
+        AppLog.i("vision", "stop session prevGen=$prevGen")
         runtimeJob?.cancelAndJoin()
         runtimeJob = null
         val source = activeSource
@@ -267,10 +300,14 @@ class VisionRuntimeController @Inject constructor(
         return Result.success(Unit)
     }
 
-    /** 解除自动操作会话绑定；配置/场景/算法边界变化时也应调用。 */
+    /** 解除自动操作会话绑定，并取消在飞手势任务（fail-closed）。 */
     fun disarmAutomation() {
         armedWindowClass.set(null)
         mutableStatus.update { it.copy(automationArmed = false) }
+        // 不 join：可能从主线程/帧循环同步调用；cancel 足够停止后续 stroke。
+        actionJob?.cancel()
+        actionJob = null
+        actionInFlight.set(false)
     }
 
     /**
@@ -514,6 +551,8 @@ class VisionRuntimeController @Inject constructor(
             // 仅当仍是本会话 token 时写终态，避免覆盖已启动的新会话状态。
             if (generation.get() == token) {
                 activeSource = null
+                // 异常退出也必须清 analysisRunning，否则算法切换会永久 pending。
+                algorithmActivation.setAnalysisRunning(false)
                 mutableStatus.update {
                     it.copy(
                         running = false,
@@ -547,7 +586,8 @@ class VisionRuntimeController @Inject constructor(
         }
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
 
-        // 帧龄门控：过旧的分析结果不再触发动作。
+        // 帧龄门控：捕获时刻到决策的排队/处理延迟。完成驱动下分析常 >120ms，
+        // 过紧会导致自动操作系统性不触发；与「过期帧」语义对齐到 1s 量级。
         val frameAgeMs = (SystemClock.elapsedRealtimeNanos() - frameTimestampNanos) / 1_000_000L
         if (frameAgeMs < 0L || frameAgeMs > MAX_FRAME_AGE_MS) return
 
@@ -651,6 +691,9 @@ class VisionRuntimeController @Inject constructor(
         if (generation.get() != token) return
         actionMutex.withLock {
             if (generation.get() != token) return
+            // disarm/关闭后不得继续 stroke；与 maybeDispatch 门控对称。
+            if (!config.automation.enabled) return
+            if (config.automation.requireSessionArm && !mutableStatus.value.automationArmed) return
             if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) return
 
             val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
@@ -895,8 +938,16 @@ class VisionRuntimeController @Inject constructor(
     private class VisionUnavailable(message: String) : IllegalStateException(message)
     private class RuntimeRestartRequired(message: String) : IllegalStateException(message)
 
+    /** 开发者强制优先，并对本机不支持的后端 fail-soft 回退。 */
+    private fun AppConfig.resolveCaptureBackend(): CaptureBackendResolution =
+        resolveEffectiveCaptureBackend(
+            captureBackend = captureBackend,
+            developerEnabled = developer.enabled,
+            forceCaptureBackend = developer.forceCaptureBackend,
+        )
+
     private fun AppConfig.effectiveCaptureBackend(): CaptureBackend =
-        developer.forceCaptureBackend?.takeIf { developer.enabled } ?: captureBackend
+        resolveCaptureBackend().effective
 
     private companion object {
         const val FOREGROUND_MAX_AGE_MS = 1_500L
@@ -908,7 +959,8 @@ class VisionRuntimeController @Inject constructor(
         const val DOUBLE_JUMP_GAP_BAMBOO_MS = 80L
         const val SLIDE_TTL_SWEET_MS = 650L
         const val SLIDE_TTL_BAMBOO_MS = 600L
-        const val MAX_FRAME_AGE_MS = 120L
+        /** 捕获时间戳到动作决策的最大允许延迟（含分析耗时）。 */
+        const val MAX_FRAME_AGE_MS = 1_000L
         const val RETRY_BACKOFF_MS = 40L
         const val PERMISSION_BACKOFF_MS = 80L
         const val READY_NULL_FRAME_BACKOFF_MS = 12L

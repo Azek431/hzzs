@@ -21,6 +21,65 @@ fun CaptureBackend.isSupportedOnThisDevice(): Boolean = when (this) {
 }
 
 /**
+ * 有效截图后端解析结果。
+ *
+ * [requested] 为配置意图（开发者强制优先）；[effective] 为实际会启动的后端。
+ * 当设备 API 不支持请求后端时 fail-soft 回退，并填写 [fallbackReason] 供诊断与日志。
+ */
+data class CaptureBackendResolution(
+    val requested: CaptureBackend,
+    val effective: CaptureBackend,
+    val fallbackReason: String? = null,
+) {
+    val fellBack: Boolean get() = requested != effective
+}
+
+/**
+ * 解析运行时真正使用的截图后端。
+ *
+ * 规则：
+ * 1. 开发者开启且 [forceCaptureBackend] 非空时，以其为请求后端；否则用 [captureBackend]；
+ * 2. 请求后端在本机 [isSupported] 为真则原样使用；
+ * 3. 否则 fail-soft：优先回退到仍受支持的用户 [captureBackend]（当请求来自 force 时），
+ *    再回退 [CaptureBackend.MEDIA_PROJECTION]（始终受支持的低权限公开接口）。
+ *
+ * 安全不变量：本函数**不会**把 AUTO 升权到无障碍 / Shizuku / Root；回退目标仅限已支持路径。
+ * [isSupported] 默认同 [CaptureBackend.isSupportedOnThisDevice]；单测可注入。
+ */
+fun resolveEffectiveCaptureBackend(
+    captureBackend: CaptureBackend,
+    developerEnabled: Boolean,
+    forceCaptureBackend: CaptureBackend?,
+    isSupported: (CaptureBackend) -> Boolean = CaptureBackend::isSupportedOnThisDevice,
+): CaptureBackendResolution {
+    val requested = forceCaptureBackend?.takeIf { developerEnabled } ?: captureBackend
+    if (isSupported(requested)) {
+        return CaptureBackendResolution(requested = requested, effective = requested)
+    }
+    val fallback = when {
+        // force 不可用时，若用户主配置仍可用且与请求不同，优先尊重主配置。
+        forceCaptureBackend != null &&
+            developerEnabled &&
+            captureBackend != requested &&
+            isSupported(captureBackend) -> captureBackend
+        isSupported(CaptureBackend.MEDIA_PROJECTION) -> CaptureBackend.MEDIA_PROJECTION
+        isSupported(CaptureBackend.AUTO) -> CaptureBackend.AUTO
+        else -> CaptureBackend.MEDIA_PROJECTION
+    }
+    val reason = when (requested) {
+        CaptureBackend.ACCESSIBILITY ->
+            "ACCESSIBILITY 需要 Android 11+（API 30），已回退 ${fallback.name}"
+        else ->
+            "${requested.name} 在本机不受支持，已回退 ${fallback.name}"
+    }
+    return CaptureBackendResolution(
+        requested = requested,
+        effective = fallback,
+        fallbackReason = reason,
+    )
+}
+
+/**
  * 单一后端的能力快照：支持度、就绪、是否推荐，以及设置页展示文案。
  * [recommended] 仅供 UI 提示，不强制切换。
  */

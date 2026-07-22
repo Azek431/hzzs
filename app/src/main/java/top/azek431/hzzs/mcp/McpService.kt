@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -18,9 +19,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.logging.AppLog
+import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.McpPermissionLevel
 import top.azek431.hzzs.core.preferences.ConfigJson
 import top.azek431.hzzs.core.preferences.SettingsRepository
+import top.azek431.hzzs.core.preferences.hardenedForExternalIngest
 import top.azek431.hzzs.data.vision.DebugFrameRecorder
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import java.io.BufferedInputStream
@@ -147,14 +150,14 @@ class McpActionRegistry @Inject constructor(
             "get_status" -> runtime.status.value.toJson()
             "get_settings" -> JSONObject(settings.exportJson(settings.snapshot()))
             "preview_settings" -> {
-                val config = settings.importJson(arguments.requireString("config"))
+                val config = ingestMcpConfig(arguments.requireString("config"))
                 settings.preview(config)
-                ok("已临时预览设置")
+                ok("已临时预览设置（权限型字段已按安全策略收敛）")
             }
             "save_settings" -> {
-                val config = settings.importJson(arguments.requireString("config"))
+                val config = ingestMcpConfig(arguments.requireString("config"))
                 settings.save(config)
-                ok("设置已保存")
+                ok("设置已保存（权限型字段已按安全策略收敛）")
             }
             "reset_preview" -> {
                 settings.clearPreview()
@@ -207,6 +210,16 @@ class McpActionRegistry @Inject constructor(
      * 按当前 MCP 权限级门控写操作；只读工具直接放行。
      * 完整访问仅放开应用内能力，无法代替用户点击系统录屏/悬浮窗/无障碍对话框。
      */
+    /**
+     * MCP 写入的配置相对当前已保存 baseline 做外部摄入硬化：
+     * 不得静默开启自动操作、不得自提 MCP 权限级、不得强行升权截图后端。
+     */
+    private suspend fun ingestMcpConfig(rawJson: String): AppConfig {
+        val baseline = settings.snapshot()
+        val imported = settings.importJson(rawJson)
+        return imported.hardenedForExternalIngest(baseline)
+    }
+
     private suspend fun authorize(
         tool: String,
         arguments: JSONObject,
@@ -303,9 +316,22 @@ class McpForegroundService : Service() {
         }
         if (server != null) return START_STICKY
         stopping.set(false)
-        startForeground(NOTIFICATION_ID, notification("MCP 正在启动"))
+        startForegroundMcp()
         scope.launch { startServer() }
         return START_STICKY
+    }
+
+    private fun startForegroundMcp() {
+        val notification = notification("MCP 正在启动")
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

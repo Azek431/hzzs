@@ -65,9 +65,13 @@ import top.azek431.hzzs.data.vision.NativeBenchmarkResult
 import top.azek431.hzzs.data.vision.NativeBenchmarkRunner
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import top.azek431.hzzs.domain.vision.VisionEngine
+import top.azek431.hzzs.feature.settings.screens.AlgorithmPipelineScreen
+import top.azek431.hzzs.feature.settings.screens.LogViewerScreen
 import top.azek431.hzzs.mcp.McpServerState
 import top.azek431.hzzs.mcp.McpUiBridge
 import top.azek431.hzzs.nativevision.NativeVision
+import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
+import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import javax.inject.Inject
 
 enum class DonationKind { WECHAT, ALIPAY }
@@ -183,8 +187,32 @@ fun AboutScreen(
     val benchmark by vm.benchmark.collectAsState()
     var donation by remember { mutableStateOf<DonationKind?>(null) }
     var developerPage by remember { mutableStateOf(false) }
+    var logViewerPage by remember { mutableStateOf(false) }
+    var algorithmPipelinePage by remember { mutableStateOf(false) }
     var versionTapCount by remember { mutableIntStateOf(0) }
     var unlockMessage by remember { mutableStateOf<String?>(null) }
+
+    if (logViewerPage && config.developer.enabled) {
+        val toastContext = LocalContext.current
+        LogViewerScreen(
+            onBack = { logViewerPage = false },
+            onMessage = { msg ->
+                Toast.makeText(toastContext, msg, Toast.LENGTH_SHORT).show()
+            },
+        )
+        return
+    }
+
+    if (algorithmPipelinePage && config.developer.enabled) {
+        val toastContext = LocalContext.current
+        AlgorithmPipelineScreen(
+            onBack = { algorithmPipelinePage = false },
+            onMessage = { msg ->
+                Toast.makeText(toastContext, msg, Toast.LENGTH_SHORT).show()
+            },
+        )
+        return
+    }
 
     if (developerPage && config.developer.enabled) {
         DeveloperScreen(
@@ -199,6 +227,8 @@ fun AboutScreen(
             onClearDebugFrames = vm::clearDebugFrames,
             onRunBenchmark = vm::runNativeBenchmark,
             onBuildDiagnostics = vm::buildDiagnosticsReport,
+            onOpenLogViewer = { logViewerPage = true },
+            onOpenAlgorithmPipeline = { algorithmPipelinePage = true },
         )
         return
     }
@@ -306,6 +336,8 @@ private fun DeveloperScreen(
     onClearDebugFrames: () -> Unit,
     onRunBenchmark: () -> Unit,
     onBuildDiagnostics: () -> String,
+    onOpenLogViewer: () -> Unit = {},
+    onOpenAlgorithmPipeline: () -> Unit = {},
 ) {
     val context = LocalContext.current
     Scaffold(
@@ -332,16 +364,43 @@ private fun DeveloperScreen(
                 }
             }
             item {
+                val captureResolution = resolveEffectiveCaptureBackend(
+                    captureBackend = config.captureBackend,
+                    developerEnabled = true,
+                    forceCaptureBackend = config.developer.forceCaptureBackend,
+                )
                 Text("强制截图后端", style = MaterialTheme.typography.titleMedium)
-                Text("仅用于诊断。选择“跟随设置”可恢复普通用户配置。AUTO 仍不升权。", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "仅用于诊断。选择“跟随设置”可恢复普通用户配置。AUTO 仍不升权。" +
+                        " 本机不支持的后端会 fail-soft 回退。",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     (listOf<CaptureBackend?>(null) + CaptureBackend.entries).forEach { backend ->
+                        val supported = backend == null || backend.isSupportedOnThisDevice()
                         FilterChip(
                             selected = config.developer.forceCaptureBackend == backend,
                             onClick = { onUpdate { it.copy(forceCaptureBackend = backend) } },
-                            label = { Text(backend?.developerLabel() ?: "跟随设置") },
+                            label = {
+                                val base = backend?.developerLabel() ?: "跟随设置"
+                                Text(
+                                    if (backend != null && !supported) {
+                                        "$base（本机不可用）"
+                                    } else {
+                                        base
+                                    },
+                                )
+                            },
                         )
                     }
+                }
+                if (captureResolution.fellBack) {
+                    Text(
+                        "实际将使用 ${captureResolution.effective.developerLabel()}：" +
+                            (captureResolution.fallbackReason ?: "已回退"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
             item {
@@ -377,6 +436,12 @@ private fun DeveloperScreen(
                             label = { Text(level.name) },
                         )
                     }
+                }
+                TextButton(onClick = onOpenLogViewer) {
+                    Text("打开运行日志查看器")
+                }
+                TextButton(onClick = onOpenAlgorithmPipeline) {
+                    Text("打开算法执行流程")
                 }
             }
             item {

@@ -9,6 +9,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -162,10 +163,13 @@ class MediaProjectionFrameSource @Inject constructor(
     }
 
     internal fun fail(message: String, recoverable: Boolean) {
+        // 失败态与缓冲生命周期对齐，避免下一轮 nextFrame 仍吐出陈旧帧。
+        drainFrames()
         mutableState.value = CaptureState.Failed(message, recoverable)
     }
 
     internal fun idle() {
+        drainFrames()
         mutableState.value = CaptureState.Idle
     }
 
@@ -274,9 +278,11 @@ class MediaProjectionCaptureService : Service() {
     }
 
     private fun startCapture(intent: Intent) {
-        if (projection != null || stopping) return
+        // 允许 stop 后在同一 Service 实例上再次 START；旧 stopping 闩若残留会永久空转。
+        if (projection != null) return
+        stopping = false
         createChannel()
-        startForeground(NOTIFICATION_ID, notification())
+        startForegroundCapture()
 
         val code = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
         @Suppress("DEPRECATION")
@@ -413,6 +419,20 @@ class MediaProjectionCaptureService : Service() {
             cleanup(updateStateToIdle = false, stopProjection = true, stopService = false)
         }
         super.onDestroy()
+    }
+
+    private fun startForegroundCapture() {
+        val notification = notification()
+        // targetSdk 34+ 必须在 startForeground 传入 type，否则 MissingForegroundServiceTypeException。
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun createChannel() {

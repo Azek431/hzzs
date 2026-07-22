@@ -39,11 +39,14 @@ import top.azek431.hzzs.core.model.developerLabel
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.platform.ClipboardHelper
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
+import top.azek431.hzzs.feature.settings.components.SettingsNavigationRow
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 import top.azek431.hzzs.mcp.McpServerState
+import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
+import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 
 /**
  * MCP 与开发者相关设置页。
@@ -63,6 +66,8 @@ fun McpDeveloperSettingsScreen(
     onClearDebugFrames: () -> Unit,
     onRunBenchmark: () -> Unit,
     onBuildDiagnostics: () -> String,
+    onOpenLogViewer: () -> Unit = {},
+    onOpenAlgorithmPipeline: () -> Unit = {},
     onMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -195,19 +200,38 @@ fun McpDeveloperSettingsScreen(
                         }
                     },
                 )
+                if (developerEnabled) {
+                    SettingsNavigationRow(
+                        title = "查看运行日志",
+                        subtitle = "级别 / 标签 / 关键字筛选，复制与分享",
+                        onClick = onOpenLogViewer,
+                    )
+                    SettingsNavigationRow(
+                        title = "算法执行流程",
+                        subtitle = "激活阶段、Native 配置与最近一帧摘要",
+                        onClick = onOpenAlgorithmPipeline,
+                    )
+                }
             }
         }
         if (developerEnabled) {
             item {
+                val captureResolution = resolveEffectiveCaptureBackend(
+                    captureBackend = config.captureBackend,
+                    developerEnabled = true,
+                    forceCaptureBackend = config.developer.forceCaptureBackend,
+                )
                 SettingsSectionCard(
                     title = "强制截图后端",
-                    description = "仅诊断用。选择「跟随设置」恢复普通用户配置。AUTO 仍不升权。",
+                    description = "仅诊断用。选择「跟随设置」恢复普通用户配置。AUTO 仍不升权。" +
+                        " 本机不支持的后端保存后会 fail-soft 回退，不会硬启动失败。",
                 ) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         (listOf<CaptureBackend?>(null) + CaptureBackend.entries).forEach { backend ->
+                            val supported = backend == null || backend.isSupportedOnThisDevice()
                             FilterChip(
                                 selected = config.developer.forceCaptureBackend == backend,
                                 onClick = {
@@ -220,10 +244,25 @@ fun McpDeveloperSettingsScreen(
                                     }
                                 },
                                 label = {
-                                    Text(backend?.developerLabel() ?: "跟随设置")
+                                    val base = backend?.developerLabel() ?: "跟随设置"
+                                    Text(
+                                        if (backend != null && !supported) {
+                                            "$base（本机不可用）"
+                                        } else {
+                                            base
+                                        },
+                                    )
                                 },
                             )
                         }
+                    }
+                    if (captureResolution.fellBack) {
+                        Text(
+                            "实际将使用 ${captureResolution.effective.developerLabel()}：" +
+                                (captureResolution.fallbackReason ?: "已回退"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
             }
