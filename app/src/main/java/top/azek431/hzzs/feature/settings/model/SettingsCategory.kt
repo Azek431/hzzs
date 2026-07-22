@@ -122,4 +122,8 @@ fun SettingsCategory.summary(
 /** 设置模块内嵌导航路由常量。 */
 object SettingsRoutes {
     const val HOME = "settings_home"
+    /** 开发者运行日志查看器（从 MCP/开发者页进入）。 */
+    const val LOG_VIEWER = "log_viewer"
+    /** 算法执行流程可视化（从 MCP/开发者页进入）。 */
+    const val ALGORITHM_PIPELINE = "algorithm_pipeline"
 }

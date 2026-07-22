@@ -54,10 +54,12 @@ import top.azek431.hzzs.core.designsystem.sharedAxisXPopExit
 import top.azek431.hzzs.feature.settings.components.SettingsSaveBar
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
 import top.azek431.hzzs.feature.settings.model.SettingsRoutes
+import top.azek431.hzzs.feature.settings.screens.AlgorithmPipelineScreen
 import top.azek431.hzzs.feature.settings.screens.AlgorithmSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AppearanceSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AutomationSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.CaptureSettingsScreen
+import top.azek431.hzzs.feature.settings.screens.LogViewerScreen
 import top.azek431.hzzs.feature.settings.screens.McpDeveloperSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.NetworkUpdateSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.OverlaySettingsScreen
@@ -126,6 +128,8 @@ fun SettingsScreen(
         SettingsCategory.AUTOMATION.route -> stringResource(SettingsCategory.AUTOMATION.titleRes)
         SettingsCategory.NETWORK.route -> stringResource(SettingsCategory.NETWORK.titleRes)
         SettingsCategory.MCP.route -> stringResource(SettingsCategory.MCP.titleRes)
+        SettingsRoutes.LOG_VIEWER -> "运行日志"
+        SettingsRoutes.ALGORITHM_PIPELINE -> "算法流程"
         else -> settingsLabel
     }
 
@@ -340,6 +344,24 @@ private fun SettingsNavHost(
                 onClearDebugFrames = vm::clearDebugFrames,
                 onRunBenchmark = vm::runNativeBenchmark,
                 onBuildDiagnostics = vm::buildDiagnosticsReport,
+                onOpenLogViewer = {
+                    nav.navigate(SettingsRoutes.LOG_VIEWER) { launchSingleTop = true }
+                },
+                onOpenAlgorithmPipeline = {
+                    nav.navigate(SettingsRoutes.ALGORITHM_PIPELINE) { launchSingleTop = true }
+                },
+                onMessage = onMessage,
+            )
+        }
+        composable(SettingsRoutes.LOG_VIEWER) {
+            LogViewerScreen(
+                onBack = { nav.popBackStack() },
+                onMessage = onMessage,
+            )
+        }
+        composable(SettingsRoutes.ALGORITHM_PIPELINE) {
+            AlgorithmPipelineScreen(
+                onBack = { nav.popBackStack() },
                 onMessage = onMessage,
             )
         }

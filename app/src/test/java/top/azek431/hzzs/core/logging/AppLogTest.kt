@@ -57,6 +57,33 @@ class AppLogTest {
         assertFalse(messages.contains("info-drop"))
         assertTrue(messages.contains("warn-keep"))
     }
+
+    @Test
+    fun queryFiltersByTagAndTextAndSupportsNewestFirst() {
+        AppLog.configure(enabled = true, level = AppLogLevel.VERBOSE)
+        AppLog.i("vision", "frame ok")
+        AppLog.e("algorithm", "activate failed for pack.demo")
+        AppLog.w("vision", "capture slow")
+        val onlyAlgo = AppLog.query(tagEquals = "algorithm")
+        assertEquals(1, onlyAlgo.size)
+        assertTrue(onlyAlgo.single().message.contains("activate failed"))
+        val search = AppLog.query(query = "capture")
+        assertEquals(1, search.size)
+        val newest = AppLog.query(newestFirst = true)
+        assertTrue(newest.first().message.contains("capture slow") || newest.first().message.contains("activate") || newest.first().message.contains("frame"))
+        assertEquals(AppLog.size().toLong().coerceAtLeast(1L) > 0, AppLog.revision() > 0)
+        assertTrue(AppLog.knownTags().contains("vision"))
+        assertTrue(AppLog.formatText(tagEquals = "algorithm").contains("activate failed"))
+    }
+
+    @Test
+    fun clearBumpsRevision() {
+        AppLog.i("app", "before-clear")
+        val before = AppLog.revision()
+        AppLog.clear()
+        assertEquals(0, AppLog.size())
+        assertTrue(AppLog.revision() > before)
+    }
 }
 
 class DiagnosticsExporterTest {
@@ -73,7 +100,7 @@ class DiagnosticsExporterTest {
             debugFrameCount = 3,
             algorithm = AlgorithmDiagnosticsSnapshot(
                 algorithmId = "builtin.hzzs.base",
-                version = "2.0.0",
+                version = "0.1.0",
                 generation = 3L,
                 usingBuiltinFallback = true,
                 loadError = null,
@@ -93,9 +120,20 @@ class DiagnosticsExporterTest {
         assertTrue(report.contains("debugFrameCount=3"))
         assertTrue(report.contains("developer.logLevel=DEBUG"))
         assertTrue(report.contains("id=builtin.hzzs.base"))
+        assertTrue(report.contains("version=0.1.0"))
         assertTrue(report.contains("generation=3"))
         assertTrue(report.contains("== Algorithm activation =="))
         assertTrue(report.contains("vision.overlayBlockReason=PERMISSION"))
+        assertTrue(report.contains("capture.requested="))
+        assertTrue(report.contains("capture.effective="))
+        assertTrue(report.contains("capture.fallbackReason="))
+        // 本地时区 + 偏移；不得再出现假 UTC 的 `...Z` 样式（无偏移）。
+        assertTrue(report.contains("generatedAt="))
+        assertTrue(
+            Regex("""generatedAt=\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}""")
+                .containsMatchIn(report),
+        )
+        assertTrue(report.contains("Timestamps use the device local timezone with offset"))
         assertFalse(report.contains("should-not-appear"))
         assertFalse(report.contains("Bearer should"))
         assertTrue(report.contains("Bearer <redacted>") || report.contains("<redacted>"))
