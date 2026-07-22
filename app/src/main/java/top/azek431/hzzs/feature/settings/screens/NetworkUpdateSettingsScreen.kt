@@ -4,6 +4,7 @@
  * 职责：下载来源、Wi‑Fi 策略、算法通道/自动检查、应用更新检查下载安装。
  * 数据流：偏好进草稿（预览保留 baseline）；检查/下载/安装为 ViewModel 即时任务，读 baseline。
  * 边界：不绕过签名校验；不在 feature 内直接 HTTP。
+ * 算法自动检查/下载开关可保存，调度与真实 .hzzsalg 安装器尚未接入。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -116,7 +117,7 @@ fun NetworkUpdateSettingsScreen(
             ) {
                 SettingsSwitchRow(
                     title = "仅 Wi‑Fi 下载大文件",
-                    subtitle = "应用 APK / 算法包下载受此限制；目录检查仍可在蜂窝网络进行。",
+                    subtitle = "应用 APK 下载受此限制；算法包真实下载接入后将共用此策略（当前算法下载为演示）。",
                     checked = config.update.wifiOnly,
                     onCheckedChange = { value ->
                         update { it.copy(update = it.update.copy(wifiOnly = value)) }
@@ -140,8 +141,12 @@ fun NetworkUpdateSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "算法更新",
-                description = "选择模式与通道属于草稿；检查/下载为即时任务。",
+                description = "通道偏好可保存。检查/下载当前为演示目录与模拟进度，不会验签或激活引擎。",
             ) {
+                SettingsWarningCard(
+                    title = "尚未接入真实算法安装器",
+                    body = "自动检查/自动下载开关会写入配置，但后台调度与 .hzzsalg 落盘尚未实现；手动检查仅刷新演示列表。",
+                )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AlgorithmChannel.entries.forEach { channel ->
                         SettingsRadioCard(
@@ -157,6 +162,7 @@ fun NetworkUpdateSettingsScreen(
                 }
                 SettingsSwitchRow(
                     title = "自动检查算法更新",
+                    subtitle = "已保存；调度未实现，打开后不会后台检查。",
                     checked = config.algorithm.autoCheck,
                     onCheckedChange = { value ->
                         update { it.copy(algorithm = it.algorithm.copy(autoCheck = value)) }
@@ -164,20 +170,20 @@ fun NetworkUpdateSettingsScreen(
                 )
                 SettingsSwitchRow(
                     title = "自动下载算法更新",
-                    subtitle = "下载后仍需保存选择才会激活（手动模式）。",
+                    subtitle = "已保存；真实下载/激活未接入。",
                     checked = config.algorithm.autoDownload,
                     onCheckedChange = { value ->
                         update { it.copy(algorithm = it.algorithm.copy(autoDownload = value)) }
                     },
                 )
-                Button(onClick = onRefreshAlgorithms) { Text("手动检查算法") }
+                Button(onClick = onRefreshAlgorithms) { Text("手动检查算法（演示）") }
             }
         }
 
         item {
             SettingsSectionCard(
                 title = "应用更新",
-                description = "Gitee 优先、GitHub 校验的签名更新源。未发布正式索引时检查失败是预期行为。",
+                description = "按来源偏好检查签名清单；安装前校验包名/版本/证书/哈希。未发布正式索引时检查失败是预期行为。",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     UpdateChannel.entries.forEach { channel ->

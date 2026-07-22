@@ -17,7 +17,10 @@ from typing import Any, Iterable, Mapping
 # Limits and schema
 # ---------------------------------------------------------------------------
 
+# Manifest / pack container schema (unchanged for v1 packages).
 SCHEMA_VERSION = 1
+# rules.json may be 1 (user thresholds only) or 2 (userThresholds + engineParams).
+RULES_SCHEMA_VERSIONS = frozenset({1, 2})
 ENGINE_API_VERSION = 1
 DEFAULT_ENGINE_ID = "native-vision"
 
@@ -38,8 +41,8 @@ MAX_TOTAL_UNCOMPRESSED_BYTES = 1024 * 1024
 MAX_COMPRESSED_BYTES = 1024 * 1024
 MAX_DESCRIPTION_CHARS = 2_000
 MAX_CHANGELOG_CHARS = 64 * 1024
-MAX_JSON_DEPTH = 8
-MAX_JSON_KEYS = 256
+MAX_JSON_DEPTH = 10
+MAX_JSON_KEYS = 384
 
 FORBIDDEN_EXTENSIONS = frozenset(
     {
@@ -312,12 +315,36 @@ def validate_manifest(data: Mapping[str, Any]) -> dict[str, Any]:
     return dict(data)
 
 
+_FORBIDDEN_ENGINE_KEYS = frozenset(
+    {
+        "gesture",
+        "gestures",
+        "root",
+        "shizuku",
+        "allowedPackages",
+        "automation",
+        "mcp",
+        "captureBackend",
+        "script",
+        "scripts",
+        "url",
+        "urls",
+        "model",
+        "weights",
+        "so",
+        "dex",
+        "jar",
+    }
+)
+
+
 def validate_rules(data: Mapping[str, Any], supported_scenes: Iterable[str]) -> dict[str, Any]:
     _walk_json(data)
     if set(data) - {"schemaVersion", "scenes", "notes"}:
         raise AlgorithmPackError("rules.json has unknown top-level fields")
-    if data.get("schemaVersion") != SCHEMA_VERSION:
-        raise AlgorithmPackError("unsupported rules schemaVersion")
+    schema = data.get("schemaVersion")
+    if schema not in RULES_SCHEMA_VERSIONS:
+        raise AlgorithmPackError(f"unsupported rules schemaVersion: {schema!r}")
     scenes = data.get("scenes")
     if not isinstance(scenes, dict) or not scenes:
         raise AlgorithmPackError("rules.scenes must be a non-empty object")
@@ -327,29 +354,63 @@ def validate_rules(data: Mapping[str, Any], supported_scenes: Iterable[str]) -> 
             raise AlgorithmPackError(f"rules contain scene not listed in manifest: {scene}")
         if not isinstance(payload, dict):
             raise AlgorithmPackError(f"rules for {scene} must be an object")
-        thresholds = payload.get("thresholds")
-        if not isinstance(thresholds, dict):
-            raise AlgorithmPackError(f"rules for {scene} require thresholds object")
-        _validate_thresholds(thresholds)
-        if "disabledObstacles" in payload:
-            disabled = payload["disabledObstacles"]
-            if not isinstance(disabled, list) or len(disabled) > 16:
-                raise AlgorithmPackError("disabledObstacles invalid")
-            seen_obstacles: set[str] = set()
-            for item in disabled:
-                # Obstacle kinds use SCREAMING_SNAKE_CASE identifiers.
-                if not isinstance(item, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{1,47}", item):
-                    raise AlgorithmPackError(f"invalid obstacle kind: {item!r}")
-                if item in seen_obstacles:
-                    raise AlgorithmPackError(f"duplicate obstacle kind: {item}")
-                seen_obstacles.add(item)
-        extras = set(payload) - {"thresholds", "disabledObstacles", "notes"}
-        if extras:
-            raise AlgorithmPackError(f"unknown rules fields for {scene}: {sorted(extras)}")
+        if schema == 1:
+            _validate_rules_scene_v1(scene, payload)
+        else:
+            _validate_rules_scene_v2(scene, payload)
     missing = allowed - set(scenes)
     if missing:
         raise AlgorithmPackError(f"rules missing scenes from manifest: {sorted(missing)}")
     return dict(data)
+
+
+def _validate_disabled_obstacles(disabled: Any) -> None:
+    if not isinstance(disabled, list) or len(disabled) > 16:
+        raise AlgorithmPackError("disabledObstacles invalid")
+    seen_obstacles: set[str] = set()
+    for item in disabled:
+        if not isinstance(item, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{1,47}", item):
+            raise AlgorithmPackError(f"invalid obstacle kind: {item!r}")
+        if item in seen_obstacles:
+            raise AlgorithmPackError(f"duplicate obstacle kind: {item}")
+        seen_obstacles.add(item)
+
+
+def _validate_rules_scene_v1(scene: str, payload: Mapping[str, Any]) -> None:
+    thresholds = payload.get("thresholds")
+    if not isinstance(thresholds, dict):
+        raise AlgorithmPackError(f"rules for {scene} require thresholds object")
+    _validate_thresholds(thresholds)
+    if "disabledObstacles" in payload:
+        _validate_disabled_obstacles(payload["disabledObstacles"])
+    extras = set(payload) - {"thresholds", "disabledObstacles", "notes"}
+    if extras:
+        raise AlgorithmPackError(f"unknown rules fields for {scene}: {sorted(extras)}")
+
+
+def _validate_rules_scene_v2(scene: str, payload: Mapping[str, Any]) -> None:
+    extras = set(payload) - {"userThresholds", "engineParams", "disabledObstacles", "notes", "thresholds"}
+    if extras:
+        raise AlgorithmPackError(f"unknown rules fields for {scene}: {sorted(extras)}")
+    # Compat: allow legacy "thresholds" key as alias of userThresholds.
+    user = payload.get("userThresholds")
+    if user is None and "thresholds" in payload:
+        user = payload.get("thresholds")
+    engine = payload.get("engineParams")
+    if user is None and engine is None:
+        raise AlgorithmPackError(
+            f"rules for {scene} require userThresholds and/or engineParams",
+        )
+    if user is not None:
+        if not isinstance(user, dict):
+            raise AlgorithmPackError(f"userThresholds for {scene} must be an object")
+        _validate_thresholds(user)
+    if engine is not None:
+        if not isinstance(engine, dict):
+            raise AlgorithmPackError(f"engineParams for {scene} must be an object")
+        _validate_engine_params(engine)
+    if "disabledObstacles" in payload:
+        _validate_disabled_obstacles(payload["disabledObstacles"])
 
 
 def _validate_thresholds(thresholds: Mapping[str, Any]) -> None:
@@ -391,6 +452,142 @@ def _validate_thresholds(thresholds: Mapping[str, Any]) -> None:
         value = thresholds[ratio_key]
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0.0 <= float(value) <= 1.0:
             raise AlgorithmPackError(f"{ratio_key} out of range")
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _require_unit(name: str, value: Any) -> None:
+    if not _is_number(value) or not 0.0 <= float(value) <= 1.0:
+        raise AlgorithmPackError(f"{name} out of range")
+
+
+def _require_range(name: str, value: Any, lo: float, hi: float) -> None:
+    if not _is_number(value) or not lo <= float(value) <= hi:
+        raise AlgorithmPackError(f"{name} out of range")
+
+
+def _require_channel(name: str, value: Any) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 255:
+        raise AlgorithmPackError(f"{name} out of range")
+
+
+def _validate_engine_params(params: Mapping[str, Any]) -> None:
+    forbidden = set(params) & _FORBIDDEN_ENGINE_KEYS
+    if forbidden:
+        raise AlgorithmPackError(f"engineParams contains forbidden keys: {sorted(forbidden)}")
+    float_unit = {
+        "sceneConfidenceFloor",
+        "playerConfidenceFloor",
+        "fixedPlayerTop",
+        "fixedPlayerBottom",
+        "fallbackSceneConfidenceMax",
+        "groundSearchTop",
+        "groundSearchBottom",
+        "groundConfidenceMin",
+    }
+    float_ranges = {
+        "bottleWidthMin": (0.001, 0.5),
+        "bottleWidthMax": (0.01, 0.8),
+        "bottleHeightMin": (0.001, 0.6),
+        "bottleHeightMax": (0.01, 0.8),
+        "cakeWidthMin": (0.01, 0.7),
+        "cakeWidthMax": (0.05, 0.95),
+        "cakeHeightMin": (0.01, 0.8),
+        "cakeWideWidthRatio": (0.05, 0.8),
+        "statueWidthMin": (0.01, 0.5),
+        "statueWidthMax": (0.05, 0.8),
+        "statueHeightMin": (0.01, 0.6),
+        "statueHeightMax": (0.05, 0.8),
+        "gapWidthMin": (0.01, 0.8),
+        "gapWidthMax": (0.05, 0.95),
+        "gapHeightMin": (0.01, 0.8),
+        "gapWideWidthRatio": (0.05, 0.8),
+        "brushWidthMin": (0.005, 0.5),
+        "brushWidthMax": (0.02, 0.8),
+        "brushHeightMin": (0.01, 0.7),
+        "brushHeightMax": (0.05, 0.9),
+        "spikeWidthMin": (0.01, 0.6),
+        "spikeWidthMax": (0.05, 0.9),
+        "spikeHeightMin": (0.01, 0.7),
+        "spikeHeightMax": (0.05, 0.9),
+    }
+    int_ranges = {
+        "fixedPlayerWidthDivisor": (8, 64),
+        "fallbackMaxDetections": (0, 8),
+    }
+    allowed = set(float_unit) | set(float_ranges) | set(int_ranges) | {"colors"}
+    unknown = set(params) - allowed
+    if unknown:
+        raise AlgorithmPackError(f"unknown engineParams fields: {sorted(unknown)}")
+    for key in float_unit:
+        if key in params:
+            _require_unit(key, params[key])
+    for key, (lo, hi) in float_ranges.items():
+        if key in params:
+            _require_range(key, params[key], lo, hi)
+    for key, (lo, hi) in int_ranges.items():
+        if key not in params:
+            continue
+        value = params[key]
+        if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
+            raise AlgorithmPackError(f"{key} out of range")
+    ordered_pairs = (
+        ("fixedPlayerTop", "fixedPlayerBottom"),
+        ("groundSearchTop", "groundSearchBottom"),
+        ("bottleWidthMin", "bottleWidthMax"),
+        ("bottleHeightMin", "bottleHeightMax"),
+        ("cakeWidthMin", "cakeWidthMax"),
+        ("statueWidthMin", "statueWidthMax"),
+        ("statueHeightMin", "statueHeightMax"),
+        ("gapWidthMin", "gapWidthMax"),
+        ("brushWidthMin", "brushWidthMax"),
+        ("brushHeightMin", "brushHeightMax"),
+        ("spikeWidthMin", "spikeWidthMax"),
+        ("spikeHeightMin", "spikeHeightMax"),
+    )
+    for a, b in ordered_pairs:
+        if a in params and b in params and float(params[a]) > float(params[b]):
+            raise AlgorithmPackError(f"{a} must be <= {b}")
+    if "colors" in params:
+        colors = params["colors"]
+        if not isinstance(colors, dict):
+            raise AlgorithmPackError("colors must be an object")
+        _validate_engine_colors(colors)
+
+
+def _validate_engine_colors(colors: Mapping[str, Any]) -> None:
+    channel_keys = {
+        "bottleGreenMin",
+        "bottleRedMax",
+        "cakeRedMin",
+        "cakeGreenMin",
+        "cakeBlueMax",
+        "spikeRedMin",
+        "spikeBlueMin",
+        "bambooGreenMin",
+        "bambooBlueMax",
+        "brushDarkMax",
+        "statueChromaMax",
+    }
+    ratio_keys = {
+        "bottleGreenOverRed": (0.5, 3.0),
+        "bottleGreenOverBlue": (0.5, 3.0),
+        "spikeRedOverGreen": (0.5, 3.0),
+        "bambooGreenOverRed": (0.2, 3.0),
+        "bambooGreenOverBlue": (0.5, 4.0),
+    }
+    allowed = channel_keys | set(ratio_keys)
+    unknown = set(colors) - allowed
+    if unknown:
+        raise AlgorithmPackError(f"unknown color fields: {sorted(unknown)}")
+    for key in channel_keys:
+        if key in colors:
+            _require_channel(key, colors[key])
+    for key, (lo, hi) in ratio_keys.items():
+        if key in colors:
+            _require_range(key, colors[key], lo, hi)
 
 
 def validate_changelog(text: str) -> str:

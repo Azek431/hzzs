@@ -23,8 +23,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
+import top.azek431.hzzs.core.logging.AppLog
+import top.azek431.hzzs.core.logging.DiagnosticsExporter
+import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.UpdateChannel
 import top.azek431.hzzs.core.preferences.SettingsEditSession
@@ -34,7 +38,13 @@ import top.azek431.hzzs.core.theme.ThemePackageCodec
 import top.azek431.hzzs.core.update.ApkInstaller
 import top.azek431.hzzs.core.update.DeltaPatchApplier
 import top.azek431.hzzs.core.update.SourceResult
+import top.azek431.hzzs.core.update.UpdateFileVerifier
 import top.azek431.hzzs.core.update.UpdateRepository
+import top.azek431.hzzs.data.vision.DebugFrameRecorder
+import top.azek431.hzzs.data.vision.NativeBenchmarkResult
+import top.azek431.hzzs.data.vision.NativeBenchmarkRunner
+import top.azek431.hzzs.mcp.McpServerState
+import top.azek431.hzzs.mcp.McpUiBridge
 import top.azek431.hzzs.platform.compat.CaptureCapabilityResolver
 import java.io.File
 import javax.inject.Inject
@@ -62,6 +72,10 @@ class SettingsViewModel @Inject constructor(
     private val capabilityResolver: CaptureCapabilityResolver,
     private val updateRepository: UpdateRepository,
     private val algorithmCatalog: AlgorithmCatalogController,
+    private val algorithmActivation: AlgorithmActivationCoordinator,
+    private val debugFrames: DebugFrameRecorder,
+    private val benchmarkRunner: NativeBenchmarkRunner,
+    mcpUiBridge: McpUiBridge,
 ) : ViewModel() {
     private val mutableDraft = MutableStateFlow(AppConfig())
     val draft: StateFlow<AppConfig> = mutableDraft.asStateFlow()
@@ -71,6 +85,11 @@ class SettingsViewModel @Inject constructor(
     private val mutableUpdate = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = mutableUpdate.asStateFlow()
     val algorithmState: StateFlow<AlgorithmCatalogState> = algorithmCatalog.state
+    val mcpState: StateFlow<McpServerState> = mcpUiBridge.serverState
+    private val mutableDebugFrameCount = MutableStateFlow(0)
+    val debugFrameCount: StateFlow<Int> = mutableDebugFrameCount.asStateFlow()
+    private val mutableBenchmark = MutableStateFlow<Result<NativeBenchmarkResult>?>(null)
+    val benchmark: StateFlow<Result<NativeBenchmarkResult>?> = mutableBenchmark.asStateFlow()
 
     private var session: SettingsEditSession? = null
     private var previewJob: Job? = null
@@ -81,7 +100,51 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             openSession(repository.snapshot())
             algorithmCatalog.refreshCatalog()
+            refreshDebugFrameCount()
         }
+    }
+
+    fun refreshDebugFrameCount() {
+        viewModelScope.launch { mutableDebugFrameCount.value = debugFrames.list().size }
+    }
+
+    fun clearDebugFrames() {
+        viewModelScope.launch {
+            debugFrames.clear()
+            mutableDebugFrameCount.value = 0
+        }
+    }
+
+    fun runNativeBenchmark() {
+        val iterations = mutableDraft.value.developer.nativeBenchmarkIterations
+        viewModelScope.launch { mutableBenchmark.value = benchmarkRunner.run(iterations) }
+    }
+
+    /** 基于当前草稿配置与运行态生成脱敏诊断文本（不含 Bearer）。 */
+    fun buildDiagnosticsReport(): String {
+        val config = mutableDraft.value
+        val mcp = mcpState.value
+        val packageInfo = runCatching {
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        }.getOrNull()
+        val versionName = packageInfo?.versionName ?: "unknown"
+        val versionCode = if (Build.VERSION.SDK_INT >= 28) {
+            packageInfo?.longVersionCode ?: 0L
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo?.versionCode?.toLong() ?: 0L
+        }
+        return DiagnosticsExporter.buildReport(
+            versionName = versionName,
+            versionCode = versionCode,
+            config = config,
+            mcp = McpDiagnosticsSnapshot(
+                running = mcp.running,
+                port = mcp.port.takeIf { mcp.running },
+                lastError = mcp.lastError,
+            ),
+            debugFrameCount = mutableDebugFrameCount.value,
+        )
     }
 
     private fun openSession(original: AppConfig) {
@@ -150,6 +213,21 @@ class SettingsViewModel @Inject constructor(
         val active = session ?: return@launch
         val saved = active.save()
         openSession(saved)
+        AppLog.i(
+            "settings",
+            "settings saved developer=${saved.developer.enabled} logLevel=${saved.developer.logLevel}",
+        )
+        runCatching {
+            algorithmActivation.onConfigCommitted(
+                config = saved.algorithm,
+                selectedScene = saved.selectedScene,
+            )
+        }.onFailure { error ->
+            AppLog.w(
+                "settings",
+                "algorithm activation after save failed: ${error.message ?: error.javaClass.simpleName}",
+            )
+        }
         onDone()
     }
 
@@ -206,7 +284,10 @@ class SettingsViewModel @Inject constructor(
                 if (config.update.wifiOnly && !isOnUnmeteredNetwork()) {
                     error("当前设置要求仅在 Wi‑Fi 下检查/下载更新")
                 }
-                val result = updateRepository.check(beta = config.update.channel == UpdateChannel.BETA)
+                val result = updateRepository.check(
+                    beta = config.update.channel == UpdateChannel.BETA,
+                    sourcePreference = config.update.sourcePreference,
+                )
                 val installed = installedVersionCode()
                 if (result.manifest.versionCode <= installed) {
                     UpdateUiState(
@@ -284,34 +365,47 @@ class SettingsViewModel @Inject constructor(
 
     fun installDownloadedUpdate() {
         val apk = mutableUpdate.value.localApk ?: return
-        runCatching { ApkInstaller.launch(appContext, apk) }
-            .onFailure { error ->
-                mutableUpdate.value = mutableUpdate.value.copy(
-                    message = "无法启动安装：${error.message ?: error.javaClass.simpleName}",
-                )
-            }
+        val available = mutableUpdate.value.available
+        if (available == null) {
+            mutableUpdate.value = mutableUpdate.value.copy(message = "缺少已校验的更新清单，请重新检查更新")
+            return
+        }
+        runCatching {
+            // 差分合并或直下后的 APK 须再验包名 / versionCode / 证书 / 哈希
+            UpdateFileVerifier.verifyPackage(appContext, apk, available.manifest)
+            ApkInstaller.launch(appContext, apk)
+        }.onFailure { error ->
+            mutableUpdate.value = mutableUpdate.value.copy(
+                message = "无法安装：${error.message ?: error.javaClass.simpleName}",
+                localApk = null,
+            )
+            runCatching { apk.delete() }
+        }
     }
 
+    /**
+     * 仅持久化 [ignoredVersionCode]，不把整份未保存草稿一并落盘。
+     * 草稿中的其它编辑保留；会话 baseline 同步为「磁盘快照 + 忽略版本」。
+     */
     fun ignoreAvailableUpdate() {
         val code = mutableUpdate.value.available?.manifest?.versionCode ?: return
         viewModelScope.launch {
             previewJob?.cancel()
             flushPendingDraft()
-            val active = session
-            if (active != null) {
-                val next = active.update {
-                    it.copy(update = it.update.copy(ignoredVersionCode = code))
-                }
-                mutableDraft.value = next
-                val saved = active.save()
-                openSession(saved)
-            } else {
-                val current = repository.snapshot()
-                val next = current.copy(update = current.update.copy(ignoredVersionCode = code))
-                repository.save(next)
-                openSession(next)
+            val keptDraft = mutableDraft.value.copy(
+                update = mutableDraft.value.update.copy(ignoredVersionCode = code),
+            )
+            val snap = repository.snapshot()
+            val persisted = snap.copy(update = snap.update.copy(ignoredVersionCode = code))
+            repository.save(persisted)
+            openSession(persisted)
+            if (keptDraft != persisted) {
+                mutableDraft.value = keptDraft
+                pendingDraft = keptDraft
+                flushPendingDraft()
             }
-            mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本")
+            bindAlgorithm(mutableDraft.value)
+            mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本（未保存的其它设置仍保留在草稿）")
         }
     }
 

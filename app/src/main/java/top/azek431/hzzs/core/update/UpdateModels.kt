@@ -22,6 +22,7 @@ import java.security.Signature
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.zip.ZipFile
+import top.azek431.hzzs.core.model.UpdateSourcePreference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +34,7 @@ import javax.inject.Singleton
  * - 清单签名绑定**本安装包证书**公钥；仅改 URL / 偏好无法伪造信任
  * - Debug 包故意无法认证生产发行清单
  * - 资产有体积、文件名与哈希边界
+ * - 安装前须 [UpdateFileVerifier.verifyPackage]（包名 / versionCode / 证书 / 哈希）
  *
  * 未正式发布索引时，[UpdateRepository.check] 失败属预期。
  */
@@ -86,8 +88,9 @@ data class SourceResult(val source: UpdateSourceId, val manifest: UpdateManifest
 /**
  * 签名、仅 HTTPS 的双源更新仓库。
  *
- * [check] 优先 Gitee，必要时 GitHub；双源均成功时要求 signedPayload 一致。
- * 下载后校验 SHA-256，差分补丁回放通过后才可安装。
+ * [check] 按 [UpdateSourcePreference] 决定首选源，另一源作回退；
+ * 双源均成功时要求 signedPayload 一致，并返回首选源结果。
+ * 下载后校验 SHA-256；安装前调用方须再 [UpdateFileVerifier.verifyPackage]。
  */
 @Singleton
 class UpdateRepository @Inject constructor(
@@ -108,22 +111,38 @@ class UpdateRepository @Inject constructor(
      * 检查更新索引。
      *
      * @param beta true 读 beta 通道，否则 stable
+     * @param sourcePreference 源优先级；[UpdateSourcePreference.AUTO] 与优先 Gitee 相同
      * @throws IllegalStateException 双源均不可用或签名无效；双源 payload 不一致
      */
-    suspend fun check(beta: Boolean): SourceResult = withContext(Dispatchers.IO) {
-        val primaryUrl = if (beta) GITEE_BETA else GITEE_STABLE
-        val secondaryUrl = if (beta) GITHUB_BETA else GITHUB_STABLE
-        val primary = runCatching { fetch(UpdateSourceId.GITEE, primaryUrl) }.getOrNull()
-        val secondary = runCatching { fetch(UpdateSourceId.GITHUB, secondaryUrl) }.getOrNull()
+    suspend fun check(
+        beta: Boolean,
+        sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO,
+    ): SourceResult = withContext(Dispatchers.IO) {
+        val giteeUrl = if (beta) GITEE_BETA else GITEE_STABLE
+        val githubUrl = if (beta) GITHUB_BETA else GITHUB_STABLE
+        val order = when (sourcePreference) {
+            UpdateSourcePreference.AUTO,
+            UpdateSourcePreference.PREFER_GITEE,
+            -> listOf(
+                UpdateSourceId.GITEE to giteeUrl,
+                UpdateSourceId.GITHUB to githubUrl,
+            )
+            UpdateSourcePreference.PREFER_GITHUB -> listOf(
+                UpdateSourceId.GITHUB to githubUrl,
+                UpdateSourceId.GITEE to giteeUrl,
+            )
+        }
+        val first = runCatching { fetch(order[0].first, order[0].second) }.getOrNull()
+        val second = runCatching { fetch(order[1].first, order[1].second) }.getOrNull()
         when {
-            primary != null && secondary != null -> {
-                require(primary.manifest.signedPayload == secondary.manifest.signedPayload) {
+            first != null && second != null -> {
+                require(first.manifest.signedPayload == second.manifest.signedPayload) {
                     "Gitee 与 GitHub 的签名发行清单不一致"
                 }
-                primary
+                first
             }
-            primary != null -> primary
-            secondary != null -> secondary
+            first != null -> first
+            second != null -> second
             else -> error("Gitee 与 GitHub 更新源均不可用或签名无效")
         }
     }
