@@ -135,6 +135,19 @@ Windows：
 .\gradlew.bat --no-daemon clean testDebugUnitTest lintDebug assembleDebug
 ```
 
+### 本机构建加速（可选）
+
+机器内存紧张或日常只连 **arm64 真机** 时，可在根目录 `gradle.properties` 取消注释：
+
+```properties
+hzzs.native.abis=arm64-v8a
+```
+
+也可单次传入：`.\gradlew.bat -Phzzs.native.abis=arm64-v8a assembleDebug`。  
+**发布 / CI 不要设置该属性**，默认仍编 `arm64-v8a,armeabi-v7a,x86_64`。
+
+项目已开启 Build Cache 与 Configuration Cache。若本机 `GRADLE_USER_HOME/gradle.properties` 写了 `org.gradle.configuration-cache=false`，会覆盖项目设置，建议注释掉以恢复配置缓存。
+
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`
 
 Native 宿主机验证：

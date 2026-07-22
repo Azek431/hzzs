@@ -11,6 +11,14 @@ python -m compileall -q tools
 
 Windows 可使用 `.\gradlew.bat`。
 
+日常本机加速（仅 Debug / 真机）：
+
+```powershell
+.\gradlew.bat -Phzzs.native.abis=arm64-v8a :app:assembleDebug
+```
+
+完整 ABI 与 CI 门禁不要传该参数。若配置阶段每次都很慢，检查 `%GRADLE_USER_HOME%\gradle.properties` 是否强制关闭了 `configuration-cache`。
+
 Release（需签名配置，见 README「Release 构建与签名」）：
 
 ```bash
