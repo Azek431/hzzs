@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -43,6 +44,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import top.azek431.hzzs.R
+import top.azek431.hzzs.core.designsystem.HzzsBreakpoints
+import top.azek431.hzzs.core.designsystem.LocalHzzsMotion
+import top.azek431.hzzs.core.designsystem.sharedAxisXEnter
+import top.azek431.hzzs.core.designsystem.sharedAxisXExit
+import top.azek431.hzzs.core.designsystem.sharedAxisXPopEnter
+import top.azek431.hzzs.core.designsystem.sharedAxisXPopExit
 import top.azek431.hzzs.feature.settings.components.SettingsSaveBar
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
 import top.azek431.hzzs.feature.settings.model.SettingsRoutes
@@ -108,8 +116,9 @@ fun SettingsScreen(
         }
     }
 
+    val settingsLabel = stringResource(R.string.nav_settings)
     val title = when (route) {
-        SettingsRoutes.HOME -> "设置"
+        SettingsRoutes.HOME -> settingsLabel
         SettingsCategory.APPEARANCE.route -> SettingsCategory.APPEARANCE.title
         SettingsCategory.ALGORITHM.route -> SettingsCategory.ALGORITHM.title
         SettingsCategory.CAPTURE.route -> SettingsCategory.CAPTURE.title
@@ -117,7 +126,7 @@ fun SettingsScreen(
         SettingsCategory.AUTOMATION.route -> SettingsCategory.AUTOMATION.title
         SettingsCategory.NETWORK.route -> SettingsCategory.NETWORK.title
         SettingsCategory.MCP.route -> SettingsCategory.MCP.title
-        else -> "设置"
+        else -> settingsLabel
     }
 
     Scaffold(
@@ -130,7 +139,10 @@ fun SettingsScreen(
                             if (onHome) requestExit() else nav.popBackStack()
                         },
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
@@ -157,7 +169,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            val wide = maxWidth >= 840.dp
+            val wide = maxWidth >= HzzsBreakpoints.SettingsTwoPane
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Box(
@@ -210,8 +222,8 @@ fun SettingsScreen(
                 confirmExit = false
                 pendingExitAction = null
             },
-            title = { Text("未保存的更改") },
-            text = { Text("要保存当前设置，还是丢弃更改并离开？") },
+            title = { Text(stringResource(R.string.settings_unsaved_title)) },
+            text = { Text(stringResource(R.string.settings_unsaved_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -220,7 +232,7 @@ fun SettingsScreen(
                         pendingExitAction = null
                         vm.save(action)
                     },
-                ) { Text("保存并离开") }
+                ) { Text(stringResource(R.string.settings_save_and_leave)) }
             },
             dismissButton = {
                 TextButton(
@@ -230,7 +242,7 @@ fun SettingsScreen(
                         pendingExitAction = null
                         vm.discard(action)
                     },
-                ) { Text("丢弃") }
+                ) { Text(stringResource(R.string.action_discard)) }
             },
         )
     }
@@ -248,10 +260,15 @@ private fun SettingsNavHost(
     modifier: Modifier,
     startAtHome: Boolean,
 ) {
+    val motion = LocalHzzsMotion.current
     NavHost(
         navController = nav,
         startDestination = if (startAtHome) SettingsRoutes.HOME else SettingsCategory.APPEARANCE.route,
         modifier = modifier,
+        enterTransition = { motion.sharedAxisXEnter() },
+        exitTransition = { motion.sharedAxisXExit() },
+        popEnterTransition = { motion.sharedAxisXPopEnter() },
+        popExitTransition = { motion.sharedAxisXPopExit() },
     ) {
         composable(SettingsRoutes.HOME) {
             SettingsHomeScreen(
@@ -310,7 +327,20 @@ private fun SettingsNavHost(
             )
         }
         composable(SettingsCategory.MCP.route) {
-            McpDeveloperSettingsScreen(config = config, update = vm::update)
+            val mcpState by vm.mcpState.collectAsState()
+            val debugFrameCount by vm.debugFrameCount.collectAsState()
+            val benchmark by vm.benchmark.collectAsState()
+            McpDeveloperSettingsScreen(
+                config = config,
+                update = vm::update,
+                mcpState = mcpState,
+                debugFrameCount = debugFrameCount,
+                benchmark = benchmark,
+                onRefreshDebugFrames = vm::refreshDebugFrameCount,
+                onClearDebugFrames = vm::clearDebugFrames,
+                onRunBenchmark = vm::runNativeBenchmark,
+                onBuildDiagnostics = vm::buildDiagnosticsReport,
+            )
         }
     }
 }

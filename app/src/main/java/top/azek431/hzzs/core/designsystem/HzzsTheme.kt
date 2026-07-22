@@ -1,7 +1,9 @@
 package top.azek431.hzzs.core.designsystem
 
 import android.app.Activity
+import android.content.ContentResolver
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
@@ -16,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -34,11 +37,22 @@ import kotlin.math.min
  * HZZS Design System 2.0：工具专业风主题与令牌。
  *
  * - 主题包只存语义控制（mode / preset / 缩放），不存组件级裸色
- * - 页面优先读 [LocalHzzsDimensions] / [LocalHzzsStatusColors]，避免硬编码间距与状态色
+ * - 页面优先读 [LocalHzzsDimensions] / [LocalHzzsStatusColors] / [LocalHzzsMotion]
  * - 气质：冷静中性表面 + 品牌 accent（种子色），适合本地分析工具
+ * - 保留 Dynamic / 多预设 / 自定义种子（本轮不收紧主题能力）
  */
 
-/** 语义间距；随 [ThemeConfig.spacingScale] 缩放。 */
+/** 窗口宽度断点（dp，基于当前窗口而非物理设备）。 */
+object HzzsBreakpoints {
+    /** 一级导航：≥ 此宽度使用 NavigationRail。 */
+    val NavigationExpanded: Dp = 720.dp
+    /** 设置双栏：≥ 此宽度左侧常驻目录。 */
+    val SettingsTwoPane: Dp = 840.dp
+    /** 紧凑手机参考宽度（Preview / 布局下限参考）。 */
+    val Compact: Dp = 320.dp
+}
+
+/** 语义间距与布局边界；随 [ThemeConfig.spacingScale] 缩放间距类字段。 */
 @Immutable
 data class HzzsDimensions(
     val compactGap: Dp,
@@ -49,6 +63,10 @@ data class HzzsDimensions(
     val metricGap: Dp,
     val bottomBarClearance: Dp,
     val touchMin: Dp,
+    /** 宽屏内容最大宽度，避免把手机布局机械拉伸。 */
+    val contentMaxWidth: Dp,
+    val navigationExpandedBreakpoint: Dp = HzzsBreakpoints.NavigationExpanded,
+    val settingsTwoPaneBreakpoint: Dp = HzzsBreakpoints.SettingsTwoPane,
 )
 
 val LocalHzzsDimensions = staticCompositionLocalOf {
@@ -61,6 +79,7 @@ val LocalHzzsDimensions = staticCompositionLocalOf {
         metricGap = 10.dp,
         bottomBarClearance = 88.dp,
         touchMin = 48.dp,
+        contentMaxWidth = 840.dp,
     )
 }
 
@@ -174,12 +193,24 @@ fun HzzsTheme(
         metricGap = (10f * spacing).dp,
         bottomBarClearance = (88f * spacing).dp,
         touchMin = 48.dp,
+        contentMaxWidth = 840.dp,
     )
     val statusColors = statusColorsFrom(colors, dark)
+    val systemAnimatorScale = remember(context) {
+        readSystemAnimatorDurationScale(context.contentResolver)
+    }
+    val motion = remember(config.animationScale, config.reduceMotion, systemAnimatorScale) {
+        HzzsMotion.resolve(
+            animationScale = config.animationScale,
+            reduceMotion = config.reduceMotion,
+            systemAnimatorDurationScale = systemAnimatorScale,
+        )
+    }
 
     CompositionLocalProvider(
         LocalHzzsDimensions provides dimensions,
         LocalHzzsStatusColors provides statusColors,
+        LocalHzzsMotion provides motion,
     ) {
         MaterialTheme(
             colorScheme = colors,
@@ -188,6 +219,13 @@ fun HzzsTheme(
             content = content,
         )
     }
+}
+
+/** 读取系统动画时长倍率；失败时按 1，避免影响业务逻辑。 */
+internal fun readSystemAnimatorDurationScale(resolver: ContentResolver): Float {
+    return runCatching {
+        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+    }.getOrDefault(1f).coerceAtLeast(0f)
 }
 
 private fun statusColorsFrom(scheme: ColorScheme, dark: Boolean): HzzsStatusColors {
