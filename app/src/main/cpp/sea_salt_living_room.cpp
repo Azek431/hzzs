@@ -89,7 +89,7 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
         p.kind = Kind::PIT;
         p.avoidance = Avoidance::JUMP;
         p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.search_bottom_ratio = params.search_region_bottom_ratio;
         p.threshold = params.multicolor_threshold;
         rules.push_back(std::move(p));
     }
@@ -106,7 +106,7 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
         p.kind = Kind::SAND_CASTLE;
         p.avoidance = Avoidance::JUMP;
         p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.search_bottom_ratio = params.search_region_bottom_ratio;
         p.threshold = params.multicolor_threshold;
         rules.push_back(std::move(p));
     }
@@ -123,7 +123,7 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
         p.kind = Kind::SAND_CASTLE;
         p.avoidance = Avoidance::DOUBLE_JUMP;
         p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.search_bottom_ratio = params.search_region_bottom_ratio;
         p.threshold = params.multicolor_threshold;
         rules.push_back(std::move(p));
     }
@@ -141,7 +141,7 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
         p.kind = Kind::HANGING_ANCHOR;
         p.avoidance = Avoidance::SWIPE_UP;
         p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.search_bottom_ratio = params.search_region_bottom_ratio;
         p.threshold = params.multicolor_threshold;
         rules.push_back(std::move(p));
     }
