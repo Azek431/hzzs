@@ -68,7 +68,8 @@ C++ 检测器的像素框右/下边界是闭区间，因此归一化时使用：
 ## 内存与所有权
 
 ```text
-CapturedFrame 拥有 IntFramePool.Lease
+CapturedFrame 持有池化像素与释放回调
+→ close 时由回调归还对应 IntFramePool.Lease
 → VisionFrame 临时借用同一 IntArray
 → JNI CriticalIntArray 在当前调用中 pin
 → C++ FrameView 临时借用

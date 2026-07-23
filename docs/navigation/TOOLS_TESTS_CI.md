@@ -94,17 +94,16 @@ algorithm-packs/<id>/ 源树
 
 真实发布只使用 `release-index`：先上传并双侧验证 `algorithms/packages/` 资产，最后更新 `algorithms/stable.json` 或 `beta.json`。不要创建算法 Release tag。
 
-### 发布工具的当前已知风险
+### 发布前核对动态状态
 
-这些是后续独立修复事项，不应在不相关提交中顺手改变：
+发布工具和 workflow 会持续演进，导航页不保存逐项缺陷清单。执行算法发布前必须：
 
-- `algorithm-release.yml` 仍传入 publisher 不接受的 `--draft/--no-draft`，当前手动工作流会在参数解析阶段失败；
-- publisher 构建通道目录时只放本次一个 entry，未合并远端旧目录，多算法可能丢目录项；
-- concurrency group 含源目录，不同算法可并发覆盖同一通道目录；
-- manifest channel 与 CLI channel 尚无一致性检查；
-- 双源写入不是事务，一侧成功、一侧失败会部分完成。
+- 核对 `.github/workflows/algorithm-release.yml` 传入的参数仍被 `publish_algorithm_release.py --help` 接受；
+- 查看 `PROGRESS.md`、相关 Issue 和当前测试，确认没有已知阻断项；
+- 确认目录会保留同通道已有算法、同版本不可变，并避免同通道并发覆盖；
+- 记住双源写入不是原子事务，明确部分失败后的恢复策略。
 
-修复发布器时必须增加旧目录合并、同版本不可变、同通道串行和失败策略测试。
+发现协议或发布缺陷时应单独修复并增加测试，不在不相关提交中顺手改变。
 
 ## 当前测试盲区索引
 

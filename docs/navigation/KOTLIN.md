@@ -75,7 +75,7 @@ snapshot → baseline + draft
 
 后端包括 AUTO、MediaProjection、Accessibility、Shizuku、Root。`AUTO` 只委托 MediaProjection；高级后端必须由用户显式选择。
 
-`CapturedFrame` 持有 `IntFramePool.Lease`：
+`CapturedFrame` 持有池化像素和释放回调；关闭时由回调归还对应的 `IntFramePool.Lease`：
 
 ```text
 nextFrame
