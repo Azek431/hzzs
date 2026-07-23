@@ -101,9 +101,7 @@ Result find_multi_color_patterns(
     const int width = f.width;
     const int thresh = static_cast<int>(std::max(global_threshold, 1.0f));
 
-    // 跳过 PLAYER（0 索引不检测）
-    const size_t skip = (enabled_kind_mask & 1) ? 0 : 1;
-
+    // Kind 过滤统一走 kind_enabled（含 PLAYER bit0）；勿再引入未使用的 skip 计数。
     for (const auto& pat : patterns) {
         if (static_cast<int>(pat.offsets.size()) > 16) continue;
         if (!kind_enabled(enabled_kind_mask, pat.kind)) continue;

@@ -5,6 +5,7 @@
 
 ## 2026-07-23
 
+- **算法调参看 DEBUG 帧轨迹**：`AlgorithmRuntimeTrace` 保留最近 32 帧（无像素）；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`。须开发者开启且 `logLevel=DEBUG`；状态变化或约每 12 帧写一条。诊断导出含 pipeline + 最近帧。INFO 下仍只有会话 start/stop。
 - **编程版八荣八耻已装入 CLAUDE**：根 `CLAUDE.md` 与用户级 `~/.claude/CLAUDE.md` 的 `Core Philosophy`；第 7 条原文「为菜」= 诚实无知、不装懂。硬约束全文仍以 `CLAUDE.md` 为准。
 - **host 构建脚本无 +x**：Windows 检出常使 `tools/vision/*.sh` 为 `100644`；CI 上 `python subprocess([str(build_host.sh)])` 会 `PermissionError`。应 `bash script.sh` / `powershell -File script.ps1`，统一走 `tools/vision/host_build.py`。
 - **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认 `-Xmx2G`；low-memory profile 上多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。救急：`tools/dev/repair_serena.ps1 -ClearCache`（可选 `-AlsoStopFwcd`）。工具仍不可用时回退 Read/Grep，勿阻塞交付。
@@ -14,6 +15,8 @@
 - **内置算法首版号是 0.1.0**：runtime `builtin.hzzs.base` + Catalog `builtin-hzzs-base-0.1.0`；不要再写 `2.0.0`（那是误标）。与外装包 `official-bamboo-baseline` 0.1.0 语义独立。
 - **诊断时间用本地时区+偏移**：`DiagnosticsExporter` / 算法「最近检查」用 `yyyy-MM-dd HH:mm:ss.SSSXXX`，禁止再标假 `Z`。
 - **拉不到新算法的两道门**：① 远端 `release-index` 上 `algorithms/{channel}.json` 尚不存在（双源 404）→ 检查失败但内置/捆绑可用；② 公钥列表被清空 → 即使有目录也拒绝外装下载。修体验≠已发布包。
+- **APK 捆绑 vs 远端验签**：`assets/algorithms/<id>/` 经 `BundledAlgorithmInstaller` 幂等预装，**不经** Ed25519；远端 `.hzzsalg` 仍须信任锚。设置「算法库」可切换内置/捆绑/远端；「检测参数」单独页。
+- **analysisRunning 必须双写**：`VisionRuntimeController` 须调 `AlgorithmCatalogController.setAnalysisRunning`（其内再调 Activation），只写 Activation 会导致分析中下载半热激活。
 - **应用内悬浮窗开关 ≠ 系统权限**：`OverlayConfig.enabled` 只控制是否尝试加窗；真正门闩是 `Settings.canDrawOverlays`。缺权限时帧循环可正常、芯片「无悬浮窗」，须引导用户进系统设置。
 - **信任锚 fail-closed**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 列表为空时外装「官方」算法包应被拒绝；内置与 APK 捆绑声明式包仍可用。
 - **算法发布无 tag**：包与目录都在 `release-index`（`algorithms/packages/` + `algorithms/{channel}.json`）；客户端不读 `releases/download`。用户说「上传到 GitHub 就能检测」= 更新该分支目录/包，不是 push main，也不是发 alg tag。
