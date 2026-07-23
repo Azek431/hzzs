@@ -56,9 +56,9 @@ python tools/quality/check_project.py
 
 ### Host ABI 与代表帧
 
-入口：`tools/vision/run_host_tests.py`、`host_api.cpp` 和 host 构建脚本。
+入口：`tools/vision/run_host_tests.py`、`host_api.cpp`、`host_build.py` 与 host 构建脚本（`build_host.sh` / `build_host.ps1`）。
 
-适合证明宿主 ABI、输出范围和无崩溃。没有人工真值时只能报告稳定性与耗时，不能宣称准确率。
+适合证明宿主 ABI、输出范围和无崩溃。没有人工真值时只能报告稳定性与耗时，不能宣称准确率。Python 入口统一经 `host_build.py` 调用解释器构建，避免无 `+x` 的 shell 脚本在 CI 上 `PermissionError`。
 
 ### Android 设备测试
 

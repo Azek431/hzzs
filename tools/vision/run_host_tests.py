@@ -7,13 +7,16 @@ import argparse
 import ctypes
 import json
 import os
-import subprocess
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from host_build import ensure_host_library  # noqa: E402
+
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -48,8 +51,10 @@ def main() -> None:
     parser.add_argument("--max-representative", type=int, default=24)
     args = parser.parse_args()
 
-    subprocess.check_call([str(ROOT / "tools/vision/build_host.sh")])
-    library = ctypes.CDLL(str(ROOT / "build/host/libhzzs_vision.so"))
+    # Do not exec build_host.sh directly: git often stores it as 100644 (no +x),
+    # which fails on CI Linux with PermissionError. host_build always uses bash/ps1.
+    library_path = ensure_host_library(ROOT)
+    library = ctypes.CDLL(str(library_path))
     analyze = library.hzzs_analyze_host
     analyze.argtypes = [
         ctypes.c_int,

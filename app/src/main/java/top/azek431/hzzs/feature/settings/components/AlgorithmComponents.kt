@@ -56,6 +56,7 @@ fun AlgorithmCard(
     onDetails: () -> Unit,
     onCancelDownload: () -> Unit,
     modifier: Modifier = Modifier,
+    canDownloadRemote: Boolean = true,
 ) {
     Card(
         modifier = modifier
@@ -83,7 +84,13 @@ fun AlgorithmCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "v${info.versionName}",
+                        buildString {
+                            append("v${info.versionName}")
+                            info.author?.takeIf { it.isNotBlank() }?.let {
+                                append(" · ")
+                                append(it)
+                            }
+                        },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -101,7 +108,9 @@ fun AlgorithmCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SettingsStatusChip(formatPublished(info.publishedAtEpochMs))
+                if (info.publishedAtEpochMs > 0L) {
+                    SettingsStatusChip(formatPublished(info.publishedAtEpochMs))
+                }
                 AlgorithmSourceBadge(info)
                 SettingsStatusChip(info.signature.label())
                 if (info.sizeBytes > 0) {
@@ -138,12 +147,31 @@ fun AlgorithmCard(
                             TextButton(onClick = onDetails) { Text("查看详情") }
                         }
                         AlgorithmCardStatus.UPDATABLE -> {
-                            Button(onClick = onUpdate) { Text("更新") }
+                            if (canDownloadRemote) {
+                                Button(onClick = onUpdate) { Text("更新") }
+                            } else {
+                                Text(
+                                    "需公钥后更新",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (manualMode && info.isInstalled) {
+                                OutlinedButton(onClick = onSelect) { Text("使用此版本") }
+                            }
                             TextButton(onClick = onDetails) { Text("查看详情") }
                         }
                         AlgorithmCardStatus.DOWNLOADABLE, AlgorithmCardStatus.LATEST -> {
                             if (!info.isInstalled) {
-                                Button(onClick = onDownload) { Text("下载并使用") }
+                                if (canDownloadRemote) {
+                                    Button(onClick = onDownload) { Text("下载并使用") }
+                                } else {
+                                    Text(
+                                        "需公钥后下载",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             } else if (manualMode) {
                                 Button(onClick = onSelect) { Text("使用此版本") }
                             }

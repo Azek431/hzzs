@@ -81,6 +81,7 @@ class SettingsUiLogicTest {
         assertTrue(appearance.contains("纯黑"))
         assertTrue(network.contains("自动选择") || network.contains("应用"))
         assertTrue(SettingsCategory.AUTOMATION.summary(config).contains("关闭"))
+        assertTrue(SettingsCategory.DETECTION.summary(config).contains("置信度"))
     }
 
     @Test
@@ -92,6 +93,11 @@ class SettingsUiLogicTest {
             SettingsCategory.entries.indexOf(SettingsCategory.CAPTURE) <
                 SettingsCategory.entries.indexOf(SettingsCategory.MCP),
         )
+        assertTrue(
+            SettingsCategory.entries.indexOf(SettingsCategory.ALGORITHM) <
+                SettingsCategory.entries.indexOf(SettingsCategory.DETECTION),
+        )
+        assertTrue(ordered.contains("DETECTION"))
     }
 
     @Test
@@ -146,6 +152,9 @@ class SettingsUiLogicTest {
         assertEquals("待启用", AlgorithmCardStatus.PENDING_ACTIVATION.label())
         assertEquals("不兼容", AlgorithmCardStatus.INCOMPATIBLE.label())
         assertEquals("官方签名", AlgorithmSignatureState.OFFICIAL.label())
+        assertEquals("应用捆绑", AlgorithmSignatureState.BUNDLED.label())
+        assertEquals("应用捆绑", AlgorithmOrigin.BUNDLED.label())
+        assertEquals("内置引擎", AlgorithmDownloadSource.BUILTIN.label())
     }
 
     @Test

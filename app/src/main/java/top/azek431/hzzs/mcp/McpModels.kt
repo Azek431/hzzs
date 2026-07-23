@@ -11,9 +11,41 @@ data class McpServerState(
     val running: Boolean = false,
     val port: Int = 0,
     val token: String = "",
+    /** 当前服务是否强制 Bearer；与配置一致，便于 UI 生成可粘贴片段。 */
+    val requireAuth: Boolean = true,
     val lastError: String? = null,
     val activeSessions: Int = 0,
-)
+) {
+    /** Streamable HTTP 端点（同机客户端如 RikkaHub 直接填此 URL）。 */
+    fun endpointUrl(): String = "http://127.0.0.1:$port/mcp"
+
+    /**
+     * RikkaHub「导入 JSON」格式（根对象含 mcpServers）。
+     * 免鉴权时不写 headers，用户无需手填请求头。
+     */
+    fun rikkaHubImportJson(serverName: String = "hzzs"): String {
+        val headersBlock = if (requireAuth && token.isNotBlank()) {
+            """
+            ,
+            "headers": {
+              "Authorization": "Bearer $token"
+            }
+            """.trimIndent()
+        } else {
+            ""
+        }
+        return """
+            {
+              "mcpServers": {
+                "$serverName": {
+                  "type": "streamable_http",
+                  "url": "${endpointUrl()}"$headersBlock
+                }
+              }
+            }
+        """.trimIndent()
+    }
+}
 
 /** 待用户确认的一次 MCP 写操作请求。 */
 data class McpApprovalRequest(
@@ -53,4 +85,6 @@ object McpLimits {
     const val MAX_SESSIONS = 16
     const val SESSION_IDLE_TTL_MS = 30 * 60_000L
     const val ACCEPT_BACKLOG = 8
+    /** 单 TCP 连接 keep-alive 最多处理的请求数，防止长连接占用。 */
+    const val MAX_REQUESTS_PER_CONNECTION = 64
 }

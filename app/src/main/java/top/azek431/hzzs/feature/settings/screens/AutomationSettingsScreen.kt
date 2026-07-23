@@ -1,9 +1,9 @@
 /**
  * 自动操作与安全设置页。
  *
- * 职责：总开关、竹影实验开关；展示无障碍连接状态；开启须风险倒计时对话框。
- * 数据流：automation 经 [update] 即时落盘；开启须风险确认。分析运行中按识别结果规划手势。
- * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启（由模型层保证）。
+ * 职责：总开关、竹影实验锁、触发距离与节流参数；展示无障碍连接状态。
+ * 数据流：automation 经 [update] 即时落盘；开启须风险确认。
+ * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -50,12 +50,6 @@ import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 
-/**
- * 自动操作设置页。
- *
- * 默认关闭；开启前有风险倒计时对话框并写入免责声明版本后即时落盘。
- * 竹影实验锁在此配置。不直接注入手势。
- */
 @Composable
 fun AutomationSettingsScreen(
     config: AppConfig,
@@ -133,9 +127,7 @@ fun AutomationSettingsScreen(
                 )
                 SettingsSwitchRow(
                     title = "允许竹影书屋实验性自动操作",
-                    subtitle = "即使已启用自动操作，也需单独打开本开关。甜甜圈触发距离约 " +
-                        "%.2f".format(config.automation.sweetTriggerDistancePlayerWidths) +
-                        " 倍玩家宽度。",
+                    subtitle = "即使已启用自动操作，也需单独打开本开关才会在竹影场景规划动作。",
                     checked = config.automation.bambooExperimentalAutoAction,
                     onCheckedChange = { value ->
                         update {
@@ -143,15 +135,81 @@ fun AutomationSettingsScreen(
                         }
                     },
                 )
-                SettingsSwitchRow(
-                    title = "允许海盐客厅自动操作",
-                    subtitle = "海盐客厅默认赛季场景。触发距离约 " +
-                        "%.2f".format(config.automation.seaSaltTriggerDistancePlayerWidths) +
-                        " 倍玩家宽度。需要无障碍服务已连接。",
-                    checked = true,
-                    enabled = false,
-                    onCheckedChange = {},
+                Text(
+                    "甜品工厂与海盐客厅随总开关生效，无需额外实验锁。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+        item {
+            SettingsSectionCard(
+                title = "触发距离（玩家宽度倍数）",
+                description = "障碍进入玩家前方该倍数距离内才规划动作。范围 0.5–4.0。",
+            ) {
+                LabeledSlider(
+                    "甜品工厂",
+                    config.automation.sweetTriggerDistancePlayerWidths,
+                    0.5f..4f,
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(sweetTriggerDistancePlayerWidths = value))
+                    }
+                }
+                LabeledSlider(
+                    "竹影书屋",
+                    config.automation.bambooTriggerDistancePlayerWidths,
+                    0.5f..4f,
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(bambooTriggerDistancePlayerWidths = value))
+                    }
+                }
+                LabeledSlider(
+                    "海盐客厅",
+                    config.automation.seaSaltTriggerDistancePlayerWidths,
+                    0.5f..4f,
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(seaSaltTriggerDistancePlayerWidths = value))
+                    }
+                }
+            }
+        }
+        item {
+            SettingsSectionCard(
+                title = "节流与场景门控",
+                description = "限制动作频率与最低场景置信度，降低误触。",
+            ) {
+                LabeledSlider(
+                    "每秒最多动作数",
+                    config.automation.maxActionsPerSecond.toFloat(),
+                    1f..8f,
+                    valueText = { it.toInt().toString() },
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(maxActionsPerSecond = value.toInt()))
+                    }
+                }
+                LabeledSlider(
+                    "最低场景置信度",
+                    config.automation.minimumSceneConfidence,
+                    0.5f..1f,
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(minimumSceneConfidence = value))
+                    }
+                }
+                LabeledSlider(
+                    "失败重试上限",
+                    config.automation.retryLimit.toFloat(),
+                    0f..2f,
+                    valueText = { it.toInt().toString() },
+                ) { value ->
+                    update {
+                        it.copy(automation = it.automation.copy(retryLimit = value.toInt()))
+                    }
+                }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -175,7 +233,6 @@ fun AutomationSettingsScreen(
     }
 }
 
-/** 开启自动操作前的风险确认：倒计时 + 勾选后才可确认。 */
 @Composable
 private fun AutomationRiskDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
     var remaining by remember { mutableIntStateOf(4) }
@@ -200,10 +257,15 @@ private fun AutomationRiskDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
             }
         },
         confirmButton = {
-            Button(onClick = onConfirm, enabled = remaining == 0 && checked) {
+            Button(
+                onClick = onConfirm,
+                enabled = checked && remaining <= 0,
+            ) {
                 Text(if (remaining > 0) "请等待 ${remaining}s" else "确认开启")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
     )
 }

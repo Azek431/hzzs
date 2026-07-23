@@ -17,12 +17,21 @@ class McpProtocolTest {
     fun loopbackOriginAllowedAndForeignRejected() {
         assertTrue(isAllowedLoopbackOrigin(null))
         assertTrue(isAllowedLoopbackOrigin(""))
+        assertTrue(isAllowedLoopbackOrigin("null"))
         assertTrue(isAllowedLoopbackOrigin("http://127.0.0.1:1234"))
         assertTrue(isAllowedLoopbackOrigin("http://localhost"))
         assertTrue(isAllowedLoopbackOrigin("https://[::1]"))
         assertFalse(isAllowedLoopbackOrigin("http://evil.example"))
         assertFalse(isAllowedLoopbackOrigin("http://192.168.1.1"))
         assertFalse(isAllowedLoopbackOrigin("file://localhost"))
+    }
+
+    @Test
+    fun normalizeMcpPathCollapsesSlash() {
+        assertEquals("/mcp", normalizeMcpPath("/mcp"))
+        assertEquals("/mcp", normalizeMcpPath("/mcp/"))
+        assertEquals("/mcp", normalizeMcpPath("//mcp//"))
+        assertEquals("/health", normalizeMcpPath("/health/"))
     }
 
     @Test
@@ -139,7 +148,48 @@ class McpProtocolTest {
     }
 
     @Test
-    fun toolsCallRequiresInitializedSession() = runBlocking {
+    fun toolsCallAfterHandshakeReturnsContent() = runBlocking {
+        val sessions = McpSessionManager()
+        // initialize 后会话已自动 markInitialized
+        val protocol = McpProtocol(sessions, FakeActions(), serverVersion = "t")
+        val init = protocol.dispatch(
+            JSONObject()
+                .put("jsonrpc", "2.0")
+                .put("id", 1)
+                .put("method", "initialize")
+                .put(
+                    "params",
+                    JSONObject()
+                        .put("protocolVersion", McpProtocolVersions.LATEST)
+                        .put("capabilities", JSONObject())
+                        .put("clientInfo", JSONObject().put("name", "OperitAI")),
+                ),
+            existingSessionId = null,
+            protocolVersionHeader = null,
+        ) as McpProtocol.DispatchResult.JsonResponse
+        val sessionId = init.sessionId!!
+        val result = protocol.dispatch(
+            JSONObject()
+                .put("jsonrpc", "2.0")
+                .put("id", 9)
+                .put("method", "tools/call")
+                .put(
+                    "params",
+                    JSONObject()
+                        .put("name", "get_status")
+                        .put("arguments", JSONObject()),
+                ),
+            existingSessionId = sessionId,
+            protocolVersionHeader = McpProtocolVersions.LATEST,
+        )
+        val body = (result as McpProtocol.DispatchResult.JsonResponse).body
+        assertTrue(body.has("result"))
+        assertTrue(body.getJSONObject("result").has("content"))
+    }
+
+    @Test
+    fun toolsCallWithoutInitializedFlagStillWorksAfterInitializeAutoReady() = runBlocking {
+        // 兼容旧测试路径：手动 create 未 mark 的会话仍拒绝 tools/call
         val sessions = McpSessionManager()
         val session = sessions.createSession(McpProtocolVersions.LATEST, "c")
         val protocol = McpProtocol(sessions, FakeActions(), serverVersion = "t")
@@ -160,31 +210,6 @@ class McpProtocolTest {
         val body = (result as McpProtocol.DispatchResult.JsonResponse).body
         assertTrue(body.has("error"))
         assertEquals(McpErrorCodes.NOT_INITIALIZED, body.getJSONObject("error").getInt("code"))
-    }
-
-    @Test
-    fun toolsCallAfterHandshakeReturnsContent() = runBlocking {
-        val sessions = McpSessionManager()
-        val session = sessions.createSession(McpProtocolVersions.LATEST, "OperitAI")
-        sessions.markInitialized(session.id)
-        val protocol = McpProtocol(sessions, FakeActions(), serverVersion = "t")
-        val result = protocol.dispatch(
-            JSONObject()
-                .put("jsonrpc", "2.0")
-                .put("id", 9)
-                .put("method", "tools/call")
-                .put(
-                    "params",
-                    JSONObject()
-                        .put("name", "get_status")
-                        .put("arguments", JSONObject()),
-                ),
-            existingSessionId = session.id,
-            protocolVersionHeader = McpProtocolVersions.LATEST,
-        )
-        val body = (result as McpProtocol.DispatchResult.JsonResponse).body
-        assertTrue(body.has("result"))
-        assertTrue(body.getJSONObject("result").has("content"))
     }
 
     @Test
@@ -253,6 +278,17 @@ class McpProtocolTest {
         assertTrue((list as McpProtocol.DispatchResult.JsonResponse).body.has("result"))
     }
 
+    @Test
+    fun rikkaHubImportJsonOmitsHeadersWhenAuthOff() {
+        val open = McpServerState(running = true, port = 8765, token = "", requireAuth = false)
+        val json = open.rikkaHubImportJson()
+        assertTrue(json.contains("streamable_http"))
+        assertTrue(json.contains("http://127.0.0.1:8765/mcp"))
+        assertFalse(json.contains("Authorization"))
+        val locked = McpServerState(running = true, port = 8765, token = "abc", requireAuth = true)
+        assertTrue(locked.rikkaHubImportJson().contains("Bearer abc"))
+    }
+
     private class FakeActions : McpActionSurface {
         override suspend fun readResource(uri: String): JSONObject =
             JSONObject().put("uri", uri)
@@ -264,3 +300,4 @@ class McpProtocolTest {
         ): JSONObject = JSONObject().put("ok", true).put("tool", tool)
     }
 }
+

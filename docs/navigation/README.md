@@ -21,7 +21,7 @@ Compose 页面发出意图
 | 应用启动或主导航 | `app/.../MainActivity.kt`：`HzzsRoot`、`AppNavHost` | `HzzsApplication.kt`、各 `feature/*Screen.kt` | 根导航目前缺 UI/instrumentation 测试 |
 | 首页展示 | `feature/home/HomeScreen.kt` | `HomeViewModel` → 配置与运行状态 Flow | 相关纯逻辑测试 |
 | 开始/停止分析 | `feature/runtime/RuntimeScreen.kt`：`RuntimeViewModel.toggle` | `data/vision/VisionRuntimeController.start/stop` | 运行时端到端测试仍是缺口 |
-| 设置分类或草稿 | `feature/settings/SettingsScreen.kt`、`SettingsViewModel.kt` | `core/preferences/SettingsRepository.kt` | `SettingsSessionTest`、`SettingsExitCoordinatorTest` |
+| 设置分类或即时落盘 | `feature/settings/SettingsScreen.kt`、`SettingsViewModel.kt` | `core/preferences/SettingsRepository.kt`、`SettingsExitCoordinator` | `SettingsSessionTest`、`SettingsExitCoordinatorTest`、`SettingsUiLogicTest` |
 | 主题包 | `feature/settings/screens/AppearanceSettingsScreen.kt` | `core/theme/ThemePackage.kt` | `ThemePackageTest` |
 | 完整配置 JSON | `core/preferences/SettingsRepository.kt`：`ConfigJson` | `mcp/McpService.kt` 的外部摄入路径 | `SettingsSessionTest`；普通 UI 当前不提供完整配置导入 |
 | 截图后端 | `service/capture/FrameCapture.kt` | `CaptureSources.kt`、`platform/compat/CaptureCapabilities.kt` | `CaptureBackendResolutionTest`、`FrameSequenceTest` |
@@ -30,8 +30,9 @@ Compose 页面发出意图
 | HUD 悬浮窗 | `service/overlay/OverlayController.kt` | `VisionRuntimeController.publishOverlay` | 真机权限与自摄入验证 |
 | 自动操作 | `domain/automation/AutomationModels.kt` | `VisionRuntimeController.maybeDispatch` → `HzzsAccessibilityService` | `GestureArbiterTest` + 真机前台窗口验证 |
 | MCP | `mcp/McpService.kt` | 审批、配置外部摄入、前台服务 | `SECURITY.md` 和 MCP 相关质量门禁 |
-| 应用内算法更新 | `core/algorithm/AlgorithmCatalogController.kt` | `AlgorithmNetworkClient` → Verifier → Store → Activation | 算法客户端直接测试目前不足 |
-| 算法包内容 | `algorithm-packs/<id>/` | `tools/algorithm/common.py` | 算法工具 unittest + 源树校验 |
+| 算法库切换 / 远端更新 | `feature/settings/screens/AlgorithmSettingsScreen.kt` | `AlgorithmCatalogController` → Network/Verifier/Store/Activation；捆绑见 `BundledAlgorithmInstaller` | 算法客户端直接测试目前不足 |
+| 检测参数 | `feature/settings/screens/DetectionSettingsScreen.kt` | `AppModels.VisionThresholds`、`SettingsRepository.validated` | `SettingsUiLogicTest` |
+| 算法包内容 | `algorithm-packs/<id>/` 与 `app/src/main/assets/algorithms/` | `tools/algorithm/common.py` | 算法工具 unittest + 源树校验 |
 | APK 发布 | `.github/workflows/release.yml` | `tools/release/` | `testing.md` 与 Release 签名说明 |
 | 算法发布 | `tools/algorithm/publish_algorithm_release.py` | `.github/workflows/algorithm-release.yml` | [工具、测试与 CI](TOOLS_TESTS_CI.md) |
 
@@ -43,15 +44,14 @@ Compose 页面发出意图
 
 ```text
 设置控件
-→ SettingsViewModel 的完整草稿
-→ SettingsEditSession.replace
-→ validated 后的受约束 preview
-→ SettingsRepository.config
+→ SettingsViewModel.update（乐观 UI）
+→ 短防抖后 SettingsRepository.save（validated）
+→ SettingsRepository.config Flow
 → Theme / Runtime / MCP 等订阅者
-→ 用户保存后才写入 DataStore
+→ 离开设置：flushNow 刷掉挂起写
 ```
 
-权限型配置不会因为未保存预览就启动 Root、无障碍、MCP 或自动操作。
+危险项（如手动开自动操作）先确认再写；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开启自动操作或自提权限。
 
 ### 视觉
 
@@ -70,10 +70,12 @@ FrameSource
 ### 算法包
 
 ```text
-通道与镜像偏好
+首次 bind / 刷新
+→ BundledAlgorithmInstaller 预装 assets 声明式包（可选）
+→ 通道与镜像偏好
 → 拉取 release-index 目录
 → 下载包并校验 size + SHA-256
-→ ZIP 白名单 + Ed25519 信任锚验签
+→ ZIP 白名单 + Ed25519 信任锚验签（远端）
 → 应用私有目录安装
 → 非分析安全点立即激活，否则 pending
 → Native profile 配置

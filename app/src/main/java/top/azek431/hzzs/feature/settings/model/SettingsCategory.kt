@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
@@ -74,7 +75,15 @@ enum class SettingsCategory(
         descriptionRes = R.string.settings_cat_algorithm_desc,
         icon = Icons.Rounded.AutoAwesome,
         group = SettingsGroup.CAPTURE_VISION,
-        searchHints = "算法 赛季 识别 包 algorithm",
+        searchHints = "算法 包 切换 酱油 捆绑 algorithm library",
+    ),
+    DETECTION(
+        route = "detection",
+        titleRes = R.string.settings_cat_detection_title,
+        descriptionRes = R.string.settings_cat_detection_desc,
+        icon = Icons.Rounded.Tune,
+        group = SettingsGroup.CAPTURE_VISION,
+        searchHints = "检测 赛季 阈值 障碍 置信度 稳定帧 workWidth",
     ),
     AUTOMATION(
         route = "automation",
@@ -82,7 +91,7 @@ enum class SettingsCategory(
         descriptionRes = R.string.settings_cat_automation_desc,
         icon = Icons.Rounded.Security,
         group = SettingsGroup.SAFETY,
-        searchHints = "自动 手势 风险 免责",
+        searchHints = "自动 手势 风险 免责 触发距离 节流",
     ),
     NETWORK(
         route = "network",
@@ -125,8 +134,13 @@ fun SettingsCategory.summary(
     }
     SettingsCategory.ALGORITHM -> {
         val mode = config.algorithm.selectionMode.displayName()
-        val name = algorithmState?.active?.name?.take(18) ?: config.selectedScene.displayName()
+        val name = algorithmState?.active?.name?.take(18) ?: "内置算法"
         "$mode · $name"
+    }
+    SettingsCategory.DETECTION -> {
+        val scene = config.selectedScene.displayName()
+        val conf = "%.0f%%".format(config.scenes.getValue(config.selectedScene).thresholds.minimumConfidence * 100)
+        "$scene · 置信度 $conf"
     }
     SettingsCategory.CAPTURE -> config.captureBackend.displayName()
     SettingsCategory.OVERLAY -> {

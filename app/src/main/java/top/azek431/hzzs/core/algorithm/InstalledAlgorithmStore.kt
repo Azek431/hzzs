@@ -45,6 +45,18 @@ class InstalledAlgorithmStore @Inject constructor(
         val directory: File,
         val installedAtEpochMs: Long,
         val sha256: String? = null,
+        /** 作者展示名（manifest.author）；可空。 */
+        val author: String? = null,
+        /** 一句话说明（manifest.description）；可空。 */
+        val summary: String? = null,
+        /** 发布通道名 stable/beta；可空。 */
+        val channelName: String? = null,
+        /**
+         * 安装来源标签：
+         * - null / network：网络验签安装
+         * - [BundledAlgorithmInstaller.ORIGIN_BUNDLED]：APK assets 预装
+         */
+        val originTag: String? = null,
     )
 
     fun listInstalled(): List<InstalledAlgorithmRecord> {
@@ -66,12 +78,16 @@ class InstalledAlgorithmStore @Inject constructor(
 
     /**
      * 从已解压的包目录安装（staging 内容须含 manifest.json + rules.json）。
-     * 不负责网络下载与验签；调用方先完成安全校验。
+     * 不负责网络下载与验签；调用方先完成安全校验（捆绑包除外）。
      */
     fun installFromExtracted(
         extracted: File,
         sha256: String? = null,
         versionCode: Long = 1L,
+        originTag: String? = null,
+        author: String? = null,
+        summary: String? = null,
+        channelName: String? = null,
     ): Result<InstalledAlgorithmRecord> = runCatching {
         val manifest = JSONObject(File(extracted, "manifest.json").readText(Charsets.UTF_8))
         val catalogId = manifest.getString("id")
@@ -80,6 +96,11 @@ class InstalledAlgorithmStore @Inject constructor(
         }
         val version = manifest.getString("version")
         val displayName = manifest.optString("displayName", catalogId)
+        val resolvedAuthor = author ?: manifest.optString("author").takeIf { it.isNotBlank() }
+        val resolvedSummary = summary
+            ?: manifest.optString("description").takeIf { it.isNotBlank() }
+        val resolvedChannel = channelName
+            ?: manifest.optString("channel").takeIf { it.isNotBlank() }
         val scenes = manifest.getJSONArray("supportedScenes").toSceneSet()
         val rulesText = File(extracted, "rules.json").readText(Charsets.UTF_8)
         val runtimeId = AlgorithmIds.runtimeIdForCatalog(catalogId)
@@ -113,6 +134,10 @@ class InstalledAlgorithmStore @Inject constructor(
                     .put("displayName", displayName)
                     .put("installedAtEpochMs", installedAt)
                     .put("sha256", sha256)
+                    .put("author", resolvedAuthor)
+                    .put("summary", resolvedSummary)
+                    .put("channel", resolvedChannel)
+                    .put("originTag", originTag)
                     .put(
                         "supportedScenes",
                         JSONArray().also { arr -> scenes.forEach { arr.put(it.name) } },
@@ -139,6 +164,10 @@ class InstalledAlgorithmStore @Inject constructor(
                 directory = current,
                 installedAtEpochMs = installedAt,
                 sha256 = sha256,
+                author = resolvedAuthor,
+                summary = resolvedSummary,
+                channelName = resolvedChannel,
+                originTag = originTag,
             )
             cache[catalogId] = record
             record
@@ -183,6 +212,16 @@ class InstalledAlgorithmStore @Inject constructor(
             version = version,
             supportedScenes = scenes,
         ).getOrThrow().profile
+        val manifestAuthor = runCatching {
+            JSONObject(File(current, "manifest.json").readText(Charsets.UTF_8))
+                .optString("author")
+                .takeIf { it.isNotBlank() }
+        }.getOrNull()
+        val manifestSummary = runCatching {
+            JSONObject(File(current, "manifest.json").readText(Charsets.UTF_8))
+                .optString("description")
+                .takeIf { it.isNotBlank() }
+        }.getOrNull()
         return InstalledAlgorithmRecord(
             catalogId = catalogId,
             runtimeId = runtimeId,
@@ -194,6 +233,10 @@ class InstalledAlgorithmStore @Inject constructor(
             directory = current,
             installedAtEpochMs = meta.optLong("installedAtEpochMs", 0L),
             sha256 = meta.optString("sha256").takeIf { it.isNotBlank() },
+            author = meta.optString("author").takeIf { it.isNotBlank() } ?: manifestAuthor,
+            summary = meta.optString("summary").takeIf { it.isNotBlank() } ?: manifestSummary,
+            channelName = meta.optString("channel").takeIf { it.isNotBlank() },
+            originTag = meta.optString("originTag").takeIf { it.isNotBlank() },
         )
     }
 

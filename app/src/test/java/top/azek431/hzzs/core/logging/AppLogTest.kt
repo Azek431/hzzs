@@ -134,6 +134,9 @@ class DiagnosticsExporterTest {
                 .containsMatchIn(report),
         )
         assertTrue(report.contains("Timestamps use the device local timezone with offset"))
+        assertTrue(report.contains("== Algorithm pipeline =="))
+        assertTrue(report.contains("== Algorithm runtime frames"))
+        assertTrue(report.contains("algo.frame"))
         assertFalse(report.contains("should-not-appear"))
         assertFalse(report.contains("Bearer should"))
         assertTrue(report.contains("Bearer <redacted>") || report.contains("<redacted>"))

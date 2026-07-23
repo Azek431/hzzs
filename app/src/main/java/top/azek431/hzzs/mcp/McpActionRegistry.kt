@@ -172,8 +172,9 @@ class McpActionRegistry @Inject constructor(
                 check(approved) { "用户未批准操作" }
             }
             McpPermissionLevel.TRUSTED_SESSION -> {
-                if (session == null || !session.initialized) {
-                    error("信任会话无效：请重新 initialize 并完成 initialized 握手")
+                // 会话信任：有会话则放行普通写；无会话头时仍拒绝（防无状态滥用）。
+                if (session == null) {
+                    error("信任会话无效：请使用会回传 Mcp-Session-Id 的客户端，或改用「每次确认」")
                 }
                 if (descriptor.risk == McpToolRisk.HIGH_RISK) {
                     error("该操作需要完整访问权限")

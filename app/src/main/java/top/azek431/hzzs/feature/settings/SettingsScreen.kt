@@ -56,6 +56,7 @@ import top.azek431.hzzs.feature.settings.screens.AlgorithmSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AppearanceSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AutomationSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.CaptureSettingsScreen
+import top.azek431.hzzs.feature.settings.screens.DetectionSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.DeveloperSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.LogViewerScreen
 import top.azek431.hzzs.feature.settings.screens.McpSettingsScreen
@@ -110,6 +111,7 @@ fun SettingsScreen(
         SettingsRoutes.HOME -> settingsLabel
         SettingsCategory.APPEARANCE.route -> stringResource(SettingsCategory.APPEARANCE.titleRes)
         SettingsCategory.ALGORITHM.route -> stringResource(SettingsCategory.ALGORITHM.titleRes)
+        SettingsCategory.DETECTION.route -> stringResource(SettingsCategory.DETECTION.titleRes)
         SettingsCategory.CAPTURE.route -> stringResource(SettingsCategory.CAPTURE.titleRes)
         SettingsCategory.OVERLAY.route -> stringResource(SettingsCategory.OVERLAY.titleRes)
         SettingsCategory.AUTOMATION.route -> stringResource(SettingsCategory.AUTOMATION.titleRes)
@@ -252,6 +254,12 @@ private fun SettingsNavHost(
                 onCancelDownload = vm::cancelAlgorithmDownload,
                 onSelect = vm::selectAlgorithm,
                 onMessage = onMessage,
+            )
+        }
+        composable(SettingsCategory.DETECTION.route) {
+            DetectionSettingsScreen(
+                config = config,
+                update = vm::update,
             )
         }
         composable(SettingsCategory.CAPTURE.route) {

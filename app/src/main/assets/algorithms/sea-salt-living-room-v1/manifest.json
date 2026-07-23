@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "sea-salt-living-room-v1",
+  "version": "0.1.0",
+  "displayName": "海盐客厅找色基线 v1",
+  "description": "基于 AutoJS Pro 多点找色适配的海盐客厅算法包，作者酱油。仅参数描述，不包含可执行代码，也不宣称准确率或机型覆盖。",
+  "engineId": "native-vision",
+  "engineApiVersion": 1,
+  "minimumAppVersionCode": 1,
+  "supportedScenes": [
+    "SEA_SALT_LIVING_ROOM"
+  ],
+  "releaseDate": "2026-07-23",
+  "author": "酱油",
+  "revoked": false,
+  "channel": "beta"
+}

@@ -11,19 +11,30 @@
 
 ### 变更
 
+- **算法运行轨迹日志**：新增 `AlgorithmRuntimeTrace`（最近 32 帧 ring，无像素）。帧循环写入识别摘要 / 检测明细 / Tracker 稳定帧 / 自动操作决策与 dispatch 结果；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`，仅在开发者开启且 `logLevel≤DEBUG` 时输出，并按「状态变化或每 12 帧」节流。诊断导出附带算法 pipeline 快照与最近帧轨迹。
+- **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 幂等预装到 `InstalledAlgorithmStore`（不经外装 Ed25519；不覆盖已装用户包）。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。
+- **官方算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 写入 `hzzs-algorithm-official-1` 公钥（DER base64）；公钥副本在 `algorithm-packs/official-public-keys/`。私钥仍仅 CI/本机。
+- **算法库 / 检测参数拆页**：设置「算法库」专注内置·捆绑·远端切换与通道；「检测参数」单独配置赛季/障碍/玩家基准/workWidth/置信度/稳定帧；自动操作页暴露三赛季触发距离与节流。卡片列表可直接「使用此版本」。
 - **设置即时保存（方案 C）**：去掉模块级共享草稿与底部「保存并应用」栏；开关/选项经短防抖直接落盘。离开设置或切走主导航时刷盘。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页改为分组（显示 / 采集与识别 / 安全与自动化 / 网络与扩展 / 高级）+ 搜索 + 紧凑分类行。
+
 ### 修复
 
-- **算法目录兼容与路径安全**：AlgorithmNetworkClient 使用本应用真实 ersionCode 计算 isCompatible；校验算法 id / sha256 格式；staging 文件名仅用 SAFE_ID。
-- **算法发布目录合并**：publish_algorithm_release 合并远端同通道已有条目，同 (id,version) 哈希不可变；workflow 去掉无效 --draft，按通道串行防覆盖。
-- **多点找色热路径**：修正 ARGB 通道提取；头/实现四参数签名对齐；multicolor_detector 进入 CMake/host；JNI/Native 校验 searchRegion* 与 multicolorThreshold；海盐 ppend_multicolor_detections 真正合并结果。
-- **PRESS / 双击手势**：PRESS/SWIPE_UP 取 Detection.bounds 中心；DOUBLE_JUMP 写入并消费 doublePressDelayMs；仲裁超时覆盖双击间隔；速率配额计两次按压。
-- **配置/主题字段保全**：ConfigJson/alidated 纳入 seaSaltTriggerDistancePlayerWidths；主题包编解码保留 clickThrough/snapToEdge/lockPosition。
+- **算法 analysisRunning 同步**：`VisionRuntimeController` start/stop/异常路径经 `AlgorithmCatalogController.setAnalysisRunning`，避免分析中下载半热激活与 UI pending 文案错位。
+- **无信任锚时下载按钮降级**：算法卡 `canDownloadRemote` + 状态 `trustAnchorsConfigured`；远端不可装时禁用「下载/更新」并给出说明。
+- **网络页算法文案**：去掉「演示 / 安装器未接入」过时表述；Wi‑Fi 策略说明覆盖算法包大文件下载。
+- **host 测试脚本执行权限**：`run_host_tests` / `evaluate_dataset` / `batch_recognize` 经 `host_build.py` 用 `bash`/`powershell` 调用构建脚本，不再直接 exec 可能无 `+x` 的 `build_host.sh`（GitHub Actions 上 `PermissionError`）。
+- **算法目录兼容与路径安全**：`AlgorithmNetworkClient` 使用本应用真实 `versionCode` 计算 `isCompatible`；校验算法 `id` / `sha256` 格式；staging 文件名仅用 SAFE_ID。
+- **算法发布目录合并**：`publish_algorithm_release` 合并远端同通道已有条目，同 `(id,version)` 哈希不可变；workflow 去掉无效 `--draft`，按通道串行防覆盖。
+- **多点找色热路径**：修正 ARGB 通道提取；头/实现四参数签名对齐；`multicolor_detector` 进入 CMake/host；JNI/Native 校验 `searchRegion*` 与 `multicolorThreshold`；海盐 `append_multicolor_detections` 真正合并结果。
+- **PRESS / 双击手势**：`PRESS`/`SWIPE_UP` 取 `Detection.bounds` 中心；`DOUBLE_JUMP` 写入并消费 `doublePressDelayMs`；仲裁超时覆盖双击间隔；速率配额计两次按压。
+- **配置/主题字段保全**：`ConfigJson`/`validated` 纳入 `seaSaltTriggerDistancePlayerWidths`；主题包编解码保留 `clickThrough`/`snapToEdge`/`lockPosition`。
 - **host 协议范围**：scene 覆盖 0..2，kind ≤10，Avoidance ≤5。
 
 ### 变更
 
-- **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；实现 `initialize` 版本协商 + `Mcp-Session-Id`、`notifications/initialized`（HTTP 202）、通知不当请求响应；`TRUSTED_SESSION` 绑定已握手的内存会话（服务重启/generation 作废，不持久化特权）；连接并发上限与 429；工具严格 JSON Schema（`additionalProperties:false`）；错误码分类；停止服务时拒绝挂起审批，避免断连后副作用。设置页连接说明补充 URL/Bearer/RikkaHub·OperitAI 兼容提示；调试帧开关可在开发者解锁后正常开启。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
+- **MCP 对接 RikkaHub / 免填请求头**：对照 [RikkaHub](https://github.com/rikkahub/rikkahub)（Streamable HTTP + 可选 `headers` / 导入 JSON）与 [MCP 2025-06-18 传输](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)——`initialize` 后会话立即就绪；可选关闭 `requireAuth`（默认仍开 Bearer）；设置页一键「复制 URL / 复制 RikkaHub 导入 JSON / 复制 Token」；同机推荐 Streamable HTTP 而非 SSE。
+- **MCP 同机连通性**：强制绑定 IPv4 `127.0.0.1`（避免 `getLoopbackAddress()` 的 `::1` 与客户端 `127.0.0.1` 不通）；HTTP keep-alive 多请求；路径 `/mcp/` 归一；Origin 接受字面量 `null`；OPTIONS 预检；GET `/mcp` 仍 405 表示无 SSE。
+- **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；`Mcp-Session-Id`、通知 HTTP 202、连接并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
 
 - **MCP 设置页拆分**：旧「MCP 与开发者」合并页面拆为独立「MCP 服务」分类（普通用户可访问）和「开发者选项」分类（需解锁）。MCP 页面包含运行状态 Hero 卡片、一键复制连接信息按钮、四级权限选择、连接引导说明。开发者选项（调试帧、Native Benchmark、日志级别等）剥离至独立页。旧 `McpDeveloperSettingsScreen.kt` 已删除。
 
@@ -55,7 +66,7 @@
 - **海盐召回修复**：宿主批跑 kind 掩码 `0xFF`→`0x7FF`（原先静默关掉海盐三类）；海盐专用尺寸后过滤；玩家失败仍用固定框继续扫；海坑改为「地面线下方非木地板列 + 暗/水色」；船锚每帧最多一个并提高金属门槛。
 - **竹影主路径性能**：`workWidth` 降采样 + 缩放时一次 ARGB→RGB；引擎侧 ROI/步进、减弱形态学、移除不进动作协议的收藏品/能量球全图扫描。
 - **识别批跑工具**：`tools/vision/batch_recognize.py` + Windows `build_host.ps1`；输出按赛季分子目录（耗时与叠加图，不宣称准确率）。
-- **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚，默认空=拒绝外装）。**包体与目录均在 `release-index` 分支**（`algorithms/packages/`），**不再依赖** GitHub/Gitee Release tag。
+- **算法网络与验签安装**：`AlgorithmNetworkClient`（HTTPS 目录/资产）、`AlgorithmPackVerifier`（ZIP 白名单 + Ed25519，BouncyCastle）、`AlgorithmTrustAnchors`（内置信任锚；列表空时拒绝外装，现已含 official-1 公钥）。**包体与目录均在 `release-index` 分支**（`algorithms/packages/`），**不再依赖** GitHub/Gitee Release tag。
 - **算法包 rules schema v2（双段）**：`userThresholds` + `engineParams`；tools 兼容 v1；示例包 `official-bamboo-baseline` 升 v2；Kotlin `AlgorithmRulesParser` 合成双场景 profile 并填洞。
 - **算法安装/激活骨架**：`InstalledAlgorithmStore`（filesDir 落盘）、`AlgorithmActivationCoordinator`（save/start 解析 pin/AUTO）；统一 `AlgorithmIds`。
 - **主路径尺寸后过滤 + M3A**：profile 尺寸窗剔除越界检测；甜甜圈 scene_confidence 质量度量；竹影 player floor / workWidth 校验。
@@ -136,7 +147,7 @@
 - 数据集缺少独立人工真值，不得宣称准确率指标。
 - 厂商 ROM、Root、Shizuku 与真实游戏链路需真机验证。
 - `Shizuku.newProcess` 依赖设备端 Shizuku 版本与授权状态。
-- `AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空：算法包下载安装会安全拒绝，直至发布官方公钥写入客户端。
+- 远端 `release-index/algorithms/{channel}.json` 若未发布，检查更新仍为空态；内置引擎与 APK 捆绑包可切换，远端更新需目录上线。
 - legacy 主路径颜色谓词仍硬编码；尺寸仅后过滤，非扫描几何全参数化。
 
 ## [0.1.0] — 未发布

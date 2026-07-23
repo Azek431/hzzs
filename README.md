@@ -61,7 +61,7 @@
 - 首次启动引导（含可选系统权限步骤）、简体中文免责声明、自动操作风险等待确认。
 - 关于页连续点击版本号 7 次解锁开发者设置；可选诊断导出（脱敏，不含 Bearer）。MCP 服务在独立「MCP 服务」分类页中配置。
 - MCP 本地服务：只读 / 每次确认 / 会话信任 / 完整访问四级权限。独立设置页包含运行状态卡片、一键复制连接信息（含 adb forward + Bearer Token）和使用引导。
-- 声明式算法包（验签安装；官方信任锚未发布时外装 fail-closed）；内置算法回退。
+- 声明式算法包（Ed25519 验签；信任锚含 official-1 公钥；列表空时外装 fail-closed）；APK 可捆绑声明式包；内置算法回退。
 - C++ 输入边界、JNI 失败隔离、宿主机 Sanitizer、数据集回归与发布门禁。
 - Gitee 优先的双源签名更新与增量补丁工具链（应用内检查入口见设置/关于）。
 
@@ -79,16 +79,23 @@
 
 ## MCP
 
-MCP 服务默认关闭，只绑定设备回环地址（`127.0.0.1`），并在每次启动时生成随机 Bearer Token。电脑端可通过 ADB 端口转发连接。传输为 **Streamable HTTP**（`POST http://127.0.0.1:<port>/mcp` JSON-RPC），兼容 Claude Code、RikkaHub、OperitAI 等客户端：
+MCP 服务默认关闭，只绑定设备回环地址（`127.0.0.1`）。传输为 **Streamable HTTP**（`POST /mcp`），兼容 [RikkaHub](https://github.com/rikkahub/rikkahub)、OperitAI、Claude Code 等客户端。
 
-1. 手机设置 → MCP 服务 → 开启，保存后查看运行状态卡片中的端口与 Token。
-2. 电脑执行 `adb forward tcp:<port> tcp:<port>`（端口以卡片为准，默认 8765）。
-3. 客户端 URL 填 `http://127.0.0.1:<port>/mcp`，请求头 `Authorization: Bearer <token>`。
-4. 握手：`initialize` → 响应含 `Mcp-Session-Id` → 客户端发 `notifications/initialized`（HTTP 202）→ 再 `tools/list` / `tools/call`。
+**同机 RikkaHub（推荐）**
 
-应用内页面、状态、设置、分析和悬浮窗操作通过语义工具暴露（严格 inputSchema），不依赖屏幕坐标点击。「信任本次会话」仅绑定当前内存会话，服务重启后失效，不会把信任当持久特权。
+1. HZZS 设置 → MCP 服务 → 启用服务（即时生效）；同机连接建议先关闭「要求 Bearer 鉴权」以免填请求头。
+2. 确认状态卡显示 `127.0.0.1:<port>` 正在运行。
+3. 点「复制 RikkaHub 导入 JSON」→ RikkaHub 设置 → MCP → 导入粘贴（类型必须是 **Streamable HTTP**，不要选 SSE）。
+4. 在 RikkaHub 助手里勾选该 MCP 服务器即可调用工具。
 
-即使选择“完整访问”，MCP 也只能执行应用本身有权执行的操作，无法替代系统录屏授权、悬浮窗授权、无障碍开关或安装确认。
+服务只监听 IPv4 `127.0.0.1`（与导入 URL 一致）。若仍连不上：确认服务已启用并在运行、端口未被占用、RikkaHub 未误选 SSE。
+
+**电脑端**
+
+1. `adb forward tcp:<port> tcp:<port>`（端口以状态卡片为准）。
+2. URL：`http://127.0.0.1:<port>/mcp`；若开启鉴权再加 `Authorization: Bearer <token>`。
+
+应用内页面、状态、设置、分析和悬浮窗操作通过语义工具暴露（严格 inputSchema），不依赖屏幕坐标点击。「信任本次会话」仅绑定当前内存会话，服务重启后失效。即使「完整访问」也不能绕过系统录屏 / 悬浮窗 / 无障碍 / 安装对话框。
 
 ## 代码结构
 

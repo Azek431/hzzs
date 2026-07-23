@@ -51,8 +51,10 @@
     <!-- 设置分类 -->
     <string name="settings_cat_appearance_title">外观与显示</string>
     <string name="settings_cat_appearance_desc">主题、动态取色、字体与动效</string>
-    <string name="settings_cat_algorithm_title">算法与识别</string>
-    <string name="settings_cat_algorithm_desc">算法包、赛季与识别参数</string>
+    <string name="settings_cat_algorithm_title">算法库</string>
+    <string name="settings_cat_algorithm_desc">内置、捆绑与远端算法切换与更新</string>
+    <string name="settings_cat_detection_title">检测参数</string>
+    <string name="settings_cat_detection_desc">赛季、障碍开关与识别阈值</string>
     <string name="settings_cat_capture_title">截图与权限</string>
     <string name="settings_cat_capture_desc">截图后端与能力状态</string>
     <string name="settings_cat_overlay_title">悬浮窗</string>
@@ -145,7 +147,7 @@
     <string name="runtime_armed">门控通过：可发送手势</string>
     <string name="runtime_locked">仅分析：自动操作未启用或未就绪</string>
     <string name="runtime_disarm">取消在飞动作</string>
-    <string name="runtime_arm">自动操作已移除会话解锁；请在设置中开启</string>
+    <string name="runtime_arm">请在设置中开启自动操作并完成风险确认</string>
     <string name="runtime_arm_need_ready">请先开始分析并完成截图授权；自动操作须在设置中开启并完成风险确认。</string>
     <string name="runtime_auto_mode_hint">分析运行中且前台应用在白名单时，将按当前页面规划手势。</string>
     <string name="runtime_auto_ready">满足条件即可发送手势</string>
@@ -307,7 +309,7 @@
     <string name="dev_force_capture_fell_back">已回退</string>
     <string name="dev_force_capture_fallback_reason">实际将使用 %s：</string>
     <string name="dev_log_level_title">日志级别</string>
-    <string name="dev_log_level_desc">控制 Logcat 与内存 ring buffer 的最低级别；关闭开发者时 DEBUG 以下仍被压制。</string>
+    <string name="dev_log_level_desc">控制 Logcat 与内存 ring buffer 的最低级别；关闭开发者时 DEBUG 以下仍被压制。调算法时请开 DEBUG，可看到 algo.frame / algo.det / algo.track / algo.decision（状态变化或约每 12 帧一条，诊断导出含最近 32 帧）。</string>
     <string name="dev_frame_rate_title">识别帧率上限</string>
     <string name="dev_frame_rate_desc">完成驱动取帧下运行时暂不消费。</string>
     <string name="dev_frame_rate_current">当前值：%d（未生效）</string>

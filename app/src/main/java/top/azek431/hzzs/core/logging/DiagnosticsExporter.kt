@@ -6,6 +6,8 @@
 package top.azek431.hzzs.core.logging
 
 import android.os.Build
+import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
+import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
@@ -160,6 +162,14 @@ object DiagnosticsExporter {
                 appendLine("mcp.running=unknown")
             }
             appendLine()
+            appendLine("== Algorithm pipeline ==")
+            append(AlgorithmPipelineTrace.formatText().trimEnd())
+            appendLine()
+            appendLine()
+            appendLine("== Algorithm runtime frames (oldest→newest, max ${AlgorithmRuntimeTrace.CAPACITY}) ==")
+            append(AlgorithmRuntimeTrace.formatText().trimEnd())
+            appendLine()
+            appendLine()
             appendLine("== Recent logs (oldest→newest, max $logLimit) ==")
             val logs = AppLog.snapshot(logLimit)
             if (logs.isEmpty()) {
@@ -188,6 +198,15 @@ object DiagnosticsExporter {
             appendLine("- Timestamps use the device local timezone with offset (not UTC Z).")
             appendLine("- Overlay DEBUG_HUD / FPS / diagnostics toggles live under Overlay settings.")
             appendLine("- External algorithm packs need release-index catalog + AlgorithmTrustAnchors public key.")
+            appendLine(
+                "- Algorithm frame AppLog tags: algo.frame / algo.det / algo.track / algo.decision " +
+                    "(developer on + logLevel≤DEBUG; throttled on change or every " +
+                    "${AlgorithmRuntimeTrace.PERIODIC_FRAMES} frames).",
+            )
+            appendLine(
+                "- Runtime frame ring retains last ${AlgorithmRuntimeTrace.CAPACITY} analyses after stop " +
+                    "until next start; no pixels.",
+            )
         }
     }
 }

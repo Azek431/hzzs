@@ -9,13 +9,16 @@ import ctypes
 import json
 import math
 import statistics
-import subprocess
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from host_build import ensure_host_library  # noqa: E402
 
 KINDS = [
     "player",
@@ -204,9 +207,7 @@ def main() -> None:
     args = parser.parse_args()
 
     project = Path(args.project_root)
-    library = project / "build/host/libhzzs_vision.so"
-    if not library.exists():
-        subprocess.check_call([str(project / "tools/vision/build_host.sh")])
+    library = ensure_host_library(project)
     engine = HostVision(library)
     dataset = Path(args.dataset)
     output = Path(args.output)

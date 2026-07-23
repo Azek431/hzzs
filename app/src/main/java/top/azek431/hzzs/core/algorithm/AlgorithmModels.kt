@@ -13,12 +13,15 @@ import top.azek431.hzzs.core.update.UpdateSourceId
  * - 本文件：目录条目、卡片状态、下载任务、页面聚合状态（给设置页）
  * - domain：真正进入 Native 的声明式参数快照
  *
- * 当前远端安装链路仍以 UI 契约 + 模拟为主，真实 `.hzzsalg` 安装器后续接入。
+ * 远端安装链路：HTTPS 目录 + size/sha256 + Ed25519 验签 + 磁盘落盘；
+ * APK 还可捆绑声明式包（不经外装验签）。
  */
 
-/** 算法包来源：内置、已安装缓存或远端目录。 */
+/** 算法包来源：内置引擎、APK 捆绑、已安装缓存或远端目录。 */
 enum class AlgorithmOrigin {
     BUILTIN,
+    /** 随 APK assets 分发的声明式包（如酱油海盐包）。 */
+    BUNDLED,
     INSTALLED,
     REMOTE,
 }
@@ -45,6 +48,8 @@ enum class AlgorithmCardStatus {
  */
 enum class AlgorithmSignatureState {
     OFFICIAL,
+    /** APK 捆绑声明式包：不经外装验签，视为应用本体。 */
+    BUNDLED,
     UNSIGNED,
     UNTRUSTED,
     UNKNOWN,
@@ -53,6 +58,7 @@ enum class AlgorithmSignatureState {
 /** 下载来源徽章（展示用，不等于信任根）。 */
 enum class AlgorithmDownloadSource {
     BUILTIN,
+    BUNDLED,
     GITEE,
     GITHUB,
     CACHE,
@@ -82,6 +88,8 @@ data class AlgorithmPackageInfo(
     val isBuiltin: Boolean = false,
     val isInstalled: Boolean = false,
     val isCompatible: Boolean = true,
+    /** 作者展示（如「酱油」）；内置可空。 */
+    val author: String? = null,
 )
 
 /**
@@ -136,6 +144,8 @@ data class AlgorithmCatalogState(
     val downloads: Map<String, AlgorithmDownloadTask> = emptyMap(),
     val analysisRunning: Boolean = false,
     val message: String? = null,
+    /** 客户端是否已配置官方公钥；无锚时远端下载按钮应禁用。 */
+    val trustAnchorsConfigured: Boolean = false,
 )
 
 /**
@@ -176,6 +186,7 @@ fun AlgorithmCardStatus.label(): String = when (this) {
 /** 签名状态中文标签。 */
 fun AlgorithmSignatureState.label(): String = when (this) {
     AlgorithmSignatureState.OFFICIAL -> "官方签名"
+    AlgorithmSignatureState.BUNDLED -> "应用捆绑"
     AlgorithmSignatureState.UNSIGNED -> "未签名"
     AlgorithmSignatureState.UNTRUSTED -> "不可信"
     AlgorithmSignatureState.UNKNOWN -> "未知"
@@ -183,7 +194,8 @@ fun AlgorithmSignatureState.label(): String = when (this) {
 
 /** 下载来源中文标签。 */
 fun AlgorithmDownloadSource.label(): String = when (this) {
-    AlgorithmDownloadSource.BUILTIN -> "内置"
+    AlgorithmDownloadSource.BUILTIN -> "内置引擎"
+    AlgorithmDownloadSource.BUNDLED -> "应用捆绑"
     AlgorithmDownloadSource.GITEE -> "Gitee"
     AlgorithmDownloadSource.GITHUB -> "GitHub"
     AlgorithmDownloadSource.CACHE -> "本地缓存"
@@ -191,7 +203,8 @@ fun AlgorithmDownloadSource.label(): String = when (this) {
 
 /** 来源中文标签。 */
 fun AlgorithmOrigin.label(): String = when (this) {
-    AlgorithmOrigin.BUILTIN -> "内置"
+    AlgorithmOrigin.BUILTIN -> "内置引擎"
+    AlgorithmOrigin.BUNDLED -> "应用捆绑"
     AlgorithmOrigin.INSTALLED -> "已安装"
     AlgorithmOrigin.REMOTE -> "远端"
 }

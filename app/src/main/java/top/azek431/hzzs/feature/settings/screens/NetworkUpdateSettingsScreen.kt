@@ -4,7 +4,7 @@
  * 职责：下载来源、Wi‑Fi 策略、算法通道/自动检查、应用更新检查下载安装。
  * 数据流：偏好经 [update] 即时落盘；检查/下载/安装为 ViewModel 即时任务。
  * 边界：不绕过签名校验；不在 feature 内直接 HTTP。
- * 算法自动检查/下载开关可保存，调度与真实 .hzzsalg 安装器尚未接入。
+ * 算法包检查/下载已接入：HTTPS 目录 + 哈希 + Ed25519；无信任锚时下载 fail-closed。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -117,7 +117,7 @@ fun NetworkUpdateSettingsScreen(
             ) {
                 SettingsSwitchRow(
                     title = "仅 Wi‑Fi 下载大文件",
-                    subtitle = "应用 APK 下载受此限制；算法包真实下载接入后将共用此策略（当前算法下载为演示）。",
+                    subtitle = "应用 APK 与算法包大文件下载共用此策略；小型目录 JSON 检查不受限制。",
                     checked = config.update.wifiOnly,
                     onCheckedChange = { value ->
                         update { it.copy(update = it.update.copy(wifiOnly = value)) }
@@ -146,7 +146,12 @@ fun NetworkUpdateSettingsScreen(
                 if (!top.azek431.hzzs.core.algorithm.AlgorithmTrustAnchors.hasOfficialAnchors()) {
                     SettingsWarningCard(
                         title = "尚未配置官方算法公钥",
-                        body = "目录可检查，但下载/安装会 fail-closed。发布密钥后写入 AlgorithmTrustAnchors。autoCheck 仅刷新目录。",
+                        body = "仍可检查目录并使用内置引擎与应用捆绑包。远端下载会被拒绝，直到客户端写入官方公钥。",
+                    )
+                } else {
+                    SettingsWarningCard(
+                        title = "远端算法已可验签安装",
+                        body = "目录与包体走 release-index 双源 HTTPS；安装前校验大小、哈希与官方签名。捆绑包不经此路径。",
                     )
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

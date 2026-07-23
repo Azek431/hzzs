@@ -39,7 +39,7 @@
 | P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（外装包需信任锚公钥 + release-index 目录；主路径颜色谓词仍部分硬编码） |
 | P1 | 算法包闭环 M0 | 已落地：APK 安装前 verifyPackage、忽略版本不整稿保存、更新源偏好、UI/文档诚实 |
 | P1 | 算法包闭环 M1 | 已落地：rules v2 双段 tools/示例包、`AlgorithmRulesParser`、统一 `AlgorithmIds` |
-| P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、`AlgorithmPackVerifier` Ed25519、Catalog 接真链路；**信任锚公钥列表默认为空（fail-closed）** |
+| P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、`AlgorithmPackVerifier` Ed25519、Catalog 接真链路；信任锚已写入 `hzzs-algorithm-official-1` 公钥（列表空时仍 fail-closed） |
 | P1 | 算法包闭环 M4 | 已落地：启动 `algorithm.autoCheck` 刷新目录；`autoDownload` 在有信任锚时尝试下载最新 |
 | P2 | 主路径参数化 | 部分：M3A confidence/floor；主路径尺寸窗**后过滤**；颜色谓词核心仍硬编码（legacy） |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
@@ -66,7 +66,7 @@
 
 - 444 张（或任意数量）数据集在缺少独立人工真值时，**不能**证明 99% 准确率或全机型覆盖。
 - 未发布的更新索引上，应用内“检查更新”失败是预期行为。
-- 设置页算法「检查/下载」在远端 `release-index` 目录与信任锚未发布时，**不会**改变识别结果；分析默认内置 `builtin.hzzs.base` **0.1.0**。
+- 设置「算法库」可切换内置引擎、APK 捆绑包（竹影基线 / 酱油海盐）与远端包；远端检查依赖 `release-index` 目录是否已发布。分析默认内置 `builtin.hzzs.base` **0.1.0**，AUTO 模式会优先当前场景下已装最新包。
 - 算法包 engine 参数在主路径全参数化完成前，对常态检测收益有限（主要影响启发式回退与部分 floor）。
 
 ## 版本叙事

@@ -6,7 +6,7 @@
 - 系统悬浮窗（`SYSTEM_ALERT_WINDOW`）与无障碍服务**不会**由应用静默开启；须用户在系统设置中明确授予。应用内「显示悬浮窗」开关不能代替系统权限。
 - 自动操作默认关闭；导入、备份和旧版本迁移不能静默开启。
 - 自动操作需要当前免责声明版本；启用后在分析运行中按识别结果直接规划手势。
-- MCP 默认关闭；启用后只监听 loopback，使用随机 Bearer Token；默认每次写操作由手机确认。
+- MCP 默认关闭；启用后只监听 loopback；默认每次启动随机 Bearer（用户可关 `requireAuth` 以便同机客户端免填 Header）；默认每次写操作由手机确认。
 - 主题包是有大小限制的声明式 JSON，不加载脚本、字体或远程资源。
 - 更新产物必须校验包名、版本、SHA-256、证书与签名清单。
 - 截图帧、日志、MCP 令牌和 DataStore 配置不进入系统云备份。
@@ -30,16 +30,17 @@
 
 | 层 | 要求 |
 |---|---|
-| 网络 | 仅 loopback |
-| 认证 | 每服务生命周期随机 Bearer；比较使用恒时算法 |
-| Origin | 非空时必须是本机回环标识 |
-| 会话 | `Mcp-Session-Id` 仅内存；服务 stop/generation 推进后全部作废 |
+| 网络 | 仅 IPv4 loopback `127.0.0.1`（不绑 `0.0.0.0` / 不依赖 `::1`） |
+| 认证 | 默认每次启动随机 Bearer（恒时比较）；用户可关闭 `requireAuth` 以便同机客户端免填 Header（仍仅 loopback） |
+| Origin | 空 / 字面量 `null` 允许；非空时必须是本机回环标识 |
+| 会话 | `Mcp-Session-Id` 仅内存；`initialize` 后即就绪；服务 stop/generation 推进后全部作废 |
 | 权限 | 只读 / 每次确认 / 会话信任 / 完整访问 |
-| 会话信任 | 绑定已 `initialized` 的当前会话；**不得**把 TRUSTED_SESSION 当跨重启持久特权 |
+| 会话信任 | 绑定当前内存会话；**不得**把 TRUSTED_SESSION 当跨重启持久特权 |
 | 完整访问 | 仅应用内权限，**不能**绕过系统录屏 / 悬浮窗 / 无障碍 / 安装界面 |
 | 并发 | 连接数上限；超额 429 |
 | 审批 | 超时/停止服务时默认拒绝，避免断连后仍执行写副作用 |
 | 调试帧 | 需开发者选项与 MCP 显式允许；只暴露元数据或受控文件 |
+| 外部摄入 | 不得静默关闭 `requireAuth`、自提权限级或开启 MCP |
 
 ## 诊断与日志
 
@@ -76,6 +77,9 @@
 - 目录 `algorithms/{channel}.json` 最后发布；资产哈希不一致时拒绝覆盖。
 - Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`（与 `ANDROID_KEYSTORE_*` 分离）。
 - 运行时只接受校验后的 `AlgorithmRuntimeProfile`；不得动态加载代码；失败回退内置；不得改写自动化门禁。
+- **信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 当前含 `hzzs-algorithm-official-1`；列表为空时远端下载/安装 fail-closed。
+- **APK 捆绑包**：`assets/algorithms/<id>/` 经 `BundledAlgorithmInstaller` 幂等预装，视为应用本体声明式参数，**不经**外装 Ed25519；不覆盖用户已安装同 id 包。
+- 分析运行中切换算法只记 pending，由 `AlgorithmCatalogController.setAnalysisRunning` 与激活协调器在安全点切换。
 - 详见 [`docs/ALGORITHM_SYSTEM_V1.md`](ALGORITHM_SYSTEM_V1.md)。
 
 ## 贡献者注意

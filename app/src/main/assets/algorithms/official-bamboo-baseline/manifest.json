@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "official-bamboo-baseline",
+  "version": "0.1.0",
+  "displayName": "官方竹影书屋基线",
+  "description": "官方示例算法包，镜像应用内置竹影书屋默认视觉阈值。仅参数描述，不包含可执行代码，也不宣称准确率或机型覆盖。",
+  "engineId": "native-vision",
+  "engineApiVersion": 1,
+  "minimumAppVersionCode": 1,
+  "supportedScenes": [
+    "BAMBOO_BOOKSTORE"
+  ],
+  "releaseDate": "2026-07-21",
+  "author": "HZZS Official",
+  "revoked": false,
+  "channel": "stable"
+}

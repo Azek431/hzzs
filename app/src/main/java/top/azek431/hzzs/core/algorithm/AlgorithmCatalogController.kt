@@ -39,6 +39,7 @@ class AlgorithmCatalogController @Inject constructor(
     private val network: AlgorithmNetworkClient,
     private val store: InstalledAlgorithmStore,
     private val activation: AlgorithmActivationCoordinator,
+    private val bundledInstaller: BundledAlgorithmInstaller,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(seedState())
@@ -48,6 +49,7 @@ class AlgorithmCatalogController @Inject constructor(
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
     private var analysisRunning: Boolean = false
+    private var bundledSeeded: Boolean = false
     /** 来自设置草稿的算法配置（未保存也会驱动列表解析）。 */
     private var draftConfig: AlgorithmConfig = AlgorithmConfig()
     private var sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO
@@ -66,6 +68,7 @@ class AlgorithmCatalogController @Inject constructor(
         analysisRunning: Boolean = this.analysisRunning,
         wifiOnly: Boolean = this.wifiOnly,
     ) {
+        ensureBundledSeeded()
         this.draftConfig = algorithm
         this.sourcePreference = sourcePreference
         this.selectedScene = selectedScene
@@ -78,6 +81,7 @@ class AlgorithmCatalogController @Inject constructor(
                 channel = algorithm.channel,
                 sourcePreference = sourcePreference,
                 analysisRunning = analysisRunning,
+                trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
                 installed = sortInstalled(installed, resolveActive(installed, algorithm, selectedScene)?.id),
                 active = resolveActive(installed, algorithm, selectedScene),
                 pendingActivation = current.pendingActivation?.takeIf {
@@ -85,6 +89,28 @@ class AlgorithmCatalogController @Inject constructor(
                         algorithm.pinnedAlgorithmId == it.id
                 },
             ).recomputePhase()
+        }
+    }
+
+    /** 预装 APK assets 中的声明式算法（幂等）；供 Application / 首次 bind 调用。 */
+    fun ensureBundledSeeded() {
+        if (bundledSeeded) return
+        bundledSeeded = true
+        runCatching { bundledInstaller.ensureBundledInstalled() }
+            .onFailure { error ->
+                // 预装失败不阻断内置算法
+                mutableState.update {
+                    it.copy(message = "捆绑算法预装部分失败：${error.message ?: error.javaClass.simpleName}")
+                }
+            }
+        mutableState.update { current ->
+            val installed = mergeDiskInstalled(current.installed)
+            val active = resolveActive(installed, draftConfig, selectedScene)
+            current.copy(
+                installed = sortInstalled(installed, active?.id),
+                active = active,
+                trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
+            )
         }
     }
 
@@ -103,10 +129,12 @@ class AlgorithmCatalogController @Inject constructor(
     fun refreshCatalog(force: Boolean = false) {
         if (checkJob?.isActive == true) return
         checkJob = scope.launch {
+            ensureBundledSeeded()
             mutableState.update {
                 it.copy(
                     phase = AlgorithmCatalogPhase.Loading,
                     message = "正在检查算法目录…",
+                    trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
                 )
             }
             val result = runCatching {
@@ -376,6 +404,7 @@ class AlgorithmCatalogController @Inject constructor(
             installed = builtin,
             remote = emptyList(),
             lastCheckedAtEpochMs = null,
+            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
         )
     }
 
@@ -430,8 +459,19 @@ class AlgorithmCatalogController @Inject constructor(
         val map = linkedMapOf<String, AlgorithmPackageInfo>()
         builtinPackages().forEach { map[it.id] = it }
         current.forEach { map[it.id] = it }
-        extras.filter { it.isInstalled || it.origin == AlgorithmOrigin.INSTALLED }.forEach {
-            map[it.id] = it.copy(isInstalled = true, origin = AlgorithmOrigin.INSTALLED)
+        extras.filter {
+            it.isInstalled ||
+                it.origin == AlgorithmOrigin.INSTALLED ||
+                it.origin == AlgorithmOrigin.BUNDLED
+        }.forEach {
+            map[it.id] = it.copy(
+                isInstalled = true,
+                origin = if (it.origin == AlgorithmOrigin.BUNDLED) {
+                    AlgorithmOrigin.BUNDLED
+                } else {
+                    AlgorithmOrigin.INSTALLED
+                },
+            )
         }
         return map.values.toList()
     }
@@ -439,23 +479,45 @@ class AlgorithmCatalogController @Inject constructor(
     /** 合并磁盘已安装记录与当前列表。 */
     private fun mergeDiskInstalled(current: List<AlgorithmPackageInfo>): List<AlgorithmPackageInfo> {
         val disk = store.listInstalled().map { record ->
+            val isBundled = record.originTag == BundledAlgorithmInstaller.ORIGIN_BUNDLED
+            val channel = BundledAlgorithmInstaller.channelOf(record.channelName)
+            val summary = buildString {
+                if (!record.author.isNullOrBlank()) {
+                    append(record.author)
+                    append(" · ")
+                }
+                append(
+                    record.summary?.take(120)
+                        ?: if (isBundled) "随应用分发的声明式算法包" else "已安装算法包",
+                )
+            }
             AlgorithmPackageInfo(
                 id = record.catalogId,
                 name = record.displayName,
                 versionName = record.version,
                 versionCode = record.versionCode,
-                channel = AlgorithmChannel.STABLE,
-                summary = "已安装算法包",
+                channel = channel,
+                summary = summary,
                 supportedScenes = record.supportedScenes,
                 minAppVersionCode = 1,
                 publishedAtEpochMs = record.installedAtEpochMs,
                 sizeBytes = 0,
-                origin = AlgorithmOrigin.INSTALLED,
-                signature = AlgorithmSignatureState.OFFICIAL,
-                downloadSource = AlgorithmDownloadSource.CACHE,
+                origin = if (isBundled) AlgorithmOrigin.BUNDLED else AlgorithmOrigin.INSTALLED,
+                signature = if (isBundled) {
+                    AlgorithmSignatureState.BUNDLED
+                } else {
+                    AlgorithmSignatureState.OFFICIAL
+                },
+                downloadSource = if (isBundled) {
+                    AlgorithmDownloadSource.BUNDLED
+                } else {
+                    AlgorithmDownloadSource.CACHE
+                },
+                releaseNotes = record.summary.orEmpty(),
                 isBuiltin = false,
                 isInstalled = true,
                 isCompatible = true,
+                author = record.author,
             )
         }
         return mergeInstalled(current, disk)
@@ -491,6 +553,8 @@ class AlgorithmCatalogController @Inject constructor(
         return installed.sortedWith(
             compareByDescending<AlgorithmPackageInfo> { it.id == activeId }
                 .thenByDescending { it.isBuiltin }
+                .thenByDescending { it.origin == AlgorithmOrigin.BUNDLED }
+                .thenByDescending { selectedScene in it.supportedScenes }
                 .thenByDescending { it.versionCode },
         )
     }

@@ -10,7 +10,6 @@ import argparse
 import csv
 import json
 import statistics
-import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -22,6 +21,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evaluate_dataset import COLORS, KINDS, HostVision, scene_for  # noqa: E402
+from host_build import ensure_host_library  # noqa: E402
 
 DEFAULT_INPUT = Path(r"D:\Code\AI\火崽崽\火崽崽奇妙屋\算法测试\测试图片")
 DEFAULT_OUTPUT = Path(r"D:\Code\AI\火崽崽\火崽崽奇妙屋\算法测试\识别结果")
@@ -120,24 +120,17 @@ def main() -> int:
     if not args.input.is_dir():
         raise SystemExit(f"input missing: {args.input}")
 
-    lib = args.library
-    if lib is None:
+    if args.library is not None:
+        lib = args.library
+    elif args.skip_build:
         host_dir = ROOT / "build" / "host"
-        host_dir.mkdir(parents=True, exist_ok=True)
-        if not args.skip_build:
-            # Prefer native Windows build script when bash/WSL unavailable.
-            win_script = ROOT / "tools" / "vision" / "build_host.ps1"
-            sh_script = ROOT / "tools" / "vision" / "build_host.sh"
-            if win_script.exists():
-                subprocess.check_call(
-                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(win_script)],
-                )
-            else:
-                subprocess.check_call(["bash", str(sh_script)])
         candidates = list(host_dir.glob("libhzzs_vision.*")) + list(host_dir.glob("hzzs_vision.*"))
         if not candidates:
-            raise SystemExit("host library missing; build failed")
+            raise SystemExit("host library missing; rebuild without --skip-build")
         lib = candidates[0]
+    else:
+        # Always invoke scripts via bash/PowerShell — never exec .sh with missing +x.
+        lib = ensure_host_library(ROOT)
 
     vision = HostVision(lib)
     images = collect_images(args.input)

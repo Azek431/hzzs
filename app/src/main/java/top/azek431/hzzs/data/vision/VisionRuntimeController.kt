@@ -22,6 +22,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
+import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
+import top.azek431.hzzs.core.algorithm.AlgorithmDetectionTrace
+import top.azek431.hzzs.core.algorithm.AlgorithmFrameTraceEntry
+import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
@@ -87,6 +91,7 @@ class VisionRuntimeController @Inject constructor(
     private val overlay: OverlayController,
     private val debugFrameRecorder: DebugFrameRecorder,
     private val algorithmActivation: AlgorithmActivationCoordinator,
+    private val algorithmCatalog: AlgorithmCatalogController,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lifecycleMutex = Mutex()
@@ -180,6 +185,7 @@ class VisionRuntimeController @Inject constructor(
                     "overlay=${config.overlay.enabled} automation=${config.automation.enabled}",
             )
             resetPipeline()
+            AlgorithmRuntimeTrace.resetSession()
             // 启动分析前按已保存 AlgorithmConfig 解析并激活（含 pending）；失败回退内置。
             runCatching {
                 algorithmActivation.ensureConfigured(
@@ -200,7 +206,8 @@ class VisionRuntimeController @Inject constructor(
                         "gen=${activation.generation} fallback=${activation.usingBuiltinFallback}",
                 )
             }
-            algorithmActivation.setAnalysisRunning(true)
+            // 同步目录控制器，避免分析中下载/选用半热激活
+            algorithmCatalog.setAnalysisRunning(true)
             activeSource = source
             mutableStatus.value = RuntimeStatus(
                 running = true,
@@ -220,7 +227,7 @@ class VisionRuntimeController @Inject constructor(
             } catch (error: Throwable) {
                 activeSource = null
                 runCatching { source.stop() }
-                algorithmActivation.setAnalysisRunning(false)
+                algorithmCatalog.setAnalysisRunning(false)
                 AppLog.e("vision", "start capture failed: ${error.message}", error)
                 mutableStatus.value = RuntimeStatus(
                     running = false,
@@ -253,7 +260,7 @@ class VisionRuntimeController @Inject constructor(
         runCatching { source?.stop() }
         overlay.hide()
         resetPipeline()
-        algorithmActivation.setAnalysisRunning(false)
+        algorithmCatalog.setAnalysisRunning(false)
         mutableStatus.value = mutableStatus.value.copy(
             running = false,
             captureReady = false,
@@ -449,6 +456,12 @@ class VisionRuntimeController @Inject constructor(
                                 lastError = result.error,
                             )
                         }
+                        recordFrameTrace(
+                            analysisSequence = AlgorithmRuntimeTrace.nextAnalysisSequence(),
+                            result = result,
+                            tracked = emptyList(),
+                            decision = "error",
+                        )
                         if (failureCount >= MAX_CONSECUTIVE_VISION_FAILURES) {
                             throw VisionUnavailable("视觉分析连续失败 $failureCount 次：${result.error}")
                         }
@@ -476,12 +489,18 @@ class VisionRuntimeController @Inject constructor(
                             activeBackend = startedBackend,
                         )
                     }
-                    maybeDispatch(
+                    val decision = maybeDispatch(
                         token = token,
                         config = config,
                         result = trackedResult,
                         tracked = tracked,
                         frameTimestampNanos = frame.elapsedRealtimeNanos,
+                    )
+                    recordFrameTrace(
+                        analysisSequence = trackingSequence,
+                        result = trackedResult,
+                        tracked = tracked,
+                        decision = decision,
                     )
 
                     frameCount++
@@ -511,7 +530,7 @@ class VisionRuntimeController @Inject constructor(
             if (generation.get() == token) {
                 activeSource = null
                 // 异常退出也必须清 analysisRunning，否则算法切换会永久 pending。
-                algorithmActivation.setAnalysisRunning(false)
+                algorithmCatalog.setAnalysisRunning(false)
                 mutableStatus.update {
                     it.copy(
                         running = false,
@@ -530,6 +549,8 @@ class VisionRuntimeController @Inject constructor(
      *
      * 门控：自动操作开关、场景置信度、帧龄、实验开关。
      * 真正手势在独立 [actionJob] 中执行，避免阻塞分析循环。
+     *
+     * @return 一行决策摘要（skip 原因或 plan 目标），写入 [AlgorithmRuntimeTrace]
      */
     private fun maybeDispatch(
         token: Long,
@@ -537,30 +558,37 @@ class VisionRuntimeController @Inject constructor(
         result: VisionResult,
         tracked: List<MultiObjectTracker.TrackedDetection>,
         frameTimestampNanos: Long,
-    ) {
-        if (!config.automation.enabled) return
-        if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
+    ): String {
+        if (!config.automation.enabled) return "skip:automation_off"
+        if (result.sceneConfidence < config.automation.minimumSceneConfidence) {
+            return "skip:scene_conf=${"%.2f".format(result.sceneConfidence)}" +
+                "<${"%.2f".format(config.automation.minimumSceneConfidence)}"
+        }
 
         // 帧龄门控：捕获时刻到决策的排队/处理延迟。完成驱动下分析常 >120ms，
         // 过紧会导致自动操作系统性不触发；与「过期帧」语义对齐到 1s 量级。
         val frameAgeMs = (SystemClock.elapsedRealtimeNanos() - frameTimestampNanos) / 1_000_000L
-        if (frameAgeMs < 0L || frameAgeMs > MAX_FRAME_AGE_MS) return
+        if (frameAgeMs < 0L || frameAgeMs > MAX_FRAME_AGE_MS) {
+            return "skip:frame_age=${frameAgeMs}ms"
+        }
 
         if (
             config.selectedScene == SceneId.BAMBOO_BOOKSTORE &&
             !config.automation.bambooExperimentalAutoAction
         ) {
-            return
+            return "skip:bamboo_experimental_off"
         }
 
         // CAS 占坑，保证同一时刻最多一个动作任务。
-        if (!actionInFlight.compareAndSet(false, true)) return
+        if (!actionInFlight.compareAndSet(false, true)) {
+            return "skip:action_in_flight"
+        }
 
         val sceneConfig = config.scenes.getValue(config.selectedScene)
         val player = result.player
         if (player == null) {
             actionInFlight.set(false)
-            return
+            return "skip:no_player"
         }
         val playerWidth = player.bounds.width.coerceAtLeast(0.01f)
         val triggerDistance = when (config.selectedScene) {
@@ -588,7 +616,12 @@ class VisionRuntimeController @Inject constructor(
 
         if (candidate == null) {
             actionInFlight.set(false)
-            return
+            val stable = tracked.count { it.stableFrames >= sceneConfig.thresholds.stableFrames }
+            val actionable = tracked.count {
+                it.detection.actionable && !it.detection.diagnosticOnly
+            }
+            return "skip:no_candidate stable=$stable actionable=$actionable " +
+                "trigDist=${"%.3f".format(triggerDistance)}"
         }
 
         val spatialKey = spatialKeyOf(candidate.detection)
@@ -596,7 +629,7 @@ class VisionRuntimeController @Inject constructor(
         val foreground = HzzsAccessibilityService.foregroundSnapshot()
         if (foreground == null) {
             actionInFlight.set(false)
-            return
+            return "skip:no_foreground"
         }
         val foregroundClassName = foreground.className
         if (foregroundClassName.isBlank() ||
@@ -604,9 +637,13 @@ class VisionRuntimeController @Inject constructor(
             foreground.packageName !in config.automation.allowedPackages
         ) {
             actionInFlight.set(false)
-            return
+            return "skip:foreground_gate pkg=${foreground.packageName}"
         }
 
+        val planSummary =
+            "plan kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
+                "track=${candidate.trackId} stable=${candidate.stableFrames} " +
+                "conf=${"%.2f".format(candidate.detection.confidence)} key=$spatialKey"
         actionJob = scope.launch {
             try {
                 dispatchPlan(
@@ -621,7 +658,92 @@ class VisionRuntimeController @Inject constructor(
                 actionInFlight.set(false)
             }
         }
+        return planSummary
     }
+
+    /**
+     * 写入算法帧轨迹 ring；AppLog 由 [AlgorithmRuntimeTrace] 按状态变化 + 周期节流。
+     */
+    private fun recordFrameTrace(
+        analysisSequence: Long,
+        result: VisionResult,
+        tracked: List<MultiObjectTracker.TrackedDetection>,
+        decision: String?,
+    ) {
+        val kindHistogram = result.detections
+            .groupingBy { it.kind.name }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .joinToString(",") { "${it.key}:${it.value}" }
+        val detectionTraces = if (tracked.isNotEmpty()) {
+            tracked.map { item ->
+                val d = item.detection
+                AlgorithmDetectionTrace(
+                    kind = d.kind.name,
+                    confidence = d.confidence,
+                    left = d.bounds.left,
+                    top = d.bounds.top,
+                    right = d.bounds.right,
+                    bottom = d.bounds.bottom,
+                    avoidance = d.avoidance.name,
+                    actionable = d.actionable,
+                    diagnosticOnly = d.diagnosticOnly,
+                    trackId = item.trackId,
+                    stableFrames = item.stableFrames,
+                )
+            }
+        } else {
+            result.detections.map { d ->
+                AlgorithmDetectionTrace(
+                    kind = d.kind.name,
+                    confidence = d.confidence,
+                    left = d.bounds.left,
+                    top = d.bounds.top,
+                    right = d.bounds.right,
+                    bottom = d.bounds.bottom,
+                    avoidance = d.avoidance.name,
+                    actionable = d.actionable,
+                    diagnosticOnly = d.diagnosticOnly,
+                )
+            }
+        }
+        val trackSummary = if (tracked.isEmpty()) {
+            null
+        } else {
+            tracked.joinToString(";") { t ->
+                "t=${t.trackId}:${t.detection.kind.name}:s=${t.stableFrames}"
+            }.take(400)
+        }
+        val player = result.player
+        AlgorithmRuntimeTrace.record(
+            AlgorithmFrameTraceEntry(
+                epochMs = System.currentTimeMillis(),
+                analysisSequence = analysisSequence,
+                scene = result.scene.name,
+                sceneConfidence = result.sceneConfidence,
+                hasPlayer = player != null,
+                playerConfidence = player?.confidence,
+                playerBounds = player?.let { formatBounds(it.bounds) },
+                obstacleCount = result.detections.size,
+                actionableCount = result.actionableDetections.size,
+                kindHistogram = kindHistogram,
+                processingMs = result.processingNanos / 1_000_000f,
+                algorithmId = result.activeAlgorithmId,
+                algorithmVersion = result.activeAlgorithmVersion,
+                generation = result.algorithmGeneration,
+                usingBuiltinFallback = result.usingBuiltinFallback,
+                frameError = result.error,
+                disabledObstaclesDropped = false,
+                detections = detectionTraces,
+                trackSummary = trackSummary,
+                decision = decision,
+            ),
+        )
+    }
+
+    private fun formatBounds(bounds: NormalizedRect): String =
+        "%.2f,%.2f-%.2f,%.2f".format(bounds.left, bounds.top, bounds.right, bounds.bottom)
 
     /**
      * 在 [actionMutex] 下规划并提交手势序列。
@@ -641,15 +763,29 @@ class VisionRuntimeController @Inject constructor(
         actionMutex.withLock {
             if (generation.get() != token) return
             // 关闭后不得继续 stroke；与 maybeDispatch 门控对称。
-            if (!config.automation.enabled) return
-            if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) return
+            if (!config.automation.enabled) {
+                AlgorithmRuntimeTrace.logDecision("dispatch_abort:automation_off track=${candidate.trackId}")
+                return
+            }
+            if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) {
+                AlgorithmRuntimeTrace.logDecision(
+                    "dispatch_skip:ledger track=${candidate.trackId} key=$spatialKey",
+                )
+                return
+            }
 
-            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: return@withLock
+            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
+                AlgorithmRuntimeTrace.logDecision("dispatch_skip:no_foreground track=${candidate.trackId}")
+                return@withLock
+            }
             if (
                 SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
                 foreground.packageName !in config.automation.allowedPackages ||
                 !foreground.className.startsWith(foregroundClassName)
             ) {
+                AlgorithmRuntimeTrace.logDecision(
+                    "dispatch_skip:foreground_recheck pkg=${foreground.packageName} track=${candidate.trackId}",
+                )
                 return@withLock
             }
 
@@ -662,15 +798,30 @@ class VisionRuntimeController @Inject constructor(
             }
 
             val plan = planGestures(config.selectedScene, candidate.detection, now)
-            if (plan.isEmpty()) return@withLock
+            if (plan.isEmpty()) {
+                AlgorithmRuntimeTrace.logDecision(
+                    "dispatch_skip:empty_plan kind=${candidate.detection.kind.name} " +
+                        "avoid=${candidate.detection.avoidance.name} track=${candidate.trackId}",
+                )
+                return@withLock
+            }
             // doublePressDelayMs 的第二次按压仍占用速率配额。
             val planActionCount = plan.sumOf { stroke ->
                 val isClick = stroke.gesture.endX == null
                 if (isClick && stroke.gesture.doublePressDelayMs > 0L) 2 else 1
             }
             if (recentActionTimes.size + planActionCount > config.automation.maxActionsPerSecond) {
+                AlgorithmRuntimeTrace.logDecision(
+                    "dispatch_skip:rate_limit need=$planActionCount " +
+                        "window=${recentActionTimes.size} track=${candidate.trackId}",
+                )
                 return@withLock
             }
+            AlgorithmRuntimeTrace.logDecision(
+                "dispatch_begin strokes=${plan.size} actions=$planActionCount " +
+                    "kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
+                    "track=${candidate.trackId}",
+            )
 
             for ((index, stroke) in plan.withIndex()) {
                 if (generation.get() != token) return
@@ -707,6 +858,10 @@ class VisionRuntimeController @Inject constructor(
                             }
                             trackRetryCounts.remove(candidate.trackId)
                             completed = true
+                            AlgorithmRuntimeTrace.logDecision(
+                                "dispatch_ok action=${action.id} track=${candidate.trackId} " +
+                                    "stroke=$index attempt=$attempt",
+                            )
                         }
                         DispatchOutcome.EXPIRED,
                         DispatchOutcome.CANCELLED,
@@ -715,6 +870,10 @@ class VisionRuntimeController @Inject constructor(
                             attempt++
                             val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
                             trackRetryCounts[candidate.trackId] = retriesUsed
+                            AlgorithmRuntimeTrace.logDecision(
+                                "dispatch_fail outcome=${receipt.outcome.name} " +
+                                    "track=${candidate.trackId} stroke=$index attempt=$attempt",
+                            )
                             if (attempt > config.automation.retryLimit) {
                                 return@withLock
                             }

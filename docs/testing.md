@@ -77,6 +77,8 @@ bash tools/vision/run_native_sanitizers.sh
 python tools/vision/evaluate_dataset.py --dataset /path/to/images --output build/vision-results
 ```
 
+Windows 可改用 `tools/vision/build_host.ps1`。Python 入口（`run_host_tests` / `evaluate_dataset` / `batch_recognize`）通过 `host_build.py` 自动选 bash 或 PowerShell 构建，**不要**对无执行位的 `.sh` 直接 `subprocess([script])`。
+
 说明：
 
 - 宿主机测试参数是 `--max-representative`，不是 `--limit`。

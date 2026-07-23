@@ -135,6 +135,9 @@ class McpProtocol(
                 errorJson(id, McpErrorCodes.RATE_LIMITED, error.message ?: "会话过多"),
             )
         }
+        // 移动端 Streamable HTTP 客户端（如 RikkaHub）在 connect 后可能紧跟 tools/list；
+        // 将会话标为已就绪，同时仍接受 notifications/initialized（幂等）。
+        sessions.markInitialized(session.id)
         val result = JSONObject().apply {
             put("protocolVersion", negotiated)
             put(
@@ -152,9 +155,11 @@ class McpProtocol(
             )
             put(
                 "instructions",
-                "HZZS 本地 MCP：仅 loopback + Bearer。" +
-                    "写操作受手机权限级约束；不能绕过系统录屏/悬浮窗/无障碍对话框。" +
-                    "兼容 RikkaHub、OperitAI、Claude Code 等 Streamable HTTP 客户端。",
+                "HZZS 本地 MCP（Streamable HTTP）。" +
+                    "同机客户端（RikkaHub/OperitAI）URL 填 http://127.0.0.1:<port>/mcp；" +
+                    "传输选 Streamable HTTP 不要选 SSE。" +
+                    "鉴权可按设置关闭；开启时在自定义 Header 填 Authorization: Bearer <token>。" +
+                    "写操作受手机权限级约束，不能绕过系统对话框。",
             )
         }
         return DispatchResult.JsonResponse(200, resultJson(id, result), session.id)

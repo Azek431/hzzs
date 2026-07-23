@@ -274,7 +274,9 @@ data class AutomationConfig(
 /**
  * MCP 本地服务配置。
  *
- * 默认关闭；启用后仅 loopback + 随机 Bearer。
+ * 默认关闭；启用后仅 loopback。
+ * [requireAuth] 为 true 时每次启动生成随机 Bearer（RikkaHub 等可在自定义 Header 填入）；
+ * 为 false 时免 Token，便于同机客户端一键连接（仍仅 loopback）。
  * 权限型字段，设置预览阶段不启动服务。
  */
 data class McpConfig(
@@ -283,6 +285,8 @@ data class McpConfig(
     val port: Int = 8765,
     val bindLocalhostOnly: Boolean = true,
     val allowDebugFrames: Boolean = false,
+    /** 是否要求 Authorization: Bearer；关闭后同机 RikkaHub/OperitAI 可不填请求头。 */
+    val requireAuth: Boolean = true,
 )
 
 /**

@@ -259,11 +259,16 @@ private fun HzzsRoot(
     val mcpNavigation by vm.mcpNavigation.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    LaunchedEffect(config.mcp.enabled, config.mcp.port, config.mcp.permissionLevel) {
+    LaunchedEffect(
+        config.mcp.enabled,
+        config.mcp.port,
+        config.mcp.permissionLevel,
+        config.mcp.requireAuth,
+    ) {
         syncMcpService(
             context = context,
             enabled = config.mcp.enabled,
-            fingerprint = "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}",
+            fingerprint = "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}:${config.mcp.requireAuth}",
         )
     }
     LaunchedEffect(Unit) {

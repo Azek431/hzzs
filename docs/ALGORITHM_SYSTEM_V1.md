@@ -61,7 +61,8 @@
 - 下载：size/sha256 + `AlgorithmPackVerifier`（ZIP 白名单 + Ed25519）
 - 落盘：`InstalledAlgorithmStore` → `filesDir/algorithms/installed/`
 - 激活：`AlgorithmActivationCoordinator`（save / start 安全点）
-- **信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空 → 下载安装 fail-closed，直至官方公钥写入
+- **信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 当前含 `hzzs-algorithm-official-1`；列表为空时远端下载安装 fail-closed
+- **APK 捆绑**：`assets/algorithms/<id>/` 经 `BundledAlgorithmInstaller` 幂等预装（不经外装验签，不覆盖已装用户包）；设置「算法库」可切换内置 / 捆绑 / 远端
 
 ### `signature.json`
 

@@ -95,12 +95,17 @@ settings_ui_all = settings_ui
 if settings_ui_dir.is_dir():
     for path in sorted(settings_ui_dir.rglob("*.kt")):
         settings_ui_all += "\n" + path.read_text(encoding="utf-8")
-for token in ("DisposableEffect", "clearPreviewSilently", "SettingsExitCoordinator", "主题已临时预览", "请等待 ${remaining}s"):
-    check(token in settings_ui_all, f"settings-ui:{token}", "preview/risk UI missing")
+for token in ("DisposableEffect", "flushNow", "onLeaveComposition", "SettingsExitCoordinator", "请等待 ${remaining}s"):
+    check(token in settings_ui_all, f"settings-ui:{token}", "settings flush/risk UI missing")
 check(
     "discardSilently" not in settings_ui_all,
     "settings-ui:no-silent-draft-discard",
     "settings dispose must not silently discard drafts",
+)
+check(
+    "clearPreviewSilently" not in settings_ui_all,
+    "settings-ui:no-legacy-clear-preview",
+    "instant-save settings must not use clearPreviewSilently",
 )
 
 onboarding = read("app/src/main/java/top/azek431/hzzs/feature/onboarding/OnboardingScreen.kt")
@@ -122,6 +127,7 @@ else:
     mcp = read("app/src/main/java/top/azek431/hzzs/mcp/McpService.kt")
 for token in (
     "InetAddress.getLoopbackAddress()",
+    "127.0.0.1",
     "Authorization",
     "ASK_EVERY_TIME",
     "requestApproval",
@@ -139,6 +145,7 @@ for token in (
     "rejectPendingApproval",
     "MAX_CONCURRENT_CONNECTIONS",
     "additionalProperties",
+    "requireAuth",
 ):
     check(token in mcp, f"mcp:{token}", "MCP control/safety invariant missing")
 check("0.0.0.0" not in mcp, "mcp:no-lan-listener", "MCP must remain loopback-only")
