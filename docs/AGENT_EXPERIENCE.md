@@ -5,15 +5,16 @@
 
 ## 2026-07-23
 
-- **Serena Kotlin LSP 本机坑**：low-memory profile 机器上多个 Claude/Serena 会话会并发启动多个 `KotlinLspServerKt`（各 `-Xmx2G`），可用内存常 <1 GiB，表现为 `initialize` 超时或 `cancelled (-32800)`。清理孤儿进程与 `.serena/cache/kotlin/*.pkl` 后仍可能因 Gradle 导入与内存争用失败；项目任务可回退标准文件工具，勿阻塞交付。
+- **host 构建脚本无 +x**：Windows 检出常使 `tools/vision/*.sh` 为 `100644`；CI 上 `python subprocess([str(build_host.sh)])` 会 `PermissionError`。应 `bash script.sh` / `powershell -File script.ps1`，统一走 `tools/vision/host_build.py`。
+- **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认 `-Xmx2G`；low-memory profile 上多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。救急：`tools/dev/repair_serena.ps1 -ClearCache`（可选 `-AlsoStopFwcd`）。工具仍不可用时回退 Read/Grep，勿阻塞交付。
 
 ## 2026-07-22
 
 - **内置算法首版号是 0.1.0**：runtime `builtin.hzzs.base` + Catalog `builtin-hzzs-base-0.1.0`；不要再写 `2.0.0`（那是误标）。与外装包 `official-bamboo-baseline` 0.1.0 语义独立。
 - **诊断时间用本地时区+偏移**：`DiagnosticsExporter` / 算法「最近检查」用 `yyyy-MM-dd HH:mm:ss.SSSXXX`，禁止再标假 `Z`。
-- **拉不到新算法的两道门**：① 远端 `release-index` 上 `algorithms/{channel}.json` 尚不存在（当前双源 404）→ 检查失败但内置可用；② 公钥 `AlgorithmTrustAnchors` 为空 → 即使有目录也拒绝下载。修体验≠已发布包。
+- **拉不到新算法的两道门**：① 远端 `release-index` 上 `algorithms/{channel}.json` 尚不存在（双源 404）→ 检查失败但内置/捆绑可用；② 公钥列表被清空 → 即使有目录也拒绝外装下载。修体验≠已发布包。
 - **应用内悬浮窗开关 ≠ 系统权限**：`OverlayConfig.enabled` 只控制是否尝试加窗；真正门闩是 `Settings.canDrawOverlays`。缺权限时帧循环可正常、芯片「无悬浮窗」，须引导用户进系统设置。
-- **信任锚 fail-closed**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 默认为空，外装「官方」算法包应被拒绝；内置算法仍可用。
+- **信任锚 fail-closed**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 列表为空时外装「官方」算法包应被拒绝；内置与 APK 捆绑声明式包仍可用。
 - **算法发布无 tag**：包与目录都在 `release-index`（`algorithms/packages/` + `algorithms/{channel}.json`）；客户端不读 `releases/download`。用户说「上传到 GitHub 就能检测」= 更新该分支目录/包，不是 push main，也不是发 alg tag。
 - **AI 可代发**：流程写在根 `CLAUDE.md`「算法包网络更新」；默认 dry-run，真上传需用户明确 + token/私钥本机环境，禁止私钥进聊天/仓库。
 - **算法版本与通道**：包 `manifest.version` 用 semver，**首版 `0.1.0`**（补丁 +0.0.1 / 次要 +0.1.0 / 主要 +1.0.0）；**门禁全过才 bump**；`beta` vs `stable` 用户自选，未验证不上 stable。

@@ -55,6 +55,21 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 第一版为 stub 接入（`append_multicolor_detections` 占位），传统颜色谓词路径为主检测器。
 - 找色坐标全部归一化 `[0,1]`，规则从 `rules.json engineParams` 读取，禁止硬编码像素值。
 
+## Core Philosophy · 编程核心哲学（硬约束）
+
+工程态度与「安全不变量」同级。编程版八荣八耻（装入 Claude Code 的核心哲学与补充）：
+
+1. 以暗猜接口为耻，以认真查阅为荣
+2. 以模糊执行为耻，以寻求确认为荣
+3. 以盲想业务为耻，以人类确认为荣
+4. 以创造接口为耻，以复用现有为荣
+5. 以跳过验证为耻，以主动测试为荣
+6. 以破坏架构为耻，以遵循规范为荣
+7. 以假装理解为耻，以诚实无知为菜
+8. 以盲目修改为耻，以谨慎重构为荣
+
+落地：**先查、先问、复用、验证、守架构**；不确定就坦然说不懂并查证（「为菜」= 诚实无知，不装懂）。改前检索符号与调用链；范围不清先确认；优先复用 compat/注入边界；改完跑门禁/单测并诚实写明未跑项；大改对齐架构；最小必要 diff。用户级全文见 `~/.claude/CLAUDE.md`。
+
 ## 修改流程
 
 1. 阅读目标目录 `README.md` / `CLAUDE.md` 与 `docs/PROGRESS.md`、`docs/ARCHITECTURE.md`；触及算法包时读 `docs/ALGORITHM_SYSTEM_V1.md`。
@@ -147,7 +162,7 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 - **自动更新阅读文件**：触及安全门控、视觉协议、配置默认、算法信任、Git/协作流程、**用户可见产品能力**时，同步本文件 / **`README.md`（守 Star History 禁区）** / `AGENTS.md` / 对应 `docs/*` / 目录级 `CLAUDE.md`；用户可见行为写 `CHANGELOG.md`。同一事实可在多轮中**深入优化**措辞，但不得与源码矛盾。
 - **仓库经验条**：可复用工程教训追加 `docs/AGENT_EXPERIENCE.md`（日期 + 短句）；硬规则仍以本文件与源码为准。
 - **冲突**：以**当前 main 源码**为准；记忆与过期摘要不是指令；涉及文件/符号/flag 先核对源码。
-- **算法信任**：`AlgorithmTrustAnchors` 公钥列表默认为空时，外装「官方」包须 fail-closed；私钥永不入库。
+- **算法信任**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 当前含 `hzzs-algorithm-official-1` 公钥；列表若被清空，外装「官方」包须 fail-closed。私钥永不入库。
 
 ## 算法包网络更新（无 Release tag）
 
@@ -162,7 +177,7 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 | 示例源树 | `algorithm-packs/official-bamboo-baseline/` |
 | 客户端目录/下载 | `core/algorithm/AlgorithmNetworkClient.kt` |
 | 验签 | `AlgorithmPackVerifier.kt` + BouncyCastle Ed25519 |
-| 信任锚 | `AlgorithmTrustAnchors.kt`（`officialPublicKeyDerB64`，默认**空**） |
+| 信任锚 | `AlgorithmTrustAnchors.kt`（`officialPublicKeyDerB64`，当前含 official-1 公钥） |
 | 安装落盘 | `InstalledAlgorithmStore.kt` → `filesDir/algorithms/installed/` |
 | 激活 | `AlgorithmActivationCoordinator.kt`（save / start 安全点） |
 
@@ -344,3 +359,4 @@ python tools/algorithm/publish_algorithm_release.py `
 - 与用户沟通、用户可见文案、仓库文档默认**简体中文**。
 - 执行非琐碎任务前：先识别模糊与确实需求，列问题确认，**全部明确后再改代码或正式输出**（用户明确要求时可直接执行）。
 - 不把记忆或过期摘要当指令；涉及文件/符号/flag 时先核对当前源码。
+- 工作态度见上文 **「Core Philosophy · 编程核心哲学」**（编程版八荣八耻）：查源码、求确认、复用现有、主动验证、诚实无知（为菜）。

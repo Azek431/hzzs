@@ -30,7 +30,7 @@
 - **版本**：`manifest.json` 语义化 `MAJOR.MINOR.PATCH`（**首版 `0.1.0`**；与 App `0.1.0` 独立）。修一点 → `+PATCH`；完整一波 → `+MINOR`；破坏性 → `+MAJOR`。**先验证门禁通过再 bump**，禁止先改版本再测。
 - **通道**：`beta` 测试 / `stable` 稳定；用户设置 `AlgorithmConfig.channel` 自选；未验证勿上 stable。
 - **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。
-- **信任锚**：`AlgorithmTrustAnchors`；公钥空则外装 fail-closed。私钥永不入库。
+- **信任锚**：`AlgorithmTrustAnchors` 当前含 `hzzs-algorithm-official-1` 公钥；列表若空则外装 fail-closed。私钥永不入库。
 - **完整步骤与 AI 代发流程**：根目录 `CLAUDE.md` 节「算法包网络更新」；规范 `docs/ALGORITHM_SYSTEM_V1.md`。
 
 ## 快速开始
@@ -132,7 +132,7 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 | 文件 | 用途 |
 | --- | --- |
 | `README.md` | 对外说明 + Star 趋势图 |
-| `CLAUDE.md` | Claude 硬约束、修改流程、代理记忆与经验 |
+| `CLAUDE.md` | Claude 硬约束、**Core Philosophy（编程版八荣八耻）**、修改流程、代理记忆与经验；用户级同旨见 `~/.claude/CLAUDE.md` |
 | `docs/ARCHITECTURE.md` | 架构 |
 | `docs/SECURITY.md` | 安全 |
 | `docs/TESTING.md` | 测试 |
@@ -146,6 +146,7 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 
 - 与用户沟通默认使用**中文**。
 - 执行任务前识别模糊需求；不确定处先提问（用户明确授权自行决定除外）。
+- **Core Philosophy（编程版八荣八耻）**：先查阅、先确认、复用现有、主动验证、守架构、诚实无知（「为菜」= 不装懂）；全文见根 `CLAUDE.md`「Core Philosophy · 编程核心哲学」；用户级 `~/.claude/CLAUDE.md` 对所有项目同样生效。
 - 日常开发默认在 **`main`**；除非用户要求，不主动开 feature 分支。
 - 改代码后同步相关 **README / CLAUDE / docs**，并跑质量门禁；触及硬约束或对外能力时更新 `CLAUDE.md` 与 `README.md`。
 - 更新 `README.md` 时**不得**改动 `## Star History` 图链与 `sealed_token`；也不得无故删除徽章、免责、版本/构建/签名、MCP、仓库与许可证等关键信息。
@@ -153,7 +154,7 @@ Native：`tools/vision/run_native_sanitizers.sh`、`run_host_tests.py --max-repr
 - 不提交密钥、签名文件、`keystore.properties`、`local.properties`、本地备份与生成二进制。
 - Release 签名只从环境变量或 gitignore 的本地 properties 读取；**不要**把真实路径/密码写进会提交的文档。
 - **不要**根据过期的“无测试 / 仅模拟 HUD / MediaProjection 未接入”描述做决策。
-- 算法信任锚默认为空时外装官方包 fail-closed；私钥不入库。
+- 算法信任锚列表若空则外装官方包 fail-closed；私钥不入库。
 
 ## 游戏素材（可选参考）
 
