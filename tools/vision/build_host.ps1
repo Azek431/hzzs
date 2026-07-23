@@ -21,6 +21,7 @@ $sources = @(
     (Join-Path $Cpp "sweet_factory.cpp"),
     (Join-Path $Cpp "bamboo_bookstore.cpp"),
     (Join-Path $Cpp "sea_salt_living_room.cpp"),
+    (Join-Path $Cpp "multicolor_detector.cpp"),
     (Join-Path $Cpp "legacy_main\vision2\HzzsVisionCore.cpp"),
     (Join-Path $Cpp "legacy_main\vision_bamboo\BambooVisionCore.cpp"),
     (Join-Path $Cpp "legacy_main\vision_bamboo\BambooVisionEngine.cpp"),

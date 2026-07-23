@@ -121,9 +121,9 @@ def main() -> None:
     count, _ = invoke(0, blank, 320, 640, 100)
     assert count == -2, count
 
-    # Both scene implementations must remain safe on blank and synthetic frames.
+    # 三赛季（甜品/竹影/海盐）在空白帧与合成帧上均须 fail-soft，不得越界。
     blank_detections: dict[str, int] = {}
-    for scene in (0, 1):
+    for scene in (0, 1, 2):
         count, output = invoke(scene, blank, 320, 640)
         assert 0 <= count <= 64
         blank_detections[str(scene)] = count
@@ -131,7 +131,14 @@ def main() -> None:
 
         synthetic = np.full((640, 320), 0xFFF4F1EA, np.uint32)
         synthetic[360:560, 40:95] = 0xFF251F1B
-        synthetic[410:545, 190:245] = 0xFF28A96B if scene == 0 else 0xFF9A7A3B
+        if scene == 0:
+            synthetic[410:545, 190:245] = 0xFF28A96B
+        elif scene == 1:
+            synthetic[410:545, 190:245] = 0xFF9A7A3B
+        else:
+            # 海盐：偏暖木地板 + 沙堡暖黄块，仅验证引擎不崩溃。
+            synthetic[:, :] = 0xFFC8A070
+            synthetic[410:545, 190:245] = 0xFFD2A050
         synthetic_argb = np.ascontiguousarray(synthetic.ravel())
         count, output = invoke(scene, synthetic_argb, 320, 640)
         assert 0 <= count <= 64
@@ -148,7 +155,7 @@ def main() -> None:
 
     dataset = resolve_dataset(args.dataset)
     checked = 0
-    per_scene = {0: 0, 1: 0}
+    per_scene = {0: 0, 1: 0, 2: 0}
     if dataset is not None:
         images = sorted(path for path in dataset.rglob("*") if path.suffix.lower() in IMAGE_SUFFIXES)
         if images:
@@ -192,12 +199,15 @@ def main() -> None:
 def validate_rows(output: np.ndarray, count: int) -> None:
     for index in range(count):
         row = output[1 + index * 10 : 1 + (index + 1) * 10]
-        assert 0 <= int(round(float(row[1]))) <= 7
+        # Kind 0..10：PLAYER + 10 种障碍（含海盐 SAND_CASTLE/HANGING_ANCHOR/SEA_PIT）
+        assert 0 <= int(round(float(row[1]))) <= 10
         assert 0.0 <= row[2] <= row[4] <= 1.0
         assert 0.0 <= row[3] <= row[5] <= 1.0
         assert 0.0 <= row[6] <= 1.0
         assert row[7] in (0.0, 1.0)
         assert row[8] in (0.0, 1.0)
+        # Avoidance 0..5（含 PRESS / SWIPE_UP）
+        assert 0 <= int(round(float(row[9]))) <= 5
 
 
 if __name__ == "__main__":

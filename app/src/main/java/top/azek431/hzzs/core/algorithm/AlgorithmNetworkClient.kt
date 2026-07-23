@@ -1,8 +1,10 @@
 package top.azek431.hzzs.core.algorithm
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -107,10 +109,13 @@ class AlgorithmNetworkClient @Inject constructor(
         if (wifiOnly && !isOnUnmeteredNetwork()) {
             error("当前设置要求仅在 Wi‑Fi 下下载算法包")
         }
+        require(SAFE_ID.matches(entry.info.id)) { "非法算法 id: ${entry.info.id}" }
+        require(SAFE_SHA256.matches(entry.sha256)) { "非法 sha256: ${entry.sha256}" }
+        val safeId = entry.info.id
         val url = packageUrl(source, entry.assetPath)
         val stagingRoot = File(appContext.cacheDir, "algorithm-dl").also { it.mkdirs() }
-        val part = File(stagingRoot, "${entry.info.id}.hzzsalg.part")
-        val target = File(stagingRoot, "${entry.info.id}.hzzsalg")
+        val part = File(stagingRoot, "$safeId.hzzsalg.part")
+        val target = File(stagingRoot, "$safeId.hzzsalg")
         part.delete()
         target.delete()
         try {
@@ -123,7 +128,7 @@ class AlgorithmNetworkClient @Inject constructor(
             }
             onProgress(1f)
             val verified = verifier.verifyFile(target)
-            val extractDir = File(stagingRoot, "extract-${entry.info.id}").also {
+            val extractDir = File(stagingRoot, "extract-$safeId").also {
                 it.deleteRecursively()
                 it.mkdirs()
             }
@@ -153,12 +158,13 @@ class AlgorithmNetworkClient @Inject constructor(
             UpdateSourceId.GITEE -> AlgorithmDownloadSource.GITEE
             UpdateSourceId.GITHUB -> AlgorithmDownloadSource.GITHUB
         }
-        val appCode = 1L // 兼容字段；精确 versionCode 由 Controller 再过滤
+        val appCode = currentAppVersionCode()
         val out = ArrayList<CatalogRemoteEntry>(algorithms.length())
         for (i in 0 until algorithms.length()) {
             val item = algorithms.getJSONObject(i)
             if (item.optBoolean("revoked", false)) continue
             val id = item.getString("id")
+            require(SAFE_ID.matches(id)) { "非法算法 id: $id" }
             val version = item.getString("version")
             val filename = item.getString("filename")
             require(SAFE_NAME.matches(filename)) { "非法文件名: $filename" }
@@ -169,6 +175,7 @@ class AlgorithmNetworkClient @Inject constructor(
             require(SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径: $assetPath" }
             val size = item.getLong("size")
             val sha256 = item.getString("sha256")
+            require(SAFE_SHA256.matches(sha256)) { "非法 sha256: $sha256" }
             val scenes = item.optJSONArray("supportedScenes").toSceneSet()
             val minApp = item.optLong("minimumAppVersionCode", 1L)
             val versionCode = versionToCode(version)
@@ -196,6 +203,22 @@ class AlgorithmNetworkClient @Inject constructor(
             out += CatalogRemoteEntry(info, assetPath, filename, sha256)
         }
         return out
+    }
+
+    /** 读取本应用 long versionCode，供目录兼容字段 isCompatible 使用。 */
+    private fun currentAppVersionCode(): Long {
+        val pm = appContext.packageManager
+        val packageName = appContext.packageName
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pm.getPackageInfo(packageName, 0).longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, 0).versionCode.toLong()
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            1L
+        }
     }
 
     private fun versionToCode(version: String): Long {
@@ -344,7 +367,10 @@ class AlgorithmNetworkClient @Inject constructor(
     companion object {
         private const val MAX_CATALOG_BYTES = 512L * 1024L
         private const val MAX_PACKAGE_BYTES = 1024L * 1024L
+        /** 与 tools/algorithm/common.py SAFE_ID 对齐。 */
+        private val SAFE_ID = Regex("^[a-z][a-z0-9-]{1,62}[a-z0-9]$")
         private val SAFE_NAME = Regex("^[A-Za-z0-9._+-]{1,160}$")
+        private val SAFE_SHA256 = Regex("^[a-fA-F0-9]{64}$")
         /** 仅允许 algorithms/packages/ 下单层安全文件名。 */
         private val SAFE_ASSET_PATH = Regex("^algorithms/packages/[A-Za-z0-9._+-]{1,160}$")
     }

@@ -100,4 +100,26 @@ class ThemePackageTest {
         assertEquals(0.6f, decoded.overlay.scale)
         assertTrue(ThemePackageCodec.sha256(root.toString()).matches(Regex("[0-9a-f]{64}")))
     }
+
+    @Test
+    fun overlayInteractionFlagsRoundTrip() {
+        val original = HzzsThemePackage(
+            name = "交互位",
+            theme = ThemeConfig(),
+            overlay = OverlayConfig(
+                clickThrough = false,
+                snapToEdge = false,
+                lockPosition = true,
+            ),
+        )
+        val decoded = ThemePackageCodec.decode(ThemePackageCodec.encode(original))
+        assertEquals(false, decoded.overlay.clickThrough)
+        assertEquals(false, decoded.overlay.snapToEdge)
+        assertEquals(true, decoded.overlay.lockPosition)
+
+        val encoded = JSONObject(ThemePackageCodec.encode(original)).getJSONObject("overlay")
+        assertTrue(encoded.has("clickThrough"))
+        assertTrue(encoded.has("snapToEdge"))
+        assertTrue(encoded.has("lockPosition"))
+    }
 }

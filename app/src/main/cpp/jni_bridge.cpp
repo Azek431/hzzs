@@ -289,6 +289,10 @@ bool read_scene_params(JNIEnv* env, jobject params_obj, hzzs::SceneAlgorithmPara
     ok = ok && read_float_field(env, params_obj, cls, "spikeWidthMax", &out->spike_width_max);
     ok = ok && read_float_field(env, params_obj, cls, "spikeHeightMin", &out->spike_height_min);
     ok = ok && read_float_field(env, params_obj, cls, "spikeHeightMax", &out->spike_height_max);
+    // 海盐多点找色：搜索带 + 容差（与 Kotlin SceneAlgorithmParams 字段名对齐）
+    ok = ok && read_float_field(env, params_obj, cls, "searchRegionTopRatio", &out->search_region_top_ratio);
+    ok = ok && read_float_field(env, params_obj, cls, "searchRegionBottomRatio", &out->search_region_bottom_ratio);
+    ok = ok && read_float_field(env, params_obj, cls, "multicolorThreshold", &out->multicolor_threshold);
 
     jfieldID colors_field = env->GetFieldID(cls, "colors", "Ltop/azek431/hzzs/domain/vision/SceneColorThresholds;");
     if (!colors_field || clear_if_exception(env)) {

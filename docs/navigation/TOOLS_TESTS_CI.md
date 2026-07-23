@@ -76,7 +76,7 @@ python tools/quality/check_project.py
 | --- | --- | --- |
 | `.github/workflows/build.yml` | 普通质量、Native、JVM、Lint、Debug APK | 无 instrumentation；当前不跑算法工具 unittest |
 | `.github/workflows/release.yml` | 签名 APK、验签、差分、双源发布 | 依赖 Release Secrets 和外部网络 |
-| `.github/workflows/algorithm-release.yml` | 手动算法包 dry-run/execute | 当前存在 workflow 与 CLI 参数漂移，发布前必须修复并验证 |
+| `.github/workflows/algorithm-release.yml` | 手动算法包 dry-run/execute；同通道串行；目录合并后写 channel JSON | 依赖签名私钥与双源 token；无 tag |
 
 ## 算法包流水线
 
@@ -112,10 +112,10 @@ algorithm-packs/<id>/ 源树
 - 截图源异常 stop 与资源释放；
 - 无障碍回调和前台窗口真实集成；
 - Compose 主导航、Onboarding、Hilt 与 DataStore instrumentation；
-- 算法 catalog 网络回退、兼容版本、路径字段、下载状态；
+- 算法 catalog 网络回退、兼容版本、路径字段、下载状态（部分路径校验已补）；
 - 算法 Verifier/Store/Activation 的直接客户端测试；
 - JNI 构造器描述符和设备 round-trip；
-- 多点找色接线与参数协议。
+- 多点找色代表帧/专用单测（热路径已接线，仍缺专项断言）。
 
 导航列出缺口不等于测试已失败，而是说明现有测试尚不能证明这些行为。
 

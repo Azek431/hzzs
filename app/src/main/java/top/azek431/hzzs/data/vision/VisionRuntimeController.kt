@@ -661,9 +661,16 @@ class VisionRuntimeController @Inject constructor(
                 recentActionTimes.removeFirst()
             }
 
-            val plan = planGestures(config.selectedScene, candidate.detection.avoidance, now)
+            val plan = planGestures(config.selectedScene, candidate.detection, now)
             if (plan.isEmpty()) return@withLock
-            if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return@withLock
+            // doublePressDelayMs 的第二次按压仍占用速率配额。
+            val planActionCount = plan.sumOf { stroke ->
+                val isClick = stroke.gesture.endX == null
+                if (isClick && stroke.gesture.doublePressDelayMs > 0L) 2 else 1
+            }
+            if (recentActionTimes.size + planActionCount > config.automation.maxActionsPerSecond) {
+                return@withLock
+            }
 
             for ((index, stroke) in plan.withIndex()) {
                 if (generation.get() != token) return
@@ -693,7 +700,11 @@ class VisionRuntimeController @Inject constructor(
                     when (receipt.outcome) {
                         DispatchOutcome.COMPLETED -> {
                             ledger.commit(receipt, spatialKey)
-                            recentActionTimes.addLast(SystemClock.uptimeMillis())
+                            val completedAt = SystemClock.uptimeMillis()
+                            recentActionTimes.addLast(completedAt)
+                            if (stroke.gesture.endX == null && stroke.gesture.doublePressDelayMs > 0L) {
+                                recentActionTimes.addLast(completedAt)
+                            }
                             trackRetryCounts.remove(candidate.trackId)
                             completed = true
                         }
@@ -787,16 +798,19 @@ class VisionRuntimeController @Inject constructor(
      *
      * - 地面大障碍 / 宽坑：双跳，间隔随赛季变化；
      * - 头顶障碍：下滑，TTL 更长；
-     * - 手势坐标为归一化视口比例，由无障碍分发层转像素。
+     * - PRESS / SWIPE_UP：落点取 [Detection.bounds] 中心（几何真相源）；
+     * - 手势坐标为全屏归一化 [0,1]，由无障碍分发层转像素。
      */
     private fun planGestures(
         scene: SceneId,
-        avoidance: Avoidance,
+        detection: Detection,
         now: Long,
     ): List<PlannedStroke> {
         val jump = GestureSpec(0.82f, 0.72f, durationMs = 24L)
         val slide = GestureSpec(0.82f, 0.68f, 0.82f, 0.88f, 220L)
-        return when (avoidance) {
+        val centerX = ((detection.bounds.left + detection.bounds.right) * 0.5f).coerceIn(0f, 1f)
+        val centerY = ((detection.bounds.top + detection.bounds.bottom) * 0.5f).coerceIn(0f, 1f)
+        return when (detection.avoidance) {
             Avoidance.NONE -> emptyList()
             Avoidance.JUMP -> listOf(PlannedStroke(jump, now, ACTION_TTL_MS))
             Avoidance.DOUBLE_JUMP -> {
@@ -806,9 +820,18 @@ class VisionRuntimeController @Inject constructor(
                     SceneId.SEA_SALT_LIVING_ROOM,
                     -> DOUBLE_JUMP_GAP_BAMBOO_MS
                 }
+                // 单规格携带 doublePressDelayMs，由无障碍层真正消费第二次按压间隔。
                 listOf(
-                    PlannedStroke(jump, now, ACTION_TTL_MS),
-                    PlannedStroke(jump, now + gap, ACTION_TTL_MS),
+                    PlannedStroke(
+                        GestureSpec(
+                            startX = jump.startX,
+                            startY = jump.startY,
+                            durationMs = jump.durationMs,
+                            doublePressDelayMs = gap,
+                        ),
+                        now,
+                        ACTION_TTL_MS + gap,
+                    ),
                 )
             }
             Avoidance.SLIDE -> {
@@ -821,13 +844,21 @@ class VisionRuntimeController @Inject constructor(
                 listOf(PlannedStroke(slide, now, ttl))
             }
             /** 单次按键（如复活按钮），取障碍中心作为归一化坐标。 */
-            Avoidance.PRESS -> listOf(PlannedStroke(jump, now, ACTION_TTL_MS))
-            /** 上滑手势，从障碍中心上滑 10% 视口高度。 */
+            Avoidance.PRESS -> listOf(
+                PlannedStroke(
+                    GestureSpec(centerX, centerY, durationMs = 24L),
+                    now,
+                    ACTION_TTL_MS,
+                ),
+            )
+            /** 上滑手势：从障碍中心上滑约 10% 视口高度。 */
             Avoidance.SWIPE_UP -> listOf(
                 PlannedStroke(
                     GestureSpec(
-                        startX = 0.5f, startY = 0.6f,
-                        endX = 0.5f, endY = 0.4f,
+                        startX = centerX,
+                        startY = centerY,
+                        endX = centerX,
+                        endY = (centerY - 0.10f).coerceIn(0f, 1f),
                         durationMs = 100L,
                     ),
                     now,

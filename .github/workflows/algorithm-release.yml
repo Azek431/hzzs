@@ -15,11 +15,6 @@ on:
         options:
           - stable
           - beta
-      draft:
-        description: Keep GitHub release as draft
-        required: true
-        default: true
-        type: boolean
       execute:
         description: Perform network publish (false = dry-run only)
         required: true
@@ -29,8 +24,9 @@ on:
 permissions:
   contents: write
 
+# 同通道串行，避免两个包同时合并写回 channel.json 互相覆盖。
 concurrency:
-  group: algorithm-release-${{ inputs.source_dir }}-${{ inputs.channel }}
+  group: algorithm-release-channel-${{ inputs.channel }}
   cancel-in-progress: false
 
 env:
@@ -99,11 +95,6 @@ jobs:
             --repo "$GITEE_REPO"
             --key-id "$ALGORITHM_SIGNING_KEY_ID"
           )
-          if [[ '${{ inputs.draft }}' == 'true' ]]; then
-            ARGS+=(--draft)
-          else
-            ARGS+=(--no-draft)
-          fi
           if [[ '${{ inputs.execute }}' == 'true' ]]; then
             if [[ -z "${GITEE_TOKEN:-}" ]]; then
               echo "GITEE_TOKEN secret is required for execute mode" >&2

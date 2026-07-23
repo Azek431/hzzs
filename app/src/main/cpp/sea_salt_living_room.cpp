@@ -150,20 +150,31 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
 }
 
 /**
- * 可选：在分析末尾追加多点找色检测结果。
+ * 在分析末尾追加声明式多点找色检测结果。
  *
- * 当前为 stub — 实际集成需在 analyze_sea_salt 末尾调用
- * find_multi_color_patterns() 并将结果合并到 out.detections。
- * 第一版以参数驱动的传统检测为主，多点找色后续接入。
+ * 规则来自 sea_salt_multicolor_rules（编译期模板 + profile 阈值），
+ * 不在帧路径解析 JSON。仅合并非 PLAYER 的障碍检测。
  */
 void append_multicolor_detections(
-    Result& /*out*/,
-    const FrameView& /*frame*/,
-    int /*enabled_kind_mask*/,
-    const SceneAlgorithmParamsNative& /*params*/) {
-    // TODO: 解析 rules.json 中的 multiColorRules → std::vector<MultiColorPattern>
-    // → 调用 find_multi_color_patterns() → 合并到 out
-    // 占位实现：保持可编译通过
+    Result& out,
+    const FrameView& frame,
+    int enabled_kind_mask,
+    const SceneAlgorithmParamsNative& params) {
+    const auto rules = sea_salt_multicolor_rules(params);
+    if (rules.empty()) return;
+    const auto found = find_multi_color_patterns(
+        frame,
+        rules,
+        enabled_kind_mask,
+        params.multicolor_threshold);
+    if (!found.error.empty()) return;
+    for (const auto& det : found.detections) {
+        if (det.kind == Kind::PLAYER) continue;
+        out.detections.push_back(det);
+    }
+    if (!found.detections.empty()) {
+        out.scene_confidence = std::max(out.scene_confidence, 0.72f);
+    }
 }
 
 Result analyze_sea_salt(
@@ -497,7 +508,7 @@ Result analyze_sea_salt(
             std::max(out.scene_confidence, params.scene_confidence_floor * 0.85f);
     }
 
-    // 可选：追加多点找色检测结果（stub，第一版暂不消费）
+    // 追加声明式多点找色（模板 + profile 阈值；不解析 JSON）
     append_multicolor_detections(out, f, enabled_kind_mask, params);
 
     return out;

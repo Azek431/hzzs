@@ -136,8 +136,14 @@ class GestureArbiter(
         if (clock() >= action.expiresAtUptimeMs) {
             return@withLock DispatchReceipt(action, DispatchOutcome.EXPIRED, "动作已过期")
         }
+        // 双击间隔会拉长整段 dispatch；超时至少覆盖两次 stroke + delay + 缓冲。
+        val neededMs = action.gesture.durationMs +
+            action.gesture.doublePressDelayMs +
+            action.gesture.durationMs +
+            500L
+        val timeoutMs = maxOf(dispatchTimeoutMs, neededMs).coerceAtMost(10_000L)
         val receipt = runCatching {
-            withTimeoutOrNull(dispatchTimeoutMs) { dispatcher.dispatch(action) }
+            withTimeoutOrNull(timeoutMs) { dispatcher.dispatch(action) }
                 ?: DispatchReceipt(action, DispatchOutcome.CANCELLED, "手势回调超时")
         }.getOrElse { error ->
             DispatchReceipt(action, DispatchOutcome.REJECTED, error.message ?: error.javaClass.simpleName)

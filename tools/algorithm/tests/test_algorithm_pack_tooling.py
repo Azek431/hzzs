@@ -328,6 +328,66 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         key = load_private_key(private_key_path=None, private_key_b64=b64)
         self.assertIsNotNone(key)
 
+    def test_catalog_merge_keeps_other_algorithms(self) -> None:
+        from publish_algorithm_release import merge_catalog_algorithms
+
+        existing = [
+            {
+                "id": "other-algo",
+                "version": "0.1.0",
+                "sha256": "a" * 64,
+                "filename": "other-algo-v0.1.0.hzzsalg",
+            },
+            {
+                "id": "official-bamboo-baseline",
+                "version": "0.1.0",
+                "sha256": "b" * 64,
+                "filename": "official-bamboo-baseline-v0.1.0.hzzsalg",
+            },
+        ]
+        new_entry = {
+            "id": "official-bamboo-baseline",
+            "version": "0.2.0",
+            "sha256": "c" * 64,
+            "filename": "official-bamboo-baseline-v0.2.0.hzzsalg",
+        }
+        merged = merge_catalog_algorithms(existing, new_entry)
+        ids = {(item["id"], item["version"]) for item in merged}
+        self.assertIn(("other-algo", "0.1.0"), ids)
+        self.assertIn(("official-bamboo-baseline", "0.1.0"), ids)
+        self.assertIn(("official-bamboo-baseline", "0.2.0"), ids)
+        self.assertEqual(len(merged), 3)
+
+    def test_catalog_merge_rejects_same_version_hash_mutation(self) -> None:
+        from publish_algorithm_release import merge_catalog_algorithms
+
+        existing = [
+            {
+                "id": "official-bamboo-baseline",
+                "version": "0.1.0",
+                "sha256": "b" * 64,
+            }
+        ]
+        mutated = {
+            "id": "official-bamboo-baseline",
+            "version": "0.1.0",
+            "sha256": "d" * 64,
+        }
+        with self.assertRaises(AlgorithmPackError):
+            merge_catalog_algorithms(existing, mutated)
+
+    def test_catalog_merge_idempotent_same_hash(self) -> None:
+        from publish_algorithm_release import merge_catalog_algorithms
+
+        entry = {
+            "id": "official-bamboo-baseline",
+            "version": "0.1.0",
+            "sha256": "b" * 64,
+        }
+        merged = merge_catalog_algorithms([entry], dict(entry))
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["sha256"], "b" * 64)
+
 
 def archive_infolist_reopen(path: Path):
     with zipfile.ZipFile(path, "r") as archive:

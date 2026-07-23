@@ -10,12 +10,14 @@ import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import top.azek431.hzzs.domain.automation.AutomationAction
 import top.azek431.hzzs.domain.automation.DispatchOutcome
 import top.azek431.hzzs.domain.automation.DispatchReceipt
 import top.azek431.hzzs.domain.automation.GestureDispatcher
+import top.azek431.hzzs.domain.automation.GestureSpec
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
@@ -79,35 +81,64 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
                 return@withContext DispatchReceipt(action, DispatchOutcome.REJECTED, "当前页面不在允许范围")
             }
             val metrics = resources.displayMetrics
-            val endX = action.gesture.endX
-            val endY = action.gesture.endY
-            val path = Path().apply {
-                moveTo(
-                    action.gesture.startX.coerceIn(0f, 1f) * (metrics.widthPixels - 1),
-                    action.gesture.startY.coerceIn(0f, 1f) * (metrics.heightPixels - 1),
-                )
-                if (endX != null && endY != null) {
-                    lineTo(
-                        endX.coerceIn(0f, 1f) * (metrics.widthPixels - 1),
-                        endY.coerceIn(0f, 1f) * (metrics.heightPixels - 1),
-                    )
-                }
+            val first = dispatchStroke(action, action.gesture, metrics.widthPixels, metrics.heightPixels)
+            if (first.outcome != DispatchOutcome.COMPLETED) return@withContext first
+            // 点击类手势可携带 doublePressDelayMs：完成第一次后延迟再发第二次。
+            val doubleDelay = action.gesture.doublePressDelayMs
+            val isClick = action.gesture.endX == null && action.gesture.endY == null
+            if (isClick && doubleDelay > 0L) {
+                delay(doubleDelay.coerceIn(1L, 2_000L))
+                val second = dispatchStroke(action, action.gesture, metrics.widthPixels, metrics.heightPixels)
+                if (second.outcome != DispatchOutcome.COMPLETED) return@withContext second
             }
-            val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, action.gesture.durationMs.coerceIn(10, 600)))
-                .build()
-            val result = CompletableDeferred<DispatchReceipt>()
-            val accepted = dispatchGesture(gesture, object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
-                    result.complete(DispatchReceipt(action, DispatchOutcome.COMPLETED, null))
-                }
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    result.complete(DispatchReceipt(action, DispatchOutcome.CANCELLED, "系统取消手势"))
-                }
-            }, null)
-            if (!accepted) return@withContext DispatchReceipt(action, DispatchOutcome.REJECTED, "系统拒绝手势")
-            result.await()
+            DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
         }
+
+    /**
+     * 将单次 [GestureSpec] 映射为系统 [GestureDescription] 并等待回执。
+     * 坐标 clamp 到 [0,1] 后按屏幕像素换算。
+     */
+    private suspend fun dispatchStroke(
+        action: AutomationAction,
+        gesture: GestureSpec,
+        widthPixels: Int,
+        heightPixels: Int,
+    ): DispatchReceipt {
+        val endX = gesture.endX
+        val endY = gesture.endY
+        val path = Path().apply {
+            moveTo(
+                gesture.startX.coerceIn(0f, 1f) * (widthPixels - 1),
+                gesture.startY.coerceIn(0f, 1f) * (heightPixels - 1),
+            )
+            if (endX != null && endY != null) {
+                lineTo(
+                    endX.coerceIn(0f, 1f) * (widthPixels - 1),
+                    endY.coerceIn(0f, 1f) * (heightPixels - 1),
+                )
+            }
+        }
+        val description = GestureDescription.Builder()
+            .addStroke(
+                GestureDescription.StrokeDescription(
+                    path,
+                    0,
+                    gesture.durationMs.coerceIn(10, 600),
+                ),
+            )
+            .build()
+        val result = CompletableDeferred<DispatchReceipt>()
+        val accepted = dispatchGesture(description, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                result.complete(DispatchReceipt(action, DispatchOutcome.COMPLETED, null))
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                result.complete(DispatchReceipt(action, DispatchOutcome.CANCELLED, "系统取消手势"))
+            }
+        }, null)
+        if (!accepted) return DispatchReceipt(action, DispatchOutcome.REJECTED, "系统拒绝手势")
+        return result.await()
+    }
 
     /** 最近观察到的前台窗口；[observedAtMs] 用于过期门禁。 */
     data class ForegroundWindow(val packageName: String, val className: String, val observedAtMs: Long)

@@ -39,6 +39,7 @@ from common import (  # noqa: E402
     AlgorithmPackError,
     package_filename,
     sha256_file,
+    write_json,
 )
 from build_algorithm_catalog import (  # noqa: E402
     algorithm_entry_from_package,
@@ -46,7 +47,6 @@ from build_algorithm_catalog import (  # noqa: E402
     sign_catalog,
     verify_catalog_document,
 )
-from common import write_json  # noqa: E402
 from build_algorithm_pack import build_package  # noqa: E402
 from sign_algorithm_pack import load_private_key, public_key_b64, sign_package  # noqa: E402
 from validate_algorithm_pack import validate_source  # noqa: E402
@@ -95,6 +95,67 @@ def anonymous_download(url: str, retries: int = 4) -> bytes:
             last_error = error
             time.sleep(1.5 * (attempt + 1))
     raise AlgorithmPackError(f"anonymous download failed: {url}: {last_error}")
+
+
+def merge_catalog_algorithms(
+    existing: list[dict[str, Any]] | None,
+    new_entry: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Keep other algorithms / versions; replace only the same (id, version).
+
+    Same version is treated as immutable: if sha256 differs, raise.
+    """
+    merged: list[dict[str, Any]] = []
+    replaced = False
+    new_key = (new_entry["id"], new_entry["version"])
+    for item in existing or []:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("id"), item.get("version"))
+        if key != new_key:
+            merged.append(item)
+            continue
+        if item.get("sha256") and item.get("sha256") != new_entry.get("sha256"):
+            raise AlgorithmPackError(
+                f"refusing to mutate immutable catalog entry {new_key}: "
+                f"sha256 {item.get('sha256')} -> {new_entry.get('sha256')}"
+            )
+        merged.append(new_entry)
+        replaced = True
+    if not replaced:
+        merged.append(new_entry)
+    return merged
+
+
+def load_remote_catalog_algorithms(
+    *,
+    owner: str,
+    repo: str,
+    channel: str,
+    prefer_github: bool = True,
+) -> list[dict[str, Any]]:
+    """Best-effort anonymous fetch of existing channel catalog algorithms."""
+    bases = [
+        f"https://raw.githubusercontent.com/{owner}/{repo}/release-index",
+        f"https://gitee.com/{owner}/{repo}/raw/release-index",
+    ]
+    if not prefer_github:
+        bases.reverse()
+    last_error: Exception | None = None
+    for base in bases:
+        url = f"{base}/algorithms/{channel}.json"
+        try:
+            data = anonymous_download(url, retries=2)
+            doc = json.loads(data.decode("utf-8"))
+            algorithms = doc.get("algorithms")
+            if isinstance(algorithms, list):
+                return [item for item in algorithms if isinstance(item, dict)]
+            return []
+        except Exception as error:  # noqa: BLE001 — best-effort merge
+            last_error = error
+            continue
+    _log(f"no existing catalog for merge ({channel}): {last_error}")
+    return []
 
 
 def write_sha256sums(paths: list[Path], output: Path) -> None:
@@ -367,10 +428,27 @@ def publish(arguments: argparse.Namespace) -> int:
         key_id=key_id,
         channel=channel,
     )
+    if dry_run:
+        existing_algorithms = load_remote_catalog_algorithms(
+            owner=owner, repo=repo, channel=channel
+        )
+        _log(
+            f"[dry-run] would merge with {len(existing_algorithms)} existing catalog "
+            f"entries on algorithms/{channel}.json"
+        )
+    else:
+        existing_algorithms = load_remote_catalog_algorithms(
+            owner=owner, repo=repo, channel=channel
+        )
+    merged_algorithms = merge_catalog_algorithms(existing_algorithms, entry)
+    _log(
+        f"catalog merge: existing={len(existing_algorithms)} "
+        f"merged={len(merged_algorithms)} entry={entry['id']}@{entry['version']}"
+    )
     catalog_payload = build_catalog_payload(
         channel=channel,
         key_id=key_id,
-        algorithms=[entry],
+        algorithms=merged_algorithms,
         generated_at=arguments.generated_at,
     )
     catalog_doc = sign_catalog(catalog_payload, private_key, key_id)

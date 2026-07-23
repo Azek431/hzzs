@@ -64,14 +64,16 @@ struct MultiColorPattern {
 /**
  * 在单帧中搜索所有匹配的多点找色模式。
  *
- * @param frame ARGB 帧视图
+ * @param frame ARGB 帧视图（`0xAARRGGBB`，与 Android Bitmap/JNI 一致）
  * @param patterns 找色模板列表
- * @param threshold 全局颜色容差下限（取各 pattern 的 threshold 与本参数的最大值）
+ * @param enabled_kind_mask 与 analyze 一致的 Kind 位掩码
+ * @param global_threshold 全局颜色容差下限（取各 pattern 的 threshold 与本参数的最大值）
  * @return Result 包含所有匹配的检测（不设置 error）
  */
 Result find_multi_color_patterns(
     const FrameView& frame,
     const std::vector<MultiColorPattern>& patterns,
+    int enabled_kind_mask,
     float global_threshold);
 
 }  // namespace hzzs

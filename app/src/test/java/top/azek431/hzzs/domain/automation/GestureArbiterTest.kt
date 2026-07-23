@@ -66,6 +66,36 @@ class GestureArbiterTest {
         assertEquals(false, ledger.canPlan(9))
     }
 
+    @Test
+    fun doublePressDelayExtendsTimeoutBudget() = runTest {
+        var calls = 0
+        val arbiter = GestureArbiter(
+            clock = { 10L },
+            dispatcher = GestureDispatcher { action ->
+                calls += 1
+                // 模拟服务侧消费 doublePressDelayMs 的等待。
+                delay(action.gesture.doublePressDelayMs + 40L)
+                DispatchReceipt(action, DispatchOutcome.COMPLETED)
+            },
+            dispatchTimeoutMs = 100L,
+        )
+        val result = arbiter.dispatch(
+            action(3).copy(
+                gesture = GestureSpec(0.5f, 0.5f, durationMs = 24L, doublePressDelayMs = 200L),
+                expiresAtUptimeMs = 10_000L,
+            ),
+        )
+        assertEquals(DispatchOutcome.COMPLETED, result.outcome)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun gestureSpecRejectsInvalidDoublePressDelay() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            GestureSpec(0.5f, 0.5f, doublePressDelayMs = 3_000L)
+        }
+    }
+
     private fun action(id: Long) = AutomationAction(
         id = id,
         trackId = id,

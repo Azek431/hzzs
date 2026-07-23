@@ -379,11 +379,15 @@ fun AppConfig.validated(): AppConfig {
             bambooTriggerDistancePlayerWidths = automation.bambooTriggerDistancePlayerWidths
                 .finiteOr(1.35f)
                 .coerceIn(0.5f, 4f),
+            seaSaltTriggerDistancePlayerWidths = automation.seaSaltTriggerDistancePlayerWidths
+                .finiteOr(1.40f)
+                .coerceIn(0.5f, 4f),
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
             // 安全不变量：禁止绑定非 loopback。
             bindLocalhostOnly = true,
+            // requireAuth 可由用户关闭以便同机客户端免填 Header。
         ),
         developer = developer.copy(
             frameRateLimit = developer.frameRateLimit.coerceIn(1, 120),
@@ -434,6 +438,8 @@ fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
         // 权限级只允许降级或持平，禁止外部自提。
         permissionLevel = minPermission(base.mcp.permissionLevel, candidate.mcp.permissionLevel),
         allowDebugFrames = candidate.mcp.allowDebugFrames && base.mcp.allowDebugFrames,
+        // 外部不得静默关闭鉴权。
+        requireAuth = candidate.mcp.requireAuth || base.mcp.requireAuth,
         bindLocalhostOnly = true,
     )
 
@@ -548,6 +554,10 @@ object ConfigJson {
                     "bambooTriggerDistancePlayerWidths",
                     safe.automation.bambooTriggerDistancePlayerWidths.toDouble(),
                 )
+                put(
+                    "seaSaltTriggerDistancePlayerWidths",
+                    safe.automation.seaSaltTriggerDistancePlayerWidths.toDouble(),
+                )
             })
             put("mcp", JSONObject().apply {
                 put("enabled", safe.mcp.enabled)
@@ -555,6 +565,7 @@ object ConfigJson {
                 put("port", safe.mcp.port)
                 put("bindLocalhostOnly", safe.mcp.bindLocalhostOnly)
                 put("allowDebugFrames", safe.mcp.allowDebugFrames)
+                put("requireAuth", safe.mcp.requireAuth)
             })
             put("developer", JSONObject().apply {
                 put("enabled", safe.developer.enabled)
@@ -679,6 +690,8 @@ object ConfigJson {
                     automation?.optDouble("sweetTriggerDistancePlayerWidths", 1.50)?.toFloat() ?: 1.50f,
                 bambooTriggerDistancePlayerWidths =
                     automation?.optDouble("bambooTriggerDistancePlayerWidths", 1.35)?.toFloat() ?: 1.35f,
+                seaSaltTriggerDistancePlayerWidths =
+                    automation?.optDouble("seaSaltTriggerDistancePlayerWidths", 1.40)?.toFloat() ?: 1.40f,
             ),
             mcp = defaults.mcp.copy(
                 enabled = mcp?.optBoolean("enabled", false) ?: false,
@@ -686,6 +699,8 @@ object ConfigJson {
                 port = mcp?.optInt("port", defaults.mcp.port) ?: defaults.mcp.port,
                 bindLocalhostOnly = mcp?.optBoolean("bindLocalhostOnly", true) ?: true,
                 allowDebugFrames = mcp?.optBoolean("allowDebugFrames", false) ?: false,
+                // 缺字段时保持默认 true（旧配置安全默认）；仅显式 false 才关闭。
+                requireAuth = mcp?.optBoolean("requireAuth", true) ?: true,
             ),
             developer = defaults.developer.copy(
                 enabled = developer?.optBoolean("enabled", false) ?: false,

@@ -141,7 +141,7 @@ AlgorithmCatalogController
 
 无信任锚时拒绝下载安装。分析运行中不得半途替换 profile；应记录 pending，在保存或下次启动等安全点激活。
 
-当前网络层需特别小心：镜像回退、App 版本兼容计算、目录字段路径校验和状态阶段缺少直接测试。修改前先读 `AlgorithmNetworkClient.kt` 和 `AlgorithmCatalogController.kt`，不要只看设置页面。
+当前网络层需特别小心：镜像回退、App 版本兼容计算（`PackageManager` longVersionCode）、目录 id/sha256/路径校验。修改前先读 `AlgorithmNetworkClient.kt` 和 `AlgorithmCatalogController.kt`，不要只看设置页面。
 
 ## 对应测试与明显缺口
 

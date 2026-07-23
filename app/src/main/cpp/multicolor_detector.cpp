@@ -11,6 +11,7 @@
  */
 
 #include "multicolor_detector.h"
+#include "vision_engine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -36,11 +37,11 @@ inline bool color_matches(uint8_t r1, uint8_t g1, uint8_t b1,
     return dist <= thresh;
 }
 
-/** 从 ARGB pixel（Android 内部格式 ABGR）提取 RGB。 */
+/** 从 ARGB pixel（0xAARRGGBB，与 color_components.h 一致）提取 RGB。 */
 inline void extract_rgb(uint32_t argb, uint8_t& r, uint8_t& g, uint8_t& b) {
     r = static_cast<uint8_t>((argb >> 16) & 0xFF);
-    g = static_cast<uint8_t>(argb & 0xFF);
-    b = static_cast<uint8_t>((argb >> 8) & 0xFF);
+    g = static_cast<uint8_t>((argb >> 8) & 0xFF);
+    b = static_cast<uint8_t>(argb & 0xFF);
 }
 
 /** 将模式匹配的基准像素坐标 → 归一化包围盒（膨胀一圈作为容差）。 */

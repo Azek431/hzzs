@@ -78,6 +78,32 @@ class SettingsSessionTest {
     }
 
     @Test
+    fun seaSaltTriggerDistanceRoundTripsAndValidates() {
+        val configured = AppConfig().copy(
+            automation = AutomationConfig(
+                sweetTriggerDistancePlayerWidths = 1.6f,
+                bambooTriggerDistancePlayerWidths = 1.2f,
+                seaSaltTriggerDistancePlayerWidths = 1.75f,
+            ),
+        )
+        val decoded = ConfigJson.decode(ConfigJson.encode(configured))
+        assertEquals(1.75f, decoded.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
+
+        val root = JSONObject(ConfigJson.encode(configured))
+        assertTrue(root.getJSONObject("automation").has("seaSaltTriggerDistancePlayerWidths"))
+
+        val clamped = AppConfig().copy(
+            automation = AutomationConfig(seaSaltTriggerDistancePlayerWidths = 99f),
+        ).validated()
+        assertEquals(4f, clamped.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
+
+        val missingField = JSONObject(ConfigJson.encode(AppConfig()))
+        missingField.getJSONObject("automation").remove("seaSaltTriggerDistancePlayerWidths")
+        val fallback = ConfigJson.decode(missingField.toString())
+        assertEquals(1.40f, fallback.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
+    }
+
+    @Test
     fun importedAutomationPackagesAreRestrictedToKnownGameHosts() {
         val imported = JSONObject(ConfigJson.encode(AppConfig())).apply {
             getJSONObject("automation").put(
@@ -122,6 +148,7 @@ class SettingsSessionTest {
             mcp = top.azek431.hzzs.core.model.McpConfig(
                 enabled = true,
                 permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+                requireAuth = true,
             ),
         )
         val malicious = AppConfig(
@@ -129,6 +156,7 @@ class SettingsSessionTest {
                 enabled = true,
                 permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.FULL_ACCESS,
                 allowDebugFrames = true,
+                requireAuth = false,
             ),
         )
         val hardened = malicious.hardenedForExternalIngest(baseline)
@@ -137,6 +165,7 @@ class SettingsSessionTest {
             hardened.mcp.permissionLevel,
         )
         assertFalse(hardened.mcp.allowDebugFrames)
+        assertTrue(hardened.mcp.requireAuth)
     }
 
     @Test

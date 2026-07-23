@@ -101,20 +101,20 @@ CapturedFrame 持有池化像素与释放回调
 
 ## 多点找色当前状态
 
-**当前不能宣称多点找色已进入产品热路径。**
+多点找色已进入海盐客厅分析热路径（声明式模板 + profile 阈值，帧路径不解析 JSON）。
 
 | 环节 | 当前状态 |
 | --- | --- |
-| 模板和相关类型 | 已存在 |
-| 海盐调用占位 | 已存在 |
-| `append_multicolor_detections` | stub，不产生结果 |
-| `multicolor_detector.cpp` 进入 CMake | 否 |
-| 进入 host 构建源列表 | 否 |
-| Kotlin 三个找色参数映射到 JNI/profile | 否 |
-| Native 对三个参数做完整校验 | 否 |
-| 自动化测试 | 无 |
+| 模板和相关类型 | 已存在（`sea_salt_multicolor_rules`） |
+| 海盐调用 | `append_multicolor_detections` 合并到 `analyze_sea_salt` 末尾 |
+| `find_multi_color_patterns` | 实现已接线；ARGB 通道与 `color_components` 一致 |
+| `multicolor_detector.cpp` 进入 CMake | 是 |
+| 进入 host 构建源列表 | 是（`build_host.sh` / `build_host.ps1`） |
+| Kotlin 三个找色参数映射到 JNI/profile | 是（`searchRegion*` / `multicolorThreshold`） |
+| Native 对三个参数做完整校验 | 是（`validate_scene`） |
+| 自动化测试 | host scene/kind 范围已扩到三赛季与 kind≤10；仍缺专用找色单测 |
 
-接入前还必须核对头/实现函数签名、ARGB 通道提取、类别掩码、CMake/host 源列表和参数协议。不能只把 `.cpp` 加入 CMake 就宣布完成。
+修改找色协议时仍须同步：头/实现签名、ARGB 通道、类别掩码、CMake/host 源列表、JNI 字段名与 profile 校验。
 
 ## 测试地图
 

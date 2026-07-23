@@ -71,6 +71,9 @@ object ThemePackageCodec {
                 put("showFps", value.overlay.showFps)
                 put("showConfidence", value.overlay.showConfidence)
                 put("showDiagnostics", value.overlay.showDiagnostics)
+                put("clickThrough", value.overlay.clickThrough)
+                put("snapToEdge", value.overlay.snapToEdge)
+                put("lockPosition", value.overlay.lockPosition)
             })
         }.toString(2)
     }
@@ -117,6 +120,9 @@ object ThemePackageCodec {
                 showFps = overlay.optBoolean("showFps", false),
                 showConfidence = overlay.optBoolean("showConfidence", false),
                 showDiagnostics = overlay.optBoolean("showDiagnostics", false),
+                clickThrough = overlay.optBoolean("clickThrough", true),
+                snapToEdge = overlay.optBoolean("snapToEdge", true),
+                lockPosition = overlay.optBoolean("lockPosition", false),
             ),
         )
     }

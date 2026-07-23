@@ -135,6 +135,13 @@ bool validate_scene(int scene, const SceneAlgorithmParamsNative& p, std::string*
         !finite_in(p.spike_height_min, 0.01f, 0.7f) || !finite_in(p.spike_height_max, 0.05f, 0.9f)) {
         return false;
     }
+    if (!finite_unit(p.search_region_top_ratio) || !finite_unit(p.search_region_bottom_ratio) ||
+        p.search_region_top_ratio >= p.search_region_bottom_ratio) {
+        return fail("search_region");
+    }
+    if (!finite_in(p.multicolor_threshold, 0.0f, 255.0f)) {
+        return fail("multicolor_threshold");
+    }
 
     const auto& c = p.colors;
     if (!channel_ok(c.bottle_green_min) || !channel_ok(c.bottle_red_max) || !channel_ok(c.cake_red_min) ||

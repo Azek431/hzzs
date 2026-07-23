@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **算法目录兼容与路径安全**：AlgorithmNetworkClient 使用本应用真实 ersionCode 计算 isCompatible；校验算法 id / sha256 格式；staging 文件名仅用 SAFE_ID。
+- **算法发布目录合并**：publish_algorithm_release 合并远端同通道已有条目，同 (id,version) 哈希不可变；workflow 去掉无效 --draft，按通道串行防覆盖。
+- **多点找色热路径**：修正 ARGB 通道提取；头/实现四参数签名对齐；multicolor_detector 进入 CMake/host；JNI/Native 校验 searchRegion* 与 multicolorThreshold；海盐 ppend_multicolor_detections 真正合并结果。
+- **PRESS / 双击手势**：PRESS/SWIPE_UP 取 Detection.bounds 中心；DOUBLE_JUMP 写入并消费 doublePressDelayMs；仲裁超时覆盖双击间隔；速率配额计两次按压。
+- **配置/主题字段保全**：ConfigJson/alidated 纳入 seaSaltTriggerDistancePlayerWidths；主题包编解码保留 clickThrough/snapToEdge/lockPosition。
+- **host 协议范围**：scene 覆盖 0..2，kind ≤10，Avoidance ≤5。
+
 ### 变更
 
 - **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；实现 `initialize` 版本协商 + `Mcp-Session-Id`、`notifications/initialized`（HTTP 202）、通知不当请求响应；`TRUSTED_SESSION` 绑定已握手的内存会话（服务重启/generation 作废，不持久化特权）；连接并发上限与 429；工具严格 JSON Schema（`additionalProperties:false`）；错误码分类；停止服务时拒绝挂起审批，避免断连后副作用。设置页连接说明补充 URL/Bearer/RikkaHub·OperitAI 兼容提示；调试帧开关可在开发者解锁后正常开启。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。

@@ -9,6 +9,7 @@ add_library(hzzs_vision SHARED
     sweet_factory.cpp
     bamboo_bookstore.cpp
     sea_salt_living_room.cpp
+    multicolor_detector.cpp
     legacy_main/vision2/HzzsVisionCore.cpp
     legacy_main/vision_bamboo/BambooVisionCore.cpp
     legacy_main/vision_bamboo/BambooVisionEngine.cpp
