@@ -1,0 +1,5 @@
+海盐客厅找色基线 v1 (0.1.0)
+
+- 从 AutoJS Pro 多点找色脚本移植的海盐客厅识别参数
+- 新增 searchRegionTopRatio / searchRegionBottomRatio / multicolorThreshold 可配置参数
+- 不宣称准确率或机型覆盖

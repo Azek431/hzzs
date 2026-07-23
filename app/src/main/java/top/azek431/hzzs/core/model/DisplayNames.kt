@@ -82,6 +82,16 @@ fun AppThemeMode.displayName(): String = when (this) {
     AppThemeMode.AMOLED -> "纯黑"
 }
 
+/** 规避动作显示名（用于 HUD / 调试）。 */
+fun top.azek431.hzzs.domain.vision.Avoidance.displayName(): String = when (this) {
+    top.azek431.hzzs.domain.vision.Avoidance.NONE -> "无"
+    top.azek431.hzzs.domain.vision.Avoidance.JUMP -> "跳跃"
+    top.azek431.hzzs.domain.vision.Avoidance.DOUBLE_JUMP -> "双跳"
+    top.azek431.hzzs.domain.vision.Avoidance.SLIDE -> "下滑"
+    top.azek431.hzzs.domain.vision.Avoidance.PRESS -> "按键"
+    top.azek431.hzzs.domain.vision.Avoidance.SWIPE_UP -> "上滑"
+}
+
 /** 内置调色板显示名。 */
 fun ThemePreset.displayName(): String = when (this) {
     ThemePreset.DYNAMIC -> "动态取色"

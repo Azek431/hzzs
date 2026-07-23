@@ -236,20 +236,15 @@ data class SceneConfig(
  * 自动操作配置。
  *
  * 默认关闭。导入/迁移不得静默开启。
- * 生效前还须：免责声明版本、视觉运行中、无障碍前台白名单、会话 arm（若要求）等。
+ * 生效前还须：免责声明版本、视觉运行中、无障碍前台白名单等。
  */
 data class AutomationConfig(
     val enabled: Boolean = false,
     val disclaimerAcceptedVersion: Int = 0,
     /**
-     * 为 true（默认）时，每次运行会话须在运行页手动解锁（arm）。
-     * 为 false 时，按当前前台白名单窗口自动规划（仍受其它门控约束）。
-     */
-    val requireSessionArm: Boolean = true,
-    /**
      * 竹影书屋实验性自动操作锁。
      *
-     * 与会话 arm 叠加：即使已 arm，未开启本开关时也不对竹影场景规划动作。
+     * 与自动化总开关叠加：即使已启用自动操作，未开启本开关时也不对竹影场景规划动作。
      */
     val bambooExperimentalAutoAction: Boolean = false,
     /** 与内置默认集合求交后的允许包名。 */
@@ -261,6 +256,8 @@ data class AutomationConfig(
     val sweetTriggerDistancePlayerWidths: Float = 1.50f,
     /** 相对玩家宽度的触发距离（竹影）。 */
     val bambooTriggerDistancePlayerWidths: Float = 1.35f,
+    /** 相对玩家宽度的触发距离（海盐客厅，酱油脚本等效 ~1.4 倍）。 */
+    val seaSaltTriggerDistancePlayerWidths: Float = 1.40f,
 ) {
     companion object {
         /**
@@ -422,7 +419,6 @@ data class RuntimeStatus(
     val overlayVisible: Boolean = false,
     /** 期望显示悬浮窗但失败时的原因；可见或未尝试时为 null。 */
     val overlayBlockReason: OverlayBlockReason? = null,
-    val automationArmed: Boolean = false,
     val activeScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE,
     val activeBackend: CaptureBackend = CaptureBackend.AUTO,
     val fps: Float = 0f,

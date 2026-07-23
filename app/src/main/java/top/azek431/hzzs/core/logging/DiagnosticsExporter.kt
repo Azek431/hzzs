@@ -142,7 +142,7 @@ object DiagnosticsExporter {
                 appendLine("vision.captureReady=${runtime.captureReady}")
                 appendLine("vision.overlayVisible=${runtime.overlayVisible}")
                 appendLine("vision.overlayBlockReason=${runtime.overlayBlockReason?.name ?: "-"}")
-                appendLine("vision.automationArmed=${runtime.automationArmed}")
+                appendLine("vision.automationArmed=-")
                 appendLine("vision.activeScene=${runtime.activeScene.name}")
                 appendLine("vision.activeBackend=${runtime.activeBackend.name}")
                 appendLine("vision.fps=${"%.2f".format(runtime.fps)}")

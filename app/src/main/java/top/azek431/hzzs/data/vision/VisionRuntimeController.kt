@@ -73,8 +73,8 @@ import javax.inject.Singleton
  * - [CapturedFrame] 仅在 `frame.use { }` 内借用，循环不跨帧持有像素缓冲。
  *
  * 安全不变量：
- * - 自动操作默认关闭；需当前免责声明版本，并受 arm / 前台白名单 / 帧龄门控；
- * - 场景或算法 generation 变化时必须进入安全点：取消动作、清空 tracker 与去重缓存、disarm；
+ * - 自动操作默认关闭；启用后仍受免责声明版本门控。
+ * - 场景或算法 generation 变化时必须进入安全点：取消动作、清空 tracker 与去重缓存。
  * - 设置收集器只替换不可变配置快照，不直接操作引擎。
  *
  * 坐标：视觉结果与手势规划使用视口归一化坐标 `[0,1]`。
@@ -114,7 +114,6 @@ class VisionRuntimeController @Inject constructor(
     @Volatile
     private var activeSource: FrameSource? = null
 
-    private val armedWindowClass = AtomicReference<String?>(null)
     private val actionIds = AtomicLong(1)
     private val recentActionTimes = ArrayDeque<Long>()
     private val detectedPlayerReference = AtomicReference<Detection?>(null)
@@ -134,13 +133,12 @@ class VisionRuntimeController @Inject constructor(
                         previousBackend != nextBackend ||
                         previous.automation.allowedPackages != next.automation.allowedPackages ||
                         previous.automation.enabled != next.automation.enabled ||
-                        previous.automation.requireSessionArm != next.automation.requireSessionArm ||
                         previous.automation.disclaimerAcceptedVersion !=
                         next.automation.disclaimerAcceptedVersion ||
                         previous.automation.bambooExperimentalAutoAction !=
                         next.automation.bambooExperimentalAutoAction
-                // 安全边界变化：立即解除 arm 并取消在飞动作，防止旧会话权限延续。
-                if (safetyBoundaryChanged) disarmAutomation()
+                // 安全边界变化：取消在飞动作，防止旧会话权限延续。
+                if (safetyBoundaryChanged) cancelActions()
                 mutableStatus.update { it.copy(activeScene = next.selectedScene) }
                 if (
                     previousBackend != nextBackend &&
@@ -261,50 +259,12 @@ class VisionRuntimeController @Inject constructor(
             captureReady = false,
             overlayVisible = false,
             overlayBlockReason = null,
-            automationArmed = false,
             fps = 0f,
         )
     }
 
-    /**
-     * 会话级解锁自动操作（arm 门控）。
-     *
-     * 失败条件（fail-closed）：未启用自动操作、免责声明版本不足、视觉未运行、
-     * 无障碍未连接/前台过期、包名不在白名单、无法确认窗口类名。
-     * 成功时绑定当前前台 [armedWindowClass]。
-     */
-    suspend fun armAutomation(): Result<Unit> {
-        val config = latestConfig.get()
-        if (!config.automation.enabled) {
-            return Result.failure(IllegalStateException("请先在设置中启用自动操作"))
-        }
-        if (config.automation.disclaimerAcceptedVersion < AppConfig.DISCLAIMER_VERSION) {
-            return Result.failure(IllegalStateException("请先阅读并确认自动操作风险说明"))
-        }
-        if (!mutableStatus.value.running) {
-            return Result.failure(IllegalStateException("请先启动视觉分析"))
-        }
-        val window = HzzsAccessibilityService.foregroundSnapshot()
-            ?: return Result.failure(IllegalStateException("无障碍服务未连接或前台页面未知"))
-        if (SystemClock.elapsedRealtime() - window.observedAtMs > FOREGROUND_MAX_AGE_MS) {
-            return Result.failure(IllegalStateException("前台页面状态已过期，请重新进入游戏页面"))
-        }
-        if (window.packageName !in config.automation.allowedPackages) {
-            return Result.failure(IllegalStateException("当前应用不在自动操作允许列表"))
-        }
-        if (window.className.isBlank()) {
-            return Result.failure(IllegalStateException("无法确认当前游戏页面"))
-        }
-        armedWindowClass.set(window.className)
-        mutableStatus.update { it.copy(automationArmed = true) }
-        return Result.success(Unit)
-    }
-
-    /** 解除自动操作会话绑定，并取消在飞手势任务（fail-closed）。 */
-    fun disarmAutomation() {
-        armedWindowClass.set(null)
-        mutableStatus.update { it.copy(automationArmed = false) }
-        // 不 join：可能从主线程/帧循环同步调用；cancel 足够停止后续 stroke。
+    /** 取消在飞动作与动作协程（fail-closed），不清除帧循环状态。 */
+    private fun cancelActions() {
         actionJob?.cancel()
         actionJob = null
         actionInFlight.set(false)
@@ -315,8 +275,8 @@ class VisionRuntimeController @Inject constructor(
      *
      * 关键分支：
      * - 截图后端与启动时不一致 → 抛错要求重启；
-     * - 场景禁用 → disarm、藏悬浮窗并退避；
-     * - 场景或算法 generation 变化 → 安全点：停 [actionJob]、清 tracker/ledger/去重、disarm；
+     * - 场景禁用 → 藏悬浮窗并退避；
+     * - 场景或算法 generation 变化 → 安全点：停 [actionJob]、清 tracker/ledger/去重；
      * - 帧在 [frame.use] 内处理完即释放，分析前后再次校验 [generation]。
      */
     private suspend fun runLoop(
@@ -360,7 +320,7 @@ class VisionRuntimeController @Inject constructor(
                 val sceneConfig = config.scenes[config.selectedScene]
                     ?: throw IllegalStateException("缺少场景配置：${config.selectedScene}")
                 if (!sceneConfig.enabled) {
-                    disarmAutomation()
+                    cancelActions()
                     overlay.hide()
                     mutableStatus.update {
                         it.copy(
@@ -406,7 +366,6 @@ class VisionRuntimeController @Inject constructor(
                     recentActionTimes.clear()
                     trackRetryCounts.clear()
                     detectedPlayerReference.set(null)
-                    disarmAutomation()
                     lastOverlaySignature = Int.MIN_VALUE
                     pipelineScene = config.selectedScene
                     pipelineSceneConfig = sceneConfig
@@ -480,7 +439,7 @@ class VisionRuntimeController @Inject constructor(
 
                     if (result.error != null) {
                         failureCount++
-                        disarmAutomation()
+                        cancelActions()
                         val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
                         val overlayState = publishOverlay(config.overlay, result, showGrid, force = true)
                         mutableStatus.update {
@@ -539,7 +498,7 @@ class VisionRuntimeController @Inject constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
-            disarmAutomation()
+            cancelActions()
             AppLog.e("vision", "frame loop failed: ${error.message}", error)
             mutableStatus.update {
                 it.copy(lastError = error.message ?: error.javaClass.simpleName)
@@ -559,7 +518,6 @@ class VisionRuntimeController @Inject constructor(
                         captureReady = false,
                         overlayVisible = false,
                         overlayBlockReason = null,
-                        automationArmed = false,
                         fps = 0f,
                     )
                 }
@@ -570,7 +528,7 @@ class VisionRuntimeController @Inject constructor(
     /**
      * 在帧路径上评估是否派发自动动作。
      *
-     * 门控：自动操作开关、场景置信度、帧龄、实验开关、窗口类名、CAS [actionInFlight]。
+     * 门控：自动操作开关、场景置信度、帧龄、实验开关。
      * 真正手势在独立 [actionJob] 中执行，避免阻塞分析循环。
      */
     private fun maybeDispatch(
@@ -580,10 +538,7 @@ class VisionRuntimeController @Inject constructor(
         tracked: List<MultiObjectTracker.TrackedDetection>,
         frameTimestampNanos: Long,
     ) {
-        if (!config.automation.enabled) {
-            disarmAutomation()
-            return
-        }
+        if (!config.automation.enabled) return
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) return
 
         // 帧龄门控：捕获时刻到决策的排队/处理延迟。完成驱动下分析常 >120ms，
@@ -598,8 +553,6 @@ class VisionRuntimeController @Inject constructor(
             return
         }
 
-        val requiredClass = resolveRequiredWindowClass(config) ?: return
-
         // CAS 占坑，保证同一时刻最多一个动作任务。
         if (!actionInFlight.compareAndSet(false, true)) return
 
@@ -613,7 +566,7 @@ class VisionRuntimeController @Inject constructor(
         val triggerDistance = when (config.selectedScene) {
             SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
             SceneId.BAMBOO_BOOKSTORE -> config.automation.bambooTriggerDistancePlayerWidths
-            SceneId.SEA_SALT_LIVING_ROOM -> config.automation.bambooTriggerDistancePlayerWidths
+            SceneId.SEA_SALT_LIVING_ROOM -> config.automation.seaSaltTriggerDistancePlayerWidths
         } * playerWidth
 
         val candidate = tracked
@@ -640,12 +593,26 @@ class VisionRuntimeController @Inject constructor(
 
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
+        val foreground = HzzsAccessibilityService.foregroundSnapshot()
+        if (foreground == null) {
+            actionInFlight.set(false)
+            return
+        }
+        val foregroundClassName = foreground.className
+        if (foregroundClassName.isBlank() ||
+            SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
+            foreground.packageName !in config.automation.allowedPackages
+        ) {
+            actionInFlight.set(false)
+            return
+        }
+
         actionJob = scope.launch {
             try {
                 dispatchPlan(
                     token = token,
                     config = config,
-                    requiredClass = requiredClass,
+                    foregroundClassName = foregroundClassName,
                     candidate = candidate,
                     spatialKey = spatialKey,
                     plannedAt = now,
@@ -657,33 +624,15 @@ class VisionRuntimeController @Inject constructor(
     }
 
     /**
-     * 解析动作所需的前台窗口类名前缀。
-     *
-     * - requireSessionArm=true：必须先 [armAutomation] 绑定窗口；
-     * - requireSessionArm=false：每次读当前前台（仍校验白名单与时效），无需手动 arm。
-     */
-    private fun resolveRequiredWindowClass(config: AppConfig): String? {
-        if (config.automation.requireSessionArm) {
-            if (!mutableStatus.value.automationArmed) return null
-            return armedWindowClass.get()
-        }
-        val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: return null
-        if (SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS) return null
-        if (foreground.packageName !in config.automation.allowedPackages) return null
-        if (foreground.className.isBlank()) return null
-        return foreground.className
-    }
-
-    /**
      * 在 [actionMutex] 下规划并提交手势序列。
      *
      * 再次校验 [generation]、账本去重、前台包/窗口与速率上限；
-     * 单次 stroke 失败可按 retryLimit 退避重试，耗尽后可选 disarm。
+     * 单次 stroke 失败可按 retryLimit 退避重试。
      */
     private suspend fun dispatchPlan(
         token: Long,
         config: AppConfig,
-        requiredClass: String,
+        foregroundClassName: String,
         candidate: MultiObjectTracker.TrackedDetection,
         spatialKey: String,
         plannedAt: Long,
@@ -691,22 +640,17 @@ class VisionRuntimeController @Inject constructor(
         if (generation.get() != token) return
         actionMutex.withLock {
             if (generation.get() != token) return
-            // disarm/关闭后不得继续 stroke；与 maybeDispatch 门控对称。
+            // 关闭后不得继续 stroke；与 maybeDispatch 门控对称。
             if (!config.automation.enabled) return
-            if (config.automation.requireSessionArm && !mutableStatus.value.automationArmed) return
             if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) return
 
-            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
-                disarmAutomation()
-                return
-            }
+            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: return@withLock
             if (
                 SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
                 foreground.packageName !in config.automation.allowedPackages ||
-                !foreground.className.startsWith(requiredClass)
+                !foreground.className.startsWith(foregroundClassName)
             ) {
-                if (config.automation.requireSessionArm) disarmAutomation()
-                return
+                return@withLock
             }
 
             val now = SystemClock.uptimeMillis()
@@ -718,8 +662,8 @@ class VisionRuntimeController @Inject constructor(
             }
 
             val plan = planGestures(config.selectedScene, candidate.detection.avoidance, now)
-            if (plan.isEmpty()) return
-            if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return
+            if (plan.isEmpty()) return@withLock
+            if (recentActionTimes.size + plan.size > config.automation.maxActionsPerSecond) return@withLock
 
             for ((index, stroke) in plan.withIndex()) {
                 if (generation.get() != token) return
@@ -742,7 +686,7 @@ class VisionRuntimeController @Inject constructor(
                         createdAtUptimeMs = created,
                         expiresAtUptimeMs = created + stroke.ttlMs,
                         allowedPackages = config.automation.allowedPackages,
-                        requiredWindowClassPrefixes = setOf(requiredClass),
+                        requiredWindowClassPrefixes = emptySet(),
                         retryCount = attempt,
                     )
                     val receipt = arbiter.dispatch(action)
@@ -761,8 +705,7 @@ class VisionRuntimeController @Inject constructor(
                             val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
                             trackRetryCounts[candidate.trackId] = retriesUsed
                             if (attempt > config.automation.retryLimit) {
-                                if (config.automation.requireSessionArm) disarmAutomation()
-                                return
+                                return@withLock
                             }
                             delay(RETRY_BACKOFF_MS)
                         }
@@ -877,6 +820,20 @@ class VisionRuntimeController @Inject constructor(
                 }
                 listOf(PlannedStroke(slide, now, ttl))
             }
+            /** 单次按键（如复活按钮），取障碍中心作为归一化坐标。 */
+            Avoidance.PRESS -> listOf(PlannedStroke(jump, now, ACTION_TTL_MS))
+            /** 上滑手势，从障碍中心上滑 10% 视口高度。 */
+            Avoidance.SWIPE_UP -> listOf(
+                PlannedStroke(
+                    GestureSpec(
+                        startX = 0.5f, startY = 0.6f,
+                        endX = 0.5f, endY = 0.4f,
+                        durationMs = 100L,
+                    ),
+                    now,
+                    ACTION_TTL_MS,
+                ),
+            )
         }
     }
 
@@ -916,7 +873,7 @@ class VisionRuntimeController @Inject constructor(
     }
 
     /**
-     * 清空运行时管线状态：取消动作、重置 tracker/ledger/引擎分析侧、解除 arm。
+     * 清空运行时管线状态：取消动作、重置 tracker/ledger/引擎分析侧。
      * 不切换算法 profile；算法回退由引擎 [VisionEngine.configureAlgorithm] 负责。
      */
     private suspend fun resetPipeline() {
@@ -928,7 +885,6 @@ class VisionRuntimeController @Inject constructor(
         engine.reset()
         mutableLatestResult.value = null
         detectedPlayerReference.set(null)
-        armedWindowClass.set(null)
         recentActionTimes.clear()
         trackRetryCounts.clear()
         lastOverlaySignature = Int.MIN_VALUE

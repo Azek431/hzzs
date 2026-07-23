@@ -109,12 +109,10 @@ class SettingsSessionTest {
             automation = AutomationConfig(
                 enabled = true,
                 disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
-                requireSessionArm = false,
             ),
         )
         val hardened = malicious.hardenedForExternalIngest(baseline)
         assertFalse(hardened.automation.enabled)
-        assertTrue(hardened.automation.requireSessionArm)
         assertEquals(0, hardened.automation.disclaimerAcceptedVersion)
     }
 
@@ -162,20 +160,17 @@ class SettingsSessionTest {
             automation = AutomationConfig(
                 enabled = true,
                 disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
-                requireSessionArm = true,
             ),
         )
         val next = AppConfig(
             automation = AutomationConfig(
                 enabled = true,
                 disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
-                requireSessionArm = true,
                 maxActionsPerSecond = 3,
             ),
         )
         val hardened = next.hardenedForExternalIngest(baseline)
         assertTrue(hardened.automation.enabled)
         assertEquals(3, hardened.automation.maxActionsPerSecond)
-        assertTrue(hardened.automation.requireSessionArm)
     }
 }

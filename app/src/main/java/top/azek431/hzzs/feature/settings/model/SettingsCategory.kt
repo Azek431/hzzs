@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.ui.graphics.vector.ImageVector
 import top.azek431.hzzs.R
@@ -71,6 +72,12 @@ enum class SettingsCategory(
         descriptionRes = R.string.settings_cat_mcp_desc,
         icon = Icons.Rounded.SmartToy,
     ),
+    DEVELOPER(
+        route = "developer",
+        titleRes = R.string.settings_cat_developer_title,
+        descriptionRes = R.string.settings_cat_developer_desc,
+        icon = Icons.Rounded.BugReport,
+    ),
 }
 
 /**
@@ -98,7 +105,7 @@ fun SettingsCategory.summary(
     }
     SettingsCategory.AUTOMATION -> {
         if (config.automation.enabled) {
-            if (config.automation.requireSessionArm) "已开启 · 需手动解锁" else "已开启 · 自动窗口"
+            "已开启"
         } else {
             "默认关闭"
         }
@@ -109,13 +116,14 @@ fun SettingsCategory.summary(
         "$source · 应用$channel"
     }
     SettingsCategory.MCP -> {
-        val mcp = if (config.mcp.enabled) {
+        if (config.mcp.enabled) {
             config.mcp.permissionLevel.displayName()
         } else {
             "MCP 关闭"
         }
-        val dev = if (config.developer.enabled) "开发者开" else "开发者关"
-        "$mcp · $dev"
+    }
+    SettingsCategory.DEVELOPER -> {
+        if (config.developer.enabled) "开发者已开启" else "需要解锁"
     }
 }
 

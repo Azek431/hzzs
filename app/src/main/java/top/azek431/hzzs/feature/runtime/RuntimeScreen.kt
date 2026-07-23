@@ -1,7 +1,7 @@
 /**
  * 运行控制页（工具专业风操作台）。
  *
- * 职责：启停视觉分析、按 [requireSessionArm] 展示手动解锁/自动窗口，并 arm/disarm。
+ * 职责：启停视觉分析、展示运行时指标。
  * 数据流：状态来自 [VisionRuntimeController]；配置只读。
  * 边界：feature 只发意图；不直接 JNI / 截图 / WindowManager。
  */
@@ -12,12 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -33,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -50,7 +46,6 @@ import top.azek431.hzzs.core.designsystem.HzzsCalloutTone
 import top.azek431.hzzs.core.designsystem.HzzsMetricGrid
 import top.azek431.hzzs.core.designsystem.HzzsPrimaryAction
 import top.azek431.hzzs.core.designsystem.HzzsScrollPage
-import top.azek431.hzzs.core.designsystem.HzzsSecondaryAction
 import top.azek431.hzzs.core.designsystem.HzzsStatusStrip
 import top.azek431.hzzs.core.designsystem.LocalHzzsStatusColors
 import top.azek431.hzzs.core.designsystem.MetricTile
@@ -84,12 +79,6 @@ class RuntimeViewModel @Inject constructor(
         if (status.value.running) controller.stop() else controller.start()
     }
 
-    fun arm() = viewModelScope.launch {
-        controller.armAutomation().onFailure { transientMessage = it.message }
-    }
-
-    fun disarm() = controller.disarmAutomation()
-
     fun clearMessage() {
         transientMessage = null
     }
@@ -99,7 +88,6 @@ class RuntimeViewModel @Inject constructor(
 fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
     val status by vm.status.collectAsState()
     val config by vm.config.collectAsState()
-    val requireSessionArm = config.automation.requireSessionArm
     val statusColors = LocalHzzsStatusColors.current
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -120,11 +108,7 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
             item {
                 PageHeader(
                     title = stringResource(R.string.runtime_title),
-                    subtitle = if (requireSessionArm) {
-                        stringResource(R.string.runtime_subtitle_arm)
-                    } else {
-                        stringResource(R.string.runtime_subtitle_auto)
-                    },
+                    subtitle = stringResource(R.string.runtime_subtitle_default),
                 )
             }
 
@@ -206,7 +190,6 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                                 title = stringResource(R.string.runtime_overlay_permission_title),
                                 text = stringResource(R.string.runtime_overlay_permission_body),
                                 tone = HzzsCalloutTone.WARNING,
-                                icon = Icons.Rounded.Warning,
                             )
                             HzzsPrimaryAction(
                                 text = stringResource(R.string.runtime_overlay_permission_action),
@@ -220,7 +203,6 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                             title = stringResource(R.string.runtime_overlay_add_failed_title),
                             text = stringResource(R.string.runtime_overlay_add_failed_body),
                             tone = HzzsCalloutTone.ERROR,
-                            icon = Icons.Rounded.Warning,
                         )
                     }
                     OverlayBlockReason.DISABLED -> item {
@@ -228,7 +210,6 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                             title = stringResource(R.string.runtime_overlay_disabled_title),
                             text = stringResource(R.string.runtime_overlay_disabled_body),
                             tone = HzzsCalloutTone.INFO,
-                            icon = Icons.Rounded.Visibility,
                         )
                     }
                     null -> Unit
@@ -237,76 +218,16 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
 
             item {
                 SectionCard {
-                    Text(
-                        stringResource(R.string.runtime_automation_section),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
                     if (!config.automation.enabled) {
                         Text(
                             stringResource(R.string.runtime_automation_disabled),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    } else if (requireSessionArm) {
-                        Text(
-                            stringResource(R.string.runtime_arm_hint),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        StatusChip(
-                            if (status.automationArmed) {
-                                stringResource(R.string.runtime_armed)
-                            } else {
-                                stringResource(R.string.runtime_locked)
-                            },
-                            active = status.automationArmed,
-                            activeColor = if (status.automationArmed) {
-                                statusColors.armed
-                            } else {
-                                statusColors.locked
-                            },
-                        )
-                        if (status.automationArmed) {
-                            HzzsSecondaryAction(
-                                text = stringResource(R.string.runtime_disarm),
-                                onClick = vm::disarm,
-                                icon = Icons.Rounded.Lock,
-                                tonal = true,
-                            )
-                        } else {
-                            HzzsPrimaryAction(
-                                text = stringResource(R.string.runtime_arm),
-                                onClick = vm::arm,
-                                enabled = status.running && status.captureReady,
-                                icon = Icons.Rounded.LockOpen,
-                            )
-                            if (!status.running || !status.captureReady) {
-                                Text(
-                                    stringResource(R.string.runtime_arm_need_ready),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
                     } else {
                         Text(
-                            stringResource(R.string.runtime_auto_mode_hint),
+                            stringResource(R.string.runtime_automation_auto_mode_hint),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        StatusChip(
-                            if (status.running && status.captureReady) {
-                                stringResource(R.string.runtime_auto_ready)
-                            } else {
-                                stringResource(R.string.runtime_auto_wait)
-                            },
-                            active = status.running && status.captureReady,
-                            activeColor = statusColors.armed,
-                        )
-                        Text(
-                            stringResource(R.string.runtime_auto_settings_hint),
-                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -319,7 +240,6 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                         title = stringResource(R.string.runtime_error_title),
                         text = error,
                         tone = HzzsCalloutTone.ERROR,
-                        icon = Icons.Rounded.Warning,
                     )
                 }
             }

@@ -134,6 +134,11 @@ data class SceneAlgorithmParams(
     val spikeHeightMax: Float,
     /** 颜色通道阈值（0..255 或比值）。 */
     val colors: SceneColorThresholds,
+    /** 多点找色检测区域 top/bottom 相对视口归一化比例（仅海盐客厅消费）。 */
+    val searchRegionTopRatio: Float = 0.40f,
+    val searchRegionBottomRatio: Float = 0.95f,
+    /** 多点找色颜色容差，对应 AutoJS `threshold`（0..255，越小越严格）。默认 16。 */
+    val multicolorThreshold: Float = 16f,
 ) {
     companion object {
         /** 甜甜圈赛季内置默认参数。 */
@@ -173,6 +178,9 @@ data class SceneAlgorithmParams(
             spikeHeightMin = 0.16f,
             spikeHeightMax = 0.54f,
             colors = SceneColorThresholds.sweetBuiltin(),
+            searchRegionTopRatio = 0.50f,
+            searchRegionBottomRatio = 0.82f,
+            multicolorThreshold = 16f,
         )
 
         /** 竹影书屋赛季内置默认参数。 */
@@ -461,6 +469,13 @@ object AlgorithmProfileValidator {
         requireRange("spikeRedOverGreen", c.spikeRedOverGreen, 0.5f, 3f)
         requireRange("bambooGreenOverRed", c.bambooGreenOverRed, 0.2f, 3f)
         requireRange("bambooGreenOverBlue", c.bambooGreenOverBlue, 0.5f, 4f)
+
+        // 多点找色参数校验
+        requireOrdered("searchRegionTopRatio", params.searchRegionTopRatio,
+            "searchRegionBottomRatio", params.searchRegionBottomRatio)
+        requireUnit("searchRegionTopRatio", params.searchRegionTopRatio)
+        requireUnit("searchRegionBottomRatio", params.searchRegionBottomRatio)
+        requireRange("multicolorThreshold", params.multicolorThreshold, 0f, 255f)
     }.fold(
         onSuccess = { Result.success(Unit) },
         onFailure = { Result.failure(IllegalArgumentException(it.message ?: "invalid scene params")) },

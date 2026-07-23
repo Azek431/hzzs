@@ -276,7 +276,7 @@ fun AboutScreen(
                 item {
                     ListItem(
                         headlineContent = { Text("开发者设置") },
-                        supportingContent = { Text("诊断、MCP、截图覆盖、坐标网格与 Native Benchmark") },
+                        supportingContent = { Text(stringResource(R.string.about_developer_entry_sub)) },
                         leadingContent = { Icon(Icons.Rounded.DeveloperMode, null) },
                         trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
                         modifier = Modifier.clickable { developerPage = true },
@@ -355,7 +355,7 @@ private fun DeveloperScreen(
                         Column(Modifier.weight(1f)) {
                             Text("开发者设置", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "关闭后入口会隐藏，可再次连续点击版本号 7 次开启。完整项也在设置 → MCP 与开发者。",
+                                "关闭后入口会隐藏，可再次连续点击版本号 7 次开启。MCP 设置在独立分类页中查看。",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

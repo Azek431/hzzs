@@ -59,8 +59,9 @@ import top.azek431.hzzs.feature.settings.screens.AlgorithmSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AppearanceSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.AutomationSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.CaptureSettingsScreen
+import top.azek431.hzzs.feature.settings.screens.DeveloperSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.LogViewerScreen
-import top.azek431.hzzs.feature.settings.screens.McpDeveloperSettingsScreen
+import top.azek431.hzzs.feature.settings.screens.McpSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.NetworkUpdateSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.OverlaySettingsScreen
 import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
@@ -128,6 +129,7 @@ fun SettingsScreen(
         SettingsCategory.AUTOMATION.route -> stringResource(SettingsCategory.AUTOMATION.titleRes)
         SettingsCategory.NETWORK.route -> stringResource(SettingsCategory.NETWORK.titleRes)
         SettingsCategory.MCP.route -> stringResource(SettingsCategory.MCP.titleRes)
+        SettingsCategory.DEVELOPER.route -> stringResource(SettingsCategory.DEVELOPER.titleRes)
         SettingsRoutes.LOG_VIEWER -> "运行日志"
         SettingsRoutes.ALGORITHM_PIPELINE -> "算法流程"
         else -> settingsLabel
@@ -332,12 +334,20 @@ private fun SettingsNavHost(
         }
         composable(SettingsCategory.MCP.route) {
             val mcpState by vm.mcpState.collectAsState()
-            val debugFrameCount by vm.debugFrameCount.collectAsState()
-            val benchmark by vm.benchmark.collectAsState()
-            McpDeveloperSettingsScreen(
+            McpSettingsScreen(
                 config = config,
                 update = vm::update,
                 mcpState = mcpState,
+                onMessage = onMessage,
+            )
+        }
+        composable(SettingsCategory.DEVELOPER.route) {
+            val debugFrameCount by vm.debugFrameCount.collectAsState()
+            val benchmark by vm.benchmark.collectAsState()
+            DeveloperSettingsScreen(
+                developerEnabled = config.developer.enabled,
+                config = config,
+                update = vm::update,
                 debugFrameCount = debugFrameCount,
                 benchmark = benchmark,
                 onRefreshDebugFrames = vm::refreshDebugFrameCount,

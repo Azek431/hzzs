@@ -115,8 +115,10 @@ fun ObjectKind.asObstacleKind(): ObstacleKind? = when (this) {
  *
  * - [NONE]：不可动作或仅诊断
  * - [JUMP] / [DOUBLE_JUMP] / [SLIDE]：由规划器映射为具体手势
+ * - [PRESS]：单次按键（如复活按钮），坐标取障碍中心
+ * - [SWIPE_UP]：上滑手势（如船锚滑动），起点取障碍中心，终点在上方一定距离
  */
-enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE }
+enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE, PRESS, SWIPE_UP }
 
 /**
  * 单次检测结果。

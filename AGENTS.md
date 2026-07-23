@@ -24,6 +24,9 @@
 
 - **检测更新**：读 `release-index` 的 `algorithms/stable.json|beta.json`，不是扫 Release。
 - **下载**：`algorithms/packages/<filename>` 的 raw URL（Gitee/GitHub 双源）。
+- **已有算法包**：
+  - `official-bamboo-baseline v0.1.0` — 竹影书屋默认阈值（作者：HZZS Official）
+  - `sea-salt-living-room-v1 v0.1.0` — 海盐客厅多点找色基线（作者：酱油，beta 通道）
 - **版本**：`manifest.json` 语义化 `MAJOR.MINOR.PATCH`（**首版 `0.1.0`**；与 App `0.1.0` 独立）。修一点 → `+PATCH`；完整一波 → `+MINOR`；破坏性 → `+MAJOR`。**先验证门禁通过再 bump**，禁止先改版本再测。
 - **通道**：`beta` 测试 / `stable` 稳定；用户设置 `AlgorithmConfig.channel` 自选；未验证勿上 stable。
 - **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。
