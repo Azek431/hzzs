@@ -67,6 +67,7 @@ private fun PreviewCategoryCard() {
                 summary = SettingsCategory.ALGORITHM.summary(AppConfig(), previewAlgorithmState()),
                 icon = SettingsCategory.ALGORITHM.icon,
                 onClick = {},
+                compact = true,
             )
         }
     }

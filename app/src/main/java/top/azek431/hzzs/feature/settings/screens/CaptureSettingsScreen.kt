@@ -2,8 +2,7 @@
  * 截图与权限设置页。
  *
  * 职责：按设备能力列表选择截图后端；AUTO 只走低权限公开接口。
- * 数据流：写入草稿的 [captureBackend]；预览阶段被 ViewModel 强制保留 baseline，
- * 仅“保存并应用”后生效。
+ * 数据流：经 [update] 即时写入 [captureBackend]；切换高权后端须用户手动选择。
  * 边界：不探测 Root/Shizuku 可用性之外的能力；不直接申请系统权限。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -28,8 +27,7 @@ import top.azek431.hzzs.platform.compat.CaptureCapability
 /**
  * 截图后端设置页。
  *
- * 仅改草稿中的 [AppConfig.captureBackend]；权限型字段预览阶段由 ViewModel
- * 强制保留 baseline，保存后才重启采集。AUTO 文案强调不升权。
+ * 仅改 [AppConfig.captureBackend] 并即时落盘。AUTO 文案强调不升权。
  * 本页不直接申请录屏权限或探测 Root/Shizuku。
  */
 @Composable
@@ -73,7 +71,7 @@ fun CaptureSettingsScreen(
         item {
             SettingsWarningCard(
                 title = "权限说明",
-                body = "截图后端属于权限型配置：预览阶段不会真正切换，只有点击“保存并应用”后才会生效。AUTO 永远只走低权限公开接口。",
+                body = "切换截图后端会立即写入配置；高权限方式须由你手动选择。AUTO 永远只走低权限公开接口，不会探测 Root / Shizuku / 无障碍。",
             )
         }
         item { Spacer(Modifier.height(24.dp)) }

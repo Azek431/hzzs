@@ -2,8 +2,8 @@
  * 外观与显示设置页。
  *
  * 职责：编辑主题模式/预设/可读性/动效，以及主题包导入导出。
- * 数据流：经 [update] 写入共享草稿；主题变更可即时视觉预览，保存后永久生效。
- * 边界：不改权限型配置；导入仅进入草稿，不直接落盘。
+ * 数据流：经 [update] 即时落盘；主题变更立即作用于全局配置流。
+ * 边界：主题包导入后同样即时写入主题/悬浮窗字段。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -75,7 +75,7 @@ fun AppearanceSettingsScreen(
                 ?: error("无法读取主题")
         }.onSuccess { raw ->
             runCatching { importTheme(raw) }
-                .onSuccess { onMessage("主题已临时预览，点击保存后永久生效") }
+                .onSuccess { onMessage("主题已导入并生效") }
                 .onFailure { onMessage("主题导入失败：${it.message}") }
         }.onFailure { onMessage("主题读取失败：${it.message}") }
     }

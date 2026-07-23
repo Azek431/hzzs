@@ -7,8 +7,8 @@
 
 - 单一 `app` Android 模块与职责分包（Compose + Hilt）。
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
-- Material 3 首次引导、主题包、悬浮窗样式、设置预览和开发者入口。
-- MCP 四级权限、回环监听、随机令牌和应用内语义操作；Streamable HTTP 握手与会话表、严格工具 schema、连接背压。
+- Material 3 首次引导、主题包、悬浮窗样式、设置即时落盘和开发者入口。
+- MCP 四级权限、IPv4 `127.0.0.1` 回环监听、可选 Bearer（`requireAuth`）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
 - C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。
@@ -29,13 +29,13 @@
 | P0 | 重写 arm 门控 + main 动作距离 / 双跳 / 竹影实验锁 | 已落地（海盐沿用竹影距离档） |
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
 | P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
-| P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地（含统一离开守卫，外层导航不再静默丢弃草稿） |
+| P1 | 设置即时落盘（方案 C）+ 离开刷盘 + 首页分组/搜索 | 已落地（危险项仍确认；导入/MCP harden 不变） |
 | P1 | requireSessionArm 移除（不再每次会话手动解锁，启用后直接规划手势） | 已变更 |
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
 | P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录/下载/验签安装路径；远端 release-index 目录尚未发布时为空态） |
-| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中（内置算法 0.1.0、诊断本地时区已对齐） |
+| P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中（设置即时落盘、无会话 arm、MCP requireAuth 已对齐） |
 | P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（外装包需信任锚公钥 + release-index 目录；主路径颜色谓词仍部分硬编码） |
 | P1 | 算法包闭环 M0 | 已落地：APK 安装前 verifyPackage、忽略版本不整稿保存、更新源偏好、UI/文档诚实 |
 | P1 | 算法包闭环 M1 | 已落地：rules v2 双段 tools/示例包、`AlgorithmRulesParser`、统一 `AlgorithmIds` |

@@ -20,6 +20,7 @@ import top.azek431.hzzs.core.model.UpdateSourcePreference
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.preferences.ConfigJson
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
+import top.azek431.hzzs.feature.settings.model.matchesQuery
 import top.azek431.hzzs.feature.settings.model.summary
 
 class SettingsUiLogicTest {
@@ -80,6 +81,49 @@ class SettingsUiLogicTest {
         assertTrue(appearance.contains("纯黑"))
         assertTrue(network.contains("自动选择") || network.contains("应用"))
         assertTrue(SettingsCategory.AUTOMATION.summary(config).contains("关闭"))
+    }
+
+    @Test
+    fun homeGroupsPutDisplayFirstAndDeveloperLast() {
+        val ordered = SettingsCategory.entries.map { it.name }
+        assertEquals("APPEARANCE", ordered.first())
+        assertEquals("DEVELOPER", ordered.last())
+        assertTrue(
+            SettingsCategory.entries.indexOf(SettingsCategory.CAPTURE) <
+                SettingsCategory.entries.indexOf(SettingsCategory.MCP),
+        )
+    }
+
+    @Test
+    fun categorySearchMatchesHintsAndTitle() {
+        assertTrue(
+            SettingsCategory.MCP.matchesQuery(
+                query = "token",
+                title = "MCP 服务",
+                description = "本地 AI",
+            ),
+        )
+        assertTrue(
+            SettingsCategory.CAPTURE.matchesQuery(
+                query = "截图",
+                title = "截图与权限",
+                description = "后端",
+            ),
+        )
+        assertFalse(
+            SettingsCategory.APPEARANCE.matchesQuery(
+                query = "mcp",
+                title = "外观与显示",
+                description = "主题",
+            ),
+        )
+        assertTrue(
+            SettingsCategory.APPEARANCE.matchesQuery(
+                query = "  ",
+                title = "外观与显示",
+                description = "主题",
+            ),
+        )
     }
 
     @Test

@@ -44,8 +44,8 @@ private val Context.settingsDataStore by preferencesDataStore(name = "hzzs_setti
 /**
  * 应用配置的唯一真相源。
  *
- * 将**非持久预览**与**已保存配置**分离：主题/悬浮窗可即时预览，
- * 离开编辑器时清除预览即可恢复 baseline。权限型字段应由 UI 在预览阶段强制保留 baseline。
+ * 设置模块以 [save] 即时落盘；[preview] 仍供首次引导与 MCP 等外部预览路径使用。
+ * 生效配置 = preview（若有）否则已保存快照。
  */
 interface SettingsRepository {
     /** 当前生效配置（预览优先，否则已保存）。 */

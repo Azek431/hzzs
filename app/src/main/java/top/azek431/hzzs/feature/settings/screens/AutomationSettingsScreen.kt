@@ -2,7 +2,7 @@
  * 自动操作与安全设置页。
  *
  * 职责：总开关、竹影实验开关；展示无障碍连接状态；开启须风险倒计时对话框。
- * 数据流：automation 写入草稿但预览不生效；保存后分析运行中按识别结果自动规划手势。
+ * 数据流：automation 经 [update] 即时落盘；开启须风险确认。分析运行中按识别结果规划手势。
  * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启（由模型层保证）。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -53,9 +53,8 @@ import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 /**
  * 自动操作设置页。
  *
- * 默认关闭；开启前有风险倒计时对话框并写入免责声明版本。
- * 权限型：预览不真正触发手势；竹影实验锁在此配置。
- * 不直接注入手势，仅改 [AppConfig.automation] 草稿。
+ * 默认关闭；开启前有风险倒计时对话框并写入免责声明版本后即时落盘。
+ * 竹影实验锁在此配置。不直接注入手势。
  */
 @Composable
 fun AutomationSettingsScreen(

@@ -50,7 +50,12 @@ import androidx.compose.ui.unit.dp
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 
-/** 设置首页分类入口卡：标题 + 说明 + 当前摘要；[selected] 宽屏高亮当前分类。 */
+/**
+ * 设置首页分类入口卡。
+ *
+ * [compact]=true 时为系统设置感一行：图标 + 标题/摘要，说明弱化；
+ * false 时保留三行（标题/说明/摘要）供 Preview 等使用。
+ */
 @Composable
 fun SettingsCategoryCard(
     title: String,
@@ -60,8 +65,11 @@ fun SettingsCategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    compact: Boolean = false,
 ) {
     val dimensions = LocalHzzsDimensions.current
+    val minHeight = if (compact) 56.dp else 72.dp
+    val pad = if (compact) 12.dp else dimensions.cardPadding
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -86,8 +94,8 @@ fun SettingsCategoryCard(
         Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 72.dp)
-                .padding(dimensions.cardPadding),
+                .heightIn(min = minHeight)
+                .padding(pad),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
@@ -97,22 +105,37 @@ fun SettingsCategoryCard(
                 Icon(
                     icon,
                     contentDescription = null,
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(if (compact) 8.dp else 10.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(if (compact) 12.dp else 14.dp))
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp),
+            ) {
                 Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    title,
+                    style = if (compact) {
+                        MaterialTheme.typography.titleSmall
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    },
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (!compact) {
+                    Text(
+                        description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
-                    summary,
+                    if (compact) summary else summary,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,

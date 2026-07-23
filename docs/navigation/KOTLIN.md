@@ -20,7 +20,7 @@ AndroidManifest.xml
 | 包 | 主要职责 | 关键入口 | 不应承担 |
 | --- | --- | --- | --- |
 | `core/model` | AppConfig、场景、检测、运行状态等共同模型 | `AppModels.kt` | Android 权限调用 |
-| `core/preferences` | DataStore、校验、草稿会话、配置 JSON | `SettingsRepository.kt` | 直接绘制 UI |
+| `core/preferences` | DataStore、校验、配置 JSON、可选 preview 层 | `SettingsRepository.kt` | 直接绘制 UI |
 | `core/algorithm` | 目录、下载、验签、安装、激活 | `AlgorithmCatalogController.kt` | 手势与截图升权 |
 | `core/designsystem` | 主题、组件、尺寸和动效 | `HzzsTheme.kt` | 业务状态所有权 |
 | `core/theme` | 声明式 `.hzzstheme` | `ThemePackage.kt` | 完整 AppConfig 或脚本 |
@@ -32,16 +32,16 @@ AndroidManifest.xml
 | `service/capture` | 截图源、帧租约、系统授权 | `FrameCapture.kt`、`CaptureSources.kt` | 自动选择高级权限 |
 | `service/overlay` | 双层悬浮窗与 HUD | `OverlayController.kt` | 参与动作几何判断 |
 | `service/automation` | 无障碍手势和最终前台校验 | `HzzsAccessibilityService.kt` | 从 Root/Shizuku 注入手势 |
-| `mcp` | loopback MCP、会话握手、审批和外部摄入 | `McpService.kt` / `McpProtocol.kt` / `McpToolCatalog.kt` | 绕过系统权限对话框；把 TRUSTED_SESSION 当持久特权 |
+| `mcp` | IPv4 loopback MCP、会话握手、审批和外部摄入 | `McpService.kt` / `McpHttp.kt` / `McpProtocol.kt` / `McpToolCatalog.kt` | 绕过系统权限对话框；把 TRUSTED_SESSION 当持久特权；绑 `0.0.0.0` |
 | `nativevision` | JNI 声明与库加载 | `NativeVision.kt` | 跨调用保存像素地址 |
 
-## 配置状态：正式答案与草稿
+## 配置状态：即时落盘
 
 持久化真相源是 `DataStoreSettingsRepository`：
 
 ```text
 DataStore 中的 config_json
-+ 进程内 preview
++ 进程内 preview（引导/外部预览仍可使用）
 → preview 存在时优先
 → SettingsRepository.config
 ```
@@ -49,21 +49,19 @@ DataStore 中的 config_json
 设置模块共享一个 `SettingsViewModel`：
 
 ```text
-snapshot → baseline + draft
-控件修改 → UI 立即更新完整 draft
-→ 防抖后 SettingsEditSession.replace
-→ validated
-→ 受约束 preview
-保存 → DataStore.edit → 清 preview → 新 baseline
-丢弃 → 清 preview → 恢复 baseline
+snapshot / config 回流 → 界面展示
+控件修改 → 乐观更新 UI
+→ 短防抖后 repository.save（validated）
+→ 清 preview → algorithmActivation.onConfigCommitted
+离开设置 / 切走主导航 → SettingsExitCoordinator → flushNow
 ```
 
-截图后端、自动操作、MCP、开发者和算法更新等权限型配置在预览阶段保留 baseline；选中不等于已经启动。离开整个设置模块由 `SettingsExitCoordinator` 处理未保存草稿。
+手动开启自动操作等危险项由子页对话框确认后再调用 `update`。导入配置 / MCP 外部摄入仍走 `hardenedForExternalIngest`，不得静默开自动操作或自提权限。
 
 ### 两种“导入”不要混淆
 
 - 完整 `AppConfig` JSON：`ConfigJson`，当前主要由 MCP 读取/预览/保存；外部输入必须再经 `hardenedForExternalIngest(baseline)`，不能提权。
-- 主题包 `.hzzstheme`：`ThemePackageCodec`，普通 UI 可导入导出，仅允许受限声明式主题/悬浮窗外观字段，保存前仍是草稿。
+- 主题包 `.hzzstheme`：`ThemePackageCodec`，普通 UI 可导入导出，仅允许受限声明式主题/悬浮窗外观字段，导入后即时写入主题相关字段。
 
 ## 截图与帧生命周期
 

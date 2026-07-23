@@ -2,7 +2,7 @@
  * MCP 本地服务设置页。
  *
  * 职责：MCP 开关、权限级、连接信息复制、运行状态展示。
- * 数据流：mcp 字段进草稿但预览不启停服务，保存后才由 MainActivity 同步。
+ * 数据流：mcp 字段经 [update] 即时落盘；MainActivity 订阅配置流同步前台服务。
  * 边界：不启动 MCP 服务本体；调试帧元数据需开发者选项 + allowDebugFrames 同时开启。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
@@ -52,12 +53,8 @@ import top.azek431.hzzs.mcp.McpServerState
 /**
  * MCP 本地服务设置页。
  *
- * 页面结构：
- * 1. 运行状态 Hero — 显示当前服务状态、端口、Token
- * 2. 快速连接 — 一键复制 adb forward + Bearer Token
- * 3. 权限选择 — 四级权限单选卡片
- * 4. 开关与选项 — 启用 / 调试帧元数据
- * 5. 使用说明 — 关闭时的引导文字
+ * 面向 RikkaHub / OperitAI 同机连接：一键复制 URL 或导入 JSON，
+ * Bearer 鉴权可关，无需用户手写请求头。
  */
 @Composable
 fun McpSettingsScreen(
@@ -69,17 +66,24 @@ fun McpSettingsScreen(
 ) {
     val dimensions = LocalHzzsDimensions.current
     val context = LocalContext.current
-    val copiedMsg = stringResource(R.string.mcp_copied_connection_info)
     val copyFailedMsg = stringResource(R.string.mcp_copy_failed)
     val turnOnFirstMsg = stringResource(R.string.mcp_turn_on_first)
-    val connectHint = stringResource(R.string.mcp_turn_on_and_connect)
+    val copiedUrl = stringResource(R.string.mcp_copied_url)
+    val copiedJson = stringResource(R.string.mcp_copied_rikkahub_json)
+    val copiedToken = stringResource(R.string.mcp_copied_token)
+    val copiedAll = stringResource(R.string.mcp_copied_connection_info)
+
+    fun copy(label: String, text: String, okMsg: String) {
+        val ok = ClipboardHelper.copyText(context, label, text)
+        onMessage(if (ok) okMsg else copyFailedMsg)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(dimensions.screenPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // ── 1. 运行状态卡片 ──
+        // ── 1. 运行状态 ──
         item {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -92,7 +96,11 @@ fun McpSettingsScreen(
                         Icon(
                             if (mcpState.running) Icons.Rounded.PlayArrow else Icons.Rounded.WarningAmber,
                             contentDescription = null,
-                            tint = if (mcpState.running) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            tint = if (mcpState.running) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
                             modifier = Modifier.size(28.dp),
                         )
                         Spacer(Modifier.width(12.dp))
@@ -106,7 +114,29 @@ fun McpSettingsScreen(
                     if (mcpState.running) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             SettingsStatusChip("127.0.0.1:${mcpState.port}")
-                            SettingsStatusChip(mcpState.token.take(12) + "...", emphasis = false)
+                            SettingsStatusChip(
+                                if (mcpState.requireAuth) "Bearer 鉴权" else "免鉴权",
+                                emphasis = false,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "URL",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        CodeBlock(mcpState.endpointUrl())
+                        if (mcpState.requireAuth && mcpState.token.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Token（前 12 位）",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                mcpState.token.take(12) + "…",
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            )
                         }
                         Text(
                             stringResource(R.string.mcp_status_running_body),
@@ -134,32 +164,61 @@ fun McpSettingsScreen(
             }
         }
 
-        // ── 2. 快速连接操作 ──
+        // ── 2. 一键复制（RikkaHub 友好）──
         item {
             if (mcpState.running) {
-                Button(
-                    onClick = {
-                        val command =
-                            "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
-                                "URL: http://127.0.0.1:${mcpState.port}/mcp\n" +
-                                "Authorization: Bearer ${mcpState.token}\n" +
-                                "Transport: Streamable HTTP (POST /mcp)"
-                        val ok = ClipboardHelper.copyText(context, "HZZS MCP", command)
-                        onMessage(
-                            if (ok) copiedMsg else copyFailedMsg,
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.mcp_copy_connection_info))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            copy("HZZS MCP JSON", mcpState.rikkaHubImportJson(), copiedJson)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.mcp_copy_rikkahub_json))
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            copy("HZZS MCP URL", mcpState.endpointUrl(), copiedUrl)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.mcp_copy_url))
+                    }
+                    if (mcpState.requireAuth && mcpState.token.isNotBlank()) {
+                        OutlinedButton(
+                            onClick = {
+                                copy("HZZS MCP Token", mcpState.token, copiedToken)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.mcp_copy_token))
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val all = buildString {
+                                appendLine(mcpState.endpointUrl())
+                                appendLine("type: streamable_http")
+                                if (mcpState.requireAuth) {
+                                    appendLine("Authorization: Bearer ${mcpState.token}")
+                                } else {
+                                    appendLine("auth: off")
+                                }
+                                appendLine()
+                                append(mcpState.rikkaHubImportJson())
+                            }
+                            copy("HZZS MCP", all, copiedAll)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.mcp_copy_connection_info))
+                    }
                 }
             } else {
                 OutlinedButton(
-                    onClick = {
-                        onMessage(turnOnFirstMsg)
-                    },
+                    onClick = { onMessage(turnOnFirstMsg) },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.mcp_turn_on_and_connect))
@@ -167,7 +226,7 @@ fun McpSettingsScreen(
             }
         }
 
-        // ── 3. 启用开关 ──
+        // ── 3. 启用 + 鉴权 ──
         item {
             SettingsSectionCard(
                 title = stringResource(R.string.mcp_section_enable_title),
@@ -179,6 +238,14 @@ fun McpSettingsScreen(
                     checked = config.mcp.enabled,
                     onCheckedChange = { value ->
                         update { it.copy(mcp = it.mcp.copy(enabled = value)) }
+                    },
+                )
+                SettingsSwitchRow(
+                    title = stringResource(R.string.mcp_require_auth_switch),
+                    subtitle = stringResource(R.string.mcp_require_auth_subtitle),
+                    checked = config.mcp.requireAuth,
+                    onCheckedChange = { value ->
+                        update { it.copy(mcp = it.mcp.copy(requireAuth = value)) }
                     },
                 )
             }
@@ -201,14 +268,16 @@ fun McpSettingsScreen(
                             },
                             trailing = if (config.mcp.permissionLevel == level) {
                                 stringResource(R.string.mcp_current)
-                            } else null,
+                            } else {
+                                null
+                            },
                         )
                     }
                 }
             }
         }
 
-        // ── 5. 调试帧元数据 ──
+        // ── 5. 调试帧 ──
         item {
             SettingsSectionCard(
                 title = stringResource(R.string.mcp_section_debug_frames_title),
@@ -217,65 +286,46 @@ fun McpSettingsScreen(
                 SettingsSwitchRow(
                     title = stringResource(R.string.mcp_debug_frames_switch),
                     checked = config.mcp.allowDebugFrames,
-                    // 仅开发者选项解锁后可改；已开时也可关闭。
                     enabled = config.developer.enabled,
                     onCheckedChange = { value ->
                         update { it.copy(mcp = it.mcp.copy(allowDebugFrames = value)) }
                     },
                 )
-                if (!config.developer.enabled) {
-                    Text(
-                        stringResource(R.string.mcp_debug_frames_dev_required),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        stringResource(R.string.mcp_debug_frames_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    if (!config.developer.enabled) {
+                        stringResource(R.string.mcp_debug_frames_dev_required)
+                    } else {
+                        stringResource(R.string.mcp_debug_frames_desc)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
-        // ── 6. 使用说明（当 MCP 关闭时突出显示） ──
+        // ── 6. 连接说明 ──
         item {
-            if (!mcpState.running) {
-                SettingsSectionCard(
-                    title = stringResource(R.string.mcp_how_to_connect_title),
-                    description = stringResource(R.string.mcp_how_to_connect_desc),
-                ) {
-                    Text(
-                        stringResource(R.string.mcp_step_1),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    CodeBlock("adb forward tcp:${config.mcp.port} tcp:${config.mcp.port}")
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.mcp_step_2),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    CodeBlock("在设置页点击「复制连接信息」获取 Bearer")
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.mcp_step_3),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    CodeBlock(
-                        "URL: http://127.0.0.1:${config.mcp.port}/mcp\n" +
-                            "Header: Authorization: Bearer <token>\n" +
-                            "传输: Streamable HTTP（POST JSON-RPC）\n" +
-                            "兼容: Claude Code / RikkaHub / OperitAI",
-                    )
-                }
+            SettingsSectionCard(
+                title = stringResource(R.string.mcp_how_to_connect_title),
+                description = stringResource(R.string.mcp_how_to_connect_desc),
+            ) {
+                Text(stringResource(R.string.mcp_step_1), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.mcp_step_2), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                CodeBlock(
+                    if (mcpState.running) {
+                        mcpState.rikkaHubImportJson()
+                    } else {
+                        "{\n  \"mcpServers\": {\n    \"hzzs\": {\n      \"type\": \"streamable_http\",\n      \"url\": \"http://127.0.0.1:${config.mcp.port}/mcp\"\n    }\n  }\n}"
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.mcp_step_3), style = MaterialTheme.typography.bodyMedium)
             }
         }
 
-        // ── 7. 安全提示 ──
+        // ── 7. 安全 ──
         item {
             SettingsWarningCard(
                 title = stringResource(R.string.mcp_security_title),
@@ -286,10 +336,6 @@ fun McpSettingsScreen(
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
-
-// ──────────────────────────────────────────────
-// 辅助函数
-// ──────────────────────────────────────────────
 
 private fun permissionDescription(level: McpPermissionLevel): String = when (level) {
     McpPermissionLevel.READ_ONLY -> "仅允许 AI 读取运行状态和配置，不可修改任何设置"

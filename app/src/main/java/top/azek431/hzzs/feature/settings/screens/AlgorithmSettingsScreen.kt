@@ -2,8 +2,8 @@
  * 算法与识别设置页。
  *
  * 职责：选择自动/手动算法、赛季与识别阈值；展示远端/已安装算法卡。
- * 数据流：草稿经 [update]；检查/下载/取消/选用经 ViewModel 即时任务；
- * 算法字段预览被 baseline 锁定；识别赛季/阈值可预览热更新。
+ * 数据流：偏好经 [update] 即时落盘；检查/下载/取消/选用经 ViewModel 即时任务；
+ * 算法选择落盘后由 ActivationCoordinator 在安全点切换（分析运行中 pending）。
  * 边界：不直接网络/JNI；目录/下载经 ViewModel → AlgorithmCatalogController。
  * 远端目录未发布或未配置信任锚时，仍可使用内置算法。
  */
@@ -149,7 +149,7 @@ fun AlgorithmSettingsScreen(
         item {
             SettingsWarningCard(
                 title = "算法网络与安装说明",
-                body = "目录走 HTTPS 双源（release-index 分支 algorithms/{channel}.json）。若返回 404，表示远端尚未发布目录，属正常空态，请继续用内置算法。下载安装还需要 App 内置官方公钥（AlgorithmTrustAnchors）与 Ed25519 验签；未配置公钥时拒绝外装。识别赛季/阈值可预览即时生效；算法选择保存后经 ActivationCoordinator 在安全点切换。",
+                body = "目录走 HTTPS 双源（release-index 分支 algorithms/{channel}.json）。若返回 404，表示远端尚未发布目录，属正常空态，请继续用内置算法。下载安装还需要 App 内置官方公钥（AlgorithmTrustAnchors）与 Ed25519 验签；未配置公钥时拒绝外装。赛季/阈值与算法选择均即时落盘；算法包切换经 ActivationCoordinator 在安全点生效（分析中会 pending）。",
             )
         }
 
@@ -176,7 +176,7 @@ fun AlgorithmSettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SettingsRadioCard(
                     title = "手动选择",
-                    subtitle = "从已安装列表钉选版本并保存；分析运行中仅待启用，下次启动分析或保存后切换。",
+                    subtitle = "从已安装列表钉选版本；分析运行中仅待启用，下次启动分析或配置提交后切换。",
                     selected = config.algorithm.selectionMode == AlgorithmSelectionMode.MANUAL,
                     onClick = {
                         update {
@@ -196,7 +196,7 @@ fun AlgorithmSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "当前赛季与识别",
-                description = "比例坐标适配分辨率。赛季、障碍开关与阈值预览会即时进入运行配置；算法包选择除外。",
+                description = "比例坐标适配分辨率。赛季、障碍开关与阈值即时落盘并进入运行配置。",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SceneId.entries.forEach { id ->

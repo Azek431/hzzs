@@ -1,9 +1,9 @@
 /**
  * 设置模块 Compose 入口与嵌套导航。
  *
- * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；仅离开整个模块时询问保存/丢弃。
- * 数据流：订阅 draft/baseline/update/algorithm；子页经 [SettingsViewModel.update] 改草稿。
- * 边界：不直接 JNI/权限运行时；dispose 只清除临时预览，不替用户决定保存或丢弃。
+ * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；改动即时落盘。
+ * 数据流：订阅 draft/update/algorithm；子页经 [SettingsViewModel.update] 改配置。
+ * 边界：不直接 JNI/权限运行时；离开时 [SettingsViewModel.flushNow] 刷盘。
  */
 package top.azek431.hzzs.feature.settings
 
@@ -16,14 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,7 +49,6 @@ import top.azek431.hzzs.core.designsystem.sharedAxisXEnter
 import top.azek431.hzzs.core.designsystem.sharedAxisXExit
 import top.azek431.hzzs.core.designsystem.sharedAxisXPopEnter
 import top.azek431.hzzs.core.designsystem.sharedAxisXPopExit
-import top.azek431.hzzs.feature.settings.components.SettingsSaveBar
 import top.azek431.hzzs.feature.settings.model.SettingsCategory
 import top.azek431.hzzs.feature.settings.model.SettingsRoutes
 import top.azek431.hzzs.feature.settings.screens.AlgorithmPipelineScreen
@@ -68,8 +65,7 @@ import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
 
 /**
  * 设置模块入口：首页 + 分类子页共享同一 [SettingsViewModel]。
- * 仅在离开整个设置模块时询问保存/丢弃；子页返回首页保留草稿。
- * 宽屏左侧常驻首页目录，右侧为分类内容。
+ * 配置改动即时落盘；离开时刷盘。宽屏左侧常驻首页目录，右侧为分类内容。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,35 +75,25 @@ fun SettingsScreen(
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val config by vm.draft.collectAsState()
-    val baseline by vm.baseline.collectAsState()
     val updateState by vm.updateState.collectAsState()
     val algorithmState by vm.algorithmState.collectAsState()
-    val dirty = config != baseline
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: SettingsRoutes.HOME
     val onHome = route == SettingsRoutes.HOME
-    var confirmExit by remember { mutableStateOf(false) }
-    var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    val currentDirty by rememberUpdatedState(dirty)
     val currentOnExit by rememberUpdatedState(onExit)
 
-    fun requestExit(action: () -> Unit = currentOnExit) {
-        if (currentDirty) {
-            pendingExitAction = action
-            confirmExit = true
-        } else {
-            vm.discard(action)
-        }
+    fun leave(action: () -> Unit = currentOnExit) {
+        vm.flushNow(action)
     }
 
     DisposableEffect(exitCoordinator, vm) {
-        val registration = exitCoordinator?.attach(::requestExit)
+        val registration = exitCoordinator?.attach { onDone -> vm.flushNow(onDone) }
         onDispose {
             registration?.dispose()
-            vm.clearPreviewSilently()
+            vm.onLeaveComposition()
         }
     }
 
@@ -115,7 +101,7 @@ fun SettingsScreen(
         if (!onHome) {
             nav.popBackStack()
         } else {
-            requestExit()
+            leave()
         }
     }
 
@@ -142,7 +128,7 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (onHome) requestExit() else nav.popBackStack()
+                            if (onHome) leave() else nav.popBackStack()
                         },
                     ) {
                         Icon(
@@ -151,13 +137,6 @@ fun SettingsScreen(
                         )
                     }
                 },
-            )
-        },
-        bottomBar = {
-            SettingsSaveBar(
-                dirty = dirty,
-                onCancel = { requestExit() },
-                onSave = { vm.save(onExit) },
             )
         },
         snackbarHost = {
@@ -221,40 +200,9 @@ fun SettingsScreen(
             }
         }
     }
-
-    if (confirmExit) {
-        AlertDialog(
-            onDismissRequest = {
-                confirmExit = false
-                pendingExitAction = null
-            },
-            title = { Text(stringResource(R.string.settings_unsaved_title)) },
-            text = { Text(stringResource(R.string.settings_unsaved_body)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val action = pendingExitAction ?: currentOnExit
-                        confirmExit = false
-                        pendingExitAction = null
-                        vm.save(action)
-                    },
-                ) { Text(stringResource(R.string.settings_save_and_leave)) }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        val action = pendingExitAction ?: currentOnExit
-                        confirmExit = false
-                        pendingExitAction = null
-                        vm.discard(action)
-                    },
-                ) { Text(stringResource(R.string.action_discard)) }
-            },
-        )
-    }
 }
 
-/** 设置内嵌 NavHost：把共享草稿与即时任务回调分发给各分类屏。 */
+/** 设置内嵌 NavHost：把共享配置与即时任务回调分发给各分类屏。 */
 @Composable
 private fun SettingsNavHost(
     nav: NavHostController,
