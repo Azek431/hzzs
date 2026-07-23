@@ -5,6 +5,7 @@
 
 ## 2026-07-23
 
+- **MCP 同机连 RikkaHub**：服务必须绑 IPv4 `127.0.0.1`（`getLoopbackAddress()` 常为 `::1`，与 URL 中的 `127.0.0.1` 在部分 ROM 不通）；传输选 Streamable HTTP 不要 SSE；可关 `requireAuth` 免 Header；`initialize` 后会话即就绪；HTTP keep-alive 多请求 + `/mcp/` 路径归一；GET `/mcp`→405 合法。
 - **算法调参看 DEBUG 帧轨迹**：`AlgorithmRuntimeTrace` 保留最近 32 帧（无像素）；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`。须开发者开启且 `logLevel=DEBUG`；状态变化或约每 12 帧写一条。诊断导出含 pipeline + 最近帧。INFO 下仍只有会话 start/stop。
 - **编程版八荣八耻已装入 CLAUDE**：根 `CLAUDE.md` 与用户级 `~/.claude/CLAUDE.md` 的 `Core Philosophy`；第 7 条原文「为菜」= 诚实无知、不装懂。硬约束全文仍以 `CLAUDE.md` 为准。
 - **host 构建脚本无 +x**：Windows 检出常使 `tools/vision/*.sh` 为 `100644`；CI 上 `python subprocess([str(build_host.sh)])` 会 `PermissionError`。应 `bash script.sh` / `powershell -File script.ps1`，统一走 `tools/vision/host_build.py`。
