@@ -29,6 +29,11 @@ data class GestureSpec(
     val endX: Float? = null,
     val endY: Float? = null,
     val durationMs: Long = 30L,
+    /**
+     * 非滑动手势时，额外的双击延迟（毫秒）。
+     * 用于海盐脚本中"press 两次间隔 60ms"的模式。
+     */
+    val doublePressDelayMs: Long = 0L,
 ) {
     init {
         require(startX in 0f..1f && startY in 0f..1f)
@@ -36,6 +41,7 @@ data class GestureSpec(
         require(endY == null || endY in 0f..1f)
         require((endX == null) == (endY == null))
         require(durationMs in 10L..1_000L)
+        require(doublePressDelayMs in 0L..2_000L)
     }
 }
 

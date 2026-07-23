@@ -143,6 +143,9 @@ object AlgorithmRulesParser {
             spikeHeightMin = json.optFloat("spikeHeightMin", base.spikeHeightMin),
             spikeHeightMax = json.optFloat("spikeHeightMax", base.spikeHeightMax),
             colors = mergeColors(base.colors, colorsJson),
+            searchRegionTopRatio = json.optFloat("searchRegionTopRatio", base.searchRegionTopRatio),
+            searchRegionBottomRatio = json.optFloat("searchRegionBottomRatio", base.searchRegionBottomRatio),
+            multicolorThreshold = json.optFloat("multicolorThreshold", base.multicolorThreshold),
         )
     }
 

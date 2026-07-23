@@ -1,8 +1,8 @@
 /**
  * 自动操作与安全设置页。
  *
- * 职责：总开关、requireSessionArm、竹影实验开关；展示无障碍连接状态；开启须风险倒计时对话框。
- * 数据流：automation 写入草稿但预览不生效；保存后运行页再按会话解锁策略执行。
+ * 职责：总开关、竹影实验开关；展示无障碍连接状态；开启须风险倒计时对话框。
+ * 数据流：automation 写入草稿但预览不生效；保存后分析运行中按识别结果自动规划手势。
  * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启（由模型层保证）。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -54,7 +54,7 @@ import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
  * 自动操作设置页。
  *
  * 默认关闭；开启前有风险倒计时对话框并写入免责声明版本。
- * 权限型：预览不真正 arm；竹影实验锁与 requireSessionArm 在此配置。
+ * 权限型：预览不真正触发手势；竹影实验锁在此配置。
  * 不直接注入手势，仅改 [AppConfig.automation] 草稿。
  */
 @Composable
@@ -119,7 +119,7 @@ fun AutomationSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "总开关",
-                description = "开启后默认仍需在运行页手动解锁当前窗口。",
+                description = "开启后将在视觉分析运行时按识别结果自动发送手势。",
             ) {
                 SettingsSwitchRow(
                     title = "启用自动操作",
@@ -133,20 +133,8 @@ fun AutomationSettingsScreen(
                     },
                 )
                 SettingsSwitchRow(
-                    title = "每次运行需手动解锁窗口",
-                    subtitle = if (config.automation.requireSessionArm) {
-                        "需在运行页确认当前游戏页面才会发送手势；切页/失败会自动解除。"
-                    } else {
-                        "无需手动解锁：分析运行中且前台包名在白名单时按当前窗口发送手势。"
-                    },
-                    checked = config.automation.requireSessionArm,
-                    onCheckedChange = { value ->
-                        update { it.copy(automation = it.automation.copy(requireSessionArm = value)) }
-                    },
-                )
-                SettingsSwitchRow(
                     title = "允许竹影书屋实验性自动操作",
-                    subtitle = "即使已解锁会话，也需单独打开本开关。甜甜圈触发距离约 " +
+                    subtitle = "即使已启用自动操作，也需单独打开本开关。甜甜圈触发距离约 " +
                         "%.2f".format(config.automation.sweetTriggerDistancePlayerWidths) +
                         " 倍玩家宽度。",
                     checked = config.automation.bambooExperimentalAutoAction,
@@ -155,6 +143,15 @@ fun AutomationSettingsScreen(
                             it.copy(automation = it.automation.copy(bambooExperimentalAutoAction = value))
                         }
                     },
+                )
+                SettingsSwitchRow(
+                    title = "允许海盐客厅自动操作",
+                    subtitle = "海盐客厅默认赛季场景。触发距离约 " +
+                        "%.2f".format(config.automation.seaSaltTriggerDistancePlayerWidths) +
+                        " 倍玩家宽度。需要无障碍服务已连接。",
+                    checked = true,
+                    enabled = false,
+                    onCheckedChange = {},
                 )
             }
         }

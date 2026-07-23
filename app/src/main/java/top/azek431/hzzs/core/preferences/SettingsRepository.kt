@@ -405,7 +405,7 @@ fun AppConfig.validated(): AppConfig {
  * 外部摄入（配置导入、MCP `save_settings`/`preview_settings`）相对 [baseline] 的安全收敛。
  *
  * 硬规则（对齐 CLAUDE / SECURITY）：
- * - 不得静默把自动操作从关→开；若 baseline 已开，可保留但不得降低 session arm 强度；
+ * - 不得静默把自动操作从关→开；若 baseline 已开，可保留；
  * - 不得自提 MCP `permissionLevel` / 不得静默打开 `mcp.enabled` / `allowDebugFrames`；
  * - 不得静默打开开发者选项或写入 `forceCaptureBackend`（避免升权截图后端）；
  * - 截图后端不得从低权限静默升到 Root/Shizuku/无障碍（保持 baseline 或更低风险）。
@@ -419,12 +419,6 @@ fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
     val automation = candidate.automation.copy(
         // 外部路径不得静默开启；仅当 baseline 已开时允许保持。
         enabled = candidate.automation.enabled && base.automation.enabled,
-        // 不得通过外部 JSON 把「每次会话 arm」关掉。
-        requireSessionArm = if (base.automation.requireSessionArm) {
-            true
-        } else {
-            candidate.automation.requireSessionArm
-        },
         // 外部不得伪造「用户已接受」：免责版本只可 ≤ baseline。
         disclaimerAcceptedVersion = minOf(
             candidate.automation.disclaimerAcceptedVersion,
@@ -541,7 +535,6 @@ object ConfigJson {
             put("automation", JSONObject().apply {
                 put("enabled", safe.automation.enabled)
                 put("disclaimerAcceptedVersion", safe.automation.disclaimerAcceptedVersion)
-                put("requireSessionArm", safe.automation.requireSessionArm)
                 put("bambooExperimentalAutoAction", safe.automation.bambooExperimentalAutoAction)
                 put("allowedPackages", JSONArray(safe.automation.allowedPackages.sorted()))
                 put("maxActionsPerSecond", safe.automation.maxActionsPerSecond)
@@ -675,7 +668,6 @@ object ConfigJson {
             automation = defaults.automation.copy(
                 enabled = automation?.optBoolean("enabled", false) ?: false,
                 disclaimerAcceptedVersion = automation?.optInt("disclaimerAcceptedVersion", 0) ?: 0,
-                requireSessionArm = automation?.optBoolean("requireSessionArm", true) ?: true,
                 bambooExperimentalAutoAction =
                     automation?.optBoolean("bambooExperimentalAutoAction", false) ?: false,
                 allowedPackages = automation?.optJSONArray("allowedPackages").toStringSet()

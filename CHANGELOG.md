@@ -29,6 +29,7 @@
 
 ### 新增
 
+- **海盐客厅多点找色算法包**：移植酱油 AutoJS Pro 脚本为 C++ 多点找色检测器（`multicolor_detector.h/.cpp`）；扩展 `Avoidance.PRESS` / `SWIPE_UP`；算法包 `sea-salt-living-room-v1` beta 发布（作者：酱油）；`AutomationConfig.seaSaltTriggerDistancePlayerWidths` + 手势 `doublePressDelayMs` 支持双击模式。
 - **系统权限引导与悬浮窗双层绘制**：设置/引导/运行页可查看并跳转系统悬浮窗与无障碍设置；`RuntimeStatus.overlayBlockReason` 区分权限/关闭/加窗失败；`OverlayController` 双 Window（穿透检测框 + 可拖 HUD 同时存在）；缺权限时分析不中断并给出可行动提示。
 - **三赛季算法引擎（海盐客厅）**：`SceneId.SEA_SALT_LIVING_ROOM`；障碍 `SAND_CASTLE` / `HANGING_ANCHOR` / `SEA_PIT`；C++ `sea_salt_living_room.cpp` 参数驱动路径；默认赛季改为海盐；内置算法 `builtin.hzzs.base` **0.1.0** 覆盖三赛季参数。
 - **海盐召回修复**：宿主批跑 kind 掩码 `0xFF`→`0x7FF`（原先静默关掉海盐三类）；海盐专用尺寸后过滤；玩家失败仍用固定框继续扫；海坑改为「地面线下方非木地板列 + 暗/水色」；船锚每帧最多一个并提高金属门槛。

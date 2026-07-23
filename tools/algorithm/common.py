@@ -486,6 +486,9 @@ def _validate_engine_params(params: Mapping[str, Any]) -> None:
         "groundSearchTop",
         "groundSearchBottom",
         "groundConfidenceMin",
+        # 海盐：多点找色检测区域（归一化比例）
+        "searchRegionTopRatio",
+        "searchRegionBottomRatio",
     }
     float_ranges = {
         "bottleWidthMin": (0.001, 0.5),
@@ -513,11 +516,15 @@ def _validate_engine_params(params: Mapping[str, Any]) -> None:
         "spikeHeightMin": (0.01, 0.7),
         "spikeHeightMax": (0.05, 0.9),
     }
+    # 多点找色颜色容差（0~255）
+    multicolor_fields: dict[str, tuple[float, float]] = {
+        "multicolorThreshold": (0.0, 255.0),
+    }
     int_ranges = {
         "fixedPlayerWidthDivisor": (8, 64),
         "fallbackMaxDetections": (0, 8),
     }
-    allowed = set(float_unit) | set(float_ranges) | set(int_ranges) | {"colors"}
+    allowed = set(float_unit) | set(float_ranges) | set(int_ranges) | {"colors"} | set(multicolor_fields)
     unknown = set(params) - allowed
     if unknown:
         raise AlgorithmPackError(f"unknown engineParams fields: {sorted(unknown)}")
@@ -533,6 +540,11 @@ def _validate_engine_params(params: Mapping[str, Any]) -> None:
         value = params[key]
         if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
             raise AlgorithmPackError(f"{key} out of range")
+    # 多点找色字段校验
+    for key, (lo, hi) in multicolor_fields.items():
+        if key in params:
+            _require_range(key, params[key], lo, hi)
+    # ordered pairs（含新的 search region）
     ordered_pairs = (
         ("fixedPlayerTop", "fixedPlayerBottom"),
         ("groundSearchTop", "groundSearchBottom"),
@@ -546,6 +558,7 @@ def _validate_engine_params(params: Mapping[str, Any]) -> None:
         ("brushHeightMin", "brushHeightMax"),
         ("spikeWidthMin", "spikeWidthMax"),
         ("spikeHeightMin", "spikeHeightMax"),
+        ("searchRegionTopRatio", "searchRegionBottomRatio"),
     )
     for a, b in ordered_pairs:
         if a in params and b in params and float(params[a]) > float(params[b]):

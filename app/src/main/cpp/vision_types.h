@@ -33,6 +33,8 @@ enum class Avoidance : int32_t {
     JUMP = 1,
     DOUBLE_JUMP = 2,
     SLIDE = 3,
+    PRESS = 4,
+    SWIPE_UP = 5,
 };
 
 /** 轴对齐矩形（归一化或像素，由调用约定决定）。 */

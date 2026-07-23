@@ -1,5 +1,6 @@
 #pragma once
 #include "algorithm_runtime.h"
+#include "multicolor_detector.h"
 #include "vision_types.h"
 
 namespace hzzs {

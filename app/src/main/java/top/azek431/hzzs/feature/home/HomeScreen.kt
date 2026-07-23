@@ -154,11 +154,7 @@ fun HomeScreen(
                         MetricTile(
                             label = stringResource(R.string.home_metric_automation),
                             value = if (config.automation.enabled) {
-                                if (status.automationArmed) {
-                                    stringResource(R.string.home_automation_armed)
-                                } else {
-                                    stringResource(R.string.home_automation_locked)
-                                }
+                                stringResource(R.string.home_automation_enabled)
                             } else {
                                 stringResource(R.string.home_closed)
                             },

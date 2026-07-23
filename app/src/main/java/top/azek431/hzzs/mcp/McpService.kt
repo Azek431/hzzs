@@ -171,14 +171,6 @@ class McpActionRegistry @Inject constructor(
                 runtime.stop()
                 ok("分析已停止")
             }
-            "arm_automation" -> runtime.armAutomation().fold(
-                onSuccess = { ok("自动操作已在当前会话解锁") },
-                onFailure = { throw it },
-            )
-            "disarm_automation" -> {
-                runtime.disarmAutomation()
-                ok("自动操作已锁定")
-            }
             "navigate" -> {
                 val route = arguments.requireString("route")
                 require(route in setOf("home", "runtime", "settings", "about")) { "未知页面：$route" }
@@ -233,9 +225,7 @@ class McpActionRegistry @Inject constructor(
                 val approved = uiBridge.requestApproval(tool, summarize(tool, arguments))
                 check(approved) { "用户未批准操作" }
             }
-            McpPermissionLevel.TRUSTED_SESSION -> {
-                check(tool !in HIGH_RISK_TOOLS) { "该操作需要完整访问权限" }
-            }
+            McpPermissionLevel.TRUSTED_SESSION -> Unit
             McpPermissionLevel.FULL_ACCESS -> Unit
         }
     }
@@ -266,7 +256,6 @@ class McpActionRegistry @Inject constructor(
         "preview_settings" -> "AI 请求临时预览应用设置"
         "start_analysis" -> "AI 请求启动屏幕分析"
         "stop_analysis" -> "AI 请求停止屏幕分析"
-        "arm_automation" -> "AI 请求解锁当前会话的自动操作"
         "navigate" -> "AI 请求打开应用页面：${arguments.optString("route")}"
         "set_overlay_visible" -> "AI 请求更改悬浮窗显示状态"
         "clear_debug_frames" -> "AI 请求清除本机调试帧"
@@ -280,7 +269,6 @@ class McpActionRegistry @Inject constructor(
             "run_diagnostics",
             "list_debug_frames",
         )
-        val HIGH_RISK_TOOLS = setOf("arm_automation")
     }
 }
 
@@ -451,8 +439,6 @@ class McpForegroundService : Service() {
             "reset_preview" to "清除临时预览",
             "start_analysis" to "启动屏幕分析",
             "stop_analysis" to "停止屏幕分析",
-            "arm_automation" to "解锁当前会话自动操作",
-            "disarm_automation" to "锁定自动操作",
             "navigate" to "打开应用内页面",
             "set_overlay_visible" to "临时显示或隐藏悬浮窗",
             "run_diagnostics" to "运行诊断",
@@ -638,7 +624,6 @@ private fun top.azek431.hzzs.core.model.RuntimeStatus.toJson() = JSONObject().ap
     put("captureReady", captureReady)
     put("overlayVisible", overlayVisible)
     put("overlayBlockReason", overlayBlockReason?.name ?: JSONObject.NULL)
-    put("automationArmed", automationArmed)
     put("activeScene", activeScene.name)
     put("activeBackend", activeBackend.name)
     put("fps", fps.toDouble())

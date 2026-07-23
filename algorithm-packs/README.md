@@ -5,6 +5,7 @@
 | 路径 | 说明 |
 |---|---|
 | `official-bamboo-baseline/` | 竹影书屋默认阈值示例包源 |
+| `sea-salt-living-room-v1/` | 海盐客厅多点找色示例包源（作者：酱油） |
 | `official-public-keys/` | 应用可内置的公钥说明与发布产物占位 |
 
 构建：

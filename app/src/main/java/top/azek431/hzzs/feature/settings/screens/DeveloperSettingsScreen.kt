@@ -1,13 +1,12 @@
 /**
- * MCP 与开发者设置页。
+ * 开发者设置页。
  *
- * 职责：MCP 开关/权限级/调试帧元数据，以及完整开发者诊断项。
- * 数据流：mcp/developer 进草稿但预览不生效，保存后才应用；完整访问仍不能绕过系统权限框。
- * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer；Native 自检经注入回调。
+ * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格等高级调试项。
+ * 安全：需 [DeveloperConfig.enabled] 开启；普通用户通过关于页连点版本号解锁。
+ * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。
  */
 package top.azek431.hzzs.feature.settings.screens
 
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,43 +28,40 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
-import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.AppLogLevel
 import top.azek431.hzzs.core.model.CaptureBackend
-import top.azek431.hzzs.core.model.McpPermissionLevel
 import top.azek431.hzzs.core.model.developerLabel
 import top.azek431.hzzs.core.model.displayName
-import top.azek431.hzzs.core.platform.ClipboardHelper
 import top.azek431.hzzs.data.vision.NativeBenchmarkResult
 import top.azek431.hzzs.feature.settings.components.SettingsNavigationRow
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
-import top.azek431.hzzs.mcp.McpServerState
 import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 
 /**
- * MCP 与开发者相关设置页。
+ * 开发者选项设置页。
  *
- * MCP 开关/权限为权限型：预览不启停服务，保存后由 MainActivity 同步。
- * 开发者细项需 [DeveloperConfig.enabled]；诊断操作（清帧/基准/导出）为即时任务。
+ * 各项功能需在 [DeveloperConfig.enabled] 打开后才可使用。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun McpDeveloperSettingsScreen(
-    config: AppConfig,
-    update: ((AppConfig) -> AppConfig) -> Unit,
-    mcpState: McpServerState,
+fun DeveloperSettingsScreen(
+    developerEnabled: Boolean,
+    config: top.azek431.hzzs.core.model.AppConfig,
+    update: ((top.azek431.hzzs.core.model.AppConfig) -> top.azek431.hzzs.core.model.AppConfig) -> Unit,
     debugFrameCount: Int,
     benchmark: Result<NativeBenchmarkResult>?,
-    onRefreshDebugFrames: () -> Unit,
-    onClearDebugFrames: () -> Unit,
-    onRunBenchmark: () -> Unit,
-    onBuildDiagnostics: () -> String,
+    onRefreshDebugFrames: () -> Unit = {},
+    onClearDebugFrames: () -> Unit = {},
+    onRunBenchmark: () -> Unit = {},
+    onBuildDiagnostics: () -> String = { "" },
     onOpenLogViewer: () -> Unit = {},
     onOpenAlgorithmPipeline: () -> Unit = {},
     onMessage: (String) -> Unit = {},
@@ -73,148 +69,93 @@ fun McpDeveloperSettingsScreen(
 ) {
     val dimensions = LocalHzzsDimensions.current
     val context = LocalContext.current
-    val developerEnabled = config.developer.enabled
+    // Pre-compute strings for use inside non-@Composable click handlers
+    val exportChooserTitle = stringResource(R.string.dev_export_chooser)
+    val diagnosticEmptyMsg = stringResource(R.string.dev_diagnostic_empty)
+    val copyFailedMsg = stringResource(R.string.dev_copy_failed)
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(dimensions.screenPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // ── 1. 开发者开关 ──
         item {
             SettingsSectionCard(
-                title = "MCP 服务",
-                description = "让 Claude Code 等 AI 读取状态和操作应用。默认每次写操作都需要确认。",
+                title = stringResource(R.string.dev_section_enable_title),
+                description = stringResource(R.string.dev_section_enable_desc),
             ) {
                 SettingsSwitchRow(
-                    title = "启用 MCP",
-                    subtitle = "仅监听 loopback，使用随机 Bearer Token。",
-                    checked = config.mcp.enabled,
-                    onCheckedChange = { value ->
-                        update { it.copy(mcp = it.mcp.copy(enabled = value)) }
-                    },
+                    title = stringResource(R.string.dev_enable_switch),
+                    checked = developerEnabled,
+                    enabled = false,
+                    onCheckedChange = {},
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    McpPermissionLevel.entries.forEach { level ->
-                        SettingsRadioCard(
-                            title = level.displayName(),
-                            selected = config.mcp.permissionLevel == level,
-                            onClick = {
-                                update { it.copy(mcp = it.mcp.copy(permissionLevel = level)) }
-                            },
-                        )
-                    }
-                }
                 Text(
-                    "完整访问允许 AI 执行应用内所有功能，但无法绕过 Android 系统权限窗口。",
+                    stringResource(R.string.dev_enable_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                SettingsSwitchRow(
-                    title = "允许 MCP 读取调试帧元数据",
-                    checked = config.mcp.allowDebugFrames,
-                    onCheckedChange = { value ->
-                        update { it.copy(mcp = it.mcp.copy(allowDebugFrames = value)) }
-                    },
-                )
-                if (config.mcp.allowDebugFrames && !developerEnabled) {
-                    Text(
-                        "该权限只有在开启开发者选项后才生效。图片仍保存在应用私有目录，MCP 默认只返回文件元数据。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    if (mcpState.running) {
-                        "当前状态：运行中 · 127.0.0.1:${mcpState.port}"
-                    } else {
-                        "当前状态：未运行（保存并启用后生效）"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                mcpState.lastError?.let { error ->
-                    Text(
-                        error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                if (mcpState.running) {
-                    TextButton(
-                        onClick = {
-                            val command =
-                                "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
-                                    "Authorization: Bearer ${mcpState.token}"
-                            val ok = ClipboardHelper.copyText(context, "HZZS MCP", command)
-                            onMessage(
-                                if (ok) {
-                                    "MCP 连接信息已复制（含 Bearer，勿公开分享）"
-                                } else {
-                                    "复制失败：剪贴板不可用"
-                                },
-                            )
-                        },
-                    ) {
-                        Text("复制 MCP 连接信息")
-                    }
-                }
             }
         }
-        item {
-            SettingsSectionCard(
-                title = "开发者选项",
-                description = "高级调试项；权限型字段仅保存后生效。关于页连点版本号也可解锁。",
-            ) {
-                SettingsSwitchRow(
-                    title = "启用开发者选项",
-                    checked = developerEnabled,
-                    onCheckedChange = { value ->
-                        update { it.copy(developer = it.developer.copy(enabled = value)) }
-                    },
-                )
-                SettingsSwitchRow(
-                    title = "保存调试帧",
-                    subtitle = "最多 20 张，约每 5 秒采样；仅私有目录。当前 $debugFrameCount 张",
-                    checked = config.developer.saveDebugFrames,
-                    enabled = developerEnabled,
-                    onCheckedChange = { value ->
-                        update { it.copy(developer = it.developer.copy(saveDebugFrames = value)) }
-                    },
-                )
-                if (developerEnabled) {
+
+        if (developerEnabled) {
+            // ── 2. 调试帧管理 ──
+            item {
+                SettingsSectionCard(
+                    title = stringResource(R.string.dev_debug_frames_title),
+                    description = stringResource(R.string.dev_debug_frames_desc, debugFrameCount),
+                ) {
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_save_debug_frames),
+                        checked = config.developer.saveDebugFrames,
+                        onCheckedChange = { value ->
+                            update { it.copy(developer = it.developer.copy(saveDebugFrames = value)) }
+                        },
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onRefreshDebugFrames) { Text("刷新计数") }
+                        TextButton(onClick = onRefreshDebugFrames) {
+                            Text(stringResource(R.string.dev_refresh_count))
+                        }
                         TextButton(
                             onClick = onClearDebugFrames,
                             enabled = debugFrameCount > 0,
-                        ) { Text("清除调试帧") }
+                        ) {
+                            Text(stringResource(R.string.dev_clear_debug_frames))
+                        }
                     }
                 }
-                SettingsSwitchRow(
-                    title = "显示坐标网格",
-                    subtitle = "悬浮窗穿透模式下绘制 0.1 比例网格",
-                    checked = config.developer.showCoordinateGrid,
-                    enabled = developerEnabled,
-                    onCheckedChange = { value ->
-                        update {
-                            it.copy(developer = it.developer.copy(showCoordinateGrid = value))
-                        }
-                    },
-                )
-                if (developerEnabled) {
+            }
+
+            // ── 3. 坐标网格与导航 ──
+            item {
+                SettingsSectionCard(
+                    title = stringResource(R.string.dev_tools_title),
+                ) {
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_show_coordinate_grid),
+                        subtitle = stringResource(R.string.dev_show_coordinate_grid_subtitle),
+                        checked = config.developer.showCoordinateGrid,
+                        onCheckedChange = { value ->
+                            update {
+                                it.copy(developer = it.developer.copy(showCoordinateGrid = value))
+                            }
+                        },
+                    )
                     SettingsNavigationRow(
-                        title = "查看运行日志",
-                        subtitle = "级别 / 标签 / 关键字筛选，复制与分享",
+                        title = stringResource(R.string.dev_open_log_viewer),
+                        subtitle = stringResource(R.string.dev_open_log_viewer_subtitle),
                         onClick = onOpenLogViewer,
                     )
                     SettingsNavigationRow(
-                        title = "算法执行流程",
-                        subtitle = "激活阶段、Native 配置与最近一帧摘要",
+                        title = stringResource(R.string.dev_open_algorithm_pipeline),
+                        subtitle = stringResource(R.string.dev_open_algorithm_pipeline_subtitle),
                         onClick = onOpenAlgorithmPipeline,
                     )
                 }
             }
-        }
-        if (developerEnabled) {
+
+            // ── 4. 强制截图后端 ──
             item {
                 val captureResolution = resolveEffectiveCaptureBackend(
                     captureBackend = config.captureBackend,
@@ -222,9 +163,8 @@ fun McpDeveloperSettingsScreen(
                     forceCaptureBackend = config.developer.forceCaptureBackend,
                 )
                 SettingsSectionCard(
-                    title = "强制截图后端",
-                    description = "仅诊断用。选择「跟随设置」恢复普通用户配置。AUTO 仍不升权。" +
-                        " 本机不支持的后端保存后会 fail-soft 回退，不会硬启动失败。",
+                    title = stringResource(R.string.dev_force_capture_backend_title),
+                    description = stringResource(R.string.dev_force_capture_backend_desc),
                 ) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -258,18 +198,22 @@ fun McpDeveloperSettingsScreen(
                     }
                     if (captureResolution.fellBack) {
                         Text(
-                            "实际将使用 ${captureResolution.effective.developerLabel()}：" +
-                                (captureResolution.fallbackReason ?: "已回退"),
+                            stringResource(
+                                R.string.dev_force_capture_fallback_reason,
+                                captureResolution.effective.developerLabel(),
+                            ) + "：" + (captureResolution.fallbackReason ?: stringResource(R.string.dev_force_capture_fell_back)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
             }
+
+            // ── 5. 日志级别 ──
             item {
                 SettingsSectionCard(
-                    title = "日志级别",
-                    description = "控制 Logcat 与内存 ring buffer 的最低级别；关闭开发者后 DEBUG 以下不入缓冲。",
+                    title = stringResource(R.string.dev_log_level_title),
+                    description = stringResource(R.string.dev_log_level_desc),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         AppLogLevel.entries.forEach { level ->
@@ -286,13 +230,15 @@ fun McpDeveloperSettingsScreen(
                     }
                 }
             }
+
+            // ── 6. 识别帧率上限 ──
             item {
                 SettingsSectionCard(
-                    title = "识别帧率上限",
-                    description = "配置字段仍保留（1–120），完成驱动取帧下运行时暂不消费，不会主动丢帧。",
+                    title = stringResource(R.string.dev_frame_rate_title),
+                    description = stringResource(R.string.dev_frame_rate_desc),
                 ) {
                     Text(
-                        "当前值：${config.developer.frameRateLimit}（未生效）",
+                        stringResource(R.string.dev_frame_rate_current, config.developer.frameRateLimit),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Slider(
@@ -308,13 +254,15 @@ fun McpDeveloperSettingsScreen(
                     )
                 }
             }
+
+            // ── 7. Native 自检 ──
             item {
                 SettingsSectionCard(
-                    title = "Native 自检",
-                    description = "在合成帧上跑 JNI + C++ 冒烟基准，不读取真实截图。",
+                    title = stringResource(R.string.dev_native_benchmark_title),
+                    description = stringResource(R.string.dev_native_benchmark_desc),
                 ) {
                     Text(
-                        "迭代次数：${config.developer.nativeBenchmarkIterations}",
+                        stringResource(R.string.dev_native_benchmark_iterations, config.developer.nativeBenchmarkIterations),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Slider(
@@ -331,19 +279,19 @@ fun McpDeveloperSettingsScreen(
                         valueRange = 10f..1000f,
                     )
                     Button(onClick = onRunBenchmark, modifier = Modifier.fillMaxWidth()) {
-                        Text("运行 JNI + C++ 合成帧自检")
+                        Text(stringResource(R.string.dev_run_benchmark))
                     }
                     benchmark?.fold(
                         onSuccess = { result ->
                             Text(
-                                "${result.iterations} 次 · 平均 %.3f ms · P50 %.3f ms · P95 %.3f ms"
-                                    .format(result.meanMs, result.p50Ms, result.p95Ms),
+                                "%d 次 · 平均 %.3f ms · P50 %.3f ms · P95 %.3f ms"
+                                    .format(result.iterations, result.meanMs, result.p50Ms, result.p95Ms),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         },
                         onFailure = { error ->
                             Text(
-                                "自检失败：${error.message}",
+                                stringResource(R.string.dev_benchmark_failed, error.message ?: error.javaClass.simpleName),
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -351,29 +299,31 @@ fun McpDeveloperSettingsScreen(
                     )
                 }
             }
+
+            // ── 8. 诊断导出 ──
             item {
                 SettingsSectionCard(
-                    title = "诊断导出",
-                    description = "包含版本、机型、配置摘要、算法激活、运行态与最近日志；不含 Bearer 与调试帧像素。",
+                    title = stringResource(R.string.dev_diagnostics_title),
+                    description = stringResource(R.string.dev_diagnostics_desc),
                 ) {
                     OutlinedButton(
                         onClick = {
                             runCatching {
                                 val report = onBuildDiagnostics()
                                 check(report.isNotBlank()) { "诊断内容为空" }
-                                val send = Intent(Intent.ACTION_SEND).apply {
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, report)
-                                    putExtra(Intent.EXTRA_SUBJECT, "HZZS diagnostics")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, report)
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "HZZS diagnostics")
                                 }
-                                context.startActivity(Intent.createChooser(send, "导出诊断摘要"))
+                                context.startActivity(android.content.Intent.createChooser(send, exportChooserTitle))
                             }.onFailure { error ->
-                                onMessage("导出失败：${error.message ?: error.javaClass.simpleName}")
+                                onMessage("导出失败：${error.message ?: "unknown"}")
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("导出诊断摘要")
+                        Text(stringResource(R.string.dev_export_diagnostics))
                     }
                     TextButton(
                         onClick = {
@@ -382,31 +332,37 @@ fun McpDeveloperSettingsScreen(
                                 return@TextButton
                             }
                             if (report.isBlank()) {
-                                onMessage("诊断内容为空")
+                                onMessage(diagnosticEmptyMsg)
                                 return@TextButton
                             }
-                            val ok = ClipboardHelper.copyText(context, "HZZS diagnostics", report)
+                            val ok = top.azek431.hzzs.core.platform.ClipboardHelper.copyText(
+                                context,
+                                "HZZS diagnostics",
+                                report,
+                            )
                             onMessage(
                                 if (ok) {
                                     "诊断摘要已复制（${report.lines().size} 行）"
                                 } else {
-                                    "复制失败：剪贴板不可用"
+                                    copyFailedMsg
                                 },
                             )
                         },
                     ) {
-                        Text("复制诊断摘要到剪贴板")
+                        Text(stringResource(R.string.dev_copy_to_clipboard))
                     }
                 }
             }
         }
+
+        // ── 9. 安全提示 ──
         item {
             SettingsWarningCard(
-                title = "安全提示",
-                body = "MCP 与开发者选项属于权限型配置，只有保存后才会生效。" +
-                    "切勿在不可信网络暴露本机端口；复制连接信息含 Bearer，勿写入日志或公开渠道。",
+                title = stringResource(R.string.dev_security_title),
+                body = stringResource(R.string.dev_security_body),
             )
         }
+
         item { Spacer(Modifier.height(24.dp)) }
     }
 }

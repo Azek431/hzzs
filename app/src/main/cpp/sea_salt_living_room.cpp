@@ -70,6 +70,102 @@ float clamp01(float v) {
 
 }  // namespace
 
+/** 海盐客厅的声明式多点找色模板（从酱油脚本移植，归一化坐标）。 */
+std::vector<MultiColorPattern> sea_salt_multicolor_rules(
+    const SceneAlgorithmParamsNative& params) {
+    std::vector<MultiColorPattern> rules;
+
+    // 大断崖/小断崖 → PIT, JUMP（浅灰蓝模式）
+    {
+        MultiColorPattern p{};
+        p.base_r = 230; p.base_g = 237; p.base_b = 245;  // #E6EDF5
+        p.offsets = {
+            {0.1171f, -0.0249f, 242u, 250u, 254u},    // #F2FAFE
+            {0.1863f, -0.0076f, 238u, 248u, 252u},    // #EEF8FC
+            {0.4528f, -0.0007f, 241u, 248u, 254u},    // #F1F8FE
+            {0.5362f,  0.0296f, 217u, 227u, 232u},    // #D9E3E8
+            {0.5315f, -0.0205f, 210u, 144u,  62u},    // #D2903E
+        };
+        p.kind = Kind::PIT;
+        p.avoidance = Avoidance::JUMP;
+        p.search_top_ratio = params.search_region_top_ratio;
+        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.threshold = params.multicolor_threshold;
+        rules.push_back(std::move(p));
+    }
+
+    // 矮沙丘 → SAND_CASTLE, JUMP（蓝/深蓝模式）
+    {
+        MultiColorPattern p{};
+        p.base_r = 198; p.base_g = 230; p.base_b = 249;  // #C6E6F9
+        p.offsets = {
+            {0.0401f, -0.0080f, 199u, 229u, 251u},    // #C7E5FB
+            {0.1007f, -0.0051f, 135u, 190u, 229u},    // #87BEE5
+            {0.1219f,  0.0186f, 127u, 156u, 193u},    // #7F9CC1
+        };
+        p.kind = Kind::SAND_CASTLE;
+        p.avoidance = Avoidance::JUMP;
+        p.search_top_ratio = params.search_region_top_ratio;
+        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.threshold = params.multicolor_threshold;
+        rules.push_back(std::move(p));
+    }
+
+    // 高沙丘 → SAND_CASTLE, DOUBLE_JUMP（蓝/紫色模式）
+    {
+        MultiColorPattern p{};
+        p.base_r = 128; p.base_g = 180; p.base_b = 227;  // #80B4E3
+        p.offsets = {
+            {0.0762f, -0.0711f, 151u,  82u, 194u},    // #9752C2
+            {0.1305f, -0.0239f, 177u, 215u, 240u},    // #B1D7F0
+            {0.1470f,  0.0060f, 105u, 138u, 189u},    // #698ABD
+        };
+        p.kind = Kind::SAND_CASTLE;
+        p.avoidance = Avoidance::DOUBLE_JUMP;
+        p.search_top_ratio = params.search_region_top_ratio;
+        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.threshold = params.multicolor_threshold;
+        rules.push_back(std::move(p));
+    }
+
+    // 船锚 → HANGING_ANCHOR, SWIPE_UP（金属灰 + 绳索色）
+    {
+        MultiColorPattern p{};
+        p.base_r = 159; p.base_g = 128; p.base_b = 108;  // #9F806C
+        p.offsets = {
+            {0.0644f, -0.0144f, 235u, 225u, 221u},    // #EBE1DD
+            {-0.0142f, 0.0202f, 134u, 124u, 120u},    // #867C78
+            {0.0377f, 0.0101f,  81u,  80u,  82u},    // #515052
+            {-0.0449f, -0.0277f, 63u, 122u, 171u},    // #3F7AAB
+        };
+        p.kind = Kind::HANGING_ANCHOR;
+        p.avoidance = Avoidance::SWIPE_UP;
+        p.search_top_ratio = params.search_region_top_ratio;
+        p.search_bottom_ratio = params.search_bottom_ratio;
+        p.threshold = params.multicolor_threshold;
+        rules.push_back(std::move(p));
+    }
+
+    return rules;
+}
+
+/**
+ * 可选：在分析末尾追加多点找色检测结果。
+ *
+ * 当前为 stub — 实际集成需在 analyze_sea_salt 末尾调用
+ * find_multi_color_patterns() 并将结果合并到 out.detections。
+ * 第一版以参数驱动的传统检测为主，多点找色后续接入。
+ */
+void append_multicolor_detections(
+    Result& /*out*/,
+    const FrameView& /*frame*/,
+    int /*enabled_kind_mask*/,
+    const SceneAlgorithmParamsNative& /*params*/) {
+    // TODO: 解析 rules.json 中的 multiColorRules → std::vector<MultiColorPattern>
+    // → 调用 find_multi_color_patterns() → 合并到 out
+    // 占位实现：保持可编译通过
+}
+
 Result analyze_sea_salt(
     const FrameView& f,
     int work_width,
@@ -400,6 +496,10 @@ Result analyze_sea_salt(
         out.scene_confidence =
             std::max(out.scene_confidence, params.scene_confidence_floor * 0.85f);
     }
+
+    // 可选：追加多点找色检测结果（stub，第一版暂不消费）
+    append_multicolor_detections(out, f, enabled_kind_mask, params);
+
     return out;
 }
 

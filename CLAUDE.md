@@ -35,6 +35,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 - 视觉结果使用视口归一化坐标 `[0, 1]`；像素换算只允许在绘制层与手势分发层。
 - `Detection.bounds` 是动作、Tracker 与距离的几何真相源；`displayContour`（若有）**仅**供 HUD，不得参与规划。
+- **多点找色引擎**（`multicolor_detector.h/.cpp`）：`MultiColorPattern` 模板全部使用视口归一化坐标；找色阈值通过 `SceneAlgorithmParams.multicolorThreshold`（0..255）与 `searchRegionTopRatio/BottomRatio` 控制；不在帧路径中解析 JSON。
 - 截图帧有明确 `close()` 生命周期，禁止跨帧保存底层缓冲引用。
 - WindowManager / View / Accessibility 回调必须在主线程协调。
 - C++ 输入缓冲只在 JNI 调用期间借用；Native **不得**持有 Java 数组地址。
@@ -46,6 +47,13 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - MediaProjection 为 CONFLATED + 最新帧；HUD 显示时临时隐身、等一帧提交，并对 MediaProjection/AUTO 排空可能含旧合成层的一帧。
 - 近似轮廓与像素轮廓不得声称已迁移 C++/JNI，除非协议与测试同步落地。
 - 完成驱动与轮廓说明：`docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md`。
+
+## 多点找色检测（CC-2）
+
+- 算法包 `sea-salt-living-room-v1`（作者：酱油，beta 通道）包含海盐客厅的声明式多点找色模板。
+- `find_multi_color_patterns()` 在帧中扫描 `MultiColorPattern[]` 并输出标准化 `Detection`；不控制手势或权限。
+- 第一版为 stub 接入（`append_multicolor_detections` 占位），传统颜色谓词路径为主检测器。
+- 找色坐标全部归一化 `[0,1]`，规则从 `rules.json engineParams` 读取，禁止硬编码像素值。
 
 ## 修改流程
 
