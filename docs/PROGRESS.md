@@ -1,6 +1,6 @@
 # 统一重构进度
 
-分支：`chatgpt/rewrite-v0.2.0-unified`（相对历史 `main` 的整仓统一架构）。  
+当前主干：`main`（整仓统一架构已落地；历史重构代号曾用 `chatgpt/rewrite-v0.2.0-unified`）。  
 首发版本目标：**v0.1.0** / `versionCode = 1`（尚未正式打 tag 发布）。
 
 ## 已实现
@@ -8,7 +8,7 @@
 - 单一 `app` Android 模块与职责分包（Compose + Hilt）。
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
 - Material 3 首次引导、主题包、悬浮窗样式、设置预览和开发者入口。
-- MCP 四级权限、回环监听、随机令牌和应用内语义操作。
+- MCP 四级权限、回环监听、随机令牌和应用内语义操作；Streamable HTTP 握手与会话表、严格工具 schema、连接背压。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
 - C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。
@@ -30,7 +30,7 @@
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
 | P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
 | P1 | SettingsEditSession debounce/flush/ignore 走 session | 已落地（含统一离开守卫，外层导航不再静默丢弃草稿） |
-| P1 | requireSessionArm 生效并暴露设置项 | 已落地 |
+| P1 | requireSessionArm 移除（不再每次会话手动解锁，启用后直接规划手势） | 已变更 |
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
@@ -48,6 +48,8 @@
 | P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
 | P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导步骤/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
 | P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地（会话阶段可视化 + 最近一帧摘要；无文件日志；无 C++ 热路径逐步日志） |
+| P1 | 设置页拆分为独立分类：MCP 服务（普通用户可访问）与开发者选项分离；连接引导、状态卡片、一键复制信息 | 已落地 |
+| P1 | MCP 协议与安全加固：initialize/initialized、Mcp-Session-Id、TRUSTED_SESSION 内存会话、并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批 | 已落地 |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |
 | P2 | 数据集人工真值与召回评估 | 未完成 |
 
@@ -64,13 +66,13 @@
 
 - 444 张（或任意数量）数据集在缺少独立人工真值时，**不能**证明 99% 准确率或全机型覆盖。
 - 未发布的更新索引上，应用内“检查更新”失败是预期行为。
-- 设置页算法「检查/下载」在安装器接入前**不会**改变 Native 识别；分析默认 `builtin.hzzs.v1`。
+- 设置页算法「检查/下载」在远端 `release-index` 目录与信任锚未发布时，**不会**改变识别结果；分析默认内置 `builtin.hzzs.base` **0.1.0**。
 - 算法包 engine 参数在主路径全参数化完成前，对常态检测收益有限（主要影响启发式回退与部分 floor）。
 
 ## 版本叙事
 
 | 名称 | 含义 |
 | --- | --- |
-| 分支名 `rewrite-v0.2.0-unified` | 工程内部重构代号，**不是**已发布的 0.2.0 |
+| 历史重构代号 `rewrite-v0.2.0-unified` | 工程内部代号，**不是**已发布的 0.2.0；当前工作在 `main` |
 | 产品首发版本 | **0.1.0** / code **1** |
-| `main` 历史线 | 多模块 Views + 叠层视觉运行时；本分支以其为算法供体与行为对照基线 |
+| 更早历史线 | 多模块 Views + 叠层视觉运行时；现 `main` 以其为算法供体与行为对照基线 |

@@ -19,11 +19,11 @@ import top.azek431.hzzs.core.model.SceneId
 /**
  * 算法运行时快照。
  *
- * @property algorithmId 包 ID，如 `builtin.hzzs.v1`
+ * @property algorithmId 包 ID，如 `builtin.hzzs.base`
  * @property version 语义化版本字符串
  * @property schemaVersion 固定为 [SCHEMA_VERSION]
  * @property isBuiltin 是否内置回退算法
- * @property scenes 两赛季独立参数；必须覆盖全部 [SceneId]
+ * @property scenes 各赛季独立参数；必须覆盖全部 [SceneId]
  */
 data class AlgorithmRuntimeProfile(
     val algorithmId: String,

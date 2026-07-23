@@ -141,7 +141,9 @@ fun McpSettingsScreen(
                     onClick = {
                         val command =
                             "adb forward tcp:${mcpState.port} tcp:${mcpState.port}\n" +
-                                "Authorization: Bearer ${mcpState.token}"
+                                "URL: http://127.0.0.1:${mcpState.port}/mcp\n" +
+                                "Authorization: Bearer ${mcpState.token}\n" +
+                                "Transport: Streamable HTTP (POST /mcp)"
                         val ok = ClipboardHelper.copyText(context, "HZZS MCP", command)
                         onMessage(
                             if (ok) copiedMsg else copyFailedMsg,
@@ -215,7 +217,8 @@ fun McpSettingsScreen(
                 SettingsSwitchRow(
                     title = stringResource(R.string.mcp_debug_frames_switch),
                     checked = config.mcp.allowDebugFrames,
-                    enabled = config.developer.enabled && config.mcp.allowDebugFrames,
+                    // 仅开发者选项解锁后可改；已开时也可关闭。
+                    enabled = config.developer.enabled,
                     onCheckedChange = { value ->
                         update { it.copy(mcp = it.mcp.copy(allowDebugFrames = value)) }
                     },
@@ -248,21 +251,26 @@ fun McpSettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(4.dp))
-                    CodeBlock("adb forward tcp:8765 tcp:8765")
+                    CodeBlock("adb forward tcp:${config.mcp.port} tcp:${config.mcp.port}")
                     Spacer(Modifier.height(8.dp))
                     Text(
                         stringResource(R.string.mcp_step_2),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(4.dp))
-                    CodeBlock("在设置页点击「复制连接信息」")
+                    CodeBlock("在设置页点击「复制连接信息」获取 Bearer")
                     Spacer(Modifier.height(8.dp))
                     Text(
                         stringResource(R.string.mcp_step_3),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(4.dp))
-                    CodeBlock("adb shell dumpsys window | grep mCurrentFocus")
+                    CodeBlock(
+                        "URL: http://127.0.0.1:${config.mcp.port}/mcp\n" +
+                            "Header: Authorization: Bearer <token>\n" +
+                            "传输: Streamable HTTP（POST JSON-RPC）\n" +
+                            "兼容: Claude Code / RikkaHub / OperitAI",
+                    )
                 }
             }
         }
@@ -286,7 +294,8 @@ fun McpSettingsScreen(
 private fun permissionDescription(level: McpPermissionLevel): String = when (level) {
     McpPermissionLevel.READ_ONLY -> "仅允许 AI 读取运行状态和配置，不可修改任何设置"
     McpPermissionLevel.ASK_EVERY_TIME -> "每次写操作需要你在手机上确认（推荐默认）"
-    McpPermissionLevel.TRUSTED_SESSION -> "信任本次会话的操作，但解锁自动操作仍需确认"
+    McpPermissionLevel.TRUSTED_SESSION ->
+        "信任当前 MCP 握手会话的普通写操作（服务重启或会话过期后失效，不持久化）"
     McpPermissionLevel.FULL_ACCESS -> "允许 AI 执行应用内所有功能（仍不能绕过系统权限对话框）"
 }
 

@@ -113,7 +113,13 @@ check(
     "onboarding risk wait must use stringResource",
 )
 
-mcp = read("app/src/main/java/top/azek431/hzzs/mcp/McpService.kt")
+mcp_dir = ROOT / "app/src/main/java/top/azek431/hzzs/mcp"
+mcp = ""
+if mcp_dir.is_dir():
+    for path in sorted(mcp_dir.rglob("*.kt")):
+        mcp += "\n" + path.read_text(encoding="utf-8")
+else:
+    mcp = read("app/src/main/java/top/azek431/hzzs/mcp/McpService.kt")
 for token in (
     "InetAddress.getLoopbackAddress()",
     "Authorization",
@@ -127,9 +133,21 @@ for token in (
     "settings.snapshot().mcp.permissionLevel",
     "list_debug_frames",
     "clear_debug_frames",
+    "Mcp-Session-Id",
+    "notifications/initialized",
+    "TRUSTED_SESSION",
+    "rejectPendingApproval",
+    "MAX_CONCURRENT_CONNECTIONS",
+    "additionalProperties",
 ):
     check(token in mcp, f"mcp:{token}", "MCP control/safety invariant missing")
 check("0.0.0.0" not in mcp, "mcp:no-lan-listener", "MCP must remain loopback-only")
+check(
+    'put("additionalProperties", true)' not in mcp
+    and "put('additionalProperties', true)" not in mcp,
+    "mcp:no-open-tool-schema",
+    "tool inputSchema must not use additionalProperties:true",
+)
 
 capture = read("app/src/main/java/top/azek431/hzzs/service/capture/CaptureSources.kt")
 check(

@@ -5,20 +5,28 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
 版本策略：项目**尚未正式发布**。首个对外版本目标为 **v0.1.0**（`versionCode = 1`）。  
-当前开发线在分支 `chatgpt/rewrite-v0.2.0-unified` 上完成统一重构，合并发布前版本号仍记为 0.1.0。
+统一架构已在 `main` 落地；历史重构代号 `chatgpt/rewrite-v0.2.0-unified` 仅作对照，发布前版本号仍记为 0.1.0。
 
 ## [Unreleased]
 
 ### 变更
 
+- **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；实现 `initialize` 版本协商 + `Mcp-Session-Id`、`notifications/initialized`（HTTP 202）、通知不当请求响应；`TRUSTED_SESSION` 绑定已握手的内存会话（服务重启/generation 作废，不持久化特权）；连接并发上限与 429；工具严格 JSON Schema（`additionalProperties:false`）；错误码分类；停止服务时拒绝挂起审批，避免断连后副作用。设置页连接说明补充 URL/Bearer/RikkaHub·OperitAI 兼容提示；调试帧开关可在开发者解锁后正常开启。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
+
+- **MCP 设置页拆分**：旧「MCP 与开发者」合并页面拆为独立「MCP 服务」分类（普通用户可访问）和「开发者选项」分类（需解锁）。MCP 页面包含运行状态 Hero 卡片、一键复制连接信息按钮、四级权限选择、连接引导说明。开发者选项（调试帧、Native Benchmark、日志级别等）剥离至独立页。旧 `McpDeveloperSettingsScreen.kt` 已删除。
+
 - **本机构建加速**：`gradlew` / `gradlew.bat` 在未设置时默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`，并默认 `-Dorg.gradle.configuration-cache=true`，避免用户级 `gradle.properties` 关闭配置缓存导致每次 install/assemble 全量配置；可用 `HZZS_ALLOW_USER_CC_OVERRIDE=1` 退回用户设置。文档同步说明内存争用与 CC 覆盖。
+
+- **文档与内置算法默认值对齐**：进度/架构/安全/算法规范与源码统一为 `main`、三赛季 `SceneId`、`builtin.hzzs.base` 0.1.0，以及无会话 arm 的自动操作门控；C++ 默认 profile 字符串与诊断字段同步清理旧 ID。
 
 ### 修复
 
 - **前台服务 type（targetSdk 37）**：`MediaProjectionCaptureService` / `McpForegroundService` 在 API 34+ 调用带 `FOREGROUND_SERVICE_TYPE_*` 的 `startForeground`，避免 `MissingForegroundServiceTypeException`。
 - **录屏服务 `stopping` 闩**：stop 后同一 Service 实例再次 START 会重置 `stopping`，避免快速重开捕获永久空转；`fail/idle` 同步排空帧通道。
 - **MCP/外部配置摄入 harden**：`hardenedForExternalIngest` 禁止静默开自动操作、自提 MCP 权限级、静默开开发者/升权截图后端；MCP `preview_settings`/`save_settings` 相对 baseline 收敛。
-- **disarm fail-closed**：`disarmAutomation` 取消在飞 `actionJob`；`dispatchPlan` 重检 enabled/arm；配置变更含 enabled/requireSessionArm/disclaimer 时解除 arm。
+- **自动操作会话解锁移除**：`requireSessionArm` / `armAutomation` / `disarmAutomation` 已删除；设置页「启用自动操作」后，运行中识别达标直接规划手势，不再需要手动解锁。保留免责声明版本检查与风险确认对话框。MCP `arm_automation` / `disarm_automation` 工具同步移除。`RuntimeStatus.automationArmed` 字段移除。
+
+- **disarm fail-closed**：`cancelActions()` 取消在飞 `actionJob`；配置变更含 enabled/disclaimer 时取消动作。
 - **帧循环异常清 `analysisRunning`**：`runLoop` finally / start 失败路径与 `stop` 对称，避免算法切换永久 pending。
 - **帧龄门控**：完成驱动下将 `MAX_FRAME_AGE_MS` 从 120ms 放宽到 1000ms，避免分析耗时导致自动操作系统性不触发。
 - **内置算法首版号对齐 0.1.0**：`AlgorithmIds` / `AlgorithmRuntimeProfile` / C++ `make_builtin_profile` 的内置版本由错误的 `2.0.0` 改为 **`0.1.0`**，Catalog ID 为 `builtin-hzzs-base-0.1.0`（runtime 仍为 `builtin.hzzs.base`）；旧 pin 以 `builtin-` 前缀仍识别为内置。

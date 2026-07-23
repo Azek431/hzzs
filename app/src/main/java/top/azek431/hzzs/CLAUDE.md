@@ -5,4 +5,4 @@
 - `domain` 尽量保持纯 Kotlin，可直接 JVM 测试。
 - `feature` 不直接执行 Root、Shell、JNI 或 WindowManager 操作，只调用注入的控制器。
 - `service` 和 `platform` 负责 Android API 边界、权限和资源释放。
-- 状态流必须有单一所有者；避免 UI、本地服务和仓库同时修改同一状态。
+- `feature/settings` 设置页已拆分为独立分类子页：`McpSettingsScreen.kt`（MCP 服务，普通用户可访问）、`DeveloperSettingsScreen.kt`（开发者选项，需解锁）；旧 `McpDeveloperSettingsScreen.kt` 已删除。设置模块通过 `SettingsCategory` enum + `NavHost` 管理路由。

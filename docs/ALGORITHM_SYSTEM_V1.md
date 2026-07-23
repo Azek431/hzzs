@@ -225,7 +225,7 @@ ActiveAlgorithmProvider.activate / VisionEngine.configureAlgorithm(profile)
 analyze(frame) 只读当前 generation 对应快照
 失败 → 保留旧配置或回退 builtin，NativeVision 保持可用
 
-（现状）进程默认 builtin.hzzs.v1；设置里的 AlgorithmConfig / 目录选择尚未桥接到上述激活路径。
+（现状）进程默认 builtin.hzzs.base（0.1.0）；设置页算法选择经 AlgorithmActivationCoordinator 在安全点激活，外装包仍依赖 release-index 目录与信任锚。
 ```
 
 ### 允许外部化的参数（目标完整列表）

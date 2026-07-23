@@ -320,7 +320,7 @@ fun AboutScreen(
 
 /**
  * 开发者诊断页：强制截图后端、调试帧、坐标网格、日志级别、Native 自检与诊断导出。
- * 仅改 [DeveloperConfig]；不直接拉起截图或 MCP 服务。设置页「MCP 与开发者」含同等字段。
+ * 仅改 [DeveloperConfig]；不直接拉起截图或 MCP 服务。MCP 在独立「MCP 服务」分类页中配置。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable

@@ -91,8 +91,8 @@ struct SceneAlgorithmParamsNative {
  * 不包含手势、Root、包名白名单等安全门禁字段。
  */
 struct AlgorithmRuntimeProfileNative {
-    char algorithm_id[kMaxAlgorithmIdLen + 1]{"builtin.hzzs.v1"};
-    char version[kMaxAlgorithmVersionLen + 1]{"1.0.0"};
+    char algorithm_id[kMaxAlgorithmIdLen + 1]{"builtin.hzzs.base"};
+    char version[kMaxAlgorithmVersionLen + 1]{"0.1.0"};
     int32_t schema_version{kAlgorithmSchemaVersion};
     int32_t is_builtin{1};
     int64_t generation{1};

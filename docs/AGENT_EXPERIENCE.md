@@ -3,6 +3,10 @@
 跨会话可复用的**工程经验**（短条）。硬约束仍以根目录 `CLAUDE.md` 与源码为准。  
 会话级偏好写入 Claude 项目记忆；此处只记对仓库协作者也有用的条目。
 
+## 2026-07-23
+
+- **Serena Kotlin LSP 本机坑**：low-memory profile 机器上多个 Claude/Serena 会话会并发启动多个 `KotlinLspServerKt`（各 `-Xmx2G`），可用内存常 <1 GiB，表现为 `initialize` 超时或 `cancelled (-32800)`。清理孤儿进程与 `.serena/cache/kotlin/*.pkl` 后仍可能因 Gradle 导入与内存争用失败；项目任务可回退标准文件工具，勿阻塞交付。
+
 ## 2026-07-22
 
 - **内置算法首版号是 0.1.0**：runtime `builtin.hzzs.base` + Catalog `builtin-hzzs-base-0.1.0`；不要再写 `2.0.0`（那是误标）。与外装包 `official-bamboo-baseline` 0.1.0 语义独立。
@@ -25,6 +29,6 @@
 - **截图后端 API 门闩**：`ACCESSIBILITY` 仅 API 30+；Android 10 上强制/选择无障碍须经 `resolveEffectiveCaptureBackend` fail-soft 回退 MediaProjection/用户主配置，避免启动即 Failed。诊断字段 `capture.requested/effective/fallbackReason` 可对账。
 - **targetSdk 34+ FGS type**：`startForeground` 必须带 `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION` / `SPECIAL_USE`，Manifest 声明不够。
 - **MCP/导入 harden**：外部 JSON 相对 baseline 不得静默开自动操作、自提 `FULL_ACCESS`、升权截图后端；用 `hardenedForExternalIngest`。
-- **disarm 须 abort 在飞动作**：只清 `automationArmed` 不够；`actionJob.cancel` + `dispatchPlan` 重检 enabled/arm。
+- **自动操作 fail-closed 须 abort 在飞动作**：会话 arm 已移除；配置变更/停分析时调用 `cancelActions()`（`actionJob.cancel`），规划路径仍重检 enabled + 免责声明版本。
 - **analysisRunning 与帧循环对称**：`runLoop` 异常 finally 也要 `setAnalysisRunning(false)`，否则算法切换永久 pending。
 - **JNI 赛季闸门须跟 `kSceneCount`**：引擎/宿主/Kotlin 已支持海盐（scene=2）时，`jni_bridge` 若仍 `scene > 1` 会真机 `invalid scene` 连败；扩赛季时同步 JNI、CMake、`run_native_sanitizers.sh` 源列表与 native 边界测。

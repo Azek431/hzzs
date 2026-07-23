@@ -32,7 +32,7 @@ AndroidManifest.xml
 | `service/capture` | 截图源、帧租约、系统授权 | `FrameCapture.kt`、`CaptureSources.kt` | 自动选择高级权限 |
 | `service/overlay` | 双层悬浮窗与 HUD | `OverlayController.kt` | 参与动作几何判断 |
 | `service/automation` | 无障碍手势和最终前台校验 | `HzzsAccessibilityService.kt` | 从 Root/Shizuku 注入手势 |
-| `mcp` | loopback MCP、审批和外部摄入 | `McpService.kt` | 绕过系统权限对话框 |
+| `mcp` | loopback MCP、会话握手、审批和外部摄入 | `McpService.kt` / `McpProtocol.kt` / `McpToolCatalog.kt` | 绕过系统权限对话框；把 TRUSTED_SESSION 当持久特权 |
 | `nativevision` | JNI 声明与库加载 | `NativeVision.kt` | 跨调用保存像素地址 |
 
 ## 配置状态：正式答案与草稿
