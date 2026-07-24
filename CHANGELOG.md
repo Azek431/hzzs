@@ -42,6 +42,7 @@
 
 ### 修复
 
+- **宿主机 host_tests 对齐 FIXED_RATIO**：`detect_player=false` 时引擎仍输出固定玩家参考框（与 App `PlayerReferenceMode.FIXED_RATIO` 一致）；mask=0 只断言「至多 1 个 PLAYER、无障碍」，不再误要求 `count==0`。
 - **宿主机 ASan 链接多点找色**：`run_native_sanitizers.sh` 补链 `multicolor_detector.cpp`（与 `CMakeLists.txt` / `build_host.sh` 一致），修复 `find_multi_color_patterns` undefined reference 导致 CI Build 失败。
 - **手势后端真正分叉**：`VisionRuntimeController` 规划/派发按 `GestureBackend` 走无障碍 `dispatchGesture` 或 Shizuku/Root `input` + dumpsys 前台；不再绑死无障碍导致选 Shizuku 时系统性 `skip:no_foreground`。决策/诊断写入 `backend=` 与 `activeGestureBackend`；Shell dumpsys 失败 fail-closed（`reason=dumpsys_fail`）。
 - **去掉竹影赛季硬锁**：自动操作全场景共用总开关；`bambooExperimentalAutoAction` 仅 schema 兼容、无运行时拦截。设置页移除赛季实验开关。

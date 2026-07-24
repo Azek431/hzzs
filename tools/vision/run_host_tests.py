@@ -150,11 +150,17 @@ def main() -> None:
         validate_rows(output, count)
 
         # Disabling every obstacle must suppress obstacle output without making
-        # the engine read outside the frame. Player detection is independently configurable.
+        # the engine read outside the frame.
+        # 与产品一致：detect_player=false 对应 FIXED_RATIO，仍会输出固定玩家参考框
+        # （kind=PLAYER），障碍 mask=0 时不得再吐障碍。
         count, output = invoke_config(scene, synthetic_argb, 320, 640, 0, False)
-        assert count == 0, (scene, count, output[: 1 + max(count, 0) * 10])
+        assert 0 <= count <= 1, (scene, count, output[: 1 + max(count, 0) * 10])
+        for index in range(count):
+            kind = int(round(float(output[1 + index * 10 + 1])))
+            assert kind == 0, (scene, "fixed_player_only", kind, count)
+        # detect_player=true：允许 0/1 个 PLAYER（合成帧可能找不到角色），仍不得有障碍。
         count, output = invoke_config(scene, synthetic_argb, 320, 640, 0, True)
-        assert 0 <= count <= 1
+        assert 0 <= count <= 1, (scene, count)
         for index in range(count):
             assert int(round(float(output[1 + index * 10 + 1]))) == 0
 
