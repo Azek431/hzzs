@@ -102,6 +102,35 @@ class SettingsSessionTest {
         assertTrue(withDisclaimer.validated().automation.enabled)
     }
 
+    /**
+     * 引导完成落盘形状：`enabled` 与免责版本同帧；缺免责则 save 路径 validated 后不得为开。
+     */
+    @Test
+    fun onboardingCompleteAutomationShapeMatchesSaveValidated() {
+        val incomplete = AppConfig(
+            onboarding = AppConfig().onboarding.copy(
+                completed = true,
+                acceptedDisclaimerVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+            automation = AutomationConfig(enabled = true, disclaimerAcceptedVersion = 0),
+        ).validated()
+        assertFalse(incomplete.automation.enabled)
+        assertTrue(incomplete.onboarding.completed)
+
+        val complete = AppConfig(
+            onboarding = AppConfig().onboarding.copy(
+                completed = true,
+                acceptedDisclaimerVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+        ).validated()
+        assertTrue(complete.automation.enabled)
+        assertTrue(complete.onboarding.completed)
+    }
+
     @Test
     fun seaSaltTriggerDistanceRoundTripsAndValidates() {
         val configured = AppConfig().copy(

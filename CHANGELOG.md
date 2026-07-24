@@ -11,7 +11,11 @@
 
 ### 修复
 
-- **自动操作风险弹窗确认一次即可**：引导页草稿用 `remember(initial)` 会在 `preview` 回流后重建，并强制 `enabled=false`，导致风险对话框确认后开关又关、需再开一次。改为只播种一次；设置页/引导在已接受当前免责版本时直接开启不再弹窗；`SettingsViewModel.update` 乐观草稿与 `validated()` 对齐。
+- **自动操作/截图只跟已保存配置**：`VisionRuntimeController` 将 `automation` 与 `captureBackend`（及已保存开发者强制截图）强制取 `savedConfig`，设置草稿预览不得派发手势或换源。
+- **API 33+ 启动时请求通知权限**：`POST_NOTIFICATIONS` 供录屏/MCP 前台服务通知；拒绝不阻塞主流程。
+- **Shell 前台 dumpsys**：优先 mResumed/topResumed；缩短 TTL/超时；单测覆盖「先有旧 ActivityRecord 时仍取 mResumed」。
+- **ledger 冷却锚点**：成功提交用完成时刻，而非创建时刻。
+- **自动操作风险弹窗确认一次即可**：引导页草稿用 `remember(initial)` 会在 `preview` 回流后重建，并强制 `enabled=false`，导致风险对话框确认后开关又关、需再开一次。改为只播种一次；设置页/引导在已接受当前免责版本时直接开启不再弹窗；`SettingsViewModel.update` 与引导 `update` 乐观草稿均与 `validated()` 对齐。风险对话框打开期间开关保持「开」外观，避免受控 Switch 弹回造成二次拨动。
 
 ### 新增
 

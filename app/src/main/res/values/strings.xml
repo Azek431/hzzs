@@ -203,6 +203,7 @@
     <string name="onboarding_automation_desc">默认关闭。开启需无障碍服务与风险确认；也可稍后在设置中开启。</string>
     <string name="onboarding_automation_allow">允许自动操作</string>
     <string name="onboarding_automation_hint">启用后在分析运行中按门控规划手势；竹影场景另有实验锁。</string>
+    <string name="onboarding_automation_pending_risk">请在对话框中完成风险确认（倒计时结束后可确认）</string>
     <string name="onboarding_finish_section">配置摘要</string>
     <string name="onboarding_finish_desc">确认后保存并进入首页</string>
     <string name="onboarding_finish_scene">赛季：%1$s</string>

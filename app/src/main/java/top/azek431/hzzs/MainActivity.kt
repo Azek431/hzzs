@@ -112,12 +112,31 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, getString(R.string.permission_save_image_denied), Toast.LENGTH_LONG).show()
         }
     }
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* 拒绝时前台服务通知可能不显示；仍允许用户使用应用 */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        maybeRequestPostNotifications()
         setContent { HzzsRoot(onSaveDonation = ::saveDonationImage) }
+    }
+
+    /**
+     * API 33+ 前台服务（录屏/MCP）依赖通知可见性；未授权时系统可能限制通知展示。
+     * 不阻塞主流程；用户拒绝后仍可使用（部分 OEM 体验降级）。
+     */
+    private fun maybeRequestPostNotifications() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     @SuppressLint("ResourceType")
@@ -243,6 +262,7 @@ class AppViewModel @Inject constructor(
     }
 
     fun completeOnboarding(config: AppConfig) {
+        // save 内部 validated；完成引导时若草稿已开自动操作，须带合法免责版本，否则会被洗回关。
         viewModelScope.launch { repository.save(config) }
     }
 

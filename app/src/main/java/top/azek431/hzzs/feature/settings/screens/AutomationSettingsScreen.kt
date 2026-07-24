@@ -165,9 +165,16 @@ fun AutomationSettingsScreen(
             ) {
                 SettingsSwitchRow(
                     title = "启用自动操作",
-                    checked = config.automation.enabled,
+                    // 风险对话框打开期间保持「开」外观，避免受控 Switch 弹回关、用户以为没生效再拨一次。
+                    checked = config.automation.enabled || riskDialog,
+                    subtitle = when {
+                        riskDialog -> "请在对话框中完成风险确认（倒计时结束后可确认）"
+                        config.automation.enabled -> "已开启：分析运行中按门控规划手势"
+                        else -> "默认关闭；开启须阅读风险说明"
+                    },
                     onCheckedChange = { enabled ->
                         if (enabled) {
+                            if (riskDialog) return@SettingsSwitchRow
                             // 已接受当前免责声明版本时直接开启，避免重复风险弹窗。
                             if (config.automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION) {
                                 update {
@@ -182,6 +189,7 @@ fun AutomationSettingsScreen(
                                 riskDialog = true
                             }
                         } else {
+                            riskDialog = false
                             update { it.copy(automation = it.automation.copy(enabled = false)) }
                         }
                     },

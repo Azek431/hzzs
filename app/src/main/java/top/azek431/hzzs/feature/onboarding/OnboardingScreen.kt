@@ -91,6 +91,7 @@ import top.azek431.hzzs.core.model.OverlayStyle
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.ThemePreset
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.core.preferences.validated
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.platform.compat.CaptureCapability
@@ -147,8 +148,10 @@ fun OnboardingScreen(
     }
 
     fun update(transform: (AppConfig) -> AppConfig) {
-        draft = transform(draft)
-        onPreview(draft)
+        // 与仓库 preview/save 同源校验：enabled 与 disclaimer 必须同帧合法，否则会被洗回关。
+        val next = transform(draft).validated()
+        draft = next
+        onPreview(next)
     }
 
     Scaffold(
@@ -264,11 +267,14 @@ fun OnboardingScreen(
                             draft = draft,
                             onTheme = { preset -> update { it.copy(theme = it.theme.copy(preset = preset)) } },
                             onOverlay = { style -> update { it.copy(overlay = it.overlay.copy(style = style)) } },
-                            automationEnabled = draft.automation.enabled,
+                            automationEnabled = draft.automation.enabled || showAutomationRisk,
+                            riskDialogPending = showAutomationRisk,
                             onAutomationChange = { enabled ->
-                                if (enabled) {
-                                    // 本会话已确认过风险（免责版本已写入草稿）则直接开，不再二次弹窗。
-                                    if (draft.automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION) {
+                                when {
+                                    enabled && showAutomationRisk -> Unit
+                                    enabled &&
+                                        draft.automation.disclaimerAcceptedVersion >=
+                                        AppConfig.DISCLAIMER_VERSION -> {
                                         update {
                                             it.copy(
                                                 automation = it.automation.copy(
@@ -277,11 +283,14 @@ fun OnboardingScreen(
                                                 ),
                                             )
                                         }
-                                    } else {
-                                        showAutomationRisk = true
                                     }
-                                } else {
-                                    update { it.copy(automation = it.automation.copy(enabled = false)) }
+                                    enabled -> showAutomationRisk = true
+                                    else -> {
+                                        showAutomationRisk = false
+                                        update {
+                                            it.copy(automation = it.automation.copy(enabled = false))
+                                        }
+                                    }
                                 }
                             },
                         )
@@ -548,6 +557,7 @@ private fun FinishPage(
     onTheme: (ThemePreset) -> Unit,
     onOverlay: (OverlayStyle) -> Unit,
     automationEnabled: Boolean,
+    riskDialogPending: Boolean = false,
     onAutomationChange: (Boolean) -> Unit,
 ) {
     var advancedExpanded by remember { mutableStateOf(false) }
@@ -658,7 +668,11 @@ private fun FinishPage(
                     )
                     SettingsSwitchRow(
                         title = stringResource(R.string.onboarding_automation_allow),
-                        subtitle = stringResource(R.string.onboarding_automation_hint),
+                        subtitle = if (riskDialogPending) {
+                            stringResource(R.string.onboarding_automation_pending_risk)
+                        } else {
+                            stringResource(R.string.onboarding_automation_hint)
+                        },
                         checked = automationEnabled,
                         onCheckedChange = onAutomationChange,
                     )
