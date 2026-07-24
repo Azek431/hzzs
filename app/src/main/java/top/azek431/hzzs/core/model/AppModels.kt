@@ -288,9 +288,10 @@ data class AutomationConfig(
      */
     val gestureBackend: GestureBackend = GestureBackend.AUTO,
     /**
-     * 竹影书屋实验性自动操作锁。
+     * legacy：竹影书屋实验锁字段，仅保留 schema/配置兼容。
      *
-     * 与自动化总开关叠加：即使已启用自动操作，未开启本开关时也不对竹影场景规划动作。
+     * **运行时、UI、MCP 门控均不再读取本字段**；自动操作对全部场景共用总开关。
+     * 外部摄入 harden 仍可收敛，避免旧配置误导导入预览。
      */
     val bambooExperimentalAutoAction: Boolean = false,
     /**

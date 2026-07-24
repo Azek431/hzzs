@@ -1,9 +1,9 @@
 /**
  * 自动操作与安全设置页。
  *
- * 职责：手势后端、总开关、竹影实验锁、触发距离与节流；展示无障碍连接状态。
+ * 职责：手势后端、总开关、触发距离与节流；展示无障碍连接状态。
  * 数据流：automation 经 [update] 草稿预览；开启与高风险后端须确认。
- * 边界：不直接 shell/root；默认关闭，导入/迁移不得静默开启。
+ * 边界：不直接 shell/root；默认关闭，导入/迁移不得静默开启。全场景共用总开关。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -160,7 +160,8 @@ fun AutomationSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "总开关",
-                description = "开启后将在视觉分析运行时按识别结果自动发送手势。",
+                description = "开启后将在视觉分析运行时按识别结果自动发送手势。" +
+                    "甜品工厂、竹影书屋与海盐客厅共用本开关，无额外赛季硬锁。",
             ) {
                 SettingsSwitchRow(
                     title = "启用自动操作",
@@ -172,21 +173,6 @@ fun AutomationSettingsScreen(
                             update { it.copy(automation = it.automation.copy(enabled = false)) }
                         }
                     },
-                )
-                SettingsSwitchRow(
-                    title = "允许竹影书屋实验性自动操作",
-                    subtitle = "即使已启用自动操作，也需单独打开本开关才会在竹影场景规划动作。",
-                    checked = config.automation.bambooExperimentalAutoAction,
-                    onCheckedChange = { value ->
-                        update {
-                            it.copy(automation = it.automation.copy(bambooExperimentalAutoAction = value))
-                        }
-                    },
-                )
-                Text(
-                    "甜品工厂与海盐客厅随总开关生效，无需额外实验锁。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

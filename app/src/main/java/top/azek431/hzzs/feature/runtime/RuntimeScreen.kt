@@ -91,10 +91,12 @@ internal fun humanizeAutomationDecision(raw: String): String {
         raw.startsWith("skip:automation_off") -> "自动操作总开关关闭，或免责声明版本不足。"
         raw.startsWith("skip:scene_conf") -> "场景置信度低于设置中的最低阈值。"
         raw.startsWith("skip:frame_age") -> "帧分析过慢，当前帧已过期。"
-        raw.startsWith("skip:bamboo_experimental_off") -> "竹影场景需在设置中单独打开实验性自动操作。"
+        raw.startsWith("skip:bamboo_experimental_off") ->
+            "（已废弃）竹影实验锁不再拦截；请检查总开关与手势后端。"
         raw.startsWith("skip:action_in_flight") -> "上一动作尚未结束。"
         raw.startsWith("skip:no_player") -> "未识别到玩家参考，无法测距触发。"
         raw.startsWith("skip:no_candidate") -> "没有稳定且可动作的障碍进入触发距离。"
+        raw.startsWith("skip:no_accessibility") -> "无障碍服务未连接（当前手势后端需要无障碍）。"
         raw.startsWith("skip:no_foreground") -> "手势后端读不到前台窗口（无障碍未连/Shell dumpsys 失败）。"
         raw.startsWith("skip:package_gate") -> "已开启「仅允许指定应用」，当前前台不在列表中。"
         raw.startsWith("skip:foreground_gate") -> "前台包名无效或状态不可用。"
@@ -107,7 +109,7 @@ internal fun humanizeAutomationDecision(raw: String): String {
         raw.startsWith("dispatch_skip:ledger") -> "同一目标刚成功过，账本去重冷却中。"
         raw.startsWith("dispatch_skip:rate_limit") -> "达到每秒动作上限。"
         raw.startsWith("dispatch_skip:empty_plan") -> "该障碍无规避动作（Avoidance.NONE）。"
-        raw.startsWith("dispatch_skip:no_foreground") -> "派发时前台不可用（检查手势后端）。"
+        raw.startsWith("dispatch_skip:no_foreground") -> "派发时前台不可用（检查手势后端 / dumpsys）。"
         raw.startsWith("dispatch_abort") -> "派发过程中自动操作已关闭。"
         else -> "决策：$key"
     }

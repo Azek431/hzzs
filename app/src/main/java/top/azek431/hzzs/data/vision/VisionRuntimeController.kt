@@ -55,7 +55,7 @@ import top.azek431.hzzs.platform.compat.CaptureBackendResolution
 import top.azek431.hzzs.platform.compat.GestureCapabilityResolver
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
-import top.azek431.hzzs.service.automation.ForegroundWindowSnapshot
+import top.azek431.hzzs.service.automation.AccessibilityForegroundProbe
 import top.azek431.hzzs.service.automation.GestureDispatcherFactory
 import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
@@ -595,8 +595,8 @@ class VisionRuntimeController @Inject constructor(
     /**
      * 在帧路径上评估是否派发自动动作。
      *
-     * 门控：自动操作开关、场景置信度、帧龄、实验开关。
-     * 真正手势在独立 [actionJob] 中执行，避免阻塞分析循环。
+     * 门控：自动操作开关、场景置信度、帧龄（**不**按赛季硬锁）。
+     * 手势后端按 [resolveGestureBackend] 分叉；真正注入在 [actionJob] 中执行。
      *
      * @return 一行决策摘要（skip 原因或 plan 目标），写入 [AlgorithmRuntimeTrace]
      */
@@ -607,36 +607,45 @@ class VisionRuntimeController @Inject constructor(
         tracked: List<MultiObjectTracker.TrackedDetection>,
         frameTimestampNanos: Long,
     ): String {
-        if (!config.automation.enabled) return "skip:automation_off"
+        fun publish(decision: String): String {
+            mutableStatus.update {
+                it.copy(
+                    lastAutomationDecision = decision,
+                    activeGestureBackend = latestGestureBackend.get(),
+                )
+            }
+            return decision
+        }
+
+        if (!config.automation.enabled) return publish("skip:automation_off")
         if (result.sceneConfidence < config.automation.minimumSceneConfidence) {
-            return "skip:scene_conf=${"%.2f".format(result.sceneConfidence)}" +
-                "<${"%.2f".format(config.automation.minimumSceneConfidence)}"
+            return publish(
+                "skip:scene_conf=${"%.2f".format(result.sceneConfidence)}" +
+                    "<${"%.2f".format(config.automation.minimumSceneConfidence)}",
+            )
         }
 
         // 帧龄门控：捕获时刻到决策的排队/处理延迟。完成驱动下分析常 >120ms，
         // 过紧会导致自动操作系统性不触发；与「过期帧」语义对齐到 1s 量级。
         val frameAgeMs = (SystemClock.elapsedRealtimeNanos() - frameTimestampNanos) / 1_000_000L
         if (frameAgeMs < 0L || frameAgeMs > MAX_FRAME_AGE_MS) {
-            return "skip:frame_age=${frameAgeMs}ms"
+            return publish("skip:frame_age=${frameAgeMs}ms")
         }
 
-        if (
-            config.selectedScene == SceneId.BAMBOO_BOOKSTORE &&
-            !config.automation.bambooExperimentalAutoAction
-        ) {
-            return "skip:bamboo_experimental_off"
-        }
+        val gestureResolution = resolveGestureBackend(config)
+        val gestureEffective = gestureResolution.effective
+        latestGestureBackend.set(gestureEffective)
 
         // CAS 占坑，保证同一时刻最多一个动作任务。
         if (!actionInFlight.compareAndSet(false, true)) {
-            return "skip:action_in_flight"
+            return publish("skip:action_in_flight backend=${gestureEffective.name}")
         }
 
         val sceneConfig = config.scenes.getValue(config.selectedScene)
         val player = result.player
         if (player == null) {
             actionInFlight.set(false)
-            return "skip:no_player"
+            return publish("skip:no_player backend=${gestureEffective.name}")
         }
         val playerWidth = player.bounds.width.coerceAtLeast(0.01f)
         val baselineMultiplier = baselineTriggerMultiplier(config, config.selectedScene)
@@ -687,19 +696,25 @@ class VisionRuntimeController @Inject constructor(
                 )
                 if (adapted != null) {
                     maybePersistTriggerDistance(config.selectedScene, adapted, now)
-                    return "skip:no_candidate auto_trig=${"%.2f".format(adapted)} " +
-                        "stable=$stable actionable=$actionable " +
-                        "trigDist=${"%.3f".format(triggerDistance)} " +
-                        "pw=${"%.3f".format(playerWidth)} " +
-                        "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
-                        "sc=${"%.2f".format(result.sceneConfidence)}"
+                    return publish(
+                        "skip:no_candidate auto_trig=${"%.2f".format(adapted)} " +
+                            "stable=$stable actionable=$actionable " +
+                            "trigDist=${"%.3f".format(triggerDistance)} " +
+                            "pw=${"%.3f".format(playerWidth)} " +
+                            "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
+                            "sc=${"%.2f".format(result.sceneConfidence)} " +
+                            "backend=${gestureEffective.name}",
+                    )
                 }
             }
-            return "skip:no_candidate stable=$stable actionable=$actionable " +
-                "trigDist=${"%.3f".format(triggerDistance)} " +
-                "pw=${"%.3f".format(playerWidth)} " +
-                "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
-                "sc=${"%.2f".format(result.sceneConfidence)}"
+            return publish(
+                "skip:no_candidate stable=$stable actionable=$actionable " +
+                    "trigDist=${"%.3f".format(triggerDistance)} " +
+                    "pw=${"%.3f".format(playerWidth)} " +
+                    "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
+                    "sc=${"%.2f".format(result.sceneConfidence)} " +
+                    "backend=${gestureEffective.name}",
+            )
         }
 
         val gapAtPlan = candidate.detection.bounds.left - player.bounds.right
@@ -719,40 +734,49 @@ class VisionRuntimeController @Inject constructor(
 
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
-        // 规划期必须主动刷新：仅靠事件缓存时，长时间无切窗/未开无障碍会系统性 skip:no_foreground。
-        if (!HzzsAccessibilityService.isConnected()) {
-            actionInFlight.set(false)
-            return "skip:no_accessibility"
-        }
-        val foreground = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true)
-        if (foreground == null) {
-            actionInFlight.set(false)
-            return "skip:no_foreground"
-        }
-        val foregroundClassName = foreground.className
-        val packageRestricted = config.automation.restrictPackages
-        val packageAllowed = !packageRestricted ||
-            foreground.packageName in config.automation.allowedPackages
-        // className 可为空（部分 ROM / 游戏壳）；有包名即可做包门控，类名仅在非空时参与 recheck 前缀。
-        if (foreground.packageName.isBlank() ||
-            SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
-            !packageAllowed
-        ) {
-            actionInFlight.set(false)
-            return "skip:foreground_gate pkg=${foreground.packageName.ifBlank { "-" }} " +
-                "cls=${foregroundClassName.ifBlank { "-" }} restrict=$packageRestricted"
+        // 规划期：无障碍可同步快照；Shell（Shizuku/Root）完整 dumpsys 放到 actionJob，避免卡帧。
+        val planForegroundClass: String
+        if (gestureEffective == GestureBackend.ACCESSIBILITY) {
+            val foreground = top.azek431.hzzs.service.automation.AccessibilityForegroundProbe.blockingSnapshot()
+            if (foreground == null) {
+                actionInFlight.set(false)
+                return publish(
+                    "skip:no_foreground backend=ACCESSIBILITY reason=a11y_unavailable",
+                )
+            }
+            if (foreground.packageName.isBlank()) {
+                actionInFlight.set(false)
+                return publish("skip:foreground_gate backend=ACCESSIBILITY pkg=")
+            }
+            if (config.automation.restrictPackages &&
+                foreground.packageName !in config.automation.allowedPackages
+            ) {
+                actionInFlight.set(false)
+                return publish(
+                    "skip:package_gate backend=ACCESSIBILITY pkg=${foreground.packageName}",
+                )
+            }
+            if (SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS) {
+                actionInFlight.set(false)
+                return publish("skip:no_foreground backend=ACCESSIBILITY reason=stale")
+            }
+            planForegroundClass = foreground.className
+        } else {
+            planForegroundClass = ""
         }
 
         val planSummary =
             "plan kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
                 "track=${candidate.trackId} stable=${candidate.stableFrames} " +
-                "conf=${"%.2f".format(candidate.detection.confidence)} key=$spatialKey"
+                "conf=${"%.2f".format(candidate.detection.confidence)} " +
+                "backend=${gestureEffective.name} key=$spatialKey"
         actionJob = scope.launch {
             try {
                 dispatchPlan(
                     token = token,
                     config = config,
-                    foregroundClassName = foregroundClassName,
+                    gestureBackend = gestureEffective,
+                    foregroundClassName = planForegroundClass,
                     candidate = candidate,
                     spatialKey = spatialKey,
                     plannedAt = now,
@@ -761,7 +785,7 @@ class VisionRuntimeController @Inject constructor(
                 actionInFlight.set(false)
             }
         }
-        return planSummary
+        return publish(planSummary)
     }
 
     /**
@@ -852,56 +876,87 @@ class VisionRuntimeController @Inject constructor(
      * 在 [actionMutex] 下规划并提交手势序列。
      *
      * 再次校验 [generation]、账本去重、前台包/窗口与速率上限；
+     * 前台探测与手势注入均按 [gestureBackend] 分叉（无障碍 / Shizuku / Root）。
      * 单次 stroke 失败可按 retryLimit 退避重试。
      */
     private suspend fun dispatchPlan(
         token: Long,
         config: AppConfig,
+        gestureBackend: GestureBackend,
         foregroundClassName: String,
         candidate: MultiObjectTracker.TrackedDetection,
         spatialKey: String,
         plannedAt: Long,
     ) {
         if (generation.get() != token) return
+        latestGestureBackend.set(gestureBackend)
         actionMutex.withLock {
             if (generation.get() != token) return
+            fun note(decision: String) {
+                AlgorithmRuntimeTrace.logDecision(decision)
+                mutableStatus.update {
+                    it.copy(
+                        lastAutomationDecision = decision,
+                        activeGestureBackend = gestureBackend,
+                    )
+                }
+            }
             // 关闭后不得继续 stroke；与 maybeDispatch 门控对称。
             if (!config.automation.enabled) {
-                AlgorithmRuntimeTrace.logDecision("dispatch_abort:automation_off track=${candidate.trackId}")
+                note("dispatch_abort:automation_off track=${candidate.trackId}")
                 return
             }
             if (!ledger.canPlan(candidate.trackId, spatialKey, plannedAt)) {
-                AlgorithmRuntimeTrace.logDecision(
-                    "dispatch_skip:ledger track=${candidate.trackId} key=$spatialKey",
-                )
+                note("dispatch_skip:ledger track=${candidate.trackId} key=$spatialKey")
                 return
             }
 
-            if (!HzzsAccessibilityService.isConnected()) {
-                AlgorithmRuntimeTrace.logDecision(
-                    "dispatch_skip:no_accessibility track=${candidate.trackId}",
+            val foreground = gestureDispatchers.snapshotForeground(gestureBackend)
+            if (foreground == null) {
+                val reason = when (gestureBackend) {
+                    GestureBackend.SHIZUKU,
+                    GestureBackend.ROOT,
+                    -> "dumpsys_fail"
+                    else -> "a11y_unavailable"
+                }
+                note(
+                    "dispatch_skip:no_foreground backend=${gestureBackend.name} " +
+                        "reason=$reason track=${candidate.trackId}",
                 )
                 return@withLock
             }
-            val foreground = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true) ?: run {
-                AlgorithmRuntimeTrace.logDecision("dispatch_skip:no_foreground track=${candidate.trackId}")
+            if (SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS) {
+                note(
+                    "dispatch_skip:foreground_stale backend=${gestureBackend.name} " +
+                        "track=${candidate.trackId}",
+                )
+                return@withLock
+            }
+            if (foreground.packageName.isBlank()) {
+                note(
+                    "dispatch_skip:foreground_gate backend=${gestureBackend.name} pkg= " +
+                        "track=${candidate.trackId}",
+                )
                 return@withLock
             }
             val packageRestricted = config.automation.restrictPackages
             val packageAllowed = !packageRestricted ||
                 foreground.packageName in config.automation.allowedPackages
+            if (!packageAllowed) {
+                note(
+                    "dispatch_skip:package_gate backend=${gestureBackend.name} " +
+                        "pkg=${foreground.packageName} track=${candidate.trackId}",
+                )
+                return@withLock
+            }
             val classStillMatches = foregroundClassName.isBlank() ||
                 foreground.className.isBlank() ||
                 foreground.className.startsWith(foregroundClassName)
-            if (
-                SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
-                !packageAllowed ||
-                !classStillMatches
-            ) {
-                AlgorithmRuntimeTrace.logDecision(
-                    "dispatch_skip:foreground_recheck pkg=${foreground.packageName} " +
-                        "cls=${foreground.className.ifBlank { "-" }} " +
-                        "restrict=$packageRestricted track=${candidate.trackId}",
+            if (!classStillMatches) {
+                note(
+                    "dispatch_skip:foreground_recheck backend=${gestureBackend.name} " +
+                        "pkg=${foreground.packageName} cls=${foreground.className.ifBlank { "-" }} " +
+                        "track=${candidate.trackId}",
                 )
                 return@withLock
             }
@@ -916,7 +971,7 @@ class VisionRuntimeController @Inject constructor(
 
             val plan = planGestures(config.selectedScene, candidate.detection, now)
             if (plan.isEmpty()) {
-                AlgorithmRuntimeTrace.logDecision(
+                note(
                     "dispatch_skip:empty_plan kind=${candidate.detection.kind.name} " +
                         "avoid=${candidate.detection.avoidance.name} track=${candidate.trackId}",
                 )
@@ -928,16 +983,16 @@ class VisionRuntimeController @Inject constructor(
                 if (isClick && stroke.gesture.doublePressDelayMs > 0L) 2 else 1
             }
             if (recentActionTimes.size + planActionCount > config.automation.maxActionsPerSecond) {
-                AlgorithmRuntimeTrace.logDecision(
+                note(
                     "dispatch_skip:rate_limit need=$planActionCount " +
                         "window=${recentActionTimes.size} track=${candidate.trackId}",
                 )
                 return@withLock
             }
-            AlgorithmRuntimeTrace.logDecision(
+            note(
                 "dispatch_begin strokes=${plan.size} actions=$planActionCount " +
                     "kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
-                    "track=${candidate.trackId}",
+                    "backend=${gestureBackend.name} track=${candidate.trackId}",
             )
 
             for ((index, stroke) in plan.withIndex()) {
@@ -980,9 +1035,9 @@ class VisionRuntimeController @Inject constructor(
                             }
                             trackRetryCounts.remove(candidate.trackId)
                             completed = true
-                            AlgorithmRuntimeTrace.logDecision(
+                            note(
                                 "dispatch_ok action=${action.id} track=${candidate.trackId} " +
-                                    "stroke=$index attempt=$attempt",
+                                    "backend=${gestureBackend.name} stroke=$index attempt=$attempt",
                             )
                         }
                         DispatchOutcome.EXPIRED,
@@ -992,8 +1047,9 @@ class VisionRuntimeController @Inject constructor(
                             attempt++
                             val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
                             trackRetryCounts[candidate.trackId] = retriesUsed
-                            AlgorithmRuntimeTrace.logDecision(
+                            note(
                                 "dispatch_fail outcome=${receipt.outcome.name} " +
+                                    "backend=${gestureBackend.name} detail=${receipt.detail ?: "-"} " +
                                     "track=${candidate.trackId} stroke=$index attempt=$attempt",
                             )
                             if (attempt > config.automation.retryLimit) {
@@ -1271,6 +1327,14 @@ class VisionRuntimeController @Inject constructor(
 
     private fun AppConfig.effectiveCaptureBackend(): CaptureBackend =
         resolveCaptureBackend().effective
+
+    /** 解析有效手势后端（AUTO → 无障碍 / 条件 Shizuku；永不 Root）。 */
+    private fun resolveGestureBackend(config: AppConfig) =
+        resolveEffectiveGestureBackend(
+            gestureBackend = config.automation.gestureBackend,
+            accessibilityConnected = gestureCapabilities.isAccessibilityConnected(),
+            shizukuReady = gestureCapabilities.isShizukuReady(),
+        )
 
     private companion object {
         const val FOREGROUND_MAX_AGE_MS = 1_500L

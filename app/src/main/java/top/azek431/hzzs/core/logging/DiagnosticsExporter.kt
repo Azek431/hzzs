@@ -100,7 +100,8 @@ object DiagnosticsExporter {
                     config.automation.allowedPackages.sorted().joinToString(",").ifBlank { "-" },
             )
             appendLine(
-                "automation.bambooExperimental=${config.automation.bambooExperimentalAutoAction}",
+                "automation.bambooExperimental=${config.automation.bambooExperimentalAutoAction} " +
+                    "(legacy unused at runtime)",
             )
             appendLine("mcp.enabled=${config.mcp.enabled}")
             appendLine("mcp.permission=${config.mcp.permissionLevel.name}")
@@ -168,6 +169,7 @@ object DiagnosticsExporter {
                 appendLine("vision.automationSessionArm=removed")
                 appendLine("vision.activeScene=${runtime.activeScene.name}")
                 appendLine("vision.activeBackend=${runtime.activeBackend.name}")
+                appendLine("vision.activeGestureBackend=${runtime.activeGestureBackend.name}")
                 appendLine("vision.fps=${"%.2f".format(runtime.fps)}")
                 appendLine("vision.processingMs=${"%.2f".format(runtime.processingMs)}")
                 appendLine("vision.obstacleCount=${runtime.obstacleCount}")
