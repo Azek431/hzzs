@@ -13,11 +13,14 @@ import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 
 /**
- * Shell 进程辅助（手势路径专用；与截图 FrameSource 类边界分离，实现模式对齐）。
+ * Shell 进程辅助（手势 / 截图 Shizuku·Root / 指针位置 共用）。
  *
- * 安全：stdout/stderr 限长、超时 destroy、失败返回 null。
+ * 与 FrameSource 类边界分离，但进程通道同源；须为 public，供
+ * `service.capture` 与 `platform.compat` 调用。
+ *
+ * 安全：stdout/stderr 限长、超时 destroy、失败返回 null；不静默要权。
  */
-internal object ShellProcessSupport {
+object ShellProcessSupport {
     fun isShizukuAuthorized(): Boolean = runCatching {
         Shizuku.pingBinder() &&
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED

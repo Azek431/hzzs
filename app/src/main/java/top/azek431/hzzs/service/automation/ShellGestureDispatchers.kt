@@ -34,9 +34,9 @@ class AccessibilityGestureDispatcher @Inject constructor() : GestureDispatcher {
  * 失败再试 `cmd input`；失败 detail 带 exit/stderr 便于诊断。
  */
 /**
- * 仅同模块内构造；参数类型引用 [ShellProcessSupport]（internal），故本类亦为 internal。
+ * 仅同模块内由 Shizuku/Root 分发器持有；不直接注入到 feature。
  */
-internal class ShellInputGestureDispatcher(
+class ShellInputGestureDispatcher(
     private val probe: ForegroundWindowProbe,
     private val screenSize: () -> Pair<Int, Int>,
     private val runResult: suspend (command: Array<String>, timeoutMs: Long) -> ShellProcessSupport.ShellCommandResult,
