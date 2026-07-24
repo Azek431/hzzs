@@ -34,6 +34,18 @@ class ShellForegroundParserTest {
     }
 
     @Test
+    fun prefersMResumedOverEarlierActivityRecord() {
+        val dump = """
+            ACTIVITY MANAGER ACTIVITIES
+              * Hist #1: ActivityRecord{aaa u0 com.old.app/.Old t1}
+              mResumedActivity: ActivityRecord{bbb u0 com.smile.gifmaker/.MainActivity t2}
+        """.trimIndent()
+        val snap = ShellForegroundParser.parse(dump)
+        assertNotNull(snap)
+        assertEquals("com.smile.gifmaker", snap!!.packageName)
+    }
+
+    @Test
     fun garbageReturnsNull() {
         assertNull(ShellForegroundParser.parse(""))
         assertNull(ShellForegroundParser.parse("nothing useful here"))

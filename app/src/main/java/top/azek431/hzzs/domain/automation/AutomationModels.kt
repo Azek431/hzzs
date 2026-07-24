@@ -194,10 +194,15 @@ class ActionCommitLedger {
 
     /**
      * 根据回执提交。仅 [DispatchOutcome.COMPLETED] 写入去重集合。
+     * @param completedAtUptimeMs 完成时刻；默认用动作创建时间（兼容旧调用）。
      */
-    suspend fun commit(receipt: DispatchReceipt, spatialKey: String? = null) = mutex.withLock {
+    suspend fun commit(
+        receipt: DispatchReceipt,
+        spatialKey: String? = null,
+        completedAtUptimeMs: Long = receipt.action.createdAtUptimeMs,
+    ) = mutex.withLock {
         if (receipt.outcome == DispatchOutcome.COMPLETED) {
-            val at = receipt.action.createdAtUptimeMs
+            val at = completedAtUptimeMs
             completedTracks[receipt.action.trackId] = at
             if (spatialKey != null) {
                 recentSpatialKeys[spatialKey] = at

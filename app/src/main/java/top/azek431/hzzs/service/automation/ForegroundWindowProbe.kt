@@ -40,13 +40,21 @@ object AccessibilityForegroundProbe : ForegroundWindowProbe {
  * 将 dumpsys 文本解析为 package/class。
  *
  * 纯函数，便于 JVM 单测；不执行 shell。
+ * 优先匹配 topResumed / mResumed / mFocused / mCurrentFocus；
+ * 若无这些字段再回退 ActivityRecord/Window（避免整段 dumpsys 第一个非顶层命中）。
  */
 object ShellForegroundParser {
-    private val patterns = listOf(
+    private val preferredPatterns = listOf(
         Regex(
-            """(?:topResumedActivity|mResumedActivity|mFocusedApp|mCurrentFocus)\s*[=:]\s*.*?\s+([\w.]+)/([^\s}]+)""",
+            """(?:topResumedActivity|mResumedActivity)\s*[=:]\s*.*?\s+([\w.]+)/([^\s}]+)""",
             RegexOption.IGNORE_CASE,
         ),
+        Regex(
+            """(?:mFocusedApp|mCurrentFocus)\s*[=:]\s*.*?\s+([\w.]+)/([^\s}]+)""",
+            RegexOption.IGNORE_CASE,
+        ),
+    )
+    private val fallbackPatterns = listOf(
         Regex(
             """ActivityRecord\{[^}]*\s+u\d+\s+([\w.]+)/([^\s}]+)""",
             RegexOption.IGNORE_CASE,
@@ -59,18 +67,27 @@ object ShellForegroundParser {
 
     fun parse(dump: String): ForegroundWindowSnapshot? {
         if (dump.isBlank()) return null
-        for (pattern in patterns) {
+        for (pattern in preferredPatterns) {
             val match = pattern.find(dump) ?: continue
-            val pkg = match.groupValues.getOrNull(1)?.trim().orEmpty()
-            val cls = match.groupValues.getOrNull(2)?.trim().orEmpty()
-            if (pkg.isBlank() || !pkg.contains('.')) continue
-            return ForegroundWindowSnapshot(
-                packageName = pkg,
-                className = cls.removePrefix("."),
-                observedAtMs = 0L,
-            )
+            toSnapshot(match)?.let { return it }
+        }
+        for (pattern in fallbackPatterns) {
+            val match = pattern.find(dump) ?: continue
+            toSnapshot(match)?.let { return it }
         }
         return null
+    }
+
+    private fun toSnapshot(match: MatchResult): ForegroundWindowSnapshot? {
+        val pkg = match.groupValues.getOrNull(1)?.trim().orEmpty()
+        val cls = match.groupValues.getOrNull(2)?.trim().orEmpty()
+        if (pkg.isBlank() || !pkg.contains('.')) return null
+        // 系统桌面/输入法/本应用悬浮相关包：仍返回，由 restrictPackages 决定是否点。
+        return ForegroundWindowSnapshot(
+            packageName = pkg,
+            className = cls.removePrefix("."),
+            observedAtMs = 0L,
+        )
     }
 }
 
@@ -89,8 +106,8 @@ fun interface ShellCommandRunner {
 class ShellForegroundProbe(
     private val runner: ShellCommandRunner,
     private val clock: () -> Long = SystemClock::elapsedRealtime,
-    private val successTtlMs: Long = 450L,
-    private val failureTtlMs: Long = 200L,
+    private val successTtlMs: Long = 300L,
+    private val failureTtlMs: Long = 150L,
 ) : ForegroundWindowProbe {
     private data class Cache(
         val value: ForegroundWindowSnapshot?,
@@ -116,6 +133,7 @@ class ShellForegroundProbe(
     }
 
     private suspend fun queryOnce(): ForegroundWindowSnapshot? {
+        // 优先 activity 段；超时收紧，避免卡在 dumpsys 上导致动作过时。
         val primary = runner.run(
             arrayOf("dumpsys", "activity", "activities"),
             MAX_STDOUT_BYTES,
@@ -133,7 +151,7 @@ class ShellForegroundProbe(
     }
 
     private companion object {
-        const val MAX_STDOUT_BYTES = 512 * 1024
-        const val TIMEOUT_MS = 1_800L
+        const val MAX_STDOUT_BYTES = 256 * 1024
+        const val TIMEOUT_MS = 900L
     }
 }

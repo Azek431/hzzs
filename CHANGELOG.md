@@ -11,6 +11,9 @@
 
 ### 修复
 
+- **运行时安全门控跟 saved**：自动操作与截图后端不随设置草稿 preview 生效；主题/悬浮窗仍可 preview。
+- **Shell 前台解析优先 mResumed/topResumed**：避免 dumpsys 全文第一个 ActivityRecord 误当顶层；ledger commit 用真实完成时刻。
+
 - **自动操作/截图只跟已保存配置**：`VisionRuntimeController` 将 `automation` 与 `captureBackend`（及已保存开发者强制截图）强制取 `savedConfig`，设置草稿预览不得派发手势或换源。
 - **API 33+ 启动时请求通知权限**：`POST_NOTIFICATIONS` 供录屏/MCP 前台服务通知；拒绝不阻塞主流程。
 - **Shell 前台 dumpsys**：优先 mResumed/topResumed；缩短 TTL/超时；单测覆盖「先有旧 ActivityRecord 时仍取 mResumed」。

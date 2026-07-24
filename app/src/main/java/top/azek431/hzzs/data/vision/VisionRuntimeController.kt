@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -144,7 +145,14 @@ class VisionRuntimeController @Inject constructor(
 
     init {
         scope.launch {
-            settingsRepository.config.collect { next ->
+            // 主题/悬浮窗可跟 preview；自动操作与截图后端只跟已落盘 saved，
+            // 避免设置草稿未「保存并应用」就派发手势或换源。
+            combine(
+                settingsRepository.savedConfig,
+                settingsRepository.config,
+            ) { saved, previewOrSaved ->
+                previewOrSaved.withSavedSafetyGates(saved)
+            }.collect { next ->
                 val previous = latestConfig.getAndSet(next)
                 triggerDistanceTuner.onBaselineChanged(
                     next.selectedScene,
@@ -183,7 +191,7 @@ class VisionRuntimeController @Inject constructor(
                     previousBackend != nextBackend &&
                     mutableStatus.value.running
                 ) {
-                    // 设置页预览阶段会抑制截图后端切换；能走到这里说明已落盘配置变更。
+                    // 截图后端仅随 saved 变化；能走到这里说明已落盘。
                     launch { restart() }
                 }
             }
@@ -200,7 +208,9 @@ class VisionRuntimeController @Inject constructor(
         lifecycleMutex.withLock {
             if (runtimeJob?.isActive == true) return@withLock
 
-            val config = settingsRepository.config.first().also(latestConfig::set)
+            val saved = settingsRepository.snapshot()
+            val previewOrSaved = settingsRepository.current()
+            val config = previewOrSaved.withSavedSafetyGates(saved).also(latestConfig::set)
             val resolution = config.resolveCaptureBackend()
             val backend = resolution.effective
             val source = sources.source(backend)
@@ -1053,7 +1063,11 @@ class VisionRuntimeController @Inject constructor(
                     val receipt = arbiter.dispatch(action)
                     when (receipt.outcome) {
                         DispatchOutcome.COMPLETED -> {
-                            ledger.commit(receipt, spatialKey)
+                            ledger.commit(
+                                receipt,
+                                spatialKey,
+                                completedAtUptimeMs = SystemClock.uptimeMillis(),
+                            )
                             val completedAt = SystemClock.uptimeMillis()
                             recentActionTimes.addLast(completedAt)
                             if (stroke.gesture.endX == null && stroke.gesture.doublePressDelayMs > 0L) {
@@ -1383,6 +1397,22 @@ class VisionRuntimeController @Inject constructor(
             accessibilityConnected = gestureCapabilities.isAccessibilityConnected(),
             shizukuReady = gestureCapabilities.isShizukuReady(),
         )
+
+    /**
+     * 安全门控字段强制取 [saved]：自动操作与截图后端不得随设置草稿生效。
+     * 主题/悬浮窗/检测阈值等仍可用 preview 即时预览。
+     */
+    private fun AppConfig.withSavedSafetyGates(saved: AppConfig): AppConfig = copy(
+        automation = saved.automation,
+        captureBackend = saved.captureBackend,
+        developer = developer.copy(
+            forceCaptureBackend = if (saved.developer.enabled) {
+                saved.developer.forceCaptureBackend
+            } else {
+                null
+            },
+        ),
+    )
 
     private companion object {
         const val FOREGROUND_MAX_AGE_MS = 1_500L
