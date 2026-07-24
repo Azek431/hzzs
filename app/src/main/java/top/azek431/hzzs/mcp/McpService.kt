@@ -58,6 +58,28 @@ class McpForegroundService : Service() {
     private lateinit var protocol: McpProtocol
     /** tools/list 过滤用：跟 current/preview 刷新，避免每次 list 都 runBlocking。 */
     private val toolPolicyConfig = AtomicReference(McpConfig())
+    /**
+     * 局域网 IPv4 缓存：避免每个连接结束都枚举网卡。
+     * 仅 bindLocalhostOnly=false 时使用；TTL 见 [LAN_CACHE_TTL_MS]。
+     */
+    private val lanCache = AtomicReference(LanCache())
+
+    private data class LanCache(
+        val addresses: List<String> = emptyList(),
+        val fetchedAtMs: Long = 0L,
+    )
+
+    private fun cachedLanAddresses(bindLocalhostOnly: Boolean): List<String> {
+        if (bindLocalhostOnly) return emptyList()
+        val now = System.currentTimeMillis()
+        val hit = lanCache.get()
+        if (hit.addresses.isNotEmpty() && now - hit.fetchedAtMs < LAN_CACHE_TTL_MS) {
+            return hit.addresses
+        }
+        val fresh = listLanIpv4Addresses()
+        lanCache.set(LanCache(fresh, now))
+        return fresh
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -167,7 +189,9 @@ class McpForegroundService : Service() {
                 return
             }
             server = socket
-            val lanIps = if (bindLocalhostOnly) emptyList() else listLanIpv4Addresses()
+            // 新绑定周期清空 LAN 缓存，避免沿用旧网卡列表。
+            lanCache.set(LanCache())
+            val lanIps = cachedLanAddresses(bindLocalhostOnly)
             val bindLabel = if (bindLocalhostOnly) {
                 "127.0.0.1:${config.port}"
             } else {
@@ -229,7 +253,7 @@ class McpForegroundService : Service() {
                             token = token,
                             requireAuth = requireAuth,
                             bindLocalhostOnly = bindLocalhostOnly,
-                            lanAddresses = if (bindLocalhostOnly) emptyList() else listLanIpv4Addresses(),
+                            lanAddresses = cachedLanAddresses(bindLocalhostOnly),
                             error = null,
                         )
                     }
@@ -532,5 +556,7 @@ class McpForegroundService : Service() {
         const val ACTION_STOP = "top.azek431.hzzs.mcp.STOP"
         private const val CHANNEL_ID = "mcp_local"
         private const val NOTIFICATION_ID = 432
+        /** 局域网 IP 列表缓存，避免每连接枚举 NetworkInterface。 */
+        private const val LAN_CACHE_TTL_MS = 15_000L
     }
 }

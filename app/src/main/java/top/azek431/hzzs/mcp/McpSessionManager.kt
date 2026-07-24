@@ -30,6 +30,7 @@ class McpSessionManager {
     fun bumpGeneration() {
         generation += 1L
         sessions.clear()
+        // 连接计数不归零：在飞 handle 的 finally 仍会 releaseConnection。
     }
 
     fun tryAcquireConnection(): Boolean {
@@ -99,7 +100,12 @@ class McpSessionManager {
 
     private fun randomSessionId(): String {
         val bytes = ByteArray(16)
-        SecureRandom().nextBytes(bytes)
+        secureRandom.nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private companion object {
+        /** 复用实例：每次 new SecureRandom() 在部分 ROM 上偏慢。 */
+        private val secureRandom = SecureRandom()
     }
 }

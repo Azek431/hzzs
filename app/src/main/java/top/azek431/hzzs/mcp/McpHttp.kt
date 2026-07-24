@@ -169,9 +169,12 @@ fun constantTimeBearerMatches(authorization: String?, token: String): Boolean {
  */
 fun generateMcpAuthToken(): String {
     val bytes = ByteArray(24)
-    SecureRandom().nextBytes(bytes)
+    authTokenRandom.nextBytes(bytes)
     return bytes.joinToString("") { "%02x".format(it) }
 }
+
+/** 复用 SecureRandom，避免每次轮换/首开鉴权时重建熵池。 */
+private val authTokenRandom = SecureRandom()
 
 fun writeHttp(
     output: BufferedOutputStream,

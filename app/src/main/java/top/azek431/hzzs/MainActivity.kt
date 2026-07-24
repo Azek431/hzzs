@@ -278,17 +278,18 @@ private fun HzzsRoot(
     LaunchedEffect(
         savedConfig.mcp.enabled,
         savedConfig.mcp.port,
-        savedConfig.mcp.permissionLevel,
         savedConfig.mcp.requireAuth,
         savedConfig.mcp.authToken,
         savedConfig.mcp.bindLocalhostOnly,
     ) {
         // 只跟已保存配置：草稿预览改 MCP 开关/端口不得重启服务。
+        // 指纹不含 permissionLevel / toolPolicies：二者在 tools/call 时读 current()，
+        // 变更无需重启 socket（重启会清会话表，RikkaHub 易 -32003）。
         syncMcpService(
             context = context,
             enabled = savedConfig.mcp.enabled,
             fingerprint =
-                "${savedConfig.mcp.enabled}:${savedConfig.mcp.port}:${savedConfig.mcp.permissionLevel}:" +
+                "${savedConfig.mcp.enabled}:${savedConfig.mcp.port}:" +
                     "${savedConfig.mcp.requireAuth}:${savedConfig.mcp.authToken}:" +
                     "${savedConfig.mcp.bindLocalhostOnly}",
         )
