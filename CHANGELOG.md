@@ -42,6 +42,7 @@
 
 ### 修复
 
+- **CI 解析 KSP 插件**：`settings.gradle.kts` 的 `pluginManagement` 改为官方源优先（Google / Maven Central / Plugin Portal），阿里云镜像后置回退；`com.google.*` 内容过滤 **exclude** `com.google.devtools.ksp`（KSP 不在 Google Maven）。修复 Actions 上 `com.google.devtools.ksp:2.3.10` 找不到插件。
 - **外部摄入允许开自动操作时免责版本可随用户确认抬升**：`allowEnableAutomation` 时 `disclaimerAcceptedVersion` 取 baseline/candidate 较大值，避免 harden 后 `validated()` 因免责版本被压回 baseline 再次关掉 `enabled`（修复 `SettingsSessionTest.externalIngestCanEnableAutomationWithElevation`）。
 - **自动操作贴身/重叠仍可触发**：候选筛选改为障碍右缘仍越过玩家左缘即可（不再要求左缘 ≥ 玩家右缘−margin）；触发带内按 `|gap|` 选最近目标，避免海盐 FIXED 玩家下断崖略伸入时系统性 `no_candidate`（`nearGap` 为负）。决策串补 `behindOk=`。
 - **宿主机 host_tests 对齐 FIXED_RATIO**：`detect_player=false` 时引擎仍输出固定玩家参考框（与 App `PlayerReferenceMode.FIXED_RATIO` 一致）；mask=0 只断言「至多 1 个 PLAYER、无障碍」，不再误要求 `count==0`。
@@ -49,6 +50,7 @@
 - **手势后端真正分叉**：`VisionRuntimeController` 规划/派发按 `GestureBackend` 走无障碍 `dispatchGesture` 或 Shizuku/Root `input` + dumpsys 前台；不再绑死无障碍导致选 Shizuku 时系统性 `skip:no_foreground`。决策/诊断写入 `backend=` 与 `activeGestureBackend`；Shell dumpsys 失败 fail-closed（`reason=dumpsys_fail`）。
 - **去掉竹影赛季硬锁**：自动操作全场景共用总开关；`bambooExperimentalAutoAction` 仅 schema 兼容、无运行时拦截。设置页移除赛季实验开关。
 - **自动操作前台快照**：规划/派发改为 `foregroundSnapshot(refreshIfStale=true)`，刷新在主线程执行；区分 `skip:no_accessibility` 与 `skip:no_foreground`；不再因空 `className` 误杀；无障碍配置补 `flagRetrieveInteractiveWindows`。
+- **MCP 服务热路径**：改权限级不再重启 socket（指纹不含 `permissionLevel`）；LAN IP 列表 15s 缓存；`SecureRandom` 复用；`bumpGeneration` 不清连接计数。
 - **MCP 失效 Session 不再卡死工具调用**：服务重启/改绑定后会话表清空，客户端仍持旧 `Mcp-Session-Id` 时，`tools/call` 与 `resources/read` 降级为无会话继续（`TRUSTED_SESSION` 仍要求有效会话；`ASK`/`FULL` 按权限执行），避免 RikkaHub 报 `-32003` 需手动重连。
 - **MCP 状态卡始终展示 127.0.0.1**：未运行/局域网展示模式下也给出 `http://127.0.0.1:<port>/mcp`；当前展示 URL 不同时再另列一行。
 - **MCP 读生效配置并脱敏 Token**：授权/`tools/list` 用 `settings.current()`；`get_settings` 与 `app://settings/current` 经 `exportJsonRedacted`（`authToken`→`***`）。
