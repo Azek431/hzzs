@@ -113,15 +113,15 @@ Tracker 非线程安全，只由当前帧循环拥有；场景、算法 generati
 
 自动操作至少经过：
 
-1. 经过校验的免责声明和用户开关；
-2. 场景置信度、帧新鲜度和场景实验锁；
+1. 经过校验的免责声明和用户开关（全场景共用，无赛季实验硬锁）；
+2. 场景置信度与帧新鲜度；
 3. Tracker 稳定帧、`actionable`、位置与置信度；
-4. 新鲜的前台包/窗口快照和白名单；
+4. 有效 `GestureBackend` 同源前台快照（无障碍事件 / Shell dumpsys）与可选包门控；
 5. generation、去重账本、空间冷却、速率和 TTL；
 6. `GestureArbiter` 串行与回执；
-7. `HzzsAccessibilityService` 主线程最终复核。
+7. `GestureDispatcherFactory` 按后端注入（无障碍 `dispatchGesture` 或 Shizuku/Root `input`）。
 
-Root 和 Shizuku 在本项目只用于显式截图后端，不是手势后端。
+手势后端与截图后端正交：Shizuku/Root 可选手势注入，AUTO 永不升 Root。
 
 ## 应用内算法包
 

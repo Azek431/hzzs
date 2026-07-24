@@ -88,7 +88,7 @@ DataStore 存储 schema **v8**（含 `automation.gestureBackend` 与 `mcp.toolPo
        └─ ROOT → su -c input … + dumpsys 前台
 ```
 
-`resolveEffectiveGestureBackend`：AUTO 优先无障碍已连接，否则已授权 Shizuku，**永不 Root**。门控还包括：可选包名限制、场景置信度、帧时效、竹影实验锁、空间去重与动作速率。切换 `gestureBackend` 会 `cancelActions()` 但不重启截图。MCP/外部 JSON 经 `hardenedForExternalIngest` 不得静默开启自动操作、不得升手势/截图风险序或自提 MCP 权限。
+`resolveEffectiveGestureBackend`：AUTO 优先无障碍已连接，否则已授权 Shizuku，**永不 Root**。门控还包括：可选包名限制、场景置信度、帧时效、空间去重与动作速率；**无**赛季实验硬锁（`bambooExperimentalAutoAction` 仅 schema 兼容）。切换 `gestureBackend` 会 `cancelActions()` 但不重启截图。MCP/外部 JSON 经 `hardenedForExternalIngest` 不得静默开启自动操作、不得升手势/截图风险序或自提 MCP 权限。
 
 ## MCP
 
