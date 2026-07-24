@@ -5,8 +5,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import top.azek431.hzzs.service.automation.ShellProcessSupport
@@ -17,9 +19,9 @@ import top.azek431.hzzs.service.automation.ShellProcessSupport
  * 职责：集中 API 边界，避免 feature 散落 `Settings` / Intent / Shell 构造。
  * 不变量：
  * - **不**静默开启任何权限；AUTO 截图路径不经此文件升权。
- * - 指针位置：若 Shizuku **已授权**则**优先**走 `settings put`（与手势/截图同源 [ShellProcessSupport]）；
- *   否则 [WRITE_SETTINGS]；再否则 Root `su`。**不**在此弹 Shizuku 授权、不静默升 Root。
- * - 写入成功以**回读** [isPointerLocationEnabled] 为准。
+ * - 指针位置：binder 在但未授权时可**显式** [requestShizukuPermission]（用户确认）；
+ *   已授权则优先 [ShellProcessSupport] `settings put`；否则 WRITE_SETTINGS / Root。
+ * - 写入成功以**回读** [isPointerLocationEnabled] 为准（system/secure 任一为 1 视为开）。
  */
 object SystemCapabilityAccess {
     /** 是否已授予「显示在其他应用上层」。 */
@@ -75,20 +77,22 @@ object SystemCapabilityAccess {
 
     /**
      * 系统开发者选项「指针位置」是否开启。
-     * 键名 [POINTER_LOCATION_KEY] 为隐藏 API（SDK 无公开常量），读失败视为关闭（fail-soft）。
+     * 读 [Settings.System] 与 [Settings.Secure]（部分 ROM 放 Secure）；任一为 1 即视为开。
      */
-    fun isPointerLocationEnabled(context: Context): Boolean =
-        runCatching {
-            Settings.System.getInt(
-                context.contentResolver,
-                POINTER_LOCATION_KEY,
-                0,
-            ) == 1
+    fun isPointerLocationEnabled(context: Context): Boolean {
+        val cr = context.applicationContext.contentResolver
+        val systemOn = runCatching {
+            Settings.System.getInt(cr, POINTER_LOCATION_KEY, 0) == 1
         }.getOrDefault(false)
+        if (systemOn) return true
+        return runCatching {
+            Settings.Secure.getInt(cr, POINTER_LOCATION_KEY, 0) == 1
+        }.getOrDefault(false)
+    }
 
     /**
      * 当前是否可用已授权的 Shizuku（不请求权限）。
-     * 与 [ShellProcessSupport.isShizukuAuthorized] 同判定，避免 UI/手势/指针三套口径。
+     * 与 [ShellProcessSupport.isShizukuAuthorized] 同判定。
      */
     fun isShizukuAuthorized(): Boolean = ShellProcessSupport.isShizukuAuthorized()
 
@@ -97,49 +101,72 @@ object SystemCapabilityAccess {
         runCatching { Shizuku.pingBinder() }.getOrDefault(false)
 
     /**
+     * 若 binder 在跑且尚未授权，弹出 Shizuku 授权（用户确认）。
+     * 已授权直接 true；binder 未运行 false。
+     * 与截图 [ShizukuFrameSource] 同源 API，不静默授权。
+     */
+    suspend fun requestShizukuPermission(): Boolean {
+        if (!isShizukuBinderAlive()) return false
+        if (isShizukuAuthorized()) return true
+        if (runCatching { Shizuku.isPreV11() }.getOrDefault(true)) return false
+        return withContext(Dispatchers.Main) {
+            val deferred = CompletableDeferred<Boolean>()
+            val listener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+                if (requestCode == SHIZUKU_PERMISSION_REQUEST_CODE) {
+                    deferred.complete(grantResult == PackageManager.PERMISSION_GRANTED)
+                }
+            }
+            try {
+                Shizuku.addRequestPermissionResultListener(listener)
+                Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+                withTimeoutOrNull(20_000L) { deferred.await() } == true
+            } catch (_: Throwable) {
+                false
+            } finally {
+                runCatching { Shizuku.removeRequestPermissionResultListener(listener) }
+            }
+        }
+    }
+
+    /**
      * 同步写入：仅走 [WRITE_SETTINGS]，并以回读校验。
      * 升权路径请用 [setPointerLocationEnabledBestEffort]。
      */
     fun setPointerLocationEnabled(context: Context, enabled: Boolean): Boolean {
         if (!canWriteSystemSettings(context)) return false
-        val putOk = runCatching {
-            Settings.System.putInt(
-                context.contentResolver,
-                POINTER_LOCATION_KEY,
-                if (enabled) 1 else 0,
-            )
-        }.getOrDefault(false)
+        val putOk = putPointerViaContentResolver(context, enabled)
         return putOk && isPointerLocationEnabled(context) == enabled
     }
 
     /**
-     * 写入系统「指针位置」，按优先级尝试：
-     * 1. **已授权 Shizuku** → [ShellProcessSupport.runShizukuOk] `settings put system pointer_location`
-     * 2. 已授予 [WRITE_SETTINGS] → ContentResolver
-     * 3. Root → [ShellProcessSupport.runRootOk]
+     * 写入系统「指针位置」：
+     * 1. binder 在但未授权 → 可先 [requestShizukuPermission]（[requestShizukuIfNeeded]=true 时）
+     * 2. 已授权 Shizuku → shell `settings put`（system + secure）与 `cmd settings put`
+     * 3. WRITE_SETTINGS → ContentResolver
+     * 4. Root
      *
-     * 每条路径成功后均回读确认；不请求 Shizuku 权限、不在 AUTO 路径使用。
-     * 优先 Shizuku：用户已把手势设为 Shizuku 时，指针开关应真正走到 shell，而不是卡在 OEM 假成功的 WRITE_SETTINGS。
+     * 每条路径成功后回读确认。
      */
     suspend fun setPointerLocationEnabledBestEffort(
         context: Context,
         enabled: Boolean,
+        requestShizukuIfNeeded: Boolean = true,
     ): PointerLocationWriteResult = withContext(Dispatchers.IO) {
         val value = if (enabled) "1" else "0"
         val appContext = context.applicationContext
-        val settingsCommand = arrayOf(
-            "settings",
-            "put",
-            "system",
-            POINTER_LOCATION_KEY,
-            value,
-        )
-        val rootCommand = "settings put system $POINTER_LOCATION_KEY $value"
 
-        // 1) Shizuku first when already authorized (same process API as gesture/screencap).
+        if (requestShizukuIfNeeded &&
+            isShizukuBinderAlive() &&
+            !ShellProcessSupport.isShizukuAuthorized()
+        ) {
+            requestShizukuPermission()
+        }
+
+        // 1) Shizuku shell（与手势/截图同源）
         if (ShellProcessSupport.isShizukuAuthorized()) {
-            val ok = ShellProcessSupport.runShizukuOk(settingsCommand, TIMEOUT_MS)
-            if (ok && isPointerLocationEnabled(appContext) == enabled) {
+            if (tryWritePointerViaShell(value, useShizuku = true) &&
+                isPointerLocationEnabled(appContext) == enabled
+            ) {
                 return@withContext PointerLocationWriteResult.Success(
                     PointerLocationWritePath.SHIZUKU,
                 )
@@ -148,22 +175,17 @@ object SystemCapabilityAccess {
 
         // 2) WRITE_SETTINGS
         if (canWriteSystemSettings(appContext)) {
-            val putOk = runCatching {
-                Settings.System.putInt(
-                    appContext.contentResolver,
-                    POINTER_LOCATION_KEY,
-                    if (enabled) 1 else 0,
-                )
-            }.getOrDefault(false)
-            if (putOk && isPointerLocationEnabled(appContext) == enabled) {
+            if (putPointerViaContentResolver(appContext, enabled) &&
+                isPointerLocationEnabled(appContext) == enabled
+            ) {
                 return@withContext PointerLocationWriteResult.Success(
                     PointerLocationWritePath.WRITE_SETTINGS,
                 )
             }
         }
 
-        // 3) Root last
-        if (ShellProcessSupport.runRootOk(rootCommand, TIMEOUT_MS) &&
+        // 3) Root
+        if (tryWritePointerViaShell(value, useShizuku = false) &&
             isPointerLocationEnabled(appContext) == enabled
         ) {
             return@withContext PointerLocationWriteResult.Success(PointerLocationWritePath.ROOT)
@@ -175,6 +197,41 @@ object SystemCapabilityAccess {
             shizukuBinderAlive = isShizukuBinderAlive(),
             observedEnabled = isPointerLocationEnabled(appContext),
         )
+    }
+
+    private fun putPointerViaContentResolver(context: Context, enabled: Boolean): Boolean {
+        val cr = context.applicationContext.contentResolver
+        val v = if (enabled) 1 else 0
+        val systemOk = runCatching {
+            Settings.System.putInt(cr, POINTER_LOCATION_KEY, v)
+        }.getOrDefault(false)
+        // Secure 普通应用通常无 WRITE_SECURE_SETTINGS；失败忽略
+        runCatching { Settings.Secure.putInt(cr, POINTER_LOCATION_KEY, v) }
+        return systemOk
+    }
+
+    /**
+     * Shell 多写法兼容 OEM：
+     * - settings put system/secure pointer_location
+     * - cmd settings put system/secure pointer_location
+     */
+    private suspend fun tryWritePointerViaShell(value: String, useShizuku: Boolean): Boolean {
+        val commands = listOf(
+            arrayOf("settings", "put", "system", POINTER_LOCATION_KEY, value),
+            arrayOf("settings", "put", "secure", POINTER_LOCATION_KEY, value),
+            arrayOf("cmd", "settings", "put", "system", POINTER_LOCATION_KEY, value),
+            arrayOf("cmd", "settings", "put", "secure", POINTER_LOCATION_KEY, value),
+        )
+        var anyOk = false
+        for (cmd in commands) {
+            val ok = if (useShizuku) {
+                ShellProcessSupport.runShizukuOk(cmd, TIMEOUT_MS)
+            } else {
+                ShellProcessSupport.runRootOk(cmd.joinToString(" "), TIMEOUT_MS)
+            }
+            if (ok) anyOk = true
+        }
+        return anyOk
     }
 
     /**
@@ -202,11 +259,12 @@ object SystemCapabilityAccess {
         runCatching { context.startActivity(intent) }
     }
 
-    private const val TIMEOUT_MS = 4_000L
+    private const val TIMEOUT_MS = 6_000L
+    private const val SHIZUKU_PERMISSION_REQUEST_CODE = 0x485A_5A53 // 'HZS' + S
 
     /**
-     * 开发者选项「指针位置」的 [Settings.System] 键。
-     * AOSP 中为 `Settings.System.POINTER_LOCATION`，公开 SDK 不暴露该常量。
+     * 开发者选项「指针位置」键名（公开 SDK 无常量）。
+     * AOSP：`Settings.System.POINTER_LOCATION`；部分 ROM 可读 Secure。
      */
     private const val POINTER_LOCATION_KEY = "pointer_location"
 }

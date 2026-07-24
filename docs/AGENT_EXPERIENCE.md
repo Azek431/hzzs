@@ -5,7 +5,7 @@
 
 ## 2026-07-24
 
-- **FastContourV2 host smoke 与正式 host 分离**：`python tools/vision_v2/run_host_smoke.py` 只编 `vision_v2` 独立 exe（`build/vision-v2-host/`），**不要**塞进 `build_host.*` / `CMakeLists.txt` / APK。第一阶段仅新增文件；第二阶段 host 脚本 + boundary test。Shadow/JNI 另授权。
+- **FastContourV2 host smoke 与正式 host 分离**：`python tools/vision_v2/run_host_smoke.py` 只编 `vision_v2` 独立 exe（`build/vision-v2-host/`），**不要**塞进 `build_host.*` / `CMakeLists.txt` / APK。已有 core/boundary/pipeline 烟雾；条带扫描 profile 用结构体注入，帧路径不读 JSON。Shadow/JNI 另授权。
 - **VS Code 任务 + adb + PowerShell Stop**：原生 `adb` 写 stderr 时，在 `Continue=Stop` 下会变 NativeCommandError。统一 `Invoke-HzzsAdb`；`--remove` 无转发时用 `-IgnoreFailure`。嵌套脚本用 `return` 勿 `exit`。脚本用 **UTF-8 BOM** 兼容 Windows PowerShell 5.1；`Set-StrictMode` 下勿盲读未赋值 `0`。
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。

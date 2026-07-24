@@ -29,11 +29,17 @@ class AccessibilityGestureDispatcher @Inject constructor() : GestureDispatcher {
  *
  * 完成语义：命令 exit 0 = COMPLETED，**弱于**无障碍 GestureResultCallback。
  * 前台门控使用注入的 [ForegroundWindowProbe]（dumpsys）。
+ *
+ * 兼容：Shizuku 子进程 PATH 常为空，优先绝对路径 `/system/bin/input`，
+ * 失败再试 `cmd input`；失败 detail 带 exit/stderr 便于诊断。
  */
-class ShellInputGestureDispatcher(
+/**
+ * 仅同模块内构造；参数类型引用 [ShellProcessSupport]（internal），故本类亦为 internal。
+ */
+internal class ShellInputGestureDispatcher(
     private val probe: ForegroundWindowProbe,
     private val screenSize: () -> Pair<Int, Int>,
-    private val runOk: suspend (command: Array<String>, timeoutMs: Long) -> Boolean,
+    private val runResult: suspend (command: Array<String>, timeoutMs: Long) -> ShellProcessSupport.ShellCommandResult,
     private val clock: () -> Long = SystemClock::elapsedRealtime,
     private val maxForegroundAgeMs: Long = 1_500L,
 ) : GestureDispatcher {
@@ -45,7 +51,11 @@ class ShellInputGestureDispatcher(
             return DispatchReceipt(action, DispatchOutcome.REJECTED, "前台窗口状态已过期")
         }
         if (!action.matchesPackage(window.packageName) || !action.matchesWindow(window.className)) {
-            return DispatchReceipt(action, DispatchOutcome.REJECTED, "当前页面不在允许范围")
+            return DispatchReceipt(
+                action,
+                DispatchOutcome.REJECTED,
+                "当前页面不在允许范围 pkg=${window.packageName}",
+            )
         }
         val (width, height) = screenSize()
         if (width <= 1 || height <= 1) {
@@ -74,20 +84,42 @@ class ShellInputGestureDispatcher(
         val endX = gesture.endX
         val endY = gesture.endY
         val duration = gesture.durationMs.coerceIn(10L, 1_000L)
-        val command = if (endX != null && endY != null) {
-            val x2 = (endX.coerceIn(0f, 1f) * (widthPixels - 1)).toInt()
-            val y2 = (endY.coerceIn(0f, 1f) * (heightPixels - 1)).toInt()
-            arrayOf("input", "swipe", "$x1", "$y1", "$x2", "$y2", "$duration")
+        val isSwipe = endX != null && endY != null
+        val x2 = if (isSwipe) (endX!!.coerceIn(0f, 1f) * (widthPixels - 1)).toInt() else x1
+        val y2 = if (isSwipe) (endY!!.coerceIn(0f, 1f) * (heightPixels - 1)).toInt() else y1
+        val timeoutMs = (duration + 1_200L).coerceIn(1_000L, 4_000L)
+        // 候选命令：绝对路径优先（PATH 空）；再 cmd input；最后裸 input。
+        val candidates: List<Array<String>> = if (isSwipe) {
+            listOf(
+                arrayOf("/system/bin/input", "swipe", "$x1", "$y1", "$x2", "$y2", "$duration"),
+                arrayOf("cmd", "input", "swipe", "$x1", "$y1", "$x2", "$y2", "$duration"),
+                arrayOf("input", "swipe", "$x1", "$y1", "$x2", "$y2", "$duration"),
+            )
         } else {
-            arrayOf("input", "tap", "$x1", "$y1")
+            listOf(
+                arrayOf("/system/bin/input", "tap", "$x1", "$y1"),
+                arrayOf("cmd", "input", "tap", "$x1", "$y1"),
+                arrayOf("input", "tap", "$x1", "$y1"),
+            )
         }
-        val timeoutMs = (duration + 800L).coerceIn(800L, 4_000L)
-        val ok = runCatching { runOk(command, timeoutMs) }.getOrDefault(false)
-        if (ok) {
-            DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
-        } else {
-            DispatchReceipt(action, DispatchOutcome.REJECTED, "input 命令失败或超时")
+        var lastDetail = "input_fail"
+        for (command in candidates) {
+            val result = runCatching { runResult(command, timeoutMs) }
+                .getOrElse { ShellProcessSupport.ShellCommandResult(false, it.javaClass.simpleName) }
+            if (result.ok) {
+                return@withContext DispatchReceipt(
+                    action,
+                    DispatchOutcome.COMPLETED,
+                    "px=${x1},${y1}" + if (isSwipe) "→${x2},${y2}" else "",
+                )
+            }
+            lastDetail = result.detail ?: "input_fail"
         }
+        DispatchReceipt(
+            action,
+            DispatchOutcome.REJECTED,
+            "input 失败 px=${x1},${y1} $lastDetail",
+        )
     }
 }
 
@@ -110,7 +142,7 @@ class ShizukuGestureDispatcher @Inject constructor(
     private val inner = ShellInputGestureDispatcher(
         probe = probe,
         screenSize = { screenSize(context) },
-        runOk = { command, timeout -> ShellProcessSupport.runShizukuOk(command, timeout) },
+        runResult = { command, timeout -> ShellProcessSupport.runShizukuResult(command, timeout) },
     )
 
     override suspend fun dispatch(action: AutomationAction): DispatchReceipt = inner.dispatch(action)
@@ -138,11 +170,11 @@ class RootGestureDispatcher @Inject constructor(
     private val inner = ShellInputGestureDispatcher(
         probe = probe,
         screenSize = { screenSize(context) },
-        runOk = { command, timeout ->
+        runResult = { command, timeout ->
             val joined = command.joinToString(" ") { arg ->
                 if (arg.any { it.isWhitespace() }) "\"$arg\"" else arg
             }
-            ShellProcessSupport.runRootOk(joined, timeout)
+            ShellProcessSupport.runRootResult(joined, timeout)
         },
     )
 

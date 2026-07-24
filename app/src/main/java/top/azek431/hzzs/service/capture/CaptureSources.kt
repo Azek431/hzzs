@@ -58,6 +58,7 @@ import rikka.shizuku.Shizuku
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.model.CaptureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
+import top.azek431.hzzs.service.automation.ShellProcessSupport
 
 /** 按 [CaptureBackend] 解析具体帧源实现。 */
 interface FrameSourceFactory {
@@ -648,46 +649,53 @@ class ShizukuFrameSource @Inject constructor() : FrameSource {
     }.getOrDefault(false)
 
     /**
-     * Shizuku 13+ 将 `newProcess` 标为 private。这里用反射调用同一实现，
-     * 避免引入完整 UserService 绑定复杂度；失败时返回 null 并保持 fail-closed。
+     * 截屏：优先绝对路径 screencap（PATH 空），失败再试裸命令。
+     * 进程通道与手势同源 [ShellProcessSupport.openShizukuProcess]。
      */
-    private fun openShizukuProcess(command: Array<String>): java.lang.Process? = runCatching {
-        val method = Shizuku::class.java.getDeclaredMethod(
-            "newProcess",
-            Array<String>::class.java,
-            Array<String>::class.java,
-            String::class.java,
-        )
-        method.isAccessible = true
-        method.invoke(null, command, null, null) as java.lang.Process
-    }.getOrNull()
-
     private suspend fun runShizukuScreencap(): ByteArray? = withContext(Dispatchers.IO) {
-        val process = openShizukuProcess(arrayOf("screencap", "-p")) ?: return@withContext null
+        val candidates = listOf(
+            arrayOf("/system/bin/screencap", "-p"),
+            arrayOf("screencap", "-p"),
+        )
+        for (command in candidates) {
+            val process = ShellProcessSupport.openShizukuProcess(command) ?: continue
+            val bytes = runCatching {
+                readProcessBytes(process, MAX_SCREENSHOT_BYTES, 4_000L)
+            }.getOrNull()
+            if (bytes != null && bytes.isNotEmpty()) return@withContext bytes
+        }
+        null
+    }
+
+    private suspend fun readProcessBytes(
+        process: java.lang.Process,
+        maxBytes: Int,
+        timeoutMs: Long,
+    ): ByteArray? {
         try {
-            coroutineScope {
+            return coroutineScope {
                 val stdout = async(Dispatchers.IO) {
-                    runCatching { readLimited(process.inputStream, MAX_SCREENSHOT_BYTES) }
-                        .onFailure { process.destroyCompat() }
+                    runCatching { readLimitedBytes(process.inputStream, maxBytes) }
+                        .onFailure { process.destroyCompatLocal() }
                         .getOrNull()
                 }
                 val stderr = async(Dispatchers.IO) {
-                    runCatching { readLimited(process.errorStream, MAX_ROOT_STDERR_BYTES) }
-                        .onFailure { process.destroyCompat() }
+                    runCatching { readLimitedBytes(process.errorStream, MAX_ROOT_STDERR_BYTES) }
+                        .onFailure { process.destroyCompatLocal() }
                         .getOrNull()
                 }
-                val exited = waitForExit(process, 4_000L)
-                if (!exited) process.destroyCompat()
+                val exited = waitForExit(process, timeoutMs)
+                if (!exited) process.destroyCompatLocal()
                 val streams = withTimeoutOrNull(1_000L) { stdout.await() to stderr.await() }
                 val exitCode = if (exited) runCatching { process.exitValue() }.getOrNull() else null
                 if (exitCode != 0 || streams == null) null else streams.first
             }
         } finally {
-            process.destroyCompat()
+            process.destroyCompatLocal()
         }
     }
 
-    private fun readLimited(input: InputStream, maxBytes: Int): ByteArray {
+    private fun readLimitedBytes(input: InputStream, maxBytes: Int): ByteArray {
         input.use { stream ->
             val output = ByteArrayOutputStream(minOf(maxBytes, 1024 * 1024))
             val buffer = ByteArray(16 * 1024)
@@ -701,6 +709,11 @@ class ShizukuFrameSource @Inject constructor() : FrameSource {
             }
             return output.toByteArray()
         }
+    }
+
+    private fun java.lang.Process.destroyCompatLocal() {
+        runCatching { destroyForcibly() }
+        runCatching { destroy() }
     }
 
     private companion object {

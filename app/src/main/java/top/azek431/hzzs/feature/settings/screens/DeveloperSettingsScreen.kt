@@ -104,6 +104,9 @@ fun DeveloperSettingsScreen(
     val pointerViaShizuku = stringResource(R.string.dev_pointer_location_via_shizuku)
     val pointerViaRoot = stringResource(R.string.dev_pointer_location_via_root)
     val pointerBusyMsg = stringResource(R.string.dev_pointer_location_busy)
+    val pointerShizukuGrantedMsg = stringResource(R.string.dev_pointer_location_shizuku_granted)
+    val pointerShizukuDeniedMsg = stringResource(R.string.dev_pointer_location_shizuku_denied)
+    val pointerShizukuOfflineMsg = stringResource(R.string.dev_pointer_location_shizuku_offline)
 
     // 系统指针位置：真相源是 Settings.System，不进 AppConfig；回页时刷新。
     var canWriteSystem by remember {
@@ -289,7 +292,39 @@ fun DeveloperSettingsScreen(
                             }
                         },
                     )
-                    if (!canWriteSystem && !shizukuAuthorized) {
+                    if (shizukuBinder && !shizukuAuthorized) {
+                        OutlinedButton(
+                            onClick = {
+                                if (pointerBusy) {
+                                    onMessage(pointerBusyMsg)
+                                    return@OutlinedButton
+                                }
+                                pointerBusy = true
+                                scope.launch {
+                                    try {
+                                        val ok = SystemCapabilityAccess.requestShizukuPermission()
+                                        shizukuAuthorized =
+                                            SystemCapabilityAccess.isShizukuAuthorized()
+                                        shizukuBinder =
+                                            SystemCapabilityAccess.isShizukuBinderAlive()
+                                        onMessage(
+                                            when {
+                                                ok || shizukuAuthorized -> pointerShizukuGrantedMsg
+                                                !shizukuBinder -> pointerShizukuOfflineMsg
+                                                else -> pointerShizukuDeniedMsg
+                                            },
+                                        )
+                                    } finally {
+                                        pointerBusy = false
+                                    }
+                                }
+                            },
+                            enabled = !pointerBusy,
+                        ) {
+                            Text(stringResource(R.string.dev_pointer_location_request_shizuku))
+                        }
+                    }
+                    if (!canWriteSystem) {
                         OutlinedButton(
                             onClick = {
                                 SystemCapabilityAccess.openManageWriteSettings(context)

@@ -92,18 +92,35 @@ internal object ShellProcessSupport {
      * 执行命令并要求 exit 0；stdout 可丢弃（input 类命令）。
      * @return true 表示成功退出
      */
-    suspend fun runShizukuOk(command: Array<String>, timeoutMs: Long): Boolean {
-        if (!isShizukuAuthorized()) return false
-        val process = openShizukuProcess(command) ?: return false
-        return runProcessOk(process, timeoutMs)
+    suspend fun runShizukuOk(command: Array<String>, timeoutMs: Long): Boolean =
+        runShizukuResult(command, timeoutMs).ok
+
+    /**
+     * 带简短失败原因的 Shizuku 执行（供手势诊断）。
+     * [ShellCommandResult.detail] 已截断，可进决策串，不含密钥。
+     */
+    suspend fun runShizukuResult(command: Array<String>, timeoutMs: Long): ShellCommandResult {
+        if (!isShizukuAuthorized()) {
+            return ShellCommandResult(ok = false, detail = "shizuku_unauthorized")
+        }
+        val process = openShizukuProcess(command)
+            ?: return ShellCommandResult(ok = false, detail = "newProcess_null")
+        return runProcessResult(process, timeoutMs)
     }
 
-    suspend fun runRootOk(shellCommand: String, timeoutMs: Long): Boolean {
-        val process = openRootProcess(shellCommand) ?: return false
-        return runProcessOk(process, timeoutMs)
+    suspend fun runRootOk(shellCommand: String, timeoutMs: Long): Boolean =
+        runRootResult(shellCommand, timeoutMs).ok
+
+    suspend fun runRootResult(shellCommand: String, timeoutMs: Long): ShellCommandResult {
+        val process = openRootProcess(shellCommand)
+            ?: return ShellCommandResult(ok = false, detail = "su_open_fail")
+        return runProcessResult(process, timeoutMs)
     }
 
     private suspend fun runProcessOk(process: Process, timeoutMs: Long): Boolean =
+        runProcessResult(process, timeoutMs).ok
+
+    private suspend fun runProcessResult(process: Process, timeoutMs: Long): ShellCommandResult =
         withContext(Dispatchers.IO) {
             try {
                 coroutineScope {
@@ -119,16 +136,37 @@ internal object ShellProcessSupport {
                     }
                     val exited = waitForExit(process, timeoutMs)
                     if (!exited) process.destroyCompat()
-                    withTimeoutOrNull(500L) {
-                        stdout.await()
-                        stderr.await()
+                    val streams = withTimeoutOrNull(500L) {
+                        stdout.await() to stderr.await()
                     }
-                    exited && runCatching { process.exitValue() }.getOrNull() == 0
+                    val exitCode = if (exited) {
+                        runCatching { process.exitValue() }.getOrNull()
+                    } else {
+                        null
+                    }
+                    if (exitCode == 0) {
+                        ShellCommandResult(ok = true, detail = null)
+                    } else {
+                        val err = streams?.second?.trim().orEmpty().take(120)
+                        val detail = when {
+                            !exited -> "timeout_${timeoutMs}ms"
+                            exitCode != null && err.isNotEmpty() -> "exit=$exitCode err=$err"
+                            exitCode != null -> "exit=$exitCode"
+                            else -> "no_exit"
+                        }
+                        ShellCommandResult(ok = false, detail = detail)
+                    }
                 }
             } finally {
                 process.destroyCompat()
             }
         }
+
+    /** shell 执行结果（手势/指针等 fail-soft 诊断用）。 */
+    data class ShellCommandResult(
+        val ok: Boolean,
+        val detail: String? = null,
+    )
 
     private fun readLimited(input: InputStream, maxBytes: Int): String {
         input.use { stream ->
