@@ -7,7 +7,7 @@
 
 - 单一 `app` Android 模块与职责分包（Compose + Hilt）。
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
-- Material 3 首次引导、主题包、悬浮窗样式、设置即时落盘和开发者入口。
+- Material 3 首次引导（5 步：欢迎/赛季/截图/权限/完成；完成页折叠高级自动操作）、主题包、悬浮窗样式、设置即时落盘和开发者入口。
 - MCP 四级权限、IPv4 `127.0.0.1` 回环监听、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
@@ -46,7 +46,7 @@
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 完成驱动取帧 + HUD 临时隐身 + 近似显示轮廓 | 已落地（非 C++ 像素轮廓；动作仍只读 bounds） |
 | P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
-| P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导步骤/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
+| P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导 5 步 DS2.0 重构/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
 | P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地（会话阶段可视化 + 最近一帧摘要；无文件日志；无 C++ 热路径逐步日志） |
 | P1 | 设置页拆分为独立分类：MCP 服务（普通用户可访问）与开发者选项分离；连接引导、状态卡片、一键复制信息；关于/设置共用开发者页，解锁后设置首页才显示入口 | 已落地 |
 | P1 | MCP 协议与安全加固：initialize/initialized、Mcp-Session-Id、TRUSTED_SESSION 内存会话、并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批 | 已落地 |

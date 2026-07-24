@@ -9,11 +9,11 @@ AndroidManifest.xml
 → HzzsApplication：建立 Hilt 根并记录未捕获异常
 → MainActivity.setContent
 → HzzsRoot
-   ├─ onboarding 未完成：OnboardingScreen
+   ├─ onboarding 未完成：OnboardingScreen（5 步：欢迎/赛季/截图/权限/完成；截图能力来自 CaptureCapabilityResolver）
    └─ 已完成：MainNavigation → home / runtime / settings / about
 ```
 
-`AppViewModel` 收集 `SettingsRepository.config`，根界面用它驱动主题、首次引导分流和 MCP 服务同步。Feature 页面不拥有全局配置。
+`AppViewModel` 收集 `SettingsRepository.config`，根界面用它驱动主题、首次引导分流和 MCP 服务同步。Feature 页面不拥有全局配置。引导完成前只 `preview`，点「完成」才 `save` 并写入 `onboarding.completed` + 免责声明版本。
 
 ## 包职责
 

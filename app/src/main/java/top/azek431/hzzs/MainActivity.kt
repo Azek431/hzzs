@@ -191,12 +191,17 @@ class AppViewModel @Inject constructor(
     val mcpUiBridge: McpUiBridge,
     private val updateRepository: top.azek431.hzzs.core.update.UpdateRepository,
     private val algorithmCatalog: top.azek431.hzzs.core.algorithm.AlgorithmCatalogController,
+    private val captureCapabilityResolver: top.azek431.hzzs.platform.compat.CaptureCapabilityResolver,
 ) : ViewModel() {
     val config: StateFlow<AppConfig> = repository.config.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         AppConfig(),
     )
+
+    /** 首次引导截图步用：与设置同源的能力快照（含支持度/推荐文案）。 */
+    fun onboardingCaptureCapabilities(): List<top.azek431.hzzs.platform.compat.CaptureCapability> =
+        captureCapabilityResolver.all()
 
     /** 启动后按配置尝试静默检查更新与算法目录；失败只写日志，不打扰用户。 */
     fun maybeAutoCheckUpdates() {
@@ -282,6 +287,7 @@ private fun HzzsRoot(
         if (!config.onboarding.completed) {
             OnboardingScreen(
                 initial = config,
+                captureCapabilities = vm.onboardingCaptureCapabilities(),
                 onPreview = vm::preview,
                 onComplete = vm::completeOnboarding,
             )
