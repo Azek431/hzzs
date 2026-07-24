@@ -23,7 +23,7 @@
 - **算法调参看 DEBUG 帧轨迹**：`AlgorithmRuntimeTrace` 保留最近 32 帧（无像素）；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`。须开发者开启且 `logLevel=DEBUG`；状态变化或约每 12 帧写一条。诊断导出含 pipeline + 最近帧。INFO 下仍只有会话 start/stop。
 - **编程版八荣八耻已装入 CLAUDE**：根 `CLAUDE.md` 与用户级 `~/.claude/CLAUDE.md` 的 `Core Philosophy`；第 7 条原文「为菜」= 诚实无知、不装懂。硬约束全文仍以 `CLAUDE.md` 为准。
 - **host 构建脚本无 +x**：Windows 检出常使 `tools/vision/*.sh` 为 `100644`；CI 上 `python subprocess([str(build_host.sh)])` 会 `PermissionError`。应 `bash script.sh` / `powershell -File script.ps1`，统一走 `tools/vision/host_build.py`。
-- **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认大堆；多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。救急：`tools/dev/repair_serena.ps1 -ClearCache`（可选 `-AlsoStopFwcd`）。工具仍不可用时回退 Read/Grep，勿阻塞交付。
+- **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认大堆；多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。**多会话会各起一套** `serena.exe` + `python … serena.exe start-mcp-server`（旧实例不退）；救急：`tools/dev/repair_serena.ps1 -ClearCache`（脚本须匹配 `.exe` 与 python 包装，二次清扫）。尽量只开 1 个本仓库 Claude 会话。工具仍不可用时回退 Read/Grep，勿阻塞交付。
 
 ## 2026-07-22
 
