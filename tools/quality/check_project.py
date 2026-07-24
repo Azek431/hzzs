@@ -84,10 +84,22 @@ settings_repo = read("app/src/main/java/top/azek431/hzzs/core/preferences/Settin
 for token in (
     "preview.value = null",
     "disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION",
-    ".intersect(AutomationConfig.DEFAULT_ALLOWED_PACKAGES)",
     "MAX_CONFIG_BYTES",
 ):
     check(token in settings_repo, f"settings:{token}", "safety invariant missing")
+# 包名门控：默认不限制；用户显式 restrictPackages 时才限制。
+# 外部摄入不得静默关闭限制；开启限制时列表不得悄悄扩大（与 baseline 求交）。
+check(
+    "restrictPackages" in settings_repo
+    and "AutomationConfig.SUGGESTED_PACKAGES" in settings_repo
+    and (
+        "candidate.automation.restrictPackages || base.automation.restrictPackages" in settings_repo
+        or "restrictPackages = candidate.automation.restrictPackages || base.automation.restrictPackages"
+        in settings_repo
+    ),
+    "settings:allowed-packages-restrict",
+    "safety invariant missing",
+)
 
 settings_ui = read("app/src/main/java/top/azek431/hzzs/feature/settings/SettingsScreen.kt")
 settings_ui_dir = ROOT / "app/src/main/java/top/azek431/hzzs/feature/settings"
@@ -95,8 +107,18 @@ settings_ui_all = settings_ui
 if settings_ui_dir.is_dir():
     for path in sorted(settings_ui_dir.rglob("*.kt")):
         settings_ui_all += "\n" + path.read_text(encoding="utf-8")
-for token in ("DisposableEffect", "flushNow", "onLeaveComposition", "SettingsExitCoordinator", "请等待 ${remaining}s"):
-    check(token in settings_ui_all, f"settings-ui:{token}", "settings flush/risk UI missing")
+for token in (
+    "DisposableEffect",
+    "onLeaveComposition",
+    "SettingsExitCoordinator",
+    "请等待 ${remaining}s",
+    "settings_save_and_apply",
+    "settings_unsaved_title",
+    "fun save(",
+    "fun discard(",
+    "repository.preview",
+):
+    check(token in settings_ui_all, f"settings-ui:{token}", "settings draft-save/risk UI missing")
 check(
     "discardSilently" not in settings_ui_all,
     "settings-ui:no-silent-draft-discard",
@@ -105,7 +127,7 @@ check(
 check(
     "clearPreviewSilently" not in settings_ui_all,
     "settings-ui:no-legacy-clear-preview",
-    "instant-save settings must not use clearPreviewSilently",
+    "settings must not use clearPreviewSilently",
 )
 
 onboarding = read("app/src/main/java/top/azek431/hzzs/feature/onboarding/OnboardingScreen.kt")
@@ -135,6 +157,7 @@ for token in (
     "navigate",
     "MAX_BODY_BYTES",
     "isAllowedLoopbackOrigin",
+    "isAllowedMcpOrigin",
     "MessageDigest.isEqual",
     "settings.snapshot().mcp.permissionLevel",
     "list_debug_frames",
@@ -148,9 +171,21 @@ for token in (
     "requireAuth",
     "authToken",
     "generateMcpAuthToken",
+    "bindLocalhostOnly",
+    "listLanIpv4Addresses",
 ):
     check(token in mcp, f"mcp:{token}", "MCP control/safety invariant missing")
-check("0.0.0.0" not in mcp, "mcp:no-lan-listener", "MCP must remain loopback-only")
+# 默认仍须 loopback；允许源码出现 0.0.0.0 仅当用户显式 bindLocalhostOnly=false。
+check(
+    "bindLocalhostOnly" in mcp and "127.0.0.1" in mcp and "0.0.0.0" in mcp,
+    "mcp:loopback-default",
+    "MCP must default to loopback and expose gated 0.0.0.0 LAN path",
+)
+check(
+    "config.bindLocalhostOnly" in mcp and "listLanIpv4Addresses" in mcp,
+    "mcp:lan-bind-gated",
+    "LAN bind must read config.bindLocalhostOnly and list LAN IPs",
+)
 check(
     'put("additionalProperties", true)' not in mcp
     and "put('additionalProperties', true)" not in mcp,

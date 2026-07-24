@@ -15,6 +15,8 @@
 
 ### 变更
 
+- **MCP 可选局域网绑定**：设置页「允许局域网访问」经风险确认后 `bindLocalhostOnly=false`，服务绑 `0.0.0.0`；探测 IPv4 供复制。默认仍 loopback；导入默认不得静默开局域网，可经 `ExternalIngestElevations` 用户确认放行。Origin 仍拒绝非 loopback 浏览器跨源。
+
 - **算法官方钥轮换**：`hzzs-algorithm-official-1` 公钥与 `official-public-keys/` 对齐到新 Ed25519 钥；`AlgorithmTrustAnchors` 同步。须用配对私钥配置 GitHub Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64`；已装旧公钥 APK 无法验签新包，需装含新锚的版本。
 - **算法与绘制职责表述对齐**：明确算法（含多点找色）只算 `Detection` 数据，屏幕呈现由通用 Overlay/`displayContour` 完成（数据关联、职责分离）；文档与关键注释同步，避免「算法无绘制」被误解为「屏幕不该有框」。行为未改。
 - **算法 push 自动发布（GitHub）**：`algorithm-release.yml` 在 `main` 上变更 `algorithm-packs/**` 时自动签 `.hzzsalg` 并写入 `release-index`；默认仅 GitHub 镜像（可选 Gitee）。`publish_algorithm_release.py` 支持 `--mirrors github`。手机保持 `algorithm.autoCheck` 即可检查/下载（需配置算法签名 Secrets）。
@@ -35,6 +37,7 @@
 
 ### 修复
 
+- **自动操作包名门控与 `restrictPackages` 对齐**：未开启「仅允许指定应用」时不再用建议包列表挡前台；派发时 `allowedPackages` 空集表示不限制。修正 CI `check_project` 旧规则与产品语义不一致导致的 Build 失败。
 - **海盐触发距离默认与校验**：`seaSaltTriggerDistancePlayerWidths` 默认 **5.0**（FIXED 玩家宽约 0.05 时约 0.25 屏宽，对齐酱油较远点击）；`validated`/滑条上限 **0.5–8**，避免旧 1.4 被钳在 4 内仍偏近导致「框已稳、no_candidate」。诊断 skip 文案补 `pw` / `nearGap` / `sc`。
 - **算法库选包对齐赛季**：手动选用仅支持单一赛季的包（如酱油海盐）时自动切到该赛季；卡片标注「不含当前赛季」并 Snackbar 提示。
 - **VS Code 真机/JDWP 任务**：PowerShell `Continue=Stop` 下原生 `adb` 的 stderr 不再误杀任务；无设备/unauthorized/offline 打印排查提示；安装/logcat/转发统一走脚本闸门；JDWP 启动后轮询 PID；诊断导出默认 `local-diagnostics/device`；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1；避免 StrictMode 下盲读 `0`。

@@ -287,6 +287,14 @@ class VisionRuntimeController @Inject constructor(
     }
 
     /**
+     * 对外入口：取消在飞自动操作（MCP `cancel_actions`、切换手势后端等）。
+     * 与内部 [cancelActions] 同义；不停止帧循环。
+     */
+    fun cancelPendingActions() {
+        cancelActions()
+    }
+
+    /**
      * 帧循环主体：在 [token] 与 [generation] 一致期间持续取帧分析。
      *
      * 关键分支：
@@ -687,12 +695,15 @@ class VisionRuntimeController @Inject constructor(
             return "skip:no_foreground"
         }
         val foregroundClassName = foreground.className
+        val packageRestricted = config.automation.restrictPackages
+        val packageAllowed = !packageRestricted ||
+            foreground.packageName in config.automation.allowedPackages
         if (foregroundClassName.isBlank() ||
             SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
-            foreground.packageName !in config.automation.allowedPackages
+            !packageAllowed
         ) {
             actionInFlight.set(false)
-            return "skip:foreground_gate pkg=${foreground.packageName}"
+            return "skip:foreground_gate pkg=${foreground.packageName} restrict=$packageRestricted"
         }
 
         val planSummary =
@@ -833,13 +844,17 @@ class VisionRuntimeController @Inject constructor(
                 AlgorithmRuntimeTrace.logDecision("dispatch_skip:no_foreground track=${candidate.trackId}")
                 return@withLock
             }
+            val packageRestricted = config.automation.restrictPackages
+            val packageAllowed = !packageRestricted ||
+                foreground.packageName in config.automation.allowedPackages
             if (
                 SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
-                foreground.packageName !in config.automation.allowedPackages ||
+                !packageAllowed ||
                 !foreground.className.startsWith(foregroundClassName)
             ) {
                 AlgorithmRuntimeTrace.logDecision(
-                    "dispatch_skip:foreground_recheck pkg=${foreground.packageName} track=${candidate.trackId}",
+                    "dispatch_skip:foreground_recheck pkg=${foreground.packageName} " +
+                        "restrict=$packageRestricted track=${candidate.trackId}",
                 )
                 return@withLock
             }
@@ -898,7 +913,12 @@ class VisionRuntimeController @Inject constructor(
                         gesture = stroke.gesture,
                         createdAtUptimeMs = created,
                         expiresAtUptimeMs = created + stroke.ttlMs,
-                        allowedPackages = config.automation.allowedPackages,
+                        // 空集 = 不限制包名（与 AutomationAction.matchesPackage 一致）
+                        allowedPackages = if (config.automation.restrictPackages) {
+                            config.automation.allowedPackages
+                        } else {
+                            emptySet()
+                        },
                         requiredWindowClassPrefixes = emptySet(),
                         retryCount = attempt,
                     )
