@@ -78,6 +78,30 @@ class SettingsSessionTest {
         assertTrue(ConfigJson.decode(ConfigJson.encode(accepted)).automation.enabled)
     }
 
+    /**
+     * 模拟引导/设置风险确认后的单次更新：`enabled=true` 与 `disclaimerAcceptedVersion`
+     * 必须同帧写入，否则 [validated] 会立刻把 enabled 洗回 false（用户感知为要开两次）。
+     */
+    @Test
+    fun enablingAutomationWithDisclaimerSurvivesValidatedAndPreviewShape() {
+        val withoutDisclaimer = AppConfig().copy(
+            automation = AutomationConfig(enabled = true, disclaimerAcceptedVersion = 0),
+        ).validated()
+        assertFalse(withoutDisclaimer.automation.enabled)
+
+        val withDisclaimer = AppConfig().copy(
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+        ).validated()
+        assertTrue(withDisclaimer.automation.enabled)
+        assertEquals(AppConfig.DISCLAIMER_VERSION, withDisclaimer.automation.disclaimerAcceptedVersion)
+
+        // 再 validated 不应把已接受版本洗掉。
+        assertTrue(withDisclaimer.validated().automation.enabled)
+    }
+
     @Test
     fun seaSaltTriggerDistanceRoundTripsAndValidates() {
         val configured = AppConfig().copy(

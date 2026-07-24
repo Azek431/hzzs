@@ -118,7 +118,14 @@ fun OnboardingScreen(
     onComplete: (AppConfig) -> Unit,
 ) {
     var page by remember { mutableIntStateOf(0) }
-    var draft by remember(initial) {
+    /**
+     * 草稿只从首帧 [initial] 播种一次。
+     *
+     * 禁止 `remember(initial)`：引导过程中 [onPreview] 会把草稿写回仓库 preview，
+     * 根界面收集到的 config 变化会让 [initial] 引用/内容变化；若以此为 key 会重建草稿，
+     * 且旧逻辑强制 `enabled=false`，表现为「风险弹窗确认后开关又关、要开两次」。
+     */
+    var draft by remember {
         val capture = if (initial.captureBackend in OnboardingCaptureBackends) {
             initial.captureBackend
         } else {
@@ -259,8 +266,23 @@ fun OnboardingScreen(
                             onOverlay = { style -> update { it.copy(overlay = it.overlay.copy(style = style)) } },
                             automationEnabled = draft.automation.enabled,
                             onAutomationChange = { enabled ->
-                                if (enabled) showAutomationRisk = true
-                                else update { it.copy(automation = it.automation.copy(enabled = false)) }
+                                if (enabled) {
+                                    // 本会话已确认过风险（免责版本已写入草稿）则直接开，不再二次弹窗。
+                                    if (draft.automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION) {
+                                        update {
+                                            it.copy(
+                                                automation = it.automation.copy(
+                                                    enabled = true,
+                                                    disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+                                                ),
+                                            )
+                                        }
+                                    } else {
+                                        showAutomationRisk = true
+                                    }
+                                } else {
+                                    update { it.copy(automation = it.automation.copy(enabled = false)) }
+                                }
                             },
                         )
                     }

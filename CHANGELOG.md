@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **自动操作风险弹窗确认一次即可**：引导页草稿用 `remember(initial)` 会在 `preview` 回流后重建，并强制 `enabled=false`，导致风险对话框确认后开关又关、需再开一次。改为只播种一次；设置页/引导在已接受当前免责版本时直接开启不再弹窗；`SettingsViewModel.update` 乐观草稿与 `validated()` 对齐。
+
 ### 新增
 
 - **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。binder 在未授权时可点「授权 Shizuku」；已授权优先 `ShellProcessSupport` 写 system/secure + `cmd settings`；否则 `WRITE_SETTINGS` / Root。写入后**回读校验**（system/secure 任一为 1）。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。

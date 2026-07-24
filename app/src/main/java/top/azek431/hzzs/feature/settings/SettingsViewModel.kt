@@ -37,6 +37,7 @@ import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.UpdateChannel
 import top.azek431.hzzs.core.preferences.SettingsRepository
+import top.azek431.hzzs.core.preferences.validated
 import top.azek431.hzzs.core.theme.HzzsThemePackage
 import top.azek431.hzzs.core.theme.ThemePackageCodec
 import top.azek431.hzzs.core.update.ApkInstaller
@@ -208,9 +209,12 @@ class SettingsViewModel @Inject constructor(
     /**
      * 乐观更新 UI 并写入进程内 preview（不落盘）。
      * 子页危险确认应在调用本方法前完成（如自动操作风险对话框）。
+     *
+     * 本地草稿与 [SettingsRepository.preview] 均走 [top.azek431.hzzs.core.preferences.validated]，
+     * 避免 UI 显示 `enabled=true` 而 preview 因免责版本被洗回 `false`，造成「确认后开关又弹」。
      */
     fun update(transform: (AppConfig) -> AppConfig) {
-        val optimistic = transform(mutableConfig.value)
+        val optimistic = transform(mutableConfig.value).validated()
         mutableConfig.value = optimistic
         val isDirty = optimistic != baseline
         mutableDirty.value = isDirty

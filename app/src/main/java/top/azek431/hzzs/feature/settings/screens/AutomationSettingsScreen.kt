@@ -168,7 +168,19 @@ fun AutomationSettingsScreen(
                     checked = config.automation.enabled,
                     onCheckedChange = { enabled ->
                         if (enabled) {
-                            riskDialog = true
+                            // 已接受当前免责声明版本时直接开启，避免重复风险弹窗。
+                            if (config.automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION) {
+                                update {
+                                    it.copy(
+                                        automation = it.automation.copy(
+                                            enabled = true,
+                                            disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+                                        ),
+                                    )
+                                }
+                            } else {
+                                riskDialog = true
+                            }
                         } else {
                             update { it.copy(automation = it.automation.copy(enabled = false)) }
                         }
