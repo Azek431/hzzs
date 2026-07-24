@@ -13,10 +13,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.logging.AppLog
+import top.azek431.hzzs.core.model.McpConfig
 import top.azek431.hzzs.core.preferences.SettingsRepository
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -26,6 +28,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 /**
@@ -53,6 +56,8 @@ class McpForegroundService : Service() {
     private val runGeneration = AtomicLong(0)
     private val sessions = McpSessionManager()
     private lateinit var protocol: McpProtocol
+    /** tools/list 过滤用：跟 current/preview 刷新，避免每次 list 都 runBlocking。 */
+    private val toolPolicyConfig = AtomicReference(McpConfig())
 
     override fun onCreate() {
         super.onCreate()
@@ -61,11 +66,17 @@ class McpForegroundService : Service() {
             sessions = sessions,
             actions = registry,
             listTools = {
-                // 生效配置（含设置页 preview）：避免 tools/list 暴露用户已禁用工具
-                val mcp = kotlinx.coroutines.runBlocking { settings.current().mcp }
-                McpToolCatalog.toolsJson(McpToolPolicySupport.effectiveTools(mcp))
+                McpToolCatalog.toolsJson(
+                    McpToolPolicySupport.effectiveTools(toolPolicyConfig.get()),
+                )
             },
         )
+        scope.launch {
+            // 工具策略可随设置草稿即时变化；服务绑定仍只读 snapshot（见 startServer）。
+            settings.config.collectLatest { cfg ->
+                toolPolicyConfig.set(cfg.mcp)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

@@ -737,7 +737,11 @@ class VisionRuntimeController @Inject constructor(
         // 规划期：无障碍可同步快照；Shell（Shizuku/Root）完整 dumpsys 放到 actionJob，避免卡帧。
         val planForegroundClass: String
         if (gestureEffective == GestureBackend.ACCESSIBILITY) {
-            val foreground = top.azek431.hzzs.service.automation.AccessibilityForegroundProbe.blockingSnapshot()
+            if (!gestureCapabilities.isAccessibilityConnected()) {
+                actionInFlight.set(false)
+                return publish("skip:no_accessibility backend=ACCESSIBILITY")
+            }
+            val foreground = AccessibilityForegroundProbe.blockingSnapshot()
             if (foreground == null) {
                 actionInFlight.set(false)
                 return publish(
@@ -949,8 +953,8 @@ class VisionRuntimeController @Inject constructor(
                 )
                 return@withLock
             }
+            // class recheck：仅当规划期 className 非空才 startsWith 校验（Shell 规划期常为空）。
             val classStillMatches = foregroundClassName.isBlank() ||
-                foreground.className.isBlank() ||
                 foreground.className.startsWith(foregroundClassName)
             if (!classStillMatches) {
                 note(

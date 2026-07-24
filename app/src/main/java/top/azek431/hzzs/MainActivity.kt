@@ -199,6 +199,15 @@ class AppViewModel @Inject constructor(
         AppConfig(),
     )
 
+    /**
+     * 仅已落盘配置：MCP 服务启停必须跟 saved，避免设置草稿未保存就重启 loopback socket。
+     */
+    val savedConfig: StateFlow<AppConfig> = repository.savedConfig.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        AppConfig(),
+    )
+
     /** 首次引导截图步用：与设置同源的能力快照（含支持度/推荐文案）。 */
     fun onboardingCaptureCapabilities(): List<top.azek431.hzzs.platform.compat.CaptureCapability> =
         captureCapabilityResolver.all()
@@ -260,26 +269,28 @@ private fun HzzsRoot(
     vm: AppViewModel = hiltViewModel(),
 ) {
     val config by vm.config.collectAsState()
+    val savedConfig by vm.savedConfig.collectAsState()
     val approval by vm.approval.collectAsState()
     val mcpNavigation by vm.mcpNavigation.collectAsState()
     val mcpSettingsSubRoute by vm.mcpUiBridge.settingsSubRoute.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(
-        config.mcp.enabled,
-        config.mcp.port,
-        config.mcp.permissionLevel,
-        config.mcp.requireAuth,
-        config.mcp.authToken,
-        config.mcp.bindLocalhostOnly,
+        savedConfig.mcp.enabled,
+        savedConfig.mcp.port,
+        savedConfig.mcp.permissionLevel,
+        savedConfig.mcp.requireAuth,
+        savedConfig.mcp.authToken,
+        savedConfig.mcp.bindLocalhostOnly,
     ) {
+        // 只跟已保存配置：草稿预览改 MCP 开关/端口不得重启服务。
         syncMcpService(
             context = context,
-            enabled = config.mcp.enabled,
+            enabled = savedConfig.mcp.enabled,
             fingerprint =
-                "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}:" +
-                    "${config.mcp.requireAuth}:${config.mcp.authToken}:" +
-                    "${config.mcp.bindLocalhostOnly}",
+                "${savedConfig.mcp.enabled}:${savedConfig.mcp.port}:${savedConfig.mcp.permissionLevel}:" +
+                    "${savedConfig.mcp.requireAuth}:${savedConfig.mcp.authToken}:" +
+                    "${savedConfig.mcp.bindLocalhostOnly}",
         )
     }
     LaunchedEffect(Unit) {

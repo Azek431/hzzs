@@ -834,17 +834,17 @@ class McpActionRegistry @Inject constructor(
         val disclaimerOk = auto.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION
         val sceneConf = latest?.sceneConfidence
         val sceneOk = sceneConf == null || sceneConf >= auto.minimumSceneConfidence
-        val bambooLock =
-            cfg.selectedScene == SceneId.BAMBOO_BOOKSTORE && !auto.bambooExperimentalAutoAction
         // 仅在无障碍相关后端时用 a11y 快照估包门控；Shell 后端无 a11y 快照不算 packageBlocked。
         val fg = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true)
         val gestureRequested = auto.gestureBackend
         val gestureEffective = status.activeGestureBackend
-        val needsA11yForeground =
+        val needsA11y =
             gestureEffective == GestureBackend.ACCESSIBILITY ||
                 gestureRequested == GestureBackend.ACCESSIBILITY ||
-                (gestureRequested == GestureBackend.AUTO && gestureEffective == GestureBackend.ACCESSIBILITY)
-        val packageBlocked = auto.restrictPackages && needsA11yForeground &&
+                (gestureRequested == GestureBackend.AUTO &&
+                    gestureEffective != GestureBackend.SHIZUKU &&
+                    gestureEffective != GestureBackend.ROOT)
+        val packageBlocked = auto.restrictPackages && needsA11y &&
             (fg == null || fg.packageName !in auto.allowedPackages)
         val blockers = buildList {
             if (!auto.enabled) add("automation.enabled=false")
@@ -853,17 +853,12 @@ class McpActionRegistry @Inject constructor(
             }
             if (!status.running) add("analysis.not_running")
             // 无障碍未连接仅在有效手势后端依赖无障碍时阻塞列表提示。
-            if (!a11y &&
-                (gestureEffective == GestureBackend.ACCESSIBILITY ||
-                    gestureRequested == GestureBackend.ACCESSIBILITY ||
-                    gestureRequested == GestureBackend.AUTO)
-            ) {
+            if (!a11y && needsA11y) {
                 add("accessibility.not_connected")
             }
             if (!sceneOk) {
                 add("sceneConfidence=${sceneConf ?: "n/a"}<minimum=${auto.minimumSceneConfidence}")
             }
-            if (bambooLock) add("bambooExperimentalAutoAction=false")
             if (packageBlocked) {
                 add(
                     "package_gate restrict=true pkg=${fg?.packageName ?: "n/a"} " +
@@ -884,8 +879,9 @@ class McpActionRegistry @Inject constructor(
             put("sceneConfidence", sceneConf?.toDouble() ?: JSONObject.NULL)
             put("minimumSceneConfidence", auto.minimumSceneConfidence.toDouble())
             put("sceneConfidenceOk", sceneOk)
+            // legacy 字段：运行时不再硬锁竹影；保留只读兼容。
             put("bambooExperimentalAutoAction", auto.bambooExperimentalAutoAction)
-            put("bambooLockActive", bambooLock)
+            put("bambooLockActive", false)
             put("restrictPackages", auto.restrictPackages)
             put("allowedPackages", JSONArray(auto.allowedPackages.sorted()))
             put("foregroundPackage", fg?.packageName ?: JSONObject.NULL)

@@ -51,6 +51,12 @@ interface SettingsRepository {
     /** 当前生效配置（预览优先，否则已保存）。 */
     val config: Flow<AppConfig>
 
+    /**
+     * 仅已保存配置流（不含 preview）。
+     * 用于 MCP 服务启停等「必须落盘才生效」的副作用。
+     */
+    val savedConfig: Flow<AppConfig>
+
     /** 读取已保存快照（不含预览）。 */
     suspend fun snapshot(): AppConfig
 
@@ -111,6 +117,8 @@ class DataStoreSettingsRepository @Inject constructor(
     override val config: Flow<AppConfig> = combine(stored, preview) { saved, temporary ->
         temporary ?: saved
     }
+
+    override val savedConfig: Flow<AppConfig> = stored
 
     override suspend fun snapshot(): AppConfig {
         migrateLegacyOnce()
