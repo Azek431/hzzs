@@ -18,6 +18,8 @@
 
 ### 变更
 
+- **自动操作全场景共用总开关**：运行时不再读取 `bambooExperimentalAutoAction` 硬锁（字段仅 schema/导入兼容）；竹影与甜品/海盐一样只受总开关 + 手势后端门控。设置页去掉实验锁开关。
+- **MCP 服务仅跟已保存配置启停**：`savedConfig` 驱动前台服务；设置草稿改端口/鉴权/LAN **不**重启 socket。工具策略 `tools/list` 仍跟 `current()`（含预览），并缓存避免 `runBlocking`。
 - **MCP 可选局域网绑定**：设置页「允许局域网访问」经风险确认后 `bindLocalhostOnly=false`，服务绑 `0.0.0.0`；探测 IPv4 供复制。默认仍 loopback；导入默认不得静默开局域网，可经 `ExternalIngestElevations` 用户确认放行。Origin 仍拒绝非 loopback 浏览器跨源。
 
 - **算法官方钥轮换**：`hzzs-algorithm-official-1` 公钥与 `official-public-keys/` 对齐到新 Ed25519 钥；`AlgorithmTrustAnchors` 同步。须用配对私钥配置 GitHub Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64`；已装旧公钥 APK 无法验签新包，需装含新锚的版本。
@@ -40,9 +42,14 @@
 
 ### 修复
 
+- **宿主机 ASan 链接多点找色**：`run_native_sanitizers.sh` 补链 `multicolor_detector.cpp`（与 `CMakeLists.txt` / `build_host.sh` 一致），修复 `find_multi_color_patterns` undefined reference 导致 CI Build 失败。
+- **手势后端真正分叉**：`VisionRuntimeController` 规划/派发按 `GestureBackend` 走无障碍 `dispatchGesture` 或 Shizuku/Root `input` + dumpsys 前台；不再绑死无障碍导致选 Shizuku 时系统性 `skip:no_foreground`。决策/诊断写入 `backend=` 与 `activeGestureBackend`；Shell dumpsys 失败 fail-closed（`reason=dumpsys_fail`）。
+- **去掉竹影赛季硬锁**：自动操作全场景共用总开关；`bambooExperimentalAutoAction` 仅 schema 兼容、无运行时拦截。设置页移除赛季实验开关。
 - **自动操作前台快照**：规划/派发改为 `foregroundSnapshot(refreshIfStale=true)`，刷新在主线程执行；区分 `skip:no_accessibility` 与 `skip:no_foreground`；不再因空 `className` 误杀；无障碍配置补 `flagRetrieveInteractiveWindows`。
 - **MCP 失效 Session 不再卡死工具调用**：服务重启/改绑定后会话表清空，客户端仍持旧 `Mcp-Session-Id` 时，`tools/call` 与 `resources/read` 降级为无会话继续（`TRUSTED_SESSION` 仍要求有效会话；`ASK`/`FULL` 按权限执行），避免 RikkaHub 报 `-32003` 需手动重连。
 - **MCP 状态卡始终展示 127.0.0.1**：未运行/局域网展示模式下也给出 `http://127.0.0.1:<port>/mcp`；当前展示 URL 不同时再另列一行。
+- **MCP 读生效配置并脱敏 Token**：授权/`tools/list` 用 `settings.current()`；`get_settings` 与 `app://settings/current` 经 `exportJsonRedacted`（`authToken`→`***`）。
+- **手势后端决策同源**：规划/派发决策摘要带 `backend=`；Shell 路径规划期不卡帧 dumpsys，派发时 `snapshotForeground` 同源探测。
 - **自动操作包名门控与 `restrictPackages` 对齐**：未开启「仅允许指定应用」时不再用建议包列表挡前台；派发时 `allowedPackages` 空集表示不限制。修正 CI `check_project` 旧规则与产品语义不一致导致的 Build 失败。
 - **海盐触发距离默认与校验**：`seaSaltTriggerDistancePlayerWidths` 默认 **5.0**（FIXED 玩家宽约 0.05 时约 0.25 屏宽，对齐酱油较远点击）；`validated`/滑条上限 **0.5–8**，避免旧 1.4 被钳在 4 内仍偏近导致「框已稳、no_candidate」。诊断 skip 文案补 `pw` / `nearGap` / `sc`。
 - **算法库选包对齐赛季**：手动选用仅支持单一赛季的包（如酱油海盐）时自动切到该赛季；卡片标注「不含当前赛季」并 Snackbar 提示。
