@@ -11,6 +11,9 @@
 
 ### 变更
 
+- **触发距离运行时自调**：`AutomationConfig.autoAdjustTriggerDistance` 默认开启。分析中若有可行动障碍却因距离略远 `no_candidate`，按 `nearGap` 缓升玩家宽度倍数（冷却与单步上限）；规划成功且间隙偏近时向滑条基线缓降；约 4s 节流写回配置。设置「自动操作」可关；**不**静默开自动操作。
+- **首次引导 5 步重构**：欢迎（产品+隐私合并）→ 赛季 → 截图（与设置同源 `CaptureCapability`，仅 AUTO/录屏/无障碍）→ 权限（可稍后）→ 完成（外观预览 + 折叠高级自动操作）。对齐 Design System 2.0（HeroCard / SectionCard / Callout / RadioCard）；步骤点指示；自动操作默认关，折叠区开启仍走倒计时+免责声明。
+- **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
 - **MCP 连接展示多地址场景**：设置页可切换「同机回环 / 电脑 ADB 转发 / 自定义主机」与客户端导入方言（RikkaHub `streamable_http` / Claude Code `http`）；复制 URL/JSON 随之变化。服务仍只绑定 `127.0.0.1`，**不**开放局域网监听；ADB 场景附带可复制 `adb forward` 命令。
 - **捆绑算法按版本升级**：`BundledAlgorithmInstaller` 在 assets 的 `versionCode` 高于已装 **bundled**（或旧数据无 origin）时覆盖落盘，无需清应用数据；**不**覆盖 `originTag=network` 的外装包。网络安装写入 `originTag=network`。开发改参须升高 `manifest.version` 并装入 APK；仅 push GitHub 源树不会让已装机自动变参（网络热更仍走 `release-index`）。
 - **MCP 工具面扩展**：新增运行态快照、`patch_settings` 白名单局部改参、赛季/障碍/阈值、主题/悬浮窗、开发者开关与选项、自动操作门闩解释与启停、算法列表/激活/刷新/下载、日志查询与脱敏诊断导出、系统权限查询与设置跳转；资源 URI 同步扩容。HIGH_RISK 工具在 TRUSTED_SESSION 下拒绝。
@@ -43,6 +46,7 @@
 
 ### 变更
 
+- **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
 - **MCP 对接 RikkaHub / 免填请求头**：对照 [RikkaHub](https://github.com/rikkahub/rikkahub)（Streamable HTTP + 可选 `headers` / 导入 JSON）与 [MCP 2025-06-18 传输](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)——`initialize` 后会话立即就绪；`requireAuth` 默认可关（现默认 false）；设置页一键「复制 URL / 复制 RikkaHub 导入 JSON / 复制 Token」；同机推荐 Streamable HTTP 而非 SSE。
 - **MCP 同机连通性**：强制绑定 IPv4 `127.0.0.1`（避免 `getLoopbackAddress()` 的 `::1` 与客户端 `127.0.0.1` 不通）；HTTP keep-alive 多请求；路径 `/mcp/` 归一；Origin 接受字面量 `null`；OPTIONS 预检；GET `/mcp` 仍 405 表示无 SSE。
 - **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；`Mcp-Session-Id`、通知 HTTP 202、连接并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
@@ -108,6 +112,7 @@
 
 ### 变更
 
+- **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
 - **悬浮窗默认样式**：首装 / 缺字段回退由「极简」改为 **调试 HUD**（`OverlayStyle.DEBUG_HUD`）；已保存配置与主题包内显式 `style` 不变。
 - 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；改完须同步 `README.md`（**保留 Star History**）与 `CLAUDE.md`；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。

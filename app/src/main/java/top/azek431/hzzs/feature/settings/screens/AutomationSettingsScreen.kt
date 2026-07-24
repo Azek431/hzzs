@@ -2,7 +2,7 @@
  * 自动操作与安全设置页。
  *
  * 职责：总开关、竹影实验锁、触发距离与节流参数；展示无障碍连接状态。
- * 数据流：automation 经 [update] 即时落盘；开启须风险确认。
+ * 数据流：automation 经 [update] 草稿预览；开启须风险确认。
  * 边界：不启动无障碍手势；默认关闭，导入/迁移不得静默开启。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -148,6 +148,20 @@ fun AutomationSettingsScreen(
                 description = "障碍进入玩家前方该倍数距离内才规划动作。范围 0.5–8.0。" +
                     "海盐默认约 5 倍（FIXED 玩家宽时约 0.25 屏宽），过小会出现「框已稳却不动作」。",
             ) {
+                SettingsSwitchRow(
+                    title = "运行中自动微调触发距离",
+                    subtitle = if (config.automation.autoAdjustTriggerDistance) {
+                        "已开启：无候选且近障碍略远时缓升，成功规划后向滑条基线缓降；节流写回配置"
+                    } else {
+                        "已关闭：仅使用下方固定倍数"
+                    },
+                    checked = config.automation.autoAdjustTriggerDistance,
+                    onCheckedChange = { value ->
+                        update {
+                            it.copy(automation = it.automation.copy(autoAdjustTriggerDistance = value))
+                        }
+                    },
+                )
                 LabeledSlider(
                     "甜品工厂",
                     config.automation.sweetTriggerDistancePlayerWidths,

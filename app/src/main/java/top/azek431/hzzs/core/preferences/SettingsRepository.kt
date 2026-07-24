@@ -44,7 +44,7 @@ private val Context.settingsDataStore by preferencesDataStore(name = "hzzs_setti
 /**
  * 应用配置的唯一真相源。
  *
- * 设置模块以 [save] 即时落盘；[preview] 仍供首次引导与 MCP 等外部预览路径使用。
+ * 设置模块以 [preview] 编辑草稿、[save] 显式落盘；首次引导与 MCP 也可使用预览/保存路径。
  * 生效配置 = preview（若有）否则已保存快照。
  */
 interface SettingsRepository {
@@ -341,11 +341,13 @@ fun AppConfig.validated(): AppConfig {
         )
     }
     // 用户列表 ∩ 默认白名单；空则回退默认，防止任意包名注入。
-    val packages = automation.allowedPackages
+    // 显式 Set，避免 map/filter 链被推断成 List 后与 AutomationConfig.allowedPackages 不匹配。
+    val packages: Set<String> = automation.allowedPackages
+        .asSequence()
         .map(String::trim)
         .filter(String::isNotBlank)
+        .filter { it in AutomationConfig.DEFAULT_ALLOWED_PACKAGES }
         .toSet()
-        .intersect(AutomationConfig.DEFAULT_ALLOWED_PACKAGES)
         .ifEmpty { AutomationConfig.DEFAULT_ALLOWED_PACKAGES }
     return copy(
         schemaVersion = AppConfig.CURRENT_SCHEMA,
@@ -383,6 +385,7 @@ fun AppConfig.validated(): AppConfig {
             seaSaltTriggerDistancePlayerWidths = automation.seaSaltTriggerDistancePlayerWidths
                 .finiteOr(5.0f)
                 .coerceIn(0.5f, 8f),
+            autoAdjustTriggerDistance = automation.autoAdjustTriggerDistance,
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
@@ -565,6 +568,7 @@ object ConfigJson {
                     "seaSaltTriggerDistancePlayerWidths",
                     safe.automation.seaSaltTriggerDistancePlayerWidths.toDouble(),
                 )
+                put("autoAdjustTriggerDistance", safe.automation.autoAdjustTriggerDistance)
             })
             put("mcp", JSONObject().apply {
                 put("enabled", safe.mcp.enabled)
@@ -701,6 +705,8 @@ object ConfigJson {
                     automation?.optDouble("bambooTriggerDistancePlayerWidths", 1.35)?.toFloat() ?: 1.35f,
                 seaSaltTriggerDistancePlayerWidths =
                     automation?.optDouble("seaSaltTriggerDistancePlayerWidths", 5.0)?.toFloat() ?: 5.0f,
+                autoAdjustTriggerDistance =
+                    automation?.optBoolean("autoAdjustTriggerDistance", true) ?: true,
             ),
             mcp = defaults.mcp.copy(
                 enabled = mcp?.optBoolean("enabled", false) ?: false,

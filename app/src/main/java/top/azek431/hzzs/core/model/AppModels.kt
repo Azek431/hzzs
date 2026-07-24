@@ -262,6 +262,11 @@ data class AutomationConfig(
      * 1.4 倍仅 ~0.07 屏宽会导致「框已稳、永远 no_candidate」。默认放宽到约 5 倍玩家宽。
      */
     val seaSaltTriggerDistancePlayerWidths: Float = 5.0f,
+    /**
+     * 运行时根据近障碍间隙缓升/缓降触发距离（玩家宽度倍数），并节流写回本配置。
+     * 默认开启；关闭后仅使用上方固定倍数。不改变自动化总开关与其它门控。
+     */
+    val autoAdjustTriggerDistance: Boolean = true,
 ) {
     companion object {
         /**

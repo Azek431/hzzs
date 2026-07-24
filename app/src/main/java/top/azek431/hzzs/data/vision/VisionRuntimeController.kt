@@ -40,6 +40,7 @@ import top.azek431.hzzs.domain.automation.AutomationAction
 import top.azek431.hzzs.domain.automation.DispatchOutcome
 import top.azek431.hzzs.domain.automation.GestureArbiter
 import top.azek431.hzzs.domain.automation.GestureSpec
+import top.azek431.hzzs.domain.automation.TriggerDistanceAutoTuner
 import top.azek431.hzzs.domain.vision.Avoidance
 import top.azek431.hzzs.domain.vision.Detection
 import top.azek431.hzzs.domain.vision.FrameMeta
@@ -126,11 +127,19 @@ class VisionRuntimeController @Inject constructor(
     private val actionInFlight = AtomicBoolean(false)
     private val trackRetryCounts = mutableMapOf<Long, Int>()
     private var lastOverlaySignature: Int = Int.MIN_VALUE
+    private val triggerDistanceTuner = TriggerDistanceAutoTuner()
 
     init {
         scope.launch {
             settingsRepository.config.collect { next ->
                 val previous = latestConfig.getAndSet(next)
+                triggerDistanceTuner.onBaselineChanged(
+                    next.selectedScene,
+                    baselineTriggerMultiplier(next, next.selectedScene),
+                )
+                if (!next.automation.autoAdjustTriggerDistance) {
+                    triggerDistanceTuner.clear()
+                }
                 val previousBackend = previous.effectiveCaptureBackend()
                 val nextBackend = next.effectiveCaptureBackend()
                 val safetyBoundaryChanged =
@@ -591,11 +600,13 @@ class VisionRuntimeController @Inject constructor(
             return "skip:no_player"
         }
         val playerWidth = player.bounds.width.coerceAtLeast(0.01f)
-        val triggerDistance = when (config.selectedScene) {
-            SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
-            SceneId.BAMBOO_BOOKSTORE -> config.automation.bambooTriggerDistancePlayerWidths
-            SceneId.SEA_SALT_LIVING_ROOM -> config.automation.seaSaltTriggerDistancePlayerWidths
-        } * playerWidth
+        val baselineMultiplier = baselineTriggerMultiplier(config, config.selectedScene)
+        val effectiveMultiplier = if (config.automation.autoAdjustTriggerDistance) {
+            triggerDistanceTuner.effective(config.selectedScene, baselineMultiplier)
+        } else {
+            baselineMultiplier
+        }
+        val triggerDistance = effectiveMultiplier * playerWidth
 
         val candidate = tracked
             .asSequence()
@@ -626,11 +637,45 @@ class VisionRuntimeController @Inject constructor(
                 .map { it.detection.bounds.left - player.bounds.right }
                 .filter { it.isFinite() }
                 .minOrNull()
+            if (config.automation.autoAdjustTriggerDistance && actionable > 0) {
+                val now = SystemClock.uptimeMillis()
+                val adapted = triggerDistanceTuner.onNoCandidate(
+                    scene = config.selectedScene,
+                    baseline = baselineMultiplier,
+                    playerWidth = playerWidth,
+                    nearGap = nearestGap,
+                    nowMs = now,
+                )
+                if (adapted != null) {
+                    maybePersistTriggerDistance(config.selectedScene, adapted, now)
+                    return "skip:no_candidate auto_trig=${"%.2f".format(adapted)} " +
+                        "stable=$stable actionable=$actionable " +
+                        "trigDist=${"%.3f".format(triggerDistance)} " +
+                        "pw=${"%.3f".format(playerWidth)} " +
+                        "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
+                        "sc=${"%.2f".format(result.sceneConfidence)}"
+                }
+            }
             return "skip:no_candidate stable=$stable actionable=$actionable " +
                 "trigDist=${"%.3f".format(triggerDistance)} " +
                 "pw=${"%.3f".format(playerWidth)} " +
                 "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
                 "sc=${"%.2f".format(result.sceneConfidence)}"
+        }
+
+        val gapAtPlan = candidate.detection.bounds.left - player.bounds.right
+        if (config.automation.autoAdjustTriggerDistance) {
+            val now = SystemClock.uptimeMillis()
+            val adapted = triggerDistanceTuner.onPlanSuccess(
+                scene = config.selectedScene,
+                baseline = baselineMultiplier,
+                playerWidth = playerWidth,
+                gap = gapAtPlan,
+                nowMs = now,
+            )
+            if (adapted != null) {
+                maybePersistTriggerDistance(config.selectedScene, adapted, now)
+            }
         }
 
         val spatialKey = spatialKeyOf(candidate.detection)
@@ -953,6 +998,58 @@ class VisionRuntimeController @Inject constructor(
         val cx = ((detection.bounds.left + detection.bounds.right) * 0.5f * 20f).toInt()
         val cy = ((detection.bounds.top + detection.bounds.bottom) * 0.5f * 20f).toInt()
         return "${detection.kind.name}:$cx:$cy"
+    }
+
+    private fun baselineTriggerMultiplier(config: AppConfig, scene: SceneId): Float =
+        when (scene) {
+            SceneId.SWEET_FACTORY -> config.automation.sweetTriggerDistancePlayerWidths
+            SceneId.BAMBOO_BOOKSTORE -> config.automation.bambooTriggerDistancePlayerWidths
+            SceneId.SEA_SALT_LIVING_ROOM -> config.automation.seaSaltTriggerDistancePlayerWidths
+        }
+
+    /**
+     * 将自调后的触发倍数写回配置（节流）；失败只打日志，不打断帧循环。
+     */
+    private fun maybePersistTriggerDistance(scene: SceneId, multiplier: Float, nowMs: Long) {
+        if (!triggerDistanceTuner.shouldPersist(nowMs)) return
+        scope.launch {
+            runCatching {
+                val current = settingsRepository.snapshot()
+                val auto = current.automation
+                if (!auto.autoAdjustTriggerDistance) return@runCatching
+                val clamped = multiplier.coerceIn(0.5f, 8f)
+                val nextAuto = when (scene) {
+                    SceneId.SWEET_FACTORY ->
+                        if (kotlin.math.abs(auto.sweetTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                            return@runCatching
+                        } else {
+                            auto.copy(sweetTriggerDistancePlayerWidths = clamped)
+                        }
+                    SceneId.BAMBOO_BOOKSTORE ->
+                        if (kotlin.math.abs(auto.bambooTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                            return@runCatching
+                        } else {
+                            auto.copy(bambooTriggerDistancePlayerWidths = clamped)
+                        }
+                    SceneId.SEA_SALT_LIVING_ROOM ->
+                        if (kotlin.math.abs(auto.seaSaltTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                            return@runCatching
+                        } else {
+                            auto.copy(seaSaltTriggerDistancePlayerWidths = clamped)
+                        }
+                }
+                settingsRepository.save(current.copy(automation = nextAuto))
+                AppLog.i(
+                    "automation",
+                    "auto trigger distance scene=${scene.name} → ${"%.2f".format(clamped)}",
+                )
+            }.onFailure { error ->
+                AppLog.w(
+                    "automation",
+                    "persist trigger distance failed: ${error.message ?: error.javaClass.simpleName}",
+                )
+            }
+        }
     }
 
     private data class PlannedStroke(
