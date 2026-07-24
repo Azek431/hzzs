@@ -67,6 +67,15 @@ internal class ShellInputGestureDispatcher(
         val isClick = action.gesture.endX == null && action.gesture.endY == null
         if (isClick && doubleDelay > 0L) {
             delay(doubleDelay.coerceIn(1L, 2_000L))
+            // 双击间隔内前台可能已变；再检一次。
+            val recheck = probe.snapshot()
+            if (recheck == null ||
+                clock() - recheck.observedAtMs > maxForegroundAgeMs ||
+                !action.matchesPackage(recheck.packageName) ||
+                !action.matchesWindow(recheck.className)
+            ) {
+                return DispatchReceipt(action, DispatchOutcome.REJECTED, "双击间隔前台已变化")
+            }
             val second = dispatchStroke(action, action.gesture, width, height)
             if (second.outcome != DispatchOutcome.COMPLETED) return second
         }
@@ -183,8 +192,10 @@ class RootGestureDispatcher @Inject constructor(
 
 private fun screenSize(context: Context): Pair<Int, Int> {
     val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    // 与 VirtualDisplay / 多数游戏全屏坐标对齐：优先真实显示尺寸，避免 app metrics 与
+    // currentWindowMetrics 在刘海/导航条机型上分叉导致 Shell 点偏。
     return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-        val bounds = wm.currentWindowMetrics.bounds
+        val bounds = wm.maximumWindowMetrics.bounds
         bounds.width() to bounds.height()
     } else {
         @Suppress("DEPRECATION")

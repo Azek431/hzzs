@@ -63,21 +63,29 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
 
     /**
      * 刷新前台包名/类名快照。
-     * 订阅 WINDOW_STATE / WINDOW_CONTENT / WINDOWS_CHANGED，游戏内长时间无切窗时仍可更新。
+     * 仅 WINDOW_STATE / WINDOWS_CHANGED 写入包名类名；
+     * CONTENT_CHANGED 易带 widget 包/类，只刷新时间戳且要求包名与缓存一致。
      */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOWS_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             -> {
                 val pkg = event.packageName?.toString()
                 val cls = event.className?.toString().orEmpty()
-                if (!pkg.isNullOrBlank()) {
+                if (!pkg.isNullOrBlank() && !looksLikeWidgetClass(cls)) {
                     foreground.set(ForegroundWindow(pkg, cls, SystemClock.elapsedRealtime()))
                 } else {
                     refreshForegroundLocked()
+                }
+            }
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                val pkg = event.packageName?.toString()
+                val cached = foreground.get()
+                if (cached != null && !pkg.isNullOrBlank() && pkg == cached.packageName) {
+                    // 同包 UI 刷新：仅续期，不覆盖可能更准的 Activity class。
+                    foreground.set(cached.copy(observedAtMs = SystemClock.elapsedRealtime()))
                 }
             }
             else -> Unit
@@ -97,19 +105,49 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             if (!action.matchesPackage(window.packageName) || !action.matchesWindow(window.className)) {
                 return@withContext DispatchReceipt(action, DispatchOutcome.REJECTED, "当前页面不在允许范围")
             }
-            val metrics = resources.displayMetrics
-            val first = dispatchStroke(action, action.gesture, metrics.widthPixels, metrics.heightPixels)
+            // 与 Shell/截图一致：优先真实显示尺寸，减少点偏。
+            val (widthPx, heightPx) = realDisplaySize()
+            val first = dispatchStroke(action, action.gesture, widthPx, heightPx)
             if (first.outcome != DispatchOutcome.COMPLETED) return@withContext first
             // 点击类手势可携带 doublePressDelayMs：完成第一次后延迟再发第二次。
             val doubleDelay = action.gesture.doublePressDelayMs
             val isClick = action.gesture.endX == null && action.gesture.endY == null
             if (isClick && doubleDelay > 0L) {
                 delay(doubleDelay.coerceIn(1L, 2_000L))
-                val second = dispatchStroke(action, action.gesture, metrics.widthPixels, metrics.heightPixels)
+                val recheck = ensureFreshForeground()
+                if (recheck == null ||
+                    !action.matchesPackage(recheck.packageName) ||
+                    !action.matchesWindow(recheck.className)
+                ) {
+                    return@withContext DispatchReceipt(
+                        action,
+                        DispatchOutcome.REJECTED,
+                        "双击间隔前台已变化",
+                    )
+                }
+                val second = dispatchStroke(action, action.gesture, widthPx, heightPx)
                 if (second.outcome != DispatchOutcome.COMPLETED) return@withContext second
             }
             DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
         }
+
+    private fun realDisplaySize(): Pair<Int, Int> {
+        val wm = getSystemService(WINDOW_SERVICE) as android.view.WindowManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = wm.maximumWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            val metrics = resources.displayMetrics
+            // API 24–29：displayMetrics 在多数全屏游戏上已是真实尺寸；无 getRealMetrics 扩展时退回此值。
+            @Suppress("DEPRECATION")
+            val display = wm.defaultDisplay
+            @Suppress("DEPRECATION")
+            val real = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(real)
+            real.widthPixels to real.heightPixels
+        }
+    }
 
     /**
      * 将单次 [GestureSpec] 映射为系统 [GestureDescription] 并等待回执。
@@ -124,15 +162,17 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
         val endX = gesture.endX
         val endY = gesture.endY
         val path = Path().apply {
-            moveTo(
-                gesture.startX.coerceIn(0f, 1f) * (widthPixels - 1),
-                gesture.startY.coerceIn(0f, 1f) * (heightPixels - 1),
-            )
+            val sx = gesture.startX.coerceIn(0f, 1f) * (widthPixels - 1)
+            val sy = gesture.startY.coerceIn(0f, 1f) * (heightPixels - 1)
+            moveTo(sx, sy)
             if (endX != null && endY != null) {
                 lineTo(
                     endX.coerceIn(0f, 1f) * (widthPixels - 1),
                     endY.coerceIn(0f, 1f) * (heightPixels - 1),
                 )
+            } else {
+                // 部分 OEM 拒绝零长度 Path；点击补 1px 位移。
+                lineTo((sx + 1f).coerceAtMost((widthPixels - 1).toFloat()), sy)
             }
         }
         val description = GestureDescription.Builder()
@@ -140,7 +180,7 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
                 GestureDescription.StrokeDescription(
                     path,
                     0,
-                    gesture.durationMs.coerceIn(10, 600),
+                    gesture.durationMs.coerceIn(10, 1_000),
                 ),
             )
             .build()
@@ -219,6 +259,14 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             // ignore
         }
         return foreground.get()
+    }
+
+    /** android.widget.* 等控件类名不能当作前台 Activity。 */
+    private fun looksLikeWidgetClass(className: String): Boolean {
+        if (className.isBlank()) return false
+        return className.startsWith("android.widget.") ||
+            className.startsWith("android.view.") ||
+            className.startsWith("androidx.")
     }
 
     /** 最近观察到的前台窗口；[observedAtMs] 用于过期门禁。 */

@@ -746,9 +746,10 @@ class VisionRuntimeController @Inject constructor(
         val now = SystemClock.uptimeMillis()
         // 规划期同步预检账本：避免帧环刷屏 plan、而 actionJob 全是 ledger skip。
         // canPlan 为 suspend；此处在帧路径用 runBlocking 仅做短锁查询（无 IO）。
+        // fail-closed：预检异常时不规划，避免绕过冷却连点。
         val ledgerAllows = runCatching {
             kotlinx.coroutines.runBlocking { ledger.canPlan(candidate.trackId, spatialKey, now) }
-        }.getOrDefault(true)
+        }.getOrDefault(false)
         if (!ledgerAllows) {
             actionInFlight.set(false)
             return publish(

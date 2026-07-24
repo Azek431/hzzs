@@ -476,11 +476,21 @@ def publish(arguments: argparse.Namespace) -> int:
             f"[dry-run] would merge with {len(existing_algorithms)} existing catalog "
             f"entries on algorithms/{channel}.json"
         )
+        # dry-run 不上传，本地重签包 sha 与远端已发布同 version 必然不同。
+        # 跳过远端 merge，避免「不可变条目」误杀本地校验；真发布仍走 merge。
+        existing_algorithms = []
     else:
         existing_algorithms = load_remote_catalog_algorithms(
             owner=owner, repo=repo, channel=channel
         )
-    merged_algorithms = merge_catalog_algorithms(existing_algorithms, entry)
+    try:
+        merged_algorithms = merge_catalog_algorithms(existing_algorithms, entry)
+    except AlgorithmPackError as merge_error:
+        if dry_run:
+            _log(f"[dry-run] catalog merge skipped: {merge_error}")
+            merged_algorithms = [entry]
+        else:
+            raise
     _log(
         f"catalog merge: existing={len(existing_algorithms)} "
         f"merged={len(merged_algorithms)} entry={entry['id']}@{entry['version']}"
