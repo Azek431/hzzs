@@ -146,14 +146,15 @@ void test_out_of_bounds_template_rejected() {
     fill_rgba(pixels, width, height, Rgb{240, 240, 240});
     StripClassProfile profile = make_square_profile();
     profile.expected_y = 10;
-    // Place so origin would be negative if matched near edge with large offsets
-    profile.points[0] = TemplatePoint{10, 10, Rgb{200, 20, 20}};
-    profile.points[1] = TemplatePoint{11, 10, Rgb{20, 200, 20}};
-    profile.points[2] = TemplatePoint{10, 11, Rgb{20, 20, 200}};
-    profile.full_w = 20;
+    // Seed at (2,10); second sample offset pushes px past image width.
+    // Negative origin alone is allowed (sea-salt); OOB sample points are not.
+    profile.points[0] = TemplatePoint{0, 0, Rgb{200, 20, 20}};
+    profile.points[1] = TemplatePoint{30, 0, Rgb{20, 200, 20}};  // 2+30=32 >= 24
+    profile.points[2] = TemplatePoint{0, 1, Rgb{20, 20, 200}};
+    profile.full_w = 40;
     profile.full_h = 20;
     set_rgb(pixels, width, 2, 10, profile.points[0].color);
-    set_rgb(pixels, width, 3, 10, profile.points[1].color);
+    // point1 would land OOB — intentionally not painted
     set_rgb(pixels, width, 2, 11, profile.points[2].color);
 
     const RgbaView image{pixels.data(), width, height, width * 4};
@@ -166,7 +167,7 @@ void test_out_of_bounds_template_rejected() {
     params.verify_threshold = 8;
     params.neighborhood_radius = 0;
     std::array<FixedStripHit, 2> hits{};
-    // origin would be (2-10, 10-10)=(-8,0) → rejected
+    // origin (2,10); sample (32,10) OOB → rejected
     assert(detect_fixed_strips(image, lut, profiles, params, hits) == 0);
 }
 

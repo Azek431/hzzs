@@ -11,12 +11,15 @@
 
 ### 变更
 
+- **算法排查日志加深**：`AlgorithmRuntimeTrace` 增加决策 ring（64 条）与 `calc` 行；诊断导出「Algorithm decisions」节；`dispatch_begin/ok/fail` 带坐标/前台包/shell tries；`package_gate` 打印白名单；`no_candidate`/plan 写触发距离与 gap。便于对照「有框无操作 / 超时 / 钉选 builtin」。
+- **诊断导出补自动操作门控字段**：`a11y.connected` / `foreground.pkg|cls|ageMs` / `gesture.requested|effective` / `shizuku.ready` / 免责版本 / 三赛季触发距 / 自调开关；Notes 标明「有框≠会手势」。便于「有绘制无操作」一次定位。
 - **MCP 热路径优化**：`current()`/`snapshot()` 命中已解码配置缓存；`tools/list` 按 `toolPolicies` 指纹缓存 JSON；全量 tools/resources JSON 复用；LAN 空列表也 TTL 缓存；连接结束 `publishState` 400ms 节流；`/health` 增加 connections/accessLog/generation；访问日志时间格式 ThreadLocal。协议方法集合常量化。
 - **算法包改内容后可自动 PATCH 并发布**：`bump_algorithm_version.py` + `prepare_algorithm_release.py`；CI `algorithm-release.yml` 对比远端哈希，内容变则升 PATCH、签包写 `release-index`，并把源树 version commit 回 main。同 version 同哈希 skip。
 
 ### 修复
 
-- **Shizuku 手势卡顿**：`input` 候选非首选短超时 fail-fast，并缓存本会话可用命令前缀；`GestureArbiter` 按双击按压次数放宽预算，减少 DOUBLE_JUMP 误报「手势回调超时」与 `action_in_flight` 长时间占锁。失败文案统一为 `input 命令失败或超时`。
+- **Shizuku DOUBLE_JUMP 仲裁超时预算**：`GestureArbiter` 按两按 + 间隔 + 冷启动多候选余量加宽，超时文案含 `budget/presses/waited`；Shell 回执带 `via/tries`，减少误报「手势回调超时」并便于定位慢在哪条 input。
+- **Shizuku 手势卡顿**：`input` 候选非首选短超时 fail-fast，并缓存本会话可用命令前缀；失败文案统一为 `input 命令失败或超时`。
 
 ### 新增
 
@@ -68,7 +71,6 @@
 - **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 预装到 `InstalledAlgorithmStore`（不经外装 Ed25519）。同 id 的 **bundled** 在 assets 更高 version 时可升级覆盖；网络外装见「捆绑算法按版本升级」。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。
 - **官方算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 写入 `hzzs-algorithm-official-1` 公钥（DER base64）；公钥副本在 `algorithm-packs/official-public-keys/`。私钥仍仅 CI/本机。
 - **算法库 / 检测参数拆页**：设置「算法库」专注内置·捆绑·远端切换与通道；「检测参数」单独配置赛季/障碍/玩家基准/workWidth/置信度/稳定帧；自动操作页暴露三赛季触发距离与节流。卡片列表可直接「使用此版本」。
-- **设置即时保存（方案 C）**：去掉模块级共享草稿与底部「保存并应用」栏；开关/选项经短防抖直接落盘。离开设置或切走主导航时刷盘。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页改为分组（显示 / 采集与识别 / 安全与自动化 / 网络与扩展 / 高级）+ 搜索 + 紧凑分类行。
 
 ### 修复
 
@@ -111,7 +113,6 @@
 
 ### 变更
 
-- **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
 - **MCP 对接 RikkaHub / 免填请求头**：对照 [RikkaHub](https://github.com/rikkahub/rikkahub)（Streamable HTTP + 可选 `headers` / 导入 JSON）与 [MCP 2025-06-18 传输](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)——`initialize` 后会话立即就绪；`requireAuth` 默认可关（现默认 false）；设置页一键「复制 URL / 复制 RikkaHub 导入 JSON / 复制 Token」；同机推荐 Streamable HTTP 而非 SSE。
 - **MCP 同机连通性**：强制绑定 IPv4 `127.0.0.1`（避免 `getLoopbackAddress()` 的 `::1` 与客户端 `127.0.0.1` 不通）；HTTP keep-alive 多请求；路径 `/mcp/` 归一；Origin 接受字面量 `null`；OPTIONS 预检；GET `/mcp` 仍 405 表示无 SSE。
 - **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；`Mcp-Session-Id`、通知 HTTP 202、连接并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
@@ -177,7 +178,6 @@
 
 ### 变更
 
-- **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
 - **悬浮窗默认样式**：首装 / 缺字段回退由「极简」改为 **调试 HUD**（`OverlayStyle.DEBUG_HUD`）；已保存配置与主题包内显式 `style` 不变。
 - 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；改完须同步 `README.md`（**保留 Star History**）与 `CLAUDE.md`；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。

@@ -7,8 +7,9 @@
 
 - 单一 `app` Android 模块与职责分包（Compose + Hilt）。
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
-- Material 3 首次引导（5 步：欢迎/赛季/截图/权限/完成；完成页折叠高级自动操作）、主题包、悬浮窗样式、设置即时落盘和开发者入口。
-- MCP 四级权限 + 工具级策略覆盖、IPv4 默认 `127.0.0.1` 回环监听（可选局域网 `0.0.0.0`）、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON；设置页可搜索管理工具策略；访问日志 ring（`accessLogEnabled`，schema 9，无 Token/参数体）；可选主机始终含 `127.0.0.1`；服务绑定跟 `savedConfig`、策略跟 `current()`。
+- Material 3 首次引导（5 步：欢迎/赛季/截图/权限/完成；完成页折叠高级自动操作）、主题包、悬浮窗样式、设置草稿预览 + 显式保存和开发者入口。
+- MCP 四级权限 + 工具级策略覆盖、IPv4 默认 `127.0.0.1` 回环监听（可选局域网 `0.0.0.0`）、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON；设置页可搜索管理工具策略；访问日志 ring（`accessLogEnabled`，无 Token/参数体）；可选主机始终含 `127.0.0.1`；服务绑定跟 `savedConfig`、策略跟 `current()`。配置 schema **10**（`persistBoxes`、自动复活等）。
+- 悬浮窗检测框默认短时持久绘制（`overlay.persistBoxes`）；Shizuku `input` 候选 fail-fast + 命令前缀缓存，降低 DOUBLE_JUMP 手势超时占锁。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
 - C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。
@@ -29,7 +30,7 @@
 | P0 | 重写 arm 门控 + main 动作距离 / 双跳；竹影实验锁已移除（字段 legacy） | 已落地（海盐沿用竹影距离档；手势后端真正分叉） |
 | P0 | PIT / GAP 单语义输出，避免双写双动作 | 已落地 |
 | P0 | 动作任务 join/CAS、帧龄门控、retryLimit | 已落地 |
-| P1 | 设置即时落盘（方案 C）+ 离开刷盘 + 首页分组/搜索 | 已落地（危险项仍确认；导入/MCP harden 不变） |
+| P1 | 设置草稿预览 + 顶栏「保存并应用」+ 离开弹窗 + 首页分组/搜索 | 已落地（危险项仍确认；导入/MCP harden 不变） |
 | P1 | requireSessionArm 移除（不再每次会话手动解锁，启用后直接规划手势） | 已变更 |
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
@@ -45,6 +46,7 @@
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |
 | P2 | 完成驱动取帧 + HUD 临时隐身 + 近似显示轮廓 | 已落地（非 C++ 像素轮廓；动作仍只读 bounds） |
+| P2 | FastContourV2 隔离 native（core/pipeline/profiles/海盐/缺口 host smoke） | 进行中：host 全绿；**未** CMake/APK/Shadow |
 | P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
 | P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导 5 步 DS2.0 重构/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
 | P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地（会话阶段可视化 + 最近一帧摘要；无文件日志；无 C++ 热路径逐步日志） |

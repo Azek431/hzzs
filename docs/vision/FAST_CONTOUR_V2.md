@@ -49,10 +49,11 @@ FastContourV2 试图用一套底层适配三个赛季：
 
 1. Python 基准和参数留在 `tools/vision_v2/`；
 2. 独立 C++ core 与 host test，不加入现有 native library；
-   **当前进度**：`python tools/vision_v2/run_host_smoke.py`（core + boundary + pipeline + profiles；可选 ASan/UBSan）。
+   **当前进度**：`python tools/vision_v2/run_host_smoke.py`（core + boundary + pipeline + profiles + sea_gap；可选 ASan/UBSan）。
    已有固定容量条带扫描/稀疏验证/轮廓放置 API（`fast_contour_pipeline.*`）。
-   甜品/竹影固定贴图 profile：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`（编译期注入，帧路径不读 JSON）。
-   海盐 scan-point 与竹影缺口仍待迁。
+   甜品/竹影固定贴图：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`。
+   海盐 scan-point：`sea_baseline`/`sea_fast_detector`/`sea_polygons.json` → `generate_sea_profiles_inc.py` → `generated/sea_profiles_v2.h`（设计像素；`scale_strip_profile` 后检测；允许负 origin 只要采样点在图内）。
+   竹影缺口：`detect_bamboo_gaps` / `place_bamboo_gap_rect`（列绿证据 + 1D close/open，无 OpenCV；矩形轮廓占位，连通域精修仍待迁）。
    产物在 `build/vision-v2-host/`，**未**进入 `CMakeLists.txt` / `build_host.*` / APK。
 3. 在最新 `main` 上由 CC 手工完成最小 CMake 接线（仅授权后）；
 4. 先运行 ShadowCompare，只记录新旧差异；

@@ -58,11 +58,14 @@ python tools/vision_v2/benchmark.py /path/to/测试图片 \
 ```powershell
 python tools/vision_v2/run_host_smoke.py
 python tools/vision_v2/run_host_smoke.py --test profiles
+python tools/vision_v2/run_host_smoke.py --test sea_gap
 python tools/vision_v2/run_host_smoke.py --sanitize address
 
-# 改 fixed_profiles_v2.json 后重新生成 C++ 表（非帧路径）
+# 改 fixed_profiles_v2.json / 海盐源后重新生成 C++ 表（非帧路径）
 python tools/vision_v2/generate_fixed_profiles_inc.py
+python tools/vision_v2/generate_sea_profiles_inc.py
 python tools/vision_v2/generate_fixed_profiles_inc.py --check
+python tools/vision_v2/generate_sea_profiles_inc.py --check
 ```
 
 详见 `app/src/main/cpp/vision_v2/README.md`。APK 与 Legacy host ABI **不**链接 `vision_v2`。

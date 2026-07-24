@@ -113,4 +113,55 @@ struct BoundsF {
 
 [[nodiscard]] BoundsF bounds_from_points(std::span<const PointF> points) noexcept;
 
+// Scale a design-space profile into work-image pixels (sx = work_w / design_w).
+// Points/expected_y/row_tolerance/full_* scale by sx/sy; polygon floats scale.
+// Returns false if sx/sy invalid or profile geometry fails.
+[[nodiscard]] bool scale_strip_profile(
+    const StripClassProfile& design,
+    float sx,
+    float sy,
+    StripClassProfile& out) noexcept;
+
+// ---- Bamboo dynamic floor gap (column evidence, fixed capacity; no OpenCV) ----
+
+struct BambooGapParams {
+    float ground_y_ratio{0.609F};
+    float left_ignore_ratio{0.20F};
+    float min_width_ratio{0.075F};
+    int min_width_px{18};
+    int green_band_above{2};
+    int green_band_below{62};
+    int blur_half{8};           // box blur radius in columns
+    float green_absent_max{7.0F};
+    float dark_open_min{0.12F};
+    int dark_band_start{12};
+    int dark_band_end{85};
+    float expand_evidence_max{12.0F};
+    float bottom_extra_ratio{0.34F};
+    std::uint8_t dark_r{100};
+    std::uint8_t dark_g{100};
+};
+
+struct BambooGapHit {
+    bool found{};
+    int x0{};
+    int x1{};
+    int top{};
+    int bottom{};
+    float score{};
+    float mean_evidence{};
+};
+
+// Writes up to out_hits.size() gaps. Uses fixed stack column buffers (max width 2048).
+// No heap alloc; no morphology kernels beyond 1D run-length + box blur.
+[[nodiscard]] std::size_t detect_bamboo_gaps(
+    const RgbaView& image,
+    const BambooGapParams& params,
+    std::span<BambooGapHit> out_hits) noexcept;
+
+// Axis-aligned rectangle polygon (4 verts) for a gap hit.
+[[nodiscard]] std::size_t place_bamboo_gap_rect(
+    const BambooGapHit& hit,
+    std::span<PointF> out) noexcept;
+
 }  // namespace hzzs::vision_v2

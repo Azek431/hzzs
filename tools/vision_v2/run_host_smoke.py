@@ -27,7 +27,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--test",
-        choices=("all", "core", "boundary", "pipeline", "profiles"),
+        choices=("all", "core", "boundary", "pipeline", "profiles", "sea_gap"),
         default="all",
         help="which smoke binary set to build",
     )

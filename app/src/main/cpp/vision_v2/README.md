@@ -31,16 +31,21 @@ bash tools/vision_v2/build_host_smoke.sh --sanitize=address
 - `fast_contour_core_boundary_test`：非法输入、容量边界
 - `fast_contour_pipeline_test`：固定容量条带扫描 + 稀疏验证 + 轮廓放置/贴边（合成帧）
 - `fast_contour_profiles_test`：编译期表 `generated/fixed_profiles_v2.h` + 合成命中
+- `fast_contour_sea_gap_test`：海盐 `generated/sea_profiles_v2.h` 缩放检测 + 竹影 `detect_bamboo_gaps`
 
-管线源：`fast_contour_pipeline.h/.cpp`（`detect_fixed_strips` / `place_and_refine_contour`）。
-Profile **不在帧路径读 JSON**：改 `tools/vision_v2/fixed_profiles_v2.json` 后运行
+管线源：`fast_contour_pipeline.h/.cpp`（`detect_fixed_strips` / `scale_strip_profile` / `detect_bamboo_gaps` / `place_and_refine_contour`）。
+Profile **不在帧路径读 JSON**：改源后重新生成
 
 ```powershell
 python tools/vision_v2/generate_fixed_profiles_inc.py
 python tools/vision_v2/generate_fixed_profiles_inc.py --check
+# 海盐：sea_baseline / sea_fast_detector / sea_polygons.json
+python tools/vision_v2/generate_sea_profiles_inc.py
+python tools/vision_v2/generate_sea_profiles_inc.py --check
+python tools/vision_v2/run_host_smoke.py --test sea_gap
 ```
 
-生成 `generated/fixed_profiles_v2.h`（`kFixedProfilesV2`）。海盐 scan-point 与竹影缺口尚未迁入。
+生成 `generated/fixed_profiles_v2.h`（甜品/竹影固定贴图）与 `generated/sea_profiles_v2.h`（设计 1272×2772，经 `scale_strip_profile` 进工作图）。竹影缺口为列证据 + 1D 形态学，无 OpenCV。
 
 **不要**把本目录源文件加入 `app/src/main/cpp/CMakeLists.txt` 或 `tools/vision/build_host.*`，除非单独授权 APK/Shadow 接线阶段。
 
