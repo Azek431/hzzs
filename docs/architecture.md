@@ -55,7 +55,7 @@ DataStore 存储 schema **v8**（含 `automation.gestureBackend` 与 `mcp.toolPo
 - `SettingsExitCoordinator` 在离开设置（Bottom Bar / Navigation Rail / 返回 / MCP 路由）前交给设置侧：无草稿直接离开，有草稿弹窗（保存并离开 / 丢弃 / 取消）。
 - 首页分组（显示 / 采集与识别 / 安全与自动化 / 网络与扩展 / 高级）+ 搜索 + 紧凑分类行。
 - `AlgorithmCatalogController` 以 StateFlow 暴露算法目录、下载进度与镜像状态；网络刷新/下载为即时任务。
-- 开发者选项：关于页连点版本号 7 次开启后，设置首页出现「开发者选项」；页内开关可关闭并隐藏入口。关于与设置共用 `DeveloperSettingsScreen`；`DeveloperConfig.logLevel` 持久化。`frameRateLimit` 仍校验但完成驱动取帧下**不消费**。系统「指针位置」经 `SystemCapabilityAccess`：优先 `WRITE_SETTINGS`，否则已授权 Shizuku / Root `settings put`（不静默要权），写入后回读校验，不写入 AppConfig。
+- 开发者选项：关于页连点版本号 7 次开启后，设置首页出现「开发者选项」；页内开关可关闭并隐藏入口。关于与设置共用 `DeveloperSettingsScreen`；`DeveloperConfig.logLevel` 持久化。`frameRateLimit` 仍校验但完成驱动取帧下**不消费**。系统「指针位置」经 `SystemCapabilityAccess`：**已授权 Shizuku 优先**（`ShellProcessSupport`），否则 `WRITE_SETTINGS` / Root（不静默要权），写入后回读校验，不写入 AppConfig；诊断含指针/Shizuku 只读行。
 - `core/logging`：`AppLog`（Logcat + 内存 ring buffer，`query`/`revision` 供查看器）与 `DiagnosticsExporter`（脱敏诊断文本）；开发者页提供 `LogViewerScreen` 浏览级别/标签/关键字筛选日志；`AlgorithmPipelineTrace` + `AlgorithmPipelineScreen` 展示算法激活阶段与最近一帧摘要；`AlgorithmRuntimeTrace` 保留最近分析帧 ring（无像素，标签 `algo.frame`/`algo.det`/`algo.track`/`algo.decision`）；落盘配置时同步日志策略。
 
 默认 `selectedScene` 取 `AppConfig.DEFAULT_SELECTED_SCENE`（唯一产品默认，文档不写死赛季名）。`SceneId` 枚举序：`SWEET_FACTORY = 0`、`BAMBOO_BOOKSTORE = 1`、`SEA_SALT_LIVING_ROOM = 2`，与 C++ `scene` / `kSceneCount = 3` 一致。

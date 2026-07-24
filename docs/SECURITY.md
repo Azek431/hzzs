@@ -63,7 +63,7 @@
 - 诊断导出（设置 / 关于）含版本、机型、配置摘要与最近日志；**不含** Bearer、签名密钥与调试帧像素。
 - 日志路径对 `Bearer …` 与常见 `token/secret/password` 键值做脱敏；MCP 连接串仅经用户显式「复制连接信息」进剪贴板，不得写入日志。
 - 关闭开发者选项后，DEBUG/VERBOSE 不再进入 ring buffer。
-- 系统「指针位置」开关写入 `Settings.System` 键 `pointer_location`：优先用户授予「修改系统设置」；其次仅使用**已授权** Shizuku 或已可用 Root 执行 `settings put`。**以回读校验为准**（exit0 / putInt 仍可能被 OEM 忽略则视为失败）。应用**不得**静默获得 `WRITE_SETTINGS`、**不得**在此路径弹 Shizuku 授权或静默升 Root，也不得把该状态写入导入配置。
+- 系统「指针位置」开关写入 `Settings.System` 键 `pointer_location`：**已授权 Shizuku 优先**（`ShellProcessSupport` 同源 `settings put`）；否则「修改系统设置」；再 Root。**以回读校验为准**。应用**不得**静默获得 `WRITE_SETTINGS`、**不得**在此路径弹 Shizuku 授权或静默升 Root，也不得把该状态写入导入配置。
 
 ## 截图与帧
 

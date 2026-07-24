@@ -197,6 +197,7 @@ class AboutViewModel @Inject constructor(
                 )
             },
             runtime = visionRuntime.status.value,
+            appContext = appContext,
         )
     }
 }

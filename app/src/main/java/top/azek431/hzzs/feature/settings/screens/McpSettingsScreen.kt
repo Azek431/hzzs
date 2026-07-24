@@ -540,12 +540,18 @@ fun McpSettingsScreen(
                                         "bind: 0.0.0.0:${mcpState.port} (LAN)"
                                     },
                                 )
+                                // 始终写出回环 URL：同机 / ADB 场景必用；勿被 LAN 展示主机淹没。
+                                appendLine("loopback: http://127.0.0.1:${mcpState.port}/mcp")
                                 when (mode) {
                                     McpEndpointDisplayMode.ADB_FORWARD -> {
                                         appendLine("adb: ${mcpState.adbForwardCommand()}")
                                     }
                                     McpEndpointDisplayMode.LAN -> {
                                         appendLine("lanHosts: ${uiLanIps.joinToString()}")
+                                        appendLine(
+                                            "hint: prefer 192.168.x / same Wi-Fi; " +
+                                                "10.x may be cellular; 100.x is Tailscale",
+                                        )
                                     }
                                     McpEndpointDisplayMode.CUSTOM -> {
                                         appendLine("displayHost: $displayHost (custom)")

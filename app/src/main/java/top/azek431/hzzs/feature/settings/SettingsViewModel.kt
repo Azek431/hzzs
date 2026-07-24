@@ -192,6 +192,7 @@ class SettingsViewModel @Inject constructor(
                 )
             },
             runtime = visionRuntime.status.value,
+            appContext = appContext,
         )
     }
 

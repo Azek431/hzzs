@@ -404,6 +404,16 @@ class McpProtocolTest {
 
 
     @Test
+    fun lanAddressRankPrefersWifiOverCellularAndTailscale() {
+        assertTrue(lanAddressRank("192.168.10.95") < lanAddressRank("10.50.131.111"))
+        assertTrue(lanAddressRank("192.168.10.95") < lanAddressRank("100.84.182.74"))
+        assertTrue(lanAddressRank("10.0.0.2") < lanAddressRank("100.84.182.74"))
+        val ordered = listOf("100.84.182.74", "10.50.131.111", "192.168.10.95")
+            .sortedWith(compareBy<String> { lanAddressRank(it) }.thenBy { it })
+        assertEquals(listOf("192.168.10.95", "10.50.131.111", "100.84.182.74"), ordered)
+    }
+
+    @Test
     fun endpointDisplayModesIncludeLan() {
         val state = McpServerState(
             running = true,

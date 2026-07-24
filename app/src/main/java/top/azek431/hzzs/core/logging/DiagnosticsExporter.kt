@@ -5,11 +5,13 @@
  */
 package top.azek431.hzzs.core.logging
 
+import android.content.Context
 import android.os.Build
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.RuntimeStatus
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,6 +57,7 @@ object DiagnosticsExporter {
      * @param algorithm 当前算法激活摘要；可为 null
      * @param runtime 视觉运行时状态；可为 null
      * @param debugFrameCount 私有目录调试帧张数
+     * @param appContext 可选；用于读系统指针位置 / Shizuku 就绪（JVM 单测可 null）
      * @param logLimit 附带最近日志条数
      */
     fun buildReport(
@@ -65,6 +68,7 @@ object DiagnosticsExporter {
         debugFrameCount: Int,
         algorithm: AlgorithmDiagnosticsSnapshot? = null,
         runtime: RuntimeStatus? = null,
+        appContext: Context? = null,
         logLimit: Int = 200,
     ): String {
         val timeFormat = localTimeFormat()
@@ -139,6 +143,15 @@ object DiagnosticsExporter {
             )
             appendLine("developer.nativeBenchmarkIterations=${config.developer.nativeBenchmarkIterations}")
             appendLine("developer.logLevel=${config.developer.logLevel.name}")
+            // 系统指针位置不进 AppConfig；只读当前系统/Shizuku 状态便于真机对照。
+            if (appContext != null) {
+                appendLine(
+                    "system." +
+                        SystemCapabilityAccess.pointerLocationDiagnosticsLine(appContext),
+                )
+            } else {
+                appendLine("system.pointerLocation=(no context)")
+            }
             appendLine("algorithm.mode=${config.algorithm.selectionMode.name}")
             appendLine("algorithm.pinned=${config.algorithm.pinnedAlgorithmId ?: "-"}")
             appendLine("algorithm.channel=${config.algorithm.channel.name}")

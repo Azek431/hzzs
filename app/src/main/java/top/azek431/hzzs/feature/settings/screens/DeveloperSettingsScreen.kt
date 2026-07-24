@@ -4,7 +4,7 @@
  * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格、系统指针位置等高级调试项。
  * 安全：关于页连点版本号 7 次开启 [DeveloperConfig.enabled]；本页开关可关闭，关闭后设置首页隐藏入口。
  * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer；系统指针位置经 [SystemCapabilityAccess]
- *（WRITE_SETTINGS 优先，已授权 Shizuku / Root 可 settings put），不静默要权。
+ *（**已授权 Shizuku 优先** → WRITE_SETTINGS → Root；与手势同源 ShellProcessSupport），不静默要权。
  * 设置分类与关于入口共用本 Composable。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -99,6 +99,7 @@ fun DeveloperSettingsScreen(
     val fellBackLabel = stringResource(R.string.dev_force_capture_fell_back)
     val pointerNeedWriteMsg = stringResource(R.string.dev_pointer_location_need_write)
     val pointerWriteFailedMsg = stringResource(R.string.dev_pointer_location_write_failed)
+    val pointerShizukuFailedMsg = stringResource(R.string.dev_pointer_location_shizuku_failed)
     val pointerViaWriteSettings = stringResource(R.string.dev_pointer_location_via_write_settings)
     val pointerViaShizuku = stringResource(R.string.dev_pointer_location_via_shizuku)
     val pointerViaRoot = stringResource(R.string.dev_pointer_location_via_root)
@@ -111,6 +112,9 @@ fun DeveloperSettingsScreen(
     var shizukuAuthorized by remember {
         mutableStateOf(SystemCapabilityAccess.isShizukuAuthorized())
     }
+    var shizukuBinder by remember {
+        mutableStateOf(SystemCapabilityAccess.isShizukuBinderAlive())
+    }
     var pointerLocationOn by remember {
         mutableStateOf(SystemCapabilityAccess.isPointerLocationEnabled(context))
     }
@@ -120,6 +124,7 @@ fun DeveloperSettingsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 canWriteSystem = SystemCapabilityAccess.canWriteSystemSettings(context)
                 shizukuAuthorized = SystemCapabilityAccess.isShizukuAuthorized()
+                shizukuBinder = SystemCapabilityAccess.isShizukuBinderAlive()
                 pointerLocationOn = SystemCapabilityAccess.isPointerLocationEnabled(context)
             }
         }
@@ -128,8 +133,9 @@ fun DeveloperSettingsScreen(
     }
 
     val pointerSubtitle = when {
-        canWriteSystem -> stringResource(R.string.dev_pointer_location_subtitle)
         shizukuAuthorized -> stringResource(R.string.dev_pointer_location_subtitle_shizuku)
+        canWriteSystem -> stringResource(R.string.dev_pointer_location_subtitle)
+        shizukuBinder -> stringResource(R.string.dev_pointer_location_subtitle_shizuku_need_grant)
         else -> stringResource(R.string.dev_pointer_location_subtitle_elevated)
     }
 
@@ -235,6 +241,8 @@ fun DeveloperSettingsScreen(
                                         SystemCapabilityAccess.canWriteSystemSettings(context)
                                     shizukuAuthorized =
                                         SystemCapabilityAccess.isShizukuAuthorized()
+                                    shizukuBinder =
+                                        SystemCapabilityAccess.isShizukuBinderAlive()
                                     when (result) {
                                         is PointerLocationWriteResult.Success -> {
                                             pointerLocationOn =
@@ -252,23 +260,28 @@ fun DeveloperSettingsScreen(
                                             onMessage(msg)
                                         }
                                         is PointerLocationWriteResult.Failed -> {
-                                            // 以系统回读为准，避免乐观态与 OEM 实际状态脱节
                                             pointerLocationOn = result.observedEnabled
-                                            if (!result.canWriteSettings &&
-                                                !result.shizukuAuthorized
-                                            ) {
-                                                onMessage(pointerNeedWriteMsg)
-                                                SystemCapabilityAccess.openManageWriteSettings(
-                                                    context,
-                                                )
-                                            } else {
-                                                onMessage(pointerWriteFailedMsg)
+                                            when {
+                                                result.shizukuAuthorized ->
+                                                    onMessage(pointerShizukuFailedMsg)
+                                                !result.canWriteSettings &&
+                                                    !result.shizukuBinderAlive -> {
+                                                    onMessage(pointerNeedWriteMsg)
+                                                    SystemCapabilityAccess.openManageWriteSettings(
+                                                        context,
+                                                    )
+                                                }
+                                                else -> onMessage(pointerWriteFailedMsg)
                                             }
                                         }
                                     }
                                 } catch (_: Exception) {
                                     pointerLocationOn =
                                         SystemCapabilityAccess.isPointerLocationEnabled(context)
+                                    shizukuAuthorized =
+                                        SystemCapabilityAccess.isShizukuAuthorized()
+                                    shizukuBinder =
+                                        SystemCapabilityAccess.isShizukuBinderAlive()
                                     onMessage(pointerWriteFailedMsg)
                                 } finally {
                                     pointerBusy = false

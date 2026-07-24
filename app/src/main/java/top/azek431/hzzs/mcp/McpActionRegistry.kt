@@ -436,6 +436,7 @@ class McpActionRegistry @Inject constructor(
                     analysisRunning = runtime.status.value.running,
                 ),
                 runtime = runtime.status.value,
+                appContext = appContext,
                 logLimit = logLimit,
             )
             JSONObject().put("text", text)
