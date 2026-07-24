@@ -167,7 +167,7 @@ fun SettingsCategory.summary(
         }
     }
     SettingsCategory.DEVELOPER -> {
-        if (config.developer.enabled) "开发者已开启" else "需要解锁"
+        if (config.developer.enabled) "已开启" else "未开启"
     }
 }
 

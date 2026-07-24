@@ -14,7 +14,7 @@
 - 修改悬浮窗：保证 View 持久复用、主线程调用、权限撤销后立即移除。
 - 修改自动操作：保证包名白名单、窗口状态、帧时效、置信度与串行手势仲裁。
 - 修改 MCP：所有写操作必须经过权限策略；服务只绑定 loopback；不得记录 Bearer Token。设置页已拆分为独立「MCP 服务」分类（普通用户可访问）。
-- 修改开发者选项：需关于页连续点击版本号解锁；设置页独立「开发者选项」分类，与 MCP 页面分离。
+- 修改开发者选项：关于页连点版本号 7 次开启后，设置首页才显示「开发者选项」分类；页内开关可关闭。关于入口与设置入口共用 `DeveloperSettingsScreen`，与 MCP 页面分离。
 - 修改默认赛季：只改 `AppConfig.DEFAULT_SELECTED_SCENE`，并同步迁移/单测；**不要**在 README/CLAUDE/AGENTS/PROGRESS 写死赛季中文名或枚举值。
 - 修改版本号：同步 `app/build.gradle.kts` 默认值与 CHANGELOG（若用户可见）。
 

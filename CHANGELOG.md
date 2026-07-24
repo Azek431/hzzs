@@ -11,6 +11,7 @@
 
 ### 变更
 
+- **开发者入口收敛**：关于页与设置共用 `DeveloperSettingsScreen`（不再维护第二套开发者 UI）。解锁后设置首页才显示「开发者选项」分类；页内开关仅可关闭并隐藏入口，再次开启仍需关于页连点版本号。
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 `false`（同机 RikkaHub 免填 Header）；开启鉴权时使用配置中持久化的 `authToken`，**不**在每次服务启动轮换，仅设置页「轮换 Token」主动更换。外部摄入不得静默关鉴权或改写令牌；Bearer 前缀比较大小写不敏感。
 - **算法运行轨迹日志**：新增 `AlgorithmRuntimeTrace`（最近 32 帧 ring，无像素）。帧循环写入识别摘要 / 检测明细 / Tracker 稳定帧 / 自动操作决策与 dispatch 结果；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`，仅在开发者开启且 `logLevel≤DEBUG` 时输出，并按「状态变化或每 12 帧」节流。诊断导出附带算法 pipeline 快照与最近帧轨迹。
 - **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 幂等预装到 `InstalledAlgorithmStore`（不经外装 Ed25519；不覆盖已装用户包）。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。

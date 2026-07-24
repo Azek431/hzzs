@@ -107,6 +107,20 @@ fun SettingsScreen(
     }
 
     val settingsLabel = stringResource(R.string.nav_settings)
+
+    // 关闭开发者后设置首页隐藏入口；若仍停在开发者路由则回首页。
+    LaunchedEffect(config.developer.enabled, route) {
+        if (!config.developer.enabled &&
+            (
+                route == SettingsCategory.DEVELOPER.route ||
+                    route == SettingsRoutes.LOG_VIEWER ||
+                    route == SettingsRoutes.ALGORITHM_PIPELINE
+                )
+        ) {
+            nav.popBackStack(SettingsRoutes.HOME, inclusive = false)
+        }
+    }
+
     val title = when (route) {
         SettingsRoutes.HOME -> settingsLabel
         SettingsCategory.APPEARANCE.route -> stringResource(SettingsCategory.APPEARANCE.titleRes)

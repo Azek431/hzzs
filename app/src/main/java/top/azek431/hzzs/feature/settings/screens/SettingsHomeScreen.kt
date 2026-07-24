@@ -56,8 +56,10 @@ fun SettingsHomeScreen(
     val titleMap = SettingsCategory.entries.associateWith { stringResource(it.titleRes) }
     val descMap = SettingsCategory.entries.associateWith { stringResource(it.descriptionRes) }
 
-    val filtered = remember(query, titleMap, descMap) {
+    val developerEnabled = config.developer.enabled
+    val filtered = remember(query, titleMap, descMap, developerEnabled) {
         SettingsCategory.entries.filter { cat ->
+            if (cat == SettingsCategory.DEVELOPER && !developerEnabled) return@filter false
             cat.matchesQuery(query, titleMap.getValue(cat), descMap.getValue(cat))
         }
     }

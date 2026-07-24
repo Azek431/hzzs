@@ -69,7 +69,7 @@
     <string name="settings_cat_developer_desc">调试帧、日志级别、基准测试与诊断工具</string>
 
     <!-- 设置首页 -->
-    <string name="settings_home_intro">改动即时生效。可搜索分类，或按分组浏览。开发者选项需在关于页连点版本号解锁。手动开启自动操作仍会提示风险。</string>
+    <string name="settings_home_intro">改动即时生效。可搜索分类，或按分组浏览。开发者选项在关于页连点版本号解锁后才会出现在本页；页内可关闭。手动开启自动操作仍会提示风险。</string>
     <string name="settings_home_preview_callout">开关与选项会立即写入配置；开启自动操作等危险项须先确认风险。导入配置不会静默打开自动操作。</string>
     <string name="settings_home_search_label">搜索设置</string>
     <string name="settings_home_search_hint">主题、截图、MCP…</string>
@@ -228,7 +228,7 @@
     <string name="about_unlock_remaining">再点击 %1$d 次即可开启开发者设置</string>
     <string name="about_unlock_done">开发者设置已开启</string>
     <string name="about_developer_entry">开发者设置</string>
-    <string name="about_developer_entry_sub">诊断、MCP、截图覆盖、坐标网格与 Native Benchmark</string>
+    <string name="about_developer_entry_sub">与设置共用同一开发者页：诊断、调试帧、坐标网格与 Native Benchmark</string>
     <string name="about_project_title">项目说明</string>
     <string name="about_project_body">HZZS 用于火崽崽奇妙屋的本地画面分析。截图与识别默认仅在设备本地完成，不上传画面。自动操作高风险且默认关闭。</string>
     <string name="about_disclaimer_title">免责声明</string>
@@ -292,10 +292,10 @@
 
     <!-- 开发者设置页 -->
     <string name="dev_section_enable_title">开发者选项</string>
-    <string name="dev_section_enable_desc">高级调试项；需通过关于页连续点击版本号解锁。</string>
+    <string name="dev_section_enable_desc">高级调试项。关闭后本页调试能力隐藏，设置首页入口也会消失；再次开启请到关于页连点版本号。</string>
     <string name="dev_enable_switch">启用开发者选项</string>
-    <string name="dev_enable_subtitle">已解锁：以下所有调试功能均可用</string>
-    <string name="dev_enable_subtitle_off">关闭后隐藏调试帧、强制截图后端等高级项</string>
+    <string name="dev_enable_subtitle">已开启：以下调试功能可用。关闭后入口将隐藏。</string>
+    <string name="dev_enable_subtitle_off">已关闭。关闭后设置首页不再显示本分类；再次开启请到关于页连点版本号 7 次。</string>
     <string name="dev_debug_frames_title">调试帧管理</string>
     <string name="dev_debug_frames_desc">最多 20 张，约每 5 秒采样；当前 %1$d 张</string>
     <string name="dev_save_debug_frames">保存调试帧</string>
@@ -334,6 +334,4 @@
     <string name="dev_security_title">安全提示</string>
     <string name="dev_security_body">开发者选项与调试功能仅供技术排查使用，切勿向不可信渠道共享诊断输出或 Bearer Token。</string>
 
-    <!-- 关于页开发者入口更新 -->
-
-</resources>
+    </resources>

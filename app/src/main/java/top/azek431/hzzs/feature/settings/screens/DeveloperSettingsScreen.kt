@@ -2,8 +2,8 @@
  * 开发者设置页。
  *
  * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格等高级调试项。
- * 安全：由本页「启用开发者选项」开关控制 [DeveloperConfig.enabled]；关闭后隐藏调试能力。
- * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。唯一入口在设置「开发者选项」分类。
+ * 安全：关于页连点版本号 7 次开启 [DeveloperConfig.enabled]；本页开关可关闭，关闭后设置首页隐藏入口。
+ * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。设置分类与关于入口共用本 Composable。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -46,9 +46,10 @@ import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 
 /**
- * 开发者选项设置页。
+ * 开发者选项设置页（设置分类与关于页入口共用）。
  *
- * 各项功能需在 [DeveloperConfig.enabled] 打开后才可使用。
+ * 本页开关可关闭 [DeveloperConfig.enabled]；关闭后调试项隐藏，设置首页入口也会消失。
+ * 再次开启需在关于页连续点击版本号 7 次。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,8 +89,11 @@ fun DeveloperSettingsScreen(
                 SettingsSwitchRow(
                     title = stringResource(R.string.dev_enable_switch),
                     checked = developerEnabled,
+                    // 仅允许关闭；再次开启必须走关于页连点版本号。
                     onCheckedChange = { value ->
-                        update { it.copy(developer = it.developer.copy(enabled = value)) }
+                        if (!value) {
+                            update { it.copy(developer = it.developer.copy(enabled = false)) }
+                        }
                     },
                 )
                 Text(

@@ -82,6 +82,13 @@ class SettingsUiLogicTest {
         assertTrue(network.contains("自动选择") || network.contains("应用"))
         assertTrue(SettingsCategory.AUTOMATION.summary(config).contains("关闭"))
         assertTrue(SettingsCategory.DETECTION.summary(config).contains("置信度"))
+        assertEquals("未开启", SettingsCategory.DEVELOPER.summary(config))
+        assertEquals(
+            "已开启",
+            SettingsCategory.DEVELOPER.summary(
+                config.copy(developer = config.developer.copy(enabled = true)),
+            ),
+        )
     }
 
     @Test
