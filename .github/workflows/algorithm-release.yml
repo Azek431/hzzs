@@ -87,11 +87,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "${ALGORITHM_SIGNING_PRIVATE_KEY_B64:-}" ]]; then
-            echo "::error::ALGORITHM_SIGNING_PRIVATE_KEY_B64 secret is required"
-            exit 1
-          fi
+          # 脱敏校验 Secret 形态（长度/是否 PEM），绝不打印密钥内容
+          python3 tools/algorithm/check_signing_secret.py
           KEY_ID="${ALGORITHM_SIGNING_KEY_ID:-hzzs-algorithm-official-1}"
+          echo "key_id=$KEY_ID"
+          # 去掉 Secret 内可能的换行/空白，避免 base64 validate 失败
+          export ALGORITHM_SIGNING_PRIVATE_KEY_B64="$(
+            python3 -c 'import os; print("".join(os.environ.get("ALGORITHM_SIGNING_PRIVATE_KEY_B64","").split()), end="")'
+          )"
 
           EXECUTE=true
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "${INPUT_EXECUTE:-true}" != "true" ]]; then

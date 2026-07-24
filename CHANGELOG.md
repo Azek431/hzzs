@@ -11,7 +11,7 @@
 
 ### 新增
 
-- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。**已授权 Shizuku 优先**（`ShellProcessSupport.runShizukuOk`，与手势/截图同源），否则 `WRITE_SETTINGS`，再 Root。写入后**回读校验**。诊断导出含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
+- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。binder 在未授权时可点「授权 Shizuku」；已授权优先 `ShellProcessSupport` 写 system/secure + `cmd settings`；否则 `WRITE_SETTINGS` / Root。写入后**回读校验**（system/secure 任一为 1）。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
 - **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**；外部摄入不得放宽策略。
 
 - **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。
@@ -42,6 +42,7 @@
 
 ### 修复
 
+- **外部摄入允许开自动操作时免责版本可随用户确认抬升**：`allowEnableAutomation` 时 `disclaimerAcceptedVersion` 取 baseline/candidate 较大值，避免 harden 后 `validated()` 因免责版本被压回 baseline 再次关掉 `enabled`（修复 `SettingsSessionTest.externalIngestCanEnableAutomationWithElevation`）。
 - **自动操作贴身/重叠仍可触发**：候选筛选改为障碍右缘仍越过玩家左缘即可（不再要求左缘 ≥ 玩家右缘−margin）；触发带内按 `|gap|` 选最近目标，避免海盐 FIXED 玩家下断崖略伸入时系统性 `no_candidate`（`nearGap` 为负）。决策串补 `behindOk=`。
 - **宿主机 host_tests 对齐 FIXED_RATIO**：`detect_player=false` 时引擎仍输出固定玩家参考框（与 App `PlayerReferenceMode.FIXED_RATIO` 一致）；mask=0 只断言「至多 1 个 PLAYER、无障碍」，不再误要求 `count==0`。
 - **宿主机 ASan 链接多点找色**：`run_native_sanitizers.sh` 补链 `multicolor_detector.cpp`（与 `CMakeLists.txt` / `build_host.sh` 一致），修复 `find_multi_color_patterns` undefined reference 导致 CI Build 失败。

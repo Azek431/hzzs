@@ -525,11 +525,20 @@ fun AppConfig.hardenedForExternalIngest(
         // 外部路径不得静默开启；baseline 已开可保持；或用户确认 elevations。
         enabled = candidate.automation.enabled &&
             (base.automation.enabled || elevations.allowEnableAutomation),
-        // 外部不得伪造「用户已接受」：免责版本只可 ≤ baseline。
-        disclaimerAcceptedVersion = minOf(
-            candidate.automation.disclaimerAcceptedVersion,
-            base.automation.disclaimerAcceptedVersion,
-        ),
+        // 默认：免责版本不得高于 baseline（防外部伪造「已接受」）。
+        // 用户确认 allowEnableAutomation 时，允许抬到 candidate（否则 validated()
+        // 会因 disclaimer < DISCLAIMER_VERSION 再次把 enabled 关掉）。
+        disclaimerAcceptedVersion = if (elevations.allowEnableAutomation) {
+            maxOf(
+                base.automation.disclaimerAcceptedVersion,
+                candidate.automation.disclaimerAcceptedVersion,
+            )
+        } else {
+            minOf(
+                candidate.automation.disclaimerAcceptedVersion,
+                base.automation.disclaimerAcceptedVersion,
+            )
+        },
         gestureBackend = saferGestureBackend(
             base.automation.gestureBackend,
             candidate.automation.gestureBackend,
