@@ -20,6 +20,7 @@
 
 ### 修复
 
+- **海盐场景置信度与自动操作门闩**：FIXED_RATIO 不再按「玩家失败」压低 `sceneConfidence`；有障碍/找色命中时至少抬到 0.85/0.88，避免稳定检出 `SEA_PIT` 却因 `0.68<0.82` 永不派发手势。
 - **海盐多点找色对齐酱油脚本**：按 AutoJS 源（设计 1272×2772、颜色 `0xAARRGGBB`）重录大/小断崖、矮/高沙丘、船锚五条模板；搜索带默认 0.438–0.881、阈值 10；船锚动作为 `SLIDE`（向下滑）；bounds 用点集包络而非专用绘制层；不移植「复活」UI 点击。
 - **算法 analysisRunning 同步**：`VisionRuntimeController` start/stop/异常路径经 `AlgorithmCatalogController.setAnalysisRunning`，避免分析中下载半热激活与 UI pending 文案错位。
 - **无信任锚时下载按钮降级**：算法卡 `canDownloadRemote` + 状态 `trustAnchorsConfigured`；远端不可装时禁用「下载/更新」并给出说明。

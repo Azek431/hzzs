@@ -228,7 +228,8 @@ void append_multicolor_detections(
         out.detections.push_back(det);
     }
     if (!found.detections.empty()) {
-        out.scene_confidence = std::max(out.scene_confidence, 0.72f);
+        // 找色命中视为局内可信；对齐自动化默认门闩，避免 0.72 仍被 0.82 挡住。
+        out.scene_confidence = std::max(out.scene_confidence, 0.88f);
     }
 }
 
@@ -305,8 +306,11 @@ Result analyze_sea_salt(
     }
 
     const int player_right = player_component.right;
+    // FIXED_RATIO 时 detect_player=false，固定框即合法玩家参考，不得按「玩家失败」压 conf。
+    // 否则场景置信度常停在 ~0.68，被自动操作 minimumSceneConfidence(0.82) 系统性挡住。
+    const bool player_ok = player_found || !detect_player;
     out.scene_confidence = clamp01(
-        .35f * best_score + (player_found ? .55f : .25f) + (weak_ground ? 0.0f : .10f));
+        .35f * best_score + (player_ok ? .55f : .25f) + (weak_ground ? 0.0f : .10f));
 
     const int x_stride = adaptive_stride(f, work_width);
     int hint = 300;
@@ -557,14 +561,24 @@ Result analyze_sea_salt(
         }
     }
 
-    if (out.scene_confidence < params.scene_confidence_floor &&
-        static_cast<int>(out.detections.size()) > 1) {
-        out.scene_confidence =
-            std::max(out.scene_confidence, params.scene_confidence_floor * 0.85f);
-    }
-
     // 追加声明式多点找色（模板 + profile 阈值；不解析 JSON）
     append_multicolor_detections(out, f, enabled_kind_mask, params);
+
+    // 有非玩家障碍时抬升场景置信度。
+    // 旧逻辑 floor*0.85=0.68 仍 < 默认自动化门闩 0.82，导致「看得见框却从不点」。
+    // 酱油脚本无场景 conf 门闩；HZZS 侧在检出可靠障碍后至少越过 floor 与 0.85。
+    int obstacle_n = 0;
+    for (const auto& d : out.detections) {
+        if (d.kind != Kind::PLAYER) ++obstacle_n;
+    }
+    if (obstacle_n > 0) {
+        const float boost = std::max(params.scene_confidence_floor, 0.85f);
+        out.scene_confidence = std::max(out.scene_confidence, boost);
+    } else if (out.scene_confidence < params.scene_confidence_floor && player_ok && !weak_ground) {
+        // 局内但暂无障碍：略抬升，仍可低于自动化门闩（避免空点）。
+        out.scene_confidence =
+            std::max(out.scene_confidence, params.scene_confidence_floor * 0.9f);
+    }
 
     return out;
 }
