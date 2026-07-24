@@ -42,6 +42,7 @@
 
 ### 修复
 
+- **自动操作贴身/重叠仍可触发**：候选筛选改为障碍右缘仍越过玩家左缘即可（不再要求左缘 ≥ 玩家右缘−margin）；触发带内按 `|gap|` 选最近目标，避免海盐 FIXED 玩家下断崖略伸入时系统性 `no_candidate`（`nearGap` 为负）。决策串补 `behindOk=`。
 - **宿主机 host_tests 对齐 FIXED_RATIO**：`detect_player=false` 时引擎仍输出固定玩家参考框（与 App `PlayerReferenceMode.FIXED_RATIO` 一致）；mask=0 只断言「至多 1 个 PLAYER、无障碍」，不再误要求 `count==0`。
 - **宿主机 ASan 链接多点找色**：`run_native_sanitizers.sh` 补链 `multicolor_detector.cpp`（与 `CMakeLists.txt` / `build_host.sh` 一致），修复 `find_multi_color_patterns` undefined reference 导致 CI Build 失败。
 - **手势后端真正分叉**：`VisionRuntimeController` 规划/派发按 `GestureBackend` 走无障碍 `dispatchGesture` 或 Shizuku/Root `input` + dumpsys 前台；不再绑死无障碍导致选 Shizuku 时系统性 `skip:no_foreground`。决策/诊断写入 `backend=` 与 `activeGestureBackend`；Shell dumpsys 失败 fail-closed（`reason=dumpsys_fail`）。

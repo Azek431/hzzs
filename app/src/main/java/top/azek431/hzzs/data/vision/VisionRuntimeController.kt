@@ -656,21 +656,26 @@ class VisionRuntimeController @Inject constructor(
         }
         val triggerDistance = effectiveMultiplier * playerWidth
 
-        val candidate = tracked
+        // 水平门控：只丢掉「整块障碍已完全落在玩家身后」的目标。
+            // 旧逻辑要求 left >= player.right - margin，海盐 FIXED 玩家宽约 0.05 时
+            // 断崖/沙丘左缘略伸入玩家右侧（gap 为负）会被系统性滤掉 → 永远 no_candidate。
+            // 以障碍右缘是否仍越过玩家左缘为准；重叠（gap≤0）仍可触发。
+            val behindMargin = sceneConfig.thresholds.behindPlayerMarginRatio
+            val candidate = tracked
             .asSequence()
             .filter { it.stableFrames >= sceneConfig.thresholds.stableFrames }
             .filter { it.detection.actionable && !it.detection.diagnosticOnly }
             .filter { it.detection.confidence >= sceneConfig.thresholds.minimumConfidence }
             .filter {
-                it.detection.bounds.left >=
-                    player.bounds.right - sceneConfig.thresholds.behindPlayerMarginRatio
+                it.detection.bounds.right > player.bounds.left - behindMargin
             }
             .map { trackedDetection ->
                 val gap = trackedDetection.detection.bounds.left - player.bounds.right
                 trackedDetection to gap
             }
+            // 在触发带内：优先最贴近玩家的目标（|gap| 最小）；允许 gap≤0 的重叠。
             .filter { (_, gap) -> gap <= triggerDistance }
-            .minByOrNull { (_, gap) -> gap }
+            .minByOrNull { (_, gap) -> kotlin.math.abs(gap) }
             ?.first
 
         if (candidate == null) {
@@ -685,6 +690,11 @@ class VisionRuntimeController @Inject constructor(
                 .map { it.detection.bounds.left - player.bounds.right }
                 .filter { it.isFinite() }
                 .minOrNull()
+            val passedBehind = tracked.count {
+                it.detection.actionable &&
+                    !it.detection.diagnosticOnly &&
+                    it.detection.bounds.right > player.bounds.left - behindMargin
+            }
             if (config.automation.autoAdjustTriggerDistance && actionable > 0) {
                 val now = SystemClock.uptimeMillis()
                 val adapted = triggerDistanceTuner.onNoCandidate(
@@ -698,7 +708,7 @@ class VisionRuntimeController @Inject constructor(
                     maybePersistTriggerDistance(config.selectedScene, adapted, now)
                     return publish(
                         "skip:no_candidate auto_trig=${"%.2f".format(adapted)} " +
-                            "stable=$stable actionable=$actionable " +
+                            "stable=$stable actionable=$actionable behindOk=$passedBehind " +
                             "trigDist=${"%.3f".format(triggerDistance)} " +
                             "pw=${"%.3f".format(playerWidth)} " +
                             "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
@@ -708,7 +718,7 @@ class VisionRuntimeController @Inject constructor(
                 }
             }
             return publish(
-                "skip:no_candidate stable=$stable actionable=$actionable " +
+                "skip:no_candidate stable=$stable actionable=$actionable behindOk=$passedBehind " +
                     "trigDist=${"%.3f".format(triggerDistance)} " +
                     "pw=${"%.3f".format(playerWidth)} " +
                     "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +

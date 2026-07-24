@@ -250,6 +250,10 @@ data class VisionThresholds(
     val playerReferenceMode: PlayerReferenceMode = PlayerReferenceMode.FIXED_RATIO,
     /** 固定玩家水平参考，视口归一化 X。 */
     val fixedPlayerXRatio: Float = 0.185f,
+    /**
+     * 判定「障碍已完全落在玩家身后」时的水平容差（视口归一化）。
+     * 运行时用障碍 **右缘** 与玩家左缘比较，重叠/贴身仍可触发；仅整块障碍在身后才丢弃。
+     */
     val behindPlayerMarginRatio: Float = 0.018f,
     /**
      * 评估用边界容差（相对玩家宽度）。
