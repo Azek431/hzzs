@@ -127,6 +127,15 @@ class DiagnosticsExporterTest {
         assertTrue(report.contains("capture.requested="))
         assertTrue(report.contains("capture.effective="))
         assertTrue(report.contains("capture.fallbackReason="))
+        assertTrue(report.contains("gesture.requested="))
+        assertTrue(report.contains("gesture.effective="))
+        assertTrue(report.contains("a11y.connected="))
+        assertTrue(report.contains("shizuku.ready="))
+        assertTrue(report.contains("foreground.pkg="))
+        assertTrue(report.contains("automation.disclaimerAcceptedVersion="))
+        assertTrue(report.contains("automation.triggerPlayerWidths="))
+        assertTrue(report.contains("automation.autoAdjustTriggerDistance="))
+        assertTrue(report.contains("Boxes on screen"))
         // 本地时区 + 偏移；不得再出现假 UTC 的 `...Z` 样式（无偏移）。
         assertTrue(report.contains("generatedAt="))
         assertTrue(

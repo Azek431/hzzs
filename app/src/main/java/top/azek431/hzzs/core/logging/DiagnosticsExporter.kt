@@ -6,13 +6,16 @@
 package top.azek431.hzzs.core.logging
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
+import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -97,6 +100,10 @@ object DiagnosticsExporter {
             appendLine("overlay.enabled=${config.overlay.enabled}")
             appendLine("overlay.style=${config.overlay.style.name}")
             appendLine("automation.enabled=${config.automation.enabled}")
+            appendLine(
+                "automation.disclaimerAcceptedVersion=${config.automation.disclaimerAcceptedVersion}" +
+                    "/${AppConfig.DISCLAIMER_VERSION}",
+            )
             appendLine("automation.gestureBackend=${config.automation.gestureBackend.name}")
             appendLine("automation.restrictPackages=${config.automation.restrictPackages}")
             appendLine(
@@ -107,6 +114,22 @@ object DiagnosticsExporter {
                 "automation.bambooExperimental=${config.automation.bambooExperimentalAutoAction} " +
                     "(legacy unused at runtime)",
             )
+            appendLine(
+                "automation.autoAdjustTriggerDistance=${config.automation.autoAdjustTriggerDistance}",
+            )
+            appendLine(
+                "automation.triggerPlayerWidths=" +
+                    "sweet=${"%.2f".format(config.automation.sweetTriggerDistancePlayerWidths)}" +
+                    ",bamboo=${"%.2f".format(config.automation.bambooTriggerDistancePlayerWidths)}" +
+                    ",sea=${"%.2f".format(config.automation.seaSaltTriggerDistancePlayerWidths)}",
+            )
+            appendLine(
+                "automation.minimumSceneConfidence=" +
+                    "%.2f".format(config.automation.minimumSceneConfidence),
+            )
+            appendLine("automation.maxActionsPerSecond=${config.automation.maxActionsPerSecond}")
+            appendLine("automation.retryLimit=${config.automation.retryLimit}")
+            appendLine("automation.autoReviveEnabled=${config.automation.autoReviveEnabled}")
             appendLine("mcp.enabled=${config.mcp.enabled}")
             appendLine("mcp.permission=${config.mcp.permissionLevel.name}")
             appendLine("mcp.requireAuth=${config.mcp.requireAuth}")
@@ -141,6 +164,40 @@ object DiagnosticsExporter {
             appendLine(
                 "capture.fallbackReason=${captureResolution.fallbackReason?.let(AppLog::redact) ?: "-"}",
             )
+            // 手势门控：无障碍连接 / 前台快照 / AUTO 解析结果（与 capture 正交）。
+            // 经 FQCN + runCatching，避免 core.logging 硬依赖 service 在 JVM 单测炸。
+            val a11yConnected = runCatching {
+                top.azek431.hzzs.service.automation.HzzsAccessibilityService.isConnected()
+            }.getOrDefault(false)
+            val shizukuReady = runCatching {
+                rikka.shizuku.Shizuku.pingBinder() &&
+                    rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            }.getOrDefault(false)
+            val gestureResolution = resolveEffectiveGestureBackend(
+                gestureBackend = config.automation.gestureBackend,
+                accessibilityConnected = a11yConnected,
+                shizukuReady = shizukuReady,
+            )
+            appendLine("gesture.requested=${gestureResolution.requested.name}")
+            appendLine("gesture.effective=${gestureResolution.effective.name}")
+            appendLine(
+                "gesture.fallbackReason=${gestureResolution.fallbackReason?.let(AppLog::redact) ?: "-"}",
+            )
+            appendLine("a11y.connected=$a11yConnected")
+            appendLine("shizuku.ready=$shizukuReady")
+            val fgLine = runCatching {
+                val fg = top.azek431.hzzs.service.automation.HzzsAccessibilityService
+                    .foregroundSnapshot(refreshIfStale = true)
+                if (fg == null) {
+                    "foreground.pkg=- cls=- ageMs=-"
+                } else {
+                    val age = SystemClock.elapsedRealtime() - fg.observedAtMs
+                    "foreground.pkg=${fg.packageName.ifBlank { "-" }} " +
+                        "cls=${fg.className.ifBlank { "-" }} " +
+                        "ageMs=$age"
+                }
+            }.getOrDefault("foreground.pkg=- cls=- ageMs=- (probe_failed)")
+            appendLine(fgLine)
             appendLine("developer.saveDebugFrames=${config.developer.saveDebugFrames}")
             appendLine("developer.showCoordinateGrid=${config.developer.showCoordinateGrid}")
             appendLine(
@@ -225,6 +282,12 @@ object DiagnosticsExporter {
             append(AlgorithmRuntimeTrace.formatText().trimEnd())
             appendLine()
             appendLine()
+            appendLine(
+                "== Algorithm decisions (oldest→newest, max ${AlgorithmRuntimeTrace.DECISION_CAPACITY}) ==",
+            )
+            append(AlgorithmRuntimeTrace.formatDecisionText().trimEnd())
+            appendLine()
+            appendLine()
             appendLine("== Recent logs (oldest→newest, max $logLimit) ==")
             val logs = AppLog.snapshot(logLimit)
             if (logs.isEmpty()) {
@@ -255,12 +318,24 @@ object DiagnosticsExporter {
             appendLine("- External algorithm packs need release-index catalog + AlgorithmTrustAnchors public key.")
             appendLine(
                 "- Algorithm frame AppLog tags: algo.frame / algo.det / algo.track / algo.decision " +
-                    "(developer on + logLevel≤DEBUG; throttled on change or every " +
-                    "${AlgorithmRuntimeTrace.PERIODIC_FRAMES} frames).",
+                    "(developer on + logLevel≤DEBUG for frames; decisions INFO on skip/plan/dispatch/calc). " +
+                    "Throttled on change or every ${AlgorithmRuntimeTrace.PERIODIC_FRAMES} frames.",
+            )
+            appendLine(
+                "- Decision ring retains last ${AlgorithmRuntimeTrace.DECISION_CAPACITY} " +
+                    "skip/plan/dispatch/calc lines for agent triage (no pixels).",
             )
             appendLine(
                 "- Runtime frame ring retains last ${AlgorithmRuntimeTrace.CAPACITY} analyses after stop " +
                     "until next start; no pixels.",
+            )
+            appendLine(
+                "- Automation gates: a11y.connected / foreground.* / gesture.effective / " +
+                    "disclaimerAcceptedVersion / triggerPlayerWidths; decision ring explains skip:*.",
+            )
+            appendLine(
+                "- Boxes on screen ≠ gestures: algorithm+Overlay draw Detection; " +
+                    "actions need automation gates + gesture backend.",
             )
         }
     }
