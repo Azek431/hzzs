@@ -2,8 +2,8 @@
  * 开发者设置页。
  *
  * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格等高级调试项。
- * 安全：需 [DeveloperConfig.enabled] 开启；普通用户通过关于页连点版本号解锁。
- * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。
+ * 安全：由本页「启用开发者选项」开关控制 [DeveloperConfig.enabled]；关闭后隐藏调试能力。
+ * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。唯一入口在设置「开发者选项」分类。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -88,11 +88,18 @@ fun DeveloperSettingsScreen(
                 SettingsSwitchRow(
                     title = stringResource(R.string.dev_enable_switch),
                     checked = developerEnabled,
-                    enabled = false,
-                    onCheckedChange = {},
+                    onCheckedChange = { value ->
+                        update { it.copy(developer = it.developer.copy(enabled = value)) }
+                    },
                 )
                 Text(
-                    stringResource(R.string.dev_enable_subtitle),
+                    stringResource(
+                        if (developerEnabled) {
+                            R.string.dev_enable_subtitle
+                        } else {
+                            R.string.dev_enable_subtitle_off
+                        },
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
