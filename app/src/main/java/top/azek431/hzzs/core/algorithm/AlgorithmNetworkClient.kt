@@ -139,6 +139,7 @@ class AlgorithmNetworkClient @Inject constructor(
                 extracted = extractDir,
                 sha256 = verified.sha256,
                 versionCode = entry.info.versionCode,
+                originTag = ORIGIN_NETWORK,
             ).getOrThrow()
         } finally {
             part.delete()
@@ -367,6 +368,8 @@ class AlgorithmNetworkClient @Inject constructor(
     companion object {
         private const val MAX_CATALOG_BYTES = 512L * 1024L
         private const val MAX_PACKAGE_BYTES = 1024L * 1024L
+        /** 网络安装来源标签；bundled 升级不得覆盖。 */
+        const val ORIGIN_NETWORK = "network"
         /** 与 tools/algorithm/common.py SAFE_ID 对齐。 */
         private val SAFE_ID = Regex("^[a-z][a-z0-9-]{1,62}[a-z0-9]$")
         private val SAFE_NAME = Regex("^[A-Za-z0-9._+-]{1,160}$")

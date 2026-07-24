@@ -16,7 +16,11 @@ import javax.inject.Singleton
  *
  * 与网络下载路径分离：捆绑包视为应用本体的一部分，不经 Ed25519 外装验签；
  * 远端 `.hzzsalg` 仍必须过 [AlgorithmPackVerifier] 与信任锚。
- * 仅在目标 catalog 尚未安装时写入；已安装用户包不被覆盖。
+ *
+ * 升级策略：
+ * - 未安装 → 安装
+ * - 已装且 origin 为 bundled（或旧数据无 origin）且 assets versionCode 更高 → 覆盖
+ * - 已装为网络包 / 同版本或更高 → 不覆盖
  */
 @Singleton
 class BundledAlgorithmInstaller @Inject constructor(
@@ -27,13 +31,13 @@ class BundledAlgorithmInstaller @Inject constructor(
 
     /**
      * 幂等：进程内只完整扫描一次；单包失败不影响其它包。
-     * @return 新安装的 catalogId 列表
+     * @return 新安装或升级的 catalogId 列表
      */
     fun ensureBundledInstalled(): List<String> {
         if (!ran.compareAndSet(false, true)) {
             return emptyList()
         }
-        val installed = mutableListOf<String>()
+        val changed = mutableListOf<String>()
         val assetManager = appContext.assets
         val roots = runCatching { assetManager.list(ASSETS_ROOT).orEmpty() }.getOrDefault(emptyArray())
         for (folder in roots) {
@@ -54,12 +58,29 @@ class BundledAlgorithmInstaller @Inject constructor(
                 val manifestText = assetManager.open(manifestName).use { it.readBytes().toString(Charsets.UTF_8) }
                 val manifest = JSONObject(manifestText)
                 val catalogId = manifest.getString("id")
-                if (store.get(catalogId) != null) {
-                    AppLog.d("algorithm", "bundled already installed: $catalogId")
-                    return@runCatching
-                }
                 val version = manifest.getString("version")
                 val versionCode = versionCodeFromSemver(version)
+                val existing = store.get(catalogId)
+                val decision = decideBundledAction(existing, versionCode)
+                when (decision) {
+                    BundledAction.SKIP_SAME_OR_NEWER -> {
+                        AppLog.d(
+                            "algorithm",
+                            "bundled skip id=$catalogId assetV=$version " +
+                                "installedV=${existing?.version} origin=${existing?.originTag ?: "-"}",
+                        )
+                        return@runCatching
+                    }
+                    BundledAction.SKIP_NETWORK -> {
+                        AppLog.i(
+                            "algorithm",
+                            "bundled skip network pack id=$catalogId " +
+                                "installedV=${existing?.version} origin=${existing?.originTag}",
+                        )
+                        return@runCatching
+                    }
+                    BundledAction.INSTALL, BundledAction.UPGRADE -> Unit
+                }
                 val staging = File(appContext.cacheDir, "bundled-alg-$catalogId-${System.nanoTime()}")
                 try {
                     staging.mkdirs()
@@ -81,10 +102,11 @@ class BundledAlgorithmInstaller @Inject constructor(
                         summary = manifest.optString("description").takeIf { it.isNotBlank() },
                         channelName = manifest.optString("channel").takeIf { it.isNotBlank() },
                     ).getOrThrow()
-                    installed += record.catalogId
+                    changed += record.catalogId
+                    val verb = if (decision == BundledAction.UPGRADE) "upgraded" else "installed"
                     AppLog.i(
                         "algorithm",
-                        "bundled installed id=${record.catalogId} v=${record.version} " +
+                        "bundled $verb id=${record.catalogId} v=${record.version} " +
                             "scenes=${record.supportedScenes.joinToString { it.name }}",
                     )
                 } finally {
@@ -97,7 +119,7 @@ class BundledAlgorithmInstaller @Inject constructor(
                 )
             }
         }
-        return installed
+        return changed
     }
 
     companion object {
@@ -123,5 +145,31 @@ class BundledAlgorithmInstaller @Inject constructor(
 
         fun scenesLabel(scenes: Set<SceneId>): String =
             scenes.joinToString { it.name }
+
+        /**
+         * 是否允许用 assets 捆绑覆盖已装记录。
+         * 网络安装（origin 非空且非 bundled）永不覆盖。
+         */
+        fun decideBundledAction(
+            existing: InstalledAlgorithmStore.InstalledAlgorithmRecord?,
+            assetVersionCode: Long,
+        ): BundledAction {
+            if (existing == null) return BundledAction.INSTALL
+            val origin = existing.originTag?.trim().orEmpty()
+            val isBundledOrLegacy = origin.isEmpty() || origin == ORIGIN_BUNDLED
+            if (!isBundledOrLegacy) return BundledAction.SKIP_NETWORK
+            return if (assetVersionCode > existing.versionCode) {
+                BundledAction.UPGRADE
+            } else {
+                BundledAction.SKIP_SAME_OR_NEWER
+            }
+        }
+    }
+
+    enum class BundledAction {
+        INSTALL,
+        UPGRADE,
+        SKIP_SAME_OR_NEWER,
+        SKIP_NETWORK,
     }
 }

@@ -33,6 +33,7 @@
 - **AI 可代发（能力保留，现阶段可搁置）**：流程写在根 `CLAUDE.md`「算法包网络更新」。用户**再次明确**要网络发布时才 `--execute`；缺 token/私钥则停下。2026-07-24 用户反馈签名发布偏重，**日常开发先不走 release-index**，以捆绑 `assets/algorithms` + 清 installed/数据为主；设置「检查算法」404 属预期。
 - **算法版本与通道**：包 `manifest.version` 用 semver，**首版 `0.1.0`**（补丁 +0.0.1 / 次要 +0.1.0 / 主要 +1.0.0）；**门禁全过才 bump**；`beta` vs `stable` 用户自选，未验证不上 stable。多包发布时通道跟各包 `manifest.channel`。
 - **清空数据 ≠ 网络更新**：清存储只重种 bundled；`release-index` 404 时检查算法永远失败。正式更新靠目录+包体，不靠卸 App。
+- **捆绑按 version 升级**：assets 更高 `versionCode` 且本地为 bundled/无 origin 时覆盖；网络包装 `originTag=network` 不被冲。开发：升 `manifest.version` → 同步 assets → 装 APK 即可，不必清数据。仅 push GitHub 源文件手机不会变，除非 CI 发到 `release-index` 或用户装了含新 assets 的 APK。
 - **默认赛季单一真相**：只改 `AppConfig.DEFAULT_SELECTED_SCENE`；文档禁止写死赛季中文名/枚举。
 - **提交隔离**：UI/动效、算法网络、本机构建、IDE 脚本分提交；合 main 前可用 stash 隔开无关 WIP。
 - **日常开发分支**：默认在 `main` 直接迭代（用户偏好）；除非明确要求再开 feature 分支。
