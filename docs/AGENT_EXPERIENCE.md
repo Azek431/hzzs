@@ -6,6 +6,8 @@
 ## 2026-07-24
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
+- **酱油多点找色移植要点**：脚本无绘制；设计分辨率 **1272×2772**（非注释 1080）；颜色 Java 有符号 `0xAARRGGBB`；region 约 left0.23/top0.44/right1/bottom0.88；阈值默认 10。HZZS 只走 `Detection.bounds` 通用 HUD；「复活」不进算法包动作。
+- **场景必须匹配包**：`sea-salt-living-room-v1` 只声明海盐；钉选后若场景仍是竹影则走竹影路径，找色不会跑。
 
 ## 2026-07-23
 
@@ -42,3 +44,4 @@
 - **自动操作 fail-closed 须 abort 在飞动作**：会话 arm 已移除；配置变更/停分析时调用 `cancelActions()`（`actionJob.cancel`），规划路径仍重检 enabled + 免责声明版本。
 - **analysisRunning 与帧循环对称**：`runLoop` 异常 finally 也要 `setAnalysisRunning(false)`，否则算法切换永久 pending。
 - **JNI 赛季闸门须跟 `kSceneCount`**：引擎/宿主/Kotlin 已支持海盐（scene=2）时，`jni_bridge` 若仍 `scene > 1` 会真机 `invalid scene` 连败；扩赛季时同步 JNI、CMake、`run_native_sanitizers.sh` 源列表与 native 边界测。
+

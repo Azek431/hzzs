@@ -134,11 +134,14 @@ data class SceneAlgorithmParams(
     val spikeHeightMax: Float,
     /** 颜色通道阈值（0..255 或比值）。 */
     val colors: SceneColorThresholds,
-    /** 多点找色检测区域 top/bottom 相对视口归一化比例（仅海盐客厅消费）。 */
-    val searchRegionTopRatio: Float = 0.40f,
-    val searchRegionBottomRatio: Float = 0.95f,
-    /** 多点找色颜色容差，对应 AutoJS `threshold`（0..255，越小越严格）。默认 16。 */
-    val multicolorThreshold: Float = 16f,
+    /**
+     * 多点找色检测区域 top/bottom 相对视口归一化比例（仅海盐客厅消费）。
+     * 默认对齐酱油脚本 region 竖直带（1213..2442 @ 2772）。
+     */
+    val searchRegionTopRatio: Float = 0.438f,
+    val searchRegionBottomRatio: Float = 0.881f,
+    /** 多点找色颜色容差，对应 AutoJS `threshold`（0..255，越小越严格）。酱油脚本默认 10。 */
+    val multicolorThreshold: Float = 10f,
 ) {
     companion object {
         /** 甜甜圈赛季内置默认参数。 */
@@ -178,9 +181,10 @@ data class SceneAlgorithmParams(
             spikeHeightMin = 0.16f,
             spikeHeightMax = 0.54f,
             colors = SceneColorThresholds.sweetBuiltin(),
+            // 甜品不消费找色；保留中性默认。
             searchRegionTopRatio = 0.50f,
             searchRegionBottomRatio = 0.82f,
-            multicolorThreshold = 16f,
+            multicolorThreshold = 10f,
         )
 
         /** 竹影书屋赛季内置默认参数。 */
@@ -259,6 +263,9 @@ data class SceneAlgorithmParams(
             spikeHeightMin = 0.16f,
             spikeHeightMax = 0.54f,
             colors = SceneColorThresholds.seaSaltBuiltin(),
+            searchRegionTopRatio = 0.438f,
+            searchRegionBottomRatio = 0.881f,
+            multicolorThreshold = 10f,
         )
     }
 }

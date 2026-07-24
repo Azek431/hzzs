@@ -70,79 +70,134 @@ float clamp01(float v) {
 
 }  // namespace
 
-/** 海盐客厅的声明式多点找色模板（从酱油脚本移植，归一化坐标）。 */
+/**
+ * 海盐客厅多点找色模板。
+ *
+ * 真相源：酱油 AutoJS 脚本（设计分辨率 1272×2772，颜色 0xAARRGGBB）。
+ * - 偏移 = 设计像素 / 设计边长（与 等比x/y 一致）；
+ * - 不移植「复活」UI 点击（算法包不得控手势/点按钮）；
+ * - 船锚脚本为向下滑 → Avoidance::SLIDE；
+ * - 大/小断崖拆分（双跳 / 单跳）；无专用绘制层。
+ */
 std::vector<MultiColorPattern> sea_salt_multicolor_rules(
     const SceneAlgorithmParamsNative& params) {
     std::vector<MultiColorPattern> rules;
 
-    // 大断崖/小断崖 → PIT, JUMP（浅灰蓝模式）
+    // 搜索区：脚本 region [290,1213,982,1229] → 左 0.228 / 顶 0.438 / 右 1.0 / 底 0.881。
+    // 包参数 top/bottom 可覆盖竖直带；水平固定贴近脚本（避免扫 UI 左缘）。
+    const float search_left = 0.228f;
+    const float search_right = 1.0f;
+    const float search_top =
+        params.search_region_top_ratio > 0.05f ? params.search_region_top_ratio : 0.438f;
+    const float search_bottom =
+        params.search_region_bottom_ratio > search_top ? params.search_region_bottom_ratio
+                                                       : 0.881f;
+    const float thresh =
+        params.multicolor_threshold > 0.0f ? params.multicolor_threshold : 10.0f;
+
+    auto fill_search = [&](MultiColorPattern& p) {
+        p.search_left_ratio = search_left;
+        p.search_right_ratio = search_right;
+        p.search_top_ratio = search_top;
+        p.search_bottom_ratio = search_bottom;
+        p.threshold = thresh;
+    };
+
+    // 大断崖 → SEA_PIT / DOUBLE_JUMP（脚本双击分支）
+    // base -14134134 = 0xFF28548A
     {
         MultiColorPattern p{};
-        p.base_r = 230; p.base_g = 237; p.base_b = 245;  // #E6EDF5
+        p.base_r = 40;
+        p.base_g = 84;
+        p.base_b = 138;
         p.offsets = {
-            {0.1171f, -0.0249f, 242u, 250u, 254u},    // #F2FAFE
-            {0.1863f, -0.0076f, 238u, 248u, 252u},    // #EEF8FC
-            {0.4528f, -0.0007f, 241u, 248u, 254u},    // #F1F8FE
-            {0.5362f,  0.0296f, 217u, 227u, 232u},    // #D9E3E8
-            {0.5315f, -0.0205f, 210u, 144u,  62u},    // #D2903E
+            {57.0f / 1272.0f, 86.0f / 2772.0f, 245u, 237u, 230u},    // -659994
+            {206.0f / 1272.0f, 17.0f / 2772.0f, 254u, 250u, 242u},   // -66830
+            {294.0f / 1272.0f, 65.0f / 2772.0f, 252u, 248u, 238u},   // -198418
+            {633.0f / 1272.0f, 88.0f / 2772.0f, 254u, 248u, 241u},   // -67343
+            {739.0f / 1272.0f, 168.0f / 2772.0f, 232u, 227u, 217u},  // -1514535
+            {733.0f / 1272.0f, 29.0f / 2772.0f, 62u, 144u, 210u},    // -12676910
         };
-        p.kind = Kind::PIT;
-        p.avoidance = Avoidance::JUMP;
-        p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_region_bottom_ratio;
-        p.threshold = params.multicolor_threshold;
+        p.kind = Kind::SEA_PIT;
+        p.avoidance = Avoidance::DOUBLE_JUMP;
+        fill_search(p);
         rules.push_back(std::move(p));
     }
 
-    // 矮沙丘 → SAND_CASTLE, JUMP（蓝/深蓝模式）
+    // 小断崖 → SEA_PIT / JUMP
+    // base -13605719 = 0xFF3064A9
     {
         MultiColorPattern p{};
-        p.base_r = 198; p.base_g = 230; p.base_b = 249;  // #C6E6F9
+        p.base_r = 48;
+        p.base_g = 100;
+        p.base_b = 169;
         p.offsets = {
-            {0.0401f, -0.0080f, 199u, 229u, 251u},    // #C7E5FB
-            {0.1007f, -0.0051f, 135u, 190u, 229u},    // #87BEE5
-            {0.1219f,  0.0186f, 127u, 156u, 193u},    // #7F9CC1
+            {69.0f / 1272.0f, 29.0f / 2772.0f, 248u, 240u, 231u},    // -462617
+            {144.0f / 1272.0f, 63.0f / 2772.0f, 249u, 247u, 234u},   // -395286
+            {333.0f / 1272.0f, 63.0f / 2772.0f, 252u, 248u, 238u},   // -198418
+            {422.0f / 1272.0f, 87.0f / 2772.0f, 204u, 150u, 99u},    // -3369373
+        };
+        p.kind = Kind::SEA_PIT;
+        p.avoidance = Avoidance::JUMP;
+        fill_search(p);
+        rules.push_back(std::move(p));
+    }
+
+    // 矮沙丘 → SAND_CASTLE / JUMP
+    // base -400963 = 0xFFF9E1BD
+    {
+        MultiColorPattern p{};
+        p.base_r = 249;
+        p.base_g = 225;
+        p.base_b = 189;
+        p.offsets = {
+            {70.0f / 1272.0f, -188.0f / 2772.0f, 249u, 230u, 198u},  // -399674
+            {121.0f / 1272.0f, -210.0f / 2772.0f, 251u, 229u, 199u}, // -268857
+            {198.0f / 1272.0f, -171.0f / 2772.0f, 229u, 190u, 135u}, // -1720697
+            {225.0f / 1272.0f, 2.0f / 2772.0f, 193u, 156u, 127u},    // -4088705
         };
         p.kind = Kind::SAND_CASTLE;
         p.avoidance = Avoidance::JUMP;
-        p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_region_bottom_ratio;
-        p.threshold = params.multicolor_threshold;
+        fill_search(p);
         rules.push_back(std::move(p));
     }
 
-    // 高沙丘 → SAND_CASTLE, DOUBLE_JUMP（蓝/紫色模式）
+    // 高沙丘 → SAND_CASTLE / DOUBLE_JUMP
+    // base -465469 = 0xFFF8E5C3
     {
         MultiColorPattern p{};
-        p.base_r = 128; p.base_g = 180; p.base_b = 227;  // #80B4E3
+        p.base_r = 248;
+        p.base_g = 229;
+        p.base_b = 195;
         p.offsets = {
-            {0.0762f, -0.0711f, 151u,  82u, 194u},    // #9752C2
-            {0.1305f, -0.0239f, 177u, 215u, 240u},    // #B1D7F0
-            {0.1470f,  0.0060f, 105u, 138u, 189u},    // #698ABD
+            {44.0f / 1272.0f, -216.0f / 2772.0f, 227u, 180u, 128u},  // -1854336
+            {141.0f / 1272.0f, -413.0f / 2772.0f, 194u, 82u, 151u},  // -4042089
+            {210.0f / 1272.0f, -180.0f / 2772.0f, 240u, 215u, 177u}, // -993359
+            {231.0f / 1272.0f, -24.0f / 2772.0f, 189u, 138u, 105u},  // -4355479
         };
         p.kind = Kind::SAND_CASTLE;
         p.avoidance = Avoidance::DOUBLE_JUMP;
-        p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_region_bottom_ratio;
-        p.threshold = params.multicolor_threshold;
+        fill_search(p);
         rules.push_back(std::move(p));
     }
 
-    // 船锚 → HANGING_ANCHOR, SWIPE_UP（金属灰 + 绳索色）
+    // 船锚 → HANGING_ANCHOR / SLIDE（脚本 swipe 向下 100 设计像素）
+    // base -4603180 = 0xFFB9C2D4
     {
         MultiColorPattern p{};
-        p.base_r = 159; p.base_g = 128; p.base_b = 108;  // #9F806C
+        p.base_r = 185;
+        p.base_g = 194;
+        p.base_b = 212;
         p.offsets = {
-            {0.0644f, -0.0144f, 235u, 225u, 221u},    // #EBE1DD
-            {-0.0142f, 0.0202f, 134u, 124u, 120u},    // #867C78
-            {0.0377f, 0.0101f,  81u,  80u,  82u},    // #515052
-            {-0.0449f, -0.0277f, 63u, 122u, 171u},    // #3F7AAB
+            {68.0f / 1272.0f, 22.0f / 2772.0f, 108u, 128u, 159u},    // -9666401
+            {150.0f / 1272.0f, -18.0f / 2772.0f, 221u, 225u, 235u},  // -2235925
+            {50.0f / 1272.0f, 78.0f / 2772.0f, 120u, 124u, 134u},    // -8881018
+            {116.0f / 1272.0f, 50.0f / 2772.0f, 82u, 80u, 81u},      // -11382703
+            {11.0f / 1272.0f, -55.0f / 2772.0f, 171u, 122u, 63u},    // -5539265
         };
         p.kind = Kind::HANGING_ANCHOR;
-        p.avoidance = Avoidance::SWIPE_UP;
-        p.search_top_ratio = params.search_region_top_ratio;
-        p.search_bottom_ratio = params.search_region_bottom_ratio;
-        p.threshold = params.multicolor_threshold;
+        p.avoidance = Avoidance::SLIDE;
+        fill_search(p);
         rules.push_back(std::move(p));
     }
 

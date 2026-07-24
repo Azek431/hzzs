@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "scenes": {
     "SEA_SALT_LIVING_ROOM": {
-      "notes": "Multi-color pattern detection ported from AutoJS Pro script by 酱油. Patterns use normalized viewport-relative coordinates.",
+      "notes": "Multi-color patterns from 酱油 AutoJS script (design 1272x2772, ARGB). Search band ~0.438-0.881; threshold~10. No dedicated draw layer; no 复活 UI click.",
       "disabledObstacles": [],
       "userThresholds": {
         "workWidth": 384,
@@ -66,9 +66,9 @@
           "brushDarkMax": 100,
           "statueChromaMax": 55
         },
-        "searchRegionTopRatio": 0.40,
-        "searchRegionBottomRatio": 0.95,
-        "multicolorThreshold": 16
+        "searchRegionTopRatio": 0.438,
+        "searchRegionBottomRatio": 0.881,
+        "multicolorThreshold": 10
       }
     }
   }

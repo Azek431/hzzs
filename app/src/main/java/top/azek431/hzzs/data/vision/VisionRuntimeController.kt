@@ -1010,7 +1010,10 @@ class VisionRuntimeController @Inject constructor(
                     ACTION_TTL_MS,
                 ),
             )
-            /** 上滑手势：从障碍中心上滑约 10% 视口高度。 */
+            /**
+             * 上滑：从障碍中心上滑约 10% 视口高度。
+             * 酱油海盐船锚脚本为「向下滑」→ 已映射 Avoidance.SLIDE，不走本分支。
+             */
             Avoidance.SWIPE_UP -> listOf(
                 PlannedStroke(
                     GestureSpec(

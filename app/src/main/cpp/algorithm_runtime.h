@@ -78,11 +78,11 @@ struct SceneAlgorithmParamsNative {
     float spike_width_max{0.42f};
     float spike_height_min{0.16f};
     float spike_height_max{0.54f};
-    // 海盐：多点找色检测区域（相对视口归一化）
-    float search_region_top_ratio{0.40f};
-    float search_region_bottom_ratio{0.95f};
-    /** 多点找色颜色容差阈值，对应 AutoJS `threshold`（默认 16 = diff 匹配）。 */
-    float multicolor_threshold{16.0f};
+    // 海盐：多点找色检测区域（相对视口归一化；默认贴近酱油 1213..2442 @2772）
+    float search_region_top_ratio{0.438f};
+    float search_region_bottom_ratio{0.881f};
+    /** 多点找色颜色容差，对应 AutoJS `threshold`（酱油脚本默认 10）。 */
+    float multicolor_threshold{10.0f};
     SceneColorThresholdsNative colors{};
 };
 

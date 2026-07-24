@@ -91,6 +91,40 @@ class AlgorithmRulesParserTest {
     }
 
     @Test
+    fun parsesSeaSaltMulticolorSearchBand() {
+        val rules = """
+            {
+              "schemaVersion": 2,
+              "scenes": {
+                "SEA_SALT_LIVING_ROOM": {
+                  "engineParams": {
+                    "searchRegionTopRatio": 0.438,
+                    "searchRegionBottomRatio": 0.881,
+                    "multicolorThreshold": 10
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+        val parsed = AlgorithmRulesParser.parse(
+            rulesJson = rules,
+            algorithmId = AlgorithmIds.runtimeIdForCatalog("sea-salt-living-room-v1"),
+            version = "0.1.0",
+            supportedScenes = setOf(SceneId.SEA_SALT_LIVING_ROOM),
+        ).getOrThrow()
+        val sea = parsed.profile.params(SceneId.SEA_SALT_LIVING_ROOM)
+        assertEquals(0.438f, sea.searchRegionTopRatio, 1e-4f)
+        assertEquals(0.881f, sea.searchRegionBottomRatio, 1e-4f)
+        assertEquals(10f, sea.multicolorThreshold, 1e-4f)
+        // 未声明赛季仍用 builtin 填洞。
+        assertEquals(
+            SceneAlgorithmParams.bambooBuiltin().sceneConfidenceFloor,
+            parsed.profile.params(SceneId.BAMBOO_BOOKSTORE).sceneConfidenceFloor,
+            1e-5f,
+        )
+    }
+
+    @Test
     fun rejectsNanEngineField() {
         val rules = """
             {

@@ -43,21 +43,28 @@ struct ColorPoint {
  * 多点找色模板。
  *
  * 一个模式 = 一个基准颜色 + 多个相对偏移颜色点。
- * 匹配成功后返回基准位置（归一化坐标），由调用方转换为边界框。
+ * 匹配成功后以「基准 + 全部偏移点」的轴对齐包络作为 bounds（再少量膨胀），
+ * 供 HUD 通用检测框与规划使用；不绘制找色点阵/轮廓。
+ *
+ * 坐标约定（相对设计分辨率 1272×2772 的酱油脚本）：
+ * - rel_x / rel_y：偏移像素 / 设计宽高 → 归一化；
+ * - search_*_ratio：搜索区相对当前帧宽高。
  */
 struct MultiColorPattern {
-    /** 基准颜色（RGB）。 */
+    /** 基准颜色（RGB，对应 AutoJS 0xAARRGGBB 的 RGB 通道）。 */
     uint8_t base_r{0}, base_g{0}, base_b{0};
     /** 相对偏移点序列（非空）。 */
     std::vector<ColorPoint> offsets;
-    /** 颜色容差阈值（0~255，diff 匹配）。 */
-    float threshold{16.0f};
+    /** 颜色容差阈值（0~255，diff 匹配；酱油脚本默认约 10）。 */
+    float threshold{10.0f};
     /** 检测到的障碍类别。 */
     Kind kind{Kind::PLAYER};
     /** 建议规避动作。 */
     Avoidance avoidance{Avoidance::NONE};
-    /** 搜索区域 top/bottom 相对视口归一化比例。 */
+    /** 搜索区域（相对视口归一化）；默认贴近酱油 region 290,1213,982,1229 @1272×2772。 */
+    float search_left_ratio{0.0f};
     float search_top_ratio{0.40f};
+    float search_right_ratio{1.0f};
     float search_bottom_ratio{0.95f};
 };
 

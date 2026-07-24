@@ -198,6 +198,10 @@ SceneAlgorithmParamsNative sea_salt_builtin_params() {
     p.brush_width_min = 0.04f;
     p.brush_width_max = 0.28f;
     p.brush_height_max = 0.58f;
+    // 酱油 region 竖直带 + 识别率 10
+    p.search_region_top_ratio = 0.438f;
+    p.search_region_bottom_ratio = 0.881f;
+    p.multicolor_threshold = 10.0f;
     p.colors.cake_blue_max = 170;
     p.colors.brush_dark_max = 100;
     p.colors.statue_chroma_max = 55;

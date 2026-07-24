@@ -9,7 +9,7 @@
 - 修改 `AppConfig`：同步 `validated()`、`ConfigJson`、设置 UI、MCP schema 和测试。
 - 修改障碍类别：同步 Kotlin 枚举、场景过滤、JNI 位掩码、C++ 类别和标注工具。
 - **Avoidance 枚举扩展**（CC-2）：新增 `PRESS` / `SWIPE_UP`；C++ `vision_types.h`、Kotlin `VisionModels.kt`、规划器 `planGestures`、`DisplayNames.kt` 四方同步。
-- **多点找色引擎**（CC-2）：`multicolor_detector.h/.cpp` 声明式模板匹配；坐标全部视口归一化；颜色 diff 阈值通过 `SceneAlgorithmParams.multicolorThreshold` 配置。算法包入口 `rules.json engineParams.searchRegionTopRatio/BottomRatio`。
+- **多点找色引擎**（CC-2）：`multicolor_detector.h/.cpp` 声明式模板匹配；坐标全部视口归一化；搜索区 left/top/right/bottom；阈值 `SceneAlgorithmParams.multicolorThreshold`（酱油默认 10）。海盐模板在 `sea_salt_living_room.cpp`（设计 1272×2772、AutoJS ARGB）；**不**加找色专用绘制（仅 `Detection.bounds`）；不移植「复活」点击。
 - 修改截图：检查 API 24、26、29、30、33、34+ 分支，授权失效、旋转、空帧、超时和资源释放；**AUTO 不得升权**。
 - 修改悬浮窗：保证 View 持久复用、主线程调用、权限撤销后立即移除。
 - 修改自动操作：保证包名白名单、窗口状态、帧时效、置信度与串行手势仲裁。
