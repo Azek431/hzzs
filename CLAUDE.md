@@ -267,31 +267,42 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 
 ### 代理如何帮用户「发布算法更新」（推荐流程）
 
-用户说「发算法包 / 更新算法目录 / 让应用能检查到 / 修完发一版」时执行下列步骤；**不得**再创建 `alg-…` Release tag（产品 B：无 tag）。
+用户说「发算法包 / 更新算法目录 / 让应用能检查到 / 修完发一版 / **全部算法都发布**」时执行下列步骤；**不得**再创建 `alg-…` Release tag（产品 B：无 tag）。
+
+#### 常驻约定（用户偏好 · 代理必须记住）
+
+1. **改了算法包内容且任务目标是让用户/手机拿到新包时**：门禁通过后**自动**升 `manifest.version`（+ `CHANGELOG.txt`），再走发布脚本；**禁止**只改 rules 不 bump、也禁止只 bump 不上传（用户明确只要本地改除外）。  
+2. **用户说「发布 / 全部发布 / 你发布」**：视为授权对本仓库 `algorithm-packs/*`（排除 `official-public-keys`）做 **`--execute` 真上传**（仍须先 L0–L3；缺密钥/token 时**停下说明缺什么**，不得编造已发布）。  
+3. **多包**：默认**每个**可发布源树各跑一遍 `publish_algorithm_release.py`；通道优先用该包 `manifest.channel`（缺省：实验/未验证 → beta，用户说正式/稳定 → stable）。  
+4. **首次目录为空**（`release-index` 404）：仍可按上表首发 `0.1.0`（无需为「能检查到」强行 +PATCH，除非该 version 已在远端占用）。  
+5. **密钥与 token**：只从环境变量或用户给出的**本机路径**读取；**禁止**要求用户把私钥/token 贴进聊天；**禁止**写入仓库或 commit。  
+6. 发布成功后：用匿名 raw 抽查目录/包体；同步相关 docs/`CHANGELOG` 若用户可见；**记得 git commit** 源树 version/changelog 变更（与 [[remember-to-git-commit]] 一致）。  
+7. 同步 **assets 捆绑树**（`app/src/main/assets/algorithms/<id>/`）与 `algorithm-packs/<id>/` 内容一致，避免 APK 出厂种子与已发布包分叉（bundled 仍不覆盖已装同 id，正式升级靠网络目录）。
 
 #### 0. 确认前置
 
-- [ ] **dry-run** 还是 **`--execute` 真上传**
-- [ ] 通道：`stable` 或 `beta`（未说清时实验默认 **beta**；明确「正式/稳定」才 stable）
-- [ ] 版本意图：补丁 `+0.0.1` / 次要 `+0.1.0` / 主要 `+1.0.0`（或目标版本号）
-- [ ] 源树（默认：`algorithm-packs/official-bamboo-baseline`）
-- [ ] 真上传：本机/CI 是否有 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（**禁止**用户把私钥贴进聊天）
-- [ ] `AlgorithmTrustAnchors` 是否已配置；若空须告知「目录可更新，手机仍装不上外装包」
+- [ ] 真上传：本机是否有可用 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（路径或 `ALGORITHM_SIGNING_PRIVATE_KEY_B64`）；**禁止**用户把私钥贴进聊天  
+- [ ] 通道：各包 `manifest.channel` 或用户指定；未说清时实验默认 **beta**；明确「正式/稳定」才 stable  
+- [ ] 版本意图：内容未变且远端尚无该 version → 可发当前 version；内容已变 → 门禁后 **bump**（补丁/次要/主要见上表）  
+- [ ] 源树：用户说「全部」→ 枚举 `algorithm-packs/*/` 中含 `manifest.json`+`rules.json` 的目录；否则用用户点名的源树  
+- [ ] `AlgorithmTrustAnchors` 是否已配置；若空须告知「目录可更新，手机仍装不上外装包」  
+- [ ] 缺密钥/token：**立即停止 `--execute`**，列出缺失项与设置方式，不假装已发布  
 
 #### 1. 改包内容（若需要）— **先不改 version**
 
 - 改 `rules.json`（schema v2：`userThresholds` + `engineParams`）等  
-- **不要**先改 `manifest.version`
+- **不要**先改 `manifest.version`（等门禁过后再 bump）
 
 #### 2. 跑验证门禁（L0–L3；stable 确认 L4）
 
 - 全过 → 步骤 3；失败 → 修复重跑，**不 bump、不上传**
 
-#### 3. 验证通过后：递增版本 + changelog
+#### 3. 验证通过后：递增版本 + changelog（内容有变时）
 
-- 按上表改 `manifest.json` 的 `version`  
+- 按上表改 `manifest.json` 的 `version`（及 assets 镜像树同 version）  
 - 更新 `CHANGELOG.txt`（禁止准确率吹嘘）  
 - 再跑 L0 确认版本合法  
+- 内容未变且作**目录首发**：可保持现有 version  
 
 #### 4. 本地 dry-run 发布
 
@@ -299,39 +310,49 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 python tools/algorithm/publish_algorithm_release.py `
   --source algorithm-packs/official-bamboo-baseline `
   --work-dir build/algorithm-release `
-  --channel beta `
+  --channel stable `
   --private-key <用户本机密钥路径> `
   --key-id hzzs-algorithm-official-1
 ```
 
-期望：`would upload algorithms/packages/…`、`would publish catalog … algorithms/beta.json`（或 stable）；**不得**出现 create GitHub release / `alg-` tag。
+多包时对每个源树重复；通道与该包一致。  
+期望：`would upload algorithms/packages/…`、`would publish catalog … algorithms/{channel}.json`；**不得**出现 create GitHub release / `alg-` tag。
 
-#### 5. 真发布（用户明确 + 门禁已过）
+#### 5. 真发布（用户已说发布 / 常驻约定第 2 条 + 门禁已过 + 密钥齐）
 
 ```powershell
-$env:GH_TOKEN = "…"
-$env:GITEE_TOKEN = "…"
-$env:ALGORITHM_SIGNING_PRIVATE_KEY_B64 = "…"
-$env:ALGORITHM_SIGNING_KEY_ID = "hzzs-algorithm-official-1"
+# 在本机 shell 预先设置（勿贴进聊天记录）：
+# $env:GH_TOKEN / $env:GITHUB_TOKEN
+# $env:GITEE_TOKEN
+# $env:ALGORITHM_SIGNING_PRIVATE_KEY_B64  或  --private-key 路径
+# $env:ALGORITHM_SIGNING_KEY_ID = "hzzs-algorithm-official-1"
 
 python tools/algorithm/publish_algorithm_release.py `
   --source algorithm-packs/official-bamboo-baseline `
-  --work-dir build/algorithm-release `
+  --work-dir build/algorithm-release/bamboo `
   --channel stable `
+  --key-id hzzs-algorithm-official-1 `
+  --execute
+
+python tools/algorithm/publish_algorithm_release.py `
+  --source algorithm-packs/sea-salt-living-room-v1 `
+  --work-dir build/algorithm-release/sea-salt `
+  --channel beta `
+  --key-id hzzs-algorithm-official-1 `
   --execute
 ```
 
-成功：packages 有新 filename；双侧 raw hash 一致且验签过；**最后**目录 JSON 含新 version。
+成功：packages 有新 filename；双侧 raw hash 一致且验签过；**最后**目录 JSON 含对应 version。
 
 #### 6. 首次「手机能装」
 
-1. 公钥 DER base64 写入 `AlgorithmTrustAnchors.officialPublicKeyDerB64`  
-2. 发一版应用；之后只更 `release-index` 即可让新 APK 用户检查到算法  
+1. 公钥 DER base64 写入 `AlgorithmTrustAnchors.officialPublicKeyDerB64`（当前仓库通常已配置）  
+2. 用户装的 APK 须含该锚；之后只更 `release-index` 即可检查到算法  
 3. 私钥只留 CI/本机  
 
 #### 7. 用户侧验证
 
-- 设置算法通道与发布 `--channel` 一致  
+- 设置算法通道与发布 `--channel` 一致（海盐当前默认 **beta**，竹影基线 **stable**）  
 - 检查到新 version；有锚可装，无锚拒绝  
 - 激活后 `activeAlgorithmId` 为 `pack.<id>` 或内置  
 
