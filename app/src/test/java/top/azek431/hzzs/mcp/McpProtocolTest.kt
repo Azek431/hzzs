@@ -152,6 +152,25 @@ class McpProtocolTest {
                 hasTrustedSession = true,
             ),
         )
+        // ALLOW_WHEN_TRUSTED 不得把 HIGH_RISK 在 TRUSTED 下放行
+        assertNotNull(
+            McpToolPolicySupport.hardRejectReason(
+                McpToolRisk.HIGH_RISK,
+                top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+                top.azek431.hzzs.core.model.McpToolPolicy.ALLOW_WHEN_TRUSTED,
+                hasTrustedSession = true,
+            ),
+        )
+        // ALWAYS_ASK 允许 HIGH_RISK 进入审批路径（hardReject 为 null）
+        assertEquals(
+            null,
+            McpToolPolicySupport.hardRejectReason(
+                McpToolRisk.HIGH_RISK,
+                top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+                top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+                hasTrustedSession = true,
+            ),
+        )
     }
 
     @Test

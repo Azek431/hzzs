@@ -104,6 +104,9 @@ class ShizukuGestureDispatcher @Inject constructor(
 
     fun clearForegroundCache() = probe.clearCache()
 
+    /** 供运行时规划/派发前 dumpsys 前台探测（与 input 同源缓存）。 */
+    suspend fun snapshotForeground(): ForegroundWindowSnapshot? = probe.snapshot()
+
     private val inner = ShellInputGestureDispatcher(
         probe = probe,
         screenSize = { screenSize(context) },
@@ -128,6 +131,9 @@ class RootGestureDispatcher @Inject constructor(
     )
 
     fun clearForegroundCache() = probe.clearCache()
+
+    /** 供运行时规划/派发前 dumpsys 前台探测（与 input 同源缓存）。 */
+    suspend fun snapshotForeground(): ForegroundWindowSnapshot? = probe.snapshot()
 
     private val inner = ShellInputGestureDispatcher(
         probe = probe,

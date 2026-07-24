@@ -41,15 +41,18 @@
 | Origin | 空 / 字面量 `null` 允许；非空时必须是本机回环标识 |
 | 会话 | `Mcp-Session-Id` 仅内存；`initialize` 后即就绪；服务 stop/generation 推进后全部作废 |
 | 权限 | 只读 / 每次确认 / 会话信任 / 完整访问 |
+| 工具策略 | `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`；禁用项不进 `tools/list` |
 | 会话信任 | 绑定当前内存会话；**不得**把 TRUSTED_SESSION 当跨重启持久特权 |
+| 失效会话 | 服务重启后旧 `Mcp-Session-Id` 对 `tools/call` 降级无会话继续；TRUSTED 仍须有效会话 |
 | 完整访问 | 仅应用内权限，**不能**绕过系统录屏 / 悬浮窗 / 无障碍 / 安装界面 |
 | 并发 | 连接数上限；超额 429 |
 | 审批 | 超时/停止服务时默认拒绝，避免断连后仍执行写副作用 |
 | 调试帧 | 需开发者选项与 MCP 显式允许；只暴露元数据或受控文件 |
 | 日志/诊断 | `get_logs` / `export_diagnostics` 需开发者；内容脱敏，不含 Bearer/像素 |
-| 高风险写 | 开启自动操作、开启开发者、下载算法包：TRUSTED_SESSION 拒绝，需每次确认或 FULL_ACCESS |
+| 设置导出 | MCP `get_settings` / `app://settings/current` 脱敏 `authToken`（`***`）；用户备份导出仍可含 Token |
+| 高风险写 | 开启自动操作、开启开发者、下载算法、改 MCP 权限/鉴权/工具策略：TRUSTED_SESSION 拒绝，需每次确认或 FULL_ACCESS |
 | 局部补丁 | `patch_settings` 白名单路径，不得改 `automation.enabled` / MCP 鉴权令牌 / 自提权限级 |
-| 外部摄入 | 不得静默关闭 `requireAuth`、改写/清空 `authToken`、自提权限级或开启 MCP |
+| 外部摄入 | 不得静默关闭 `requireAuth`、改写/清空 `authToken`、自提权限级、开启 MCP 或放宽 `toolPolicies` |
 
 ## 诊断与日志
 
@@ -59,7 +62,7 @@
 - 诊断导出（设置 / 关于）含版本、机型、配置摘要与最近日志；**不含** Bearer、签名密钥与调试帧像素。
 - 日志路径对 `Bearer …` 与常见 `token/secret/password` 键值做脱敏；MCP 连接串仅经用户显式「复制连接信息」进剪贴板，不得写入日志。
 - 关闭开发者选项后，DEBUG/VERBOSE 不再进入 ring buffer。
-- 系统「指针位置」开关写入 `Settings.System.POINTER_LOCATION`：优先用户授予「修改系统设置」；其次仅使用**已授权** Shizuku 或已可用 Root 执行 `settings put`。应用**不得**静默获得 `WRITE_SETTINGS`、**不得**在此路径弹 Shizuku 授权或静默升 Root，也不得把该状态写入导入配置。
+- 系统「指针位置」开关写入 `Settings.System` 键 `pointer_location`：优先用户授予「修改系统设置」；其次仅使用**已授权** Shizuku 或已可用 Root 执行 `settings put`。**以回读校验为准**（exit0 / putInt 仍可能被 OEM 忽略则视为失败）。应用**不得**静默获得 `WRITE_SETTINGS`、**不得**在此路径弹 Shizuku 授权或静默升 Root，也不得把该状态写入导入配置。
 
 ## 截图与帧
 

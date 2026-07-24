@@ -156,6 +156,16 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override fun exportJson(config: AppConfig): String = ConfigJson.encode(config.validated())
 
+    override fun exportJsonRedacted(config: AppConfig): String {
+        val safe = config.validated()
+        val redacted = safe.copy(
+            mcp = safe.mcp.copy(
+                authToken = if (safe.mcp.authToken.isNotBlank()) "***" else "",
+            ),
+        )
+        return ConfigJson.encode(redacted)
+    }
+
     /**
      * 一次性迁移旧 SharedPreferences（`hzzs_runtime_v2`）。
      *

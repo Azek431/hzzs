@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
-import java.util.concurrent.TimeUnit
+import java.io.OutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -18,7 +18,9 @@ import top.azek431.hzzs.service.automation.HzzsAccessibilityService
  * 职责：集中 API 边界，避免 feature 散落 `Settings` / Intent / Shell 构造。
  * 不变量：
  * - **不**静默开启任何权限；AUTO 截图路径不经此文件升权。
- * - 指针位置：优先 [WRITE_SETTINGS]；仅当用户**已**授权 Shizuku 或设备可 `su` 时才走升权写入，**不**在此弹 Shizuku 授权、不静默 root 弹窗之外的额外 UI。
+ * - 指针位置：优先 [WRITE_SETTINGS]；仅当用户**已**授权 Shizuku 或设备可 `su` 时才走升权写入，
+ *   **不**在此弹 Shizuku 授权、不静默 root 弹窗之外的额外 UI。
+ * - 写入成功以**回读** [isPointerLocationEnabled] 为准（exit0 / putInt true 仍可能被 OEM 忽略）。
  */
 object SystemCapabilityAccess {
     /** 是否已授予「显示在其他应用上层」。 */
@@ -92,18 +94,19 @@ object SystemCapabilityAccess {
     }.getOrDefault(false)
 
     /**
-     * 同步写入：仅走 [WRITE_SETTINGS]。
+     * 同步写入：仅走 [WRITE_SETTINGS]，并以回读校验。
      * 升权路径请用 [setPointerLocationEnabledBestEffort]。
      */
     fun setPointerLocationEnabled(context: Context, enabled: Boolean): Boolean {
         if (!canWriteSystemSettings(context)) return false
-        return runCatching {
+        val putOk = runCatching {
             Settings.System.putInt(
                 context.contentResolver,
                 POINTER_LOCATION_KEY,
                 if (enabled) 1 else 0,
             )
         }.getOrDefault(false)
+        return putOk && isPointerLocationEnabled(context) == enabled
     }
 
     /**
@@ -112,42 +115,50 @@ object SystemCapabilityAccess {
      * 2. 已授权 Shizuku → `settings put system pointer_location`
      * 3. Root `su -c settings put …`（不弹额外授权 UI，失败即返回）
      *
-     * 不请求 Shizuku 权限、不在 AUTO 路径使用。
+     * 每条路径成功后均回读确认；不请求 Shizuku 权限、不在 AUTO 路径使用。
      */
     suspend fun setPointerLocationEnabledBestEffort(
         context: Context,
         enabled: Boolean,
     ): PointerLocationWriteResult = withContext(Dispatchers.IO) {
         val value = if (enabled) "1" else "0"
-        if (canWriteSystemSettings(context)) {
-            val ok = runCatching {
+        val appContext = context.applicationContext
+
+        if (canWriteSystemSettings(appContext)) {
+            val putOk = runCatching {
                 Settings.System.putInt(
-                    context.contentResolver,
+                    appContext.contentResolver,
                     POINTER_LOCATION_KEY,
                     if (enabled) 1 else 0,
                 )
             }.getOrDefault(false)
-            if (ok) {
+            if (putOk && isPointerLocationEnabled(appContext) == enabled) {
                 return@withContext PointerLocationWriteResult.Success(
                     PointerLocationWritePath.WRITE_SETTINGS,
                 )
             }
         }
+
         if (isShizukuAuthorized()) {
-            val ok = runSettingsPutViaShizuku(value)
-            if (ok) {
+            if (runSettingsPutViaShizuku(value) &&
+                isPointerLocationEnabled(appContext) == enabled
+            ) {
                 return@withContext PointerLocationWriteResult.Success(
                     PointerLocationWritePath.SHIZUKU,
                 )
             }
         }
-        val rootOk = runSettingsPutViaRoot(value)
-        if (rootOk) {
+
+        if (runSettingsPutViaRoot(value) &&
+            isPointerLocationEnabled(appContext) == enabled
+        ) {
             return@withContext PointerLocationWriteResult.Success(PointerLocationWritePath.ROOT)
         }
+
         PointerLocationWriteResult.Failed(
-            canWriteSettings = canWriteSystemSettings(context),
+            canWriteSettings = canWriteSystemSettings(appContext),
             shizukuAuthorized = isShizukuAuthorized(),
+            observedEnabled = isPointerLocationEnabled(appContext),
         )
     }
 
@@ -159,6 +170,7 @@ object SystemCapabilityAccess {
     }
 
     private fun runSettingsPutViaRoot(value: String): Boolean {
+        // 键名与取值均为固定白名单字面量，不拼接用户输入。
         val process = runCatching {
             ProcessBuilder(
                 "su",
@@ -171,7 +183,7 @@ object SystemCapabilityAccess {
 
     /**
      * Shizuku 13+ 将 `newProcess` 标为 private；反射调用，失败 null。
-     * 与手势/截图路径一致，不复制业务逻辑。
+     * 与手势/截图路径一致。
      */
     private fun openShizukuProcess(command: Array<String>): Process? = runCatching {
         val method = Shizuku::class.java.getDeclaredMethod(
@@ -184,10 +196,12 @@ object SystemCapabilityAccess {
         method.invoke(null, command, null, null) as Process
     }.getOrNull()
 
+    /**
+     * 等待进程结束；**不用** [Process.waitFor] 的超时重载（API 26+），保证 API 24 可用。
+     * 排空 stdout/stderr 避免管道阻塞。
+     */
     private fun waitExitZero(process: Process, timeoutMs: Long): Boolean {
         return try {
-            val deadline = SystemClock.elapsedRealtime() + timeoutMs
-            // 排空 stdout/stderr 避免管道阻塞
             val drain = Thread {
                 runCatching { process.inputStream.copyTo(NullOutputStream) }
                 runCatching { process.errorStream.copyTo(NullOutputStream) }
@@ -195,21 +209,33 @@ object SystemCapabilityAccess {
                 it.isDaemon = true
                 it.start()
             }
-            while (SystemClock.elapsedRealtime() < deadline) {
-                val exited = runCatching {
-                    process.waitFor(50L, TimeUnit.MILLISECONDS)
-                }.getOrDefault(false)
-                if (exited) break
+            val exited = waitUntilExited(process, timeoutMs)
+            if (!exited) {
+                runCatching { process.destroyForcibly() }
+                runCatching { process.destroy() }
             }
-            val exited = runCatching { process.waitFor(1L, TimeUnit.MILLISECONDS) }.getOrDefault(false)
-            val code = if (exited) runCatching { process.exitValue() }.getOrNull() else null
             runCatching { drain.join(200L) }
-            code == 0
+            exited && runCatching { process.exitValue() }.getOrNull() == 0
         } finally {
             runCatching { process.destroyForcibly() }
             runCatching { process.destroy() }
         }
     }
+
+    private fun waitUntilExited(process: Process, timeoutMs: Long): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (hasExited(process)) return true
+            runCatching { Thread.sleep(50L) }
+        }
+        return hasExited(process)
+    }
+
+    private fun hasExited(process: Process): Boolean =
+        runCatching {
+            process.exitValue()
+            true
+        }.getOrDefault(false)
 
     private fun openAppDetailsSettings(context: Context) {
         val intent = Intent(
@@ -227,7 +253,7 @@ object SystemCapabilityAccess {
      */
     private const val POINTER_LOCATION_KEY = "pointer_location"
 
-    private object NullOutputStream : java.io.OutputStream() {
+    private object NullOutputStream : OutputStream() {
         override fun write(b: Int) = Unit
         override fun write(b: ByteArray, off: Int, len: Int) = Unit
     }
@@ -247,5 +273,7 @@ sealed class PointerLocationWriteResult {
     data class Failed(
         val canWriteSettings: Boolean,
         val shizukuAuthorized: Boolean,
+        /** 失败后回读到的当前系统状态，供 UI 对齐。 */
+        val observedEnabled: Boolean = false,
     ) : PointerLocationWriteResult()
 }

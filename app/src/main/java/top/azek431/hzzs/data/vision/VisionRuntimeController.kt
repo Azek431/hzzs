@@ -29,6 +29,7 @@ import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.CaptureBackend
+import top.azek431.hzzs.core.model.GestureBackend
 import top.azek431.hzzs.core.model.OverlayBlockReason
 import top.azek431.hzzs.core.model.PlayerReferenceMode
 import top.azek431.hzzs.core.model.RuntimeStatus
@@ -51,8 +52,11 @@ import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
 import top.azek431.hzzs.domain.vision.withApproximateDisplayContour
 import top.azek431.hzzs.platform.compat.CaptureBackendResolution
+import top.azek431.hzzs.platform.compat.GestureCapabilityResolver
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
-import top.azek431.hzzs.service.automation.HzzsAccessibilityService
+import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
+import top.azek431.hzzs.service.automation.ForegroundWindowSnapshot
+import top.azek431.hzzs.service.automation.GestureDispatcherFactory
 import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
 import top.azek431.hzzs.service.capture.FrameSourceFactory
@@ -93,6 +97,8 @@ class VisionRuntimeController @Inject constructor(
     private val debugFrameRecorder: DebugFrameRecorder,
     private val algorithmActivation: AlgorithmActivationCoordinator,
     private val algorithmCatalog: AlgorithmCatalogController,
+    private val gestureDispatchers: GestureDispatcherFactory,
+    private val gestureCapabilities: GestureCapabilityResolver,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lifecycleMutex = Mutex()
@@ -101,9 +107,16 @@ class VisionRuntimeController @Inject constructor(
     private val latestConfig = AtomicReference(AppConfig())
     private val tracker = MultiObjectTracker()
     private val ledger = ActionCommitLedger()
+    /**
+     * 手势串行闸门。具体 [top.azek431.hzzs.domain.automation.GestureDispatcher]
+     * 按动作上挂的 [latestGestureBackend] 在 dispatch 时再解析，避免绑死无障碍。
+     */
+    private val latestGestureBackend = AtomicReference(GestureBackend.ACCESSIBILITY)
     private val arbiter = GestureArbiter(
         clock = SystemClock::uptimeMillis,
-        dispatcher = { action -> HzzsAccessibilityService.dispatchCurrent(action) },
+        dispatcher = { action ->
+            gestureDispatchers.dispatcher(latestGestureBackend.get()).dispatch(action)
+        },
     )
     private val mutableStatus = MutableStateFlow(RuntimeStatus())
     val status: StateFlow<RuntimeStatus> = mutableStatus.asStateFlow()
@@ -142,18 +155,30 @@ class VisionRuntimeController @Inject constructor(
                 }
                 val previousBackend = previous.effectiveCaptureBackend()
                 val nextBackend = next.effectiveCaptureBackend()
+                val gestureBackendChanged =
+                    previous.automation.gestureBackend != next.automation.gestureBackend
                 val safetyBoundaryChanged =
                     previous.selectedScene != next.selectedScene ||
                         previousBackend != nextBackend ||
                         previous.automation.allowedPackages != next.automation.allowedPackages ||
+                        previous.automation.restrictPackages != next.automation.restrictPackages ||
                         previous.automation.enabled != next.automation.enabled ||
                         previous.automation.disclaimerAcceptedVersion !=
                         next.automation.disclaimerAcceptedVersion ||
-                        previous.automation.bambooExperimentalAutoAction !=
-                        next.automation.bambooExperimentalAutoAction
+                        gestureBackendChanged
                 // 安全边界变化：取消在飞动作，防止旧会话权限延续。
-                if (safetyBoundaryChanged) cancelActions()
-                mutableStatus.update { it.copy(activeScene = next.selectedScene) }
+                if (safetyBoundaryChanged) {
+                    cancelActions()
+                    if (gestureBackendChanged) {
+                        gestureDispatchers.clearShellCaches()
+                    }
+                }
+                mutableStatus.update {
+                    it.copy(
+                        activeScene = next.selectedScene,
+                        activeGestureBackend = resolveGestureBackend(next).effective,
+                    )
+                }
                 if (
                     previousBackend != nextBackend &&
                     mutableStatus.value.running
@@ -187,11 +212,15 @@ class VisionRuntimeController @Inject constructor(
                         "effective=${backend.name} reason=${resolution.fallbackReason}",
                 )
             }
+            val gestureResolution = resolveGestureBackend(config)
+            latestGestureBackend.set(gestureResolution.effective)
             AppLog.i(
                 "vision",
                 "start session gen=$token backend=${backend.name} " +
                     "requested=${resolution.requested.name} scene=${config.selectedScene.name} " +
-                    "overlay=${config.overlay.enabled} automation=${config.automation.enabled}",
+                    "overlay=${config.overlay.enabled} automation=${config.automation.enabled} " +
+                    "gesture=${gestureResolution.effective.name}" +
+                    (gestureResolution.fallbackReason?.let { " gestureNote=$it" } ?: ""),
             )
             resetPipeline()
             AlgorithmRuntimeTrace.resetSession()
@@ -222,6 +251,7 @@ class VisionRuntimeController @Inject constructor(
                 running = true,
                 activeScene = config.selectedScene,
                 activeBackend = backend,
+                activeGestureBackend = gestureResolution.effective,
             )
 
             try {

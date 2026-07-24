@@ -69,7 +69,7 @@ class McpActionRegistry @Inject constructor(
     override suspend fun readResource(uri: String): JSONObject = when (uri) {
         "app://status" -> runtime.status.value.toJson()
         "app://runtime/snapshot" -> runtimeSnapshot()
-        "app://settings/current" -> JSONObject(settings.exportJson(settings.snapshot()))
+        "app://settings/current" -> JSONObject(settings.exportJsonRedacted(settings.current()))
         "app://settings/schema" -> settingsSchema()
         "app://vision/latest" -> runtime.latestResult.value?.toJson() ?: JSONObject.NULL.asObject()
         "app://vision/metrics" -> runtime.status.value.toJson()
@@ -92,7 +92,8 @@ class McpActionRegistry @Inject constructor(
         val descriptor = McpToolCatalog.tool(tool)
             ?: throw IllegalArgumentException("未知工具：$tool")
         validateArguments(descriptor, arguments)
-        val mcp = settings.snapshot().mcp
+        // 必须读 current（含设置页 preview），否则草稿里改的权限/策略要等保存才生效
+        val mcp = settings.current().mcp
         authorize(descriptor, arguments, mcp, session)
         return execute(descriptor.name, arguments)
     }
@@ -121,7 +122,7 @@ class McpActionRegistry @Inject constructor(
     private suspend fun execute(tool: String, arguments: JSONObject): JSONObject = when (tool) {
         "get_status" -> runtime.status.value.toJson()
         "get_runtime_snapshot" -> runtimeSnapshot()
-        "get_settings" -> JSONObject(settings.exportJson(settings.snapshot()))
+        "get_settings" -> JSONObject(settings.exportJsonRedacted(settings.current()))
         "preview_settings" -> {
             settings.preview(ingestMcpConfig(arguments.requireString("config")))
             ok("已临时预览设置（权限型字段已按安全策略收敛）")
@@ -133,7 +134,7 @@ class McpActionRegistry @Inject constructor(
         "patch_settings" -> {
             val patches = arguments.getJSONObject("patches")
             val persist = arguments.optBoolean("persist", true)
-            val patched = McpSettingsPatch.applyFromJson(settings.snapshot(), patches)
+            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
             if (persist) settings.save(patched) else settings.preview(patched)
             ok(if (persist) "局部设置已保存" else "局部设置已预览")
                 .put("paths", JSONArray(patches.keys().asSequence().toList()))
@@ -180,7 +181,7 @@ class McpActionRegistry @Inject constructor(
             ok("已请求打开 $route（一级=$top）")
         }
         "set_overlay_visible" -> {
-            val current = settings.snapshot()
+            val current = settings.current()
             settings.preview(
                 current.copy(
                     overlay = current.overlay.copy(enabled = arguments.optBoolean("enabled", true)),
@@ -208,10 +209,10 @@ class McpActionRegistry @Inject constructor(
         }
         "run_diagnostics" -> JSONObject().apply {
             put("status", runtime.status.value.toJson())
-            put("settingsValid", runCatching { settings.snapshot() }.isSuccess)
+            put("settingsValid", runCatching { settings.current() }.isSuccess)
             put("nativeLoaded", top.azek431.hzzs.nativevision.NativeVision.isAvailable)
             put("debugFrameCount", runCatching { debugFrames.list().size }.getOrDefault(0))
-            put("developerEnabled", settings.snapshot().developer.enabled)
+            put("developerEnabled", settings.current().developer.enabled)
             put("algorithm", activeAlgorithmJson())
         }
         "list_debug_frames" -> debugFrameMetadata()
@@ -224,7 +225,7 @@ class McpActionRegistry @Inject constructor(
             ok("赛季已切换为 ${scene.name}")
         }
         "set_obstacle_enabled" -> {
-            val cfg = settings.snapshot()
+            val cfg = settings.current()
             val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
                 enumValueOf<SceneId>(it)
             } ?: cfg.selectedScene
@@ -241,7 +242,7 @@ class McpActionRegistry @Inject constructor(
             ok("${kind.name} 已${if (enabled) "启用" else "禁用"} @ ${scene.name}")
         }
         "set_threshold" -> {
-            val cfg = settings.snapshot()
+            val cfg = settings.current()
             val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
                 enumValueOf<SceneId>(it)
             } ?: cfg.selectedScene
@@ -274,7 +275,7 @@ class McpActionRegistry @Inject constructor(
                 patches.put("theme.customSeed", it)
             }
             require(patches.length() > 0) { "未提供任何主题字段" }
-            val patched = McpSettingsPatch.applyFromJson(settings.snapshot(), patches)
+            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
             if (persist) settings.save(patched) else settings.preview(patched)
             ok("主题已更新")
         }
@@ -292,19 +293,19 @@ class McpActionRegistry @Inject constructor(
             }
             if (arguments.has("scale")) patches.put("overlay.scale", arguments.getDouble("scale"))
             require(patches.length() > 0) { "未提供任何悬浮窗字段" }
-            val patched = McpSettingsPatch.applyFromJson(settings.snapshot(), patches)
+            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
             if (persist) settings.save(patched) else settings.preview(patched)
             ok("悬浮窗已更新")
         }
         "set_developer_enabled" -> {
             val enabled = arguments.getBoolean("enabled")
-            val base = settings.snapshot()
+            val base = settings.current()
             settings.save(base.copy(developer = base.developer.copy(enabled = enabled)))
             AppLog.configure(enabled, base.developer.logLevel)
             ok(if (enabled) "开发者选项已开启" else "开发者选项已关闭")
         }
         "set_developer_options" -> {
-            val base = settings.snapshot()
+            val base = settings.current()
             check(base.developer.enabled) { "请先开启开发者选项" }
             val persist = arguments.optBoolean("persist", true)
             val patches = JSONObject()
@@ -341,7 +342,7 @@ class McpActionRegistry @Inject constructor(
         "set_automation_enabled" -> {
             val enabled = arguments.getBoolean("enabled")
             val accept = arguments.optBoolean("acceptDisclaimer", false)
-            val base = settings.snapshot()
+            val base = settings.current()
             var auto = base.automation.copy(enabled = enabled)
             if (enabled && auto.disclaimerAcceptedVersion < AppConfig.DISCLAIMER_VERSION) {
                 check(accept) {
@@ -411,7 +412,7 @@ class McpActionRegistry @Inject constructor(
         }
         "export_diagnostics" -> {
             val logLimit = arguments.optInt("logLimit", 200).coerceIn(0, 800)
-            val snap = settings.snapshot()
+            val snap = settings.current()
             val mcpState = uiBridge.serverState.value
             val activation = visionEngine.currentActivation()
             val text = DiagnosticsExporter.buildReport(
@@ -480,7 +481,7 @@ class McpActionRegistry @Inject constructor(
         "set_mcp_auth" -> {
             val requireAuth = arguments.getBoolean("requireAuth")
             val rotate = arguments.optBoolean("rotateToken", false)
-            val snap = settings.snapshot()
+            val snap = settings.current()
             var token = snap.mcp.authToken
             if (requireAuth && (token.isBlank() || rotate)) {
                 token = generateMcpAuthToken()
@@ -533,7 +534,7 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun bindCatalog() {
-        val snap = settings.snapshot()
+        val snap = settings.current()
         algorithmCatalog.bindSettings(
             algorithm = snap.algorithm,
             sourcePreference = snap.update.sourcePreference,
@@ -544,12 +545,12 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun applyConfig(transform: (AppConfig) -> AppConfig, persist: Boolean) {
-        val next = transform(settings.snapshot())
+        val next = transform(settings.current())
         if (persist) settings.save(next) else settings.preview(next)
     }
 
     private suspend fun ingestMcpConfig(rawJson: String): AppConfig {
-        val baseline = settings.snapshot()
+        val baseline = settings.current()
         return settings.importJson(rawJson).hardenedForExternalIngest(baseline)
     }
 
@@ -586,7 +587,7 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun mcpStatusJson(): JSONObject {
-        val snap = settings.snapshot()
+        val snap = settings.current()
         val mcp = snap.mcp
         val state = uiBridge.serverState.value
         val port = if (state.running && state.port > 0) state.port else mcp.port
@@ -625,7 +626,7 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun listMcpToolsJson(includeDisabled: Boolean): JSONObject {
-        val mcp = settings.snapshot().mcp
+        val mcp = settings.current().mcp
         val arr = JSONArray()
         McpToolCatalog.tools.forEach { tool ->
             val policy = mcp.policyFor(tool.name)
@@ -645,13 +646,13 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun ensureDeveloper() {
-        check(settings.snapshot().developer.enabled) {
+        check(settings.current().developer.enabled) {
             "请先开启开发者选项（set_developer_enabled 或关于页连点版本号）"
         }
     }
 
     private suspend fun debugFrameMetadata(): JSONObject {
-        val config = settings.snapshot()
+        val config = settings.current()
         check(config.developer.enabled && config.mcp.allowDebugFrames) {
             "请先在开发者设置中允许 MCP 读取调试帧元数据"
         }
@@ -690,7 +691,7 @@ class McpActionRegistry @Inject constructor(
     private suspend fun runtimeSnapshot(): JSONObject {
         val status = runtime.status.value
         val latest = runtime.latestResult.value
-        val cfg = settings.snapshot()
+        val cfg = settings.current()
         val activation = visionEngine.currentActivation()
         return JSONObject().apply {
             put("status", status.toJson())
@@ -825,7 +826,7 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun automationGatesJson(): JSONObject {
-        val cfg = settings.snapshot()
+        val cfg = settings.current()
         val status = runtime.status.value
         val latest = runtime.latestResult.value
         val a11y = HzzsAccessibilityService.isConnected()
@@ -908,7 +909,7 @@ class McpActionRegistry @Inject constructor(
         limit: Int = 100,
         newestFirst: Boolean = true,
     ): JSONObject {
-        if (!settings.snapshot().developer.enabled) {
+        if (!settings.current().developer.enabled) {
             return JSONObject().put("error", "需要开发者选项").put("entries", JSONArray())
         }
         val entries = AppLog.query(

@@ -61,8 +61,8 @@ class McpForegroundService : Service() {
             sessions = sessions,
             actions = registry,
             listTools = {
-                // 同步快照：避免 tools/list 暴露用户已禁用工具
-                val mcp = kotlinx.coroutines.runBlocking { settings.snapshot().mcp }
+                // 生效配置（含设置页 preview）：避免 tools/list 暴露用户已禁用工具
+                val mcp = kotlinx.coroutines.runBlocking { settings.current().mcp }
                 McpToolCatalog.toolsJson(McpToolPolicySupport.effectiveTools(mcp))
             },
         )

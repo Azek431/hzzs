@@ -382,8 +382,10 @@
     <string name="dev_open_algorithm_pipeline_subtitle">激活阶段、Native 配置与最近一帧摘要</string>
     <string name="dev_force_capture_backend_title">强制截图后端</string>
     <string name="dev_force_capture_backend_desc">仅诊断用。选择「跟随设置」恢复普通用户配置。AUTO 仍不升权。</string>
+    <string name="dev_force_capture_follow">跟随设置</string>
+    <string name="dev_force_capture_unavailable">（本机不可用）</string>
     <string name="dev_force_capture_fell_back">已回退</string>
-    <string name="dev_force_capture_fallback_reason">实际将使用 %s：</string>
+    <string name="dev_force_capture_fallback_reason">实际将使用 %s</string>
     <string name="dev_log_level_title">日志级别</string>
     <string name="dev_log_level_desc">控制 Logcat 与内存 ring buffer 的最低级别；关闭开发者时 DEBUG 以下仍被压制。调算法时请开 DEBUG，可看到 algo.frame / algo.det / algo.track / algo.decision（状态变化或约每 12 帧一条，诊断导出含最近 32 帧）。</string>
     <string name="dev_frame_rate_title">识别帧率上限</string>
@@ -393,17 +395,19 @@
     <string name="dev_native_benchmark_desc">在合成帧上跑 JNI + C++ 冒烟基准，不读取真实截图。</string>
     <string name="dev_native_benchmark_iterations">迭代次数：%d</string>
     <string name="dev_run_benchmark">运行 JNI + C++ 合成帧自检</string>
+    <string name="dev_benchmark_success">%1$d 次 · 平均 %2$.3f ms · P50 %3$.3f ms · P95 %4$.3f ms</string>
     <string name="dev_benchmark_failed">自检失败：%s</string>
     <string name="dev_diagnostics_title">诊断导出</string>
     <string name="dev_diagnostics_desc">包含版本、机型、配置摘要、算法激活、运行态与最近日志；不含 Bearer 与调试帧像素。</string>
     <string name="dev_export_chooser">导出诊断摘要</string>
     <string name="dev_export_diagnostics">导出诊断摘要</string>
     <string name="dev_export_failed">导出失败：%s</string>
+    <string name="dev_generate_failed">生成诊断失败：%s</string>
     <string name="dev_copy_to_clipboard">复制到剪贴板</string>
     <string name="dev_diagnostic_empty">诊断内容为空</string>
     <string name="dev_diagnostic_copied">诊断摘要已复制（%d 行）</string>
     <string name="dev_copy_failed">复制失败：剪贴板不可用</string>
     <string name="dev_security_title">安全提示</string>
-    <string name="dev_security_body">开发者选项与调试功能仅供技术排查使用，切勿向不可信渠道共享诊断输出或 Bearer Token。</string>
+    <string name="dev_security_body">开发者选项与调试功能仅供技术排查使用，切勿向不可信渠道共享诊断输出或 Bearer Token。系统指针位置写入后以回读校验为准；Shizuku/Root 通道不静默要权。</string>
 
     </resources>

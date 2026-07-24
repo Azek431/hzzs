@@ -42,7 +42,7 @@
 | 目标 / 编译 SDK | 37 |
 | 默认赛季 | 见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（文档不写死，避免与代码漂移） |
 | 模块形态 | 单一 `app` Gradle 模块 |
-| 配置 schema | DataStore v8 |
+| 配置 schema | DataStore v8（含手势后端与 MCP 工具策略） |
 
 首要目标：低权限默认、Android 7+ 兼容、比例坐标适配、设置即时落盘、算法结果可测试，以及让开发者和 AI 能快速理解并安全修改代码。
 

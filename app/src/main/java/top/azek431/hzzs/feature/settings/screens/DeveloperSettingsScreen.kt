@@ -91,6 +91,12 @@ fun DeveloperSettingsScreen(
     val exportChooserTitle = stringResource(R.string.dev_export_chooser)
     val diagnosticEmptyMsg = stringResource(R.string.dev_diagnostic_empty)
     val copyFailedMsg = stringResource(R.string.dev_copy_failed)
+    val exportFailedTemplate = stringResource(R.string.dev_export_failed)
+    val generateFailedTemplate = stringResource(R.string.dev_generate_failed)
+    val diagnosticCopiedTemplate = stringResource(R.string.dev_diagnostic_copied)
+    val followSettingsLabel = stringResource(R.string.dev_force_capture_follow)
+    val unavailableSuffix = stringResource(R.string.dev_force_capture_unavailable)
+    val fellBackLabel = stringResource(R.string.dev_force_capture_fell_back)
     val pointerNeedWriteMsg = stringResource(R.string.dev_pointer_location_need_write)
     val pointerWriteFailedMsg = stringResource(R.string.dev_pointer_location_write_failed)
     val pointerViaWriteSettings = stringResource(R.string.dev_pointer_location_via_write_settings)
@@ -215,43 +221,57 @@ fun DeveloperSettingsScreen(
                                 onMessage(pointerBusyMsg)
                                 return@SettingsSwitchRow
                             }
-                            // 乐观更新；失败再回读系统状态
                             val previous = pointerLocationOn
                             pointerLocationOn = wantOn
                             pointerBusy = true
                             scope.launch {
-                                val result = SystemCapabilityAccess.setPointerLocationEnabledBestEffort(
-                                    context,
-                                    wantOn,
-                                )
-                                canWriteSystem =
-                                    SystemCapabilityAccess.canWriteSystemSettings(context)
-                                shizukuAuthorized =
-                                    SystemCapabilityAccess.isShizukuAuthorized()
-                                pointerLocationOn =
-                                    SystemCapabilityAccess.isPointerLocationEnabled(context)
-                                pointerBusy = false
-                                when (result) {
-                                    is PointerLocationWriteResult.Success -> {
-                                        val msg = when (result.path) {
-                                            PointerLocationWritePath.WRITE_SETTINGS ->
-                                                pointerViaWriteSettings
-                                            PointerLocationWritePath.SHIZUKU ->
-                                                pointerViaShizuku
-                                            PointerLocationWritePath.ROOT ->
-                                                pointerViaRoot
+                                try {
+                                    val result =
+                                        SystemCapabilityAccess.setPointerLocationEnabledBestEffort(
+                                            context,
+                                            wantOn,
+                                        )
+                                    canWriteSystem =
+                                        SystemCapabilityAccess.canWriteSystemSettings(context)
+                                    shizukuAuthorized =
+                                        SystemCapabilityAccess.isShizukuAuthorized()
+                                    when (result) {
+                                        is PointerLocationWriteResult.Success -> {
+                                            pointerLocationOn =
+                                                SystemCapabilityAccess.isPointerLocationEnabled(
+                                                    context,
+                                                )
+                                            val msg = when (result.path) {
+                                                PointerLocationWritePath.WRITE_SETTINGS ->
+                                                    pointerViaWriteSettings
+                                                PointerLocationWritePath.SHIZUKU ->
+                                                    pointerViaShizuku
+                                                PointerLocationWritePath.ROOT ->
+                                                    pointerViaRoot
+                                            }
+                                            onMessage(msg)
                                         }
-                                        onMessage(msg)
-                                    }
-                                    is PointerLocationWriteResult.Failed -> {
-                                        pointerLocationOn = previous
-                                        if (!result.canWriteSettings && !result.shizukuAuthorized) {
-                                            onMessage(pointerNeedWriteMsg)
-                                            SystemCapabilityAccess.openManageWriteSettings(context)
-                                        } else {
-                                            onMessage(pointerWriteFailedMsg)
+                                        is PointerLocationWriteResult.Failed -> {
+                                            // 以系统回读为准，避免乐观态与 OEM 实际状态脱节
+                                            pointerLocationOn = result.observedEnabled
+                                            if (!result.canWriteSettings &&
+                                                !result.shizukuAuthorized
+                                            ) {
+                                                onMessage(pointerNeedWriteMsg)
+                                                SystemCapabilityAccess.openManageWriteSettings(
+                                                    context,
+                                                )
+                                            } else {
+                                                onMessage(pointerWriteFailedMsg)
+                                            }
                                         }
                                     }
+                                } catch (_: Exception) {
+                                    pointerLocationOn =
+                                        SystemCapabilityAccess.isPointerLocationEnabled(context)
+                                    onMessage(pointerWriteFailedMsg)
+                                } finally {
+                                    pointerBusy = false
                                 }
                             }
                         },
@@ -307,10 +327,10 @@ fun DeveloperSettingsScreen(
                                     }
                                 },
                                 label = {
-                                    val base = backend?.developerLabel() ?: "跟随设置"
+                                    val base = backend?.developerLabel() ?: followSettingsLabel
                                     Text(
                                         if (backend != null && !supported) {
-                                            "$base（本机不可用）"
+                                            "$base$unavailableSuffix"
                                         } else {
                                             base
                                         },
@@ -324,7 +344,7 @@ fun DeveloperSettingsScreen(
                             stringResource(
                                 R.string.dev_force_capture_fallback_reason,
                                 captureResolution.effective.developerLabel(),
-                            ) + "：" + (captureResolution.fallbackReason ?: stringResource(R.string.dev_force_capture_fell_back)),
+                            ) + "：" + (captureResolution.fallbackReason ?: fellBackLabel),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -407,14 +427,22 @@ fun DeveloperSettingsScreen(
                     benchmark?.fold(
                         onSuccess = { result ->
                             Text(
-                                "%d 次 · 平均 %.3f ms · P50 %.3f ms · P95 %.3f ms"
-                                    .format(result.iterations, result.meanMs, result.p50Ms, result.p95Ms),
+                                stringResource(
+                                    R.string.dev_benchmark_success,
+                                    result.iterations,
+                                    result.meanMs,
+                                    result.p50Ms,
+                                    result.p95Ms,
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         },
                         onFailure = { error ->
                             Text(
-                                stringResource(R.string.dev_benchmark_failed, error.message ?: error.javaClass.simpleName),
+                                stringResource(
+                                    R.string.dev_benchmark_failed,
+                                    error.message ?: error.javaClass.simpleName,
+                                ),
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -433,15 +461,21 @@ fun DeveloperSettingsScreen(
                         onClick = {
                             runCatching {
                                 val report = onBuildDiagnostics()
-                                check(report.isNotBlank()) { "诊断内容为空" }
+                                check(report.isNotBlank()) { diagnosticEmptyMsg }
                                 val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(android.content.Intent.EXTRA_TEXT, report)
                                     putExtra(android.content.Intent.EXTRA_SUBJECT, "HZZS diagnostics")
                                 }
-                                context.startActivity(android.content.Intent.createChooser(send, exportChooserTitle))
+                                context.startActivity(
+                                    android.content.Intent.createChooser(send, exportChooserTitle),
+                                )
                             }.onFailure { error ->
-                                onMessage("导出失败：${error.message ?: "unknown"}")
+                                onMessage(
+                                    exportFailedTemplate.format(
+                                        error.message ?: error.javaClass.simpleName,
+                                    ),
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -451,7 +485,11 @@ fun DeveloperSettingsScreen(
                     TextButton(
                         onClick = {
                             val report = runCatching { onBuildDiagnostics() }.getOrElse { error ->
-                                onMessage("生成诊断失败：${error.message ?: error.javaClass.simpleName}")
+                                onMessage(
+                                    generateFailedTemplate.format(
+                                        error.message ?: error.javaClass.simpleName,
+                                    ),
+                                )
                                 return@TextButton
                             }
                             if (report.isBlank()) {
@@ -465,7 +503,7 @@ fun DeveloperSettingsScreen(
                             )
                             onMessage(
                                 if (ok) {
-                                    "诊断摘要已复制（${report.lines().size} 行）"
+                                    diagnosticCopiedTemplate.format(report.lines().size)
                                 } else {
                                     copyFailedMsg
                                 },
