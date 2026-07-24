@@ -242,7 +242,8 @@ fun AlgorithmSettingsScreen(
         item {
             Text("算法库", style = MaterialTheme.typography.titleMedium)
             Text(
-                "内置引擎 · 应用捆绑（酱油/官方示例）· 已下载 · 远端可更新。点「使用此版本」即可切换。",
+                "内置引擎 · 应用捆绑（酱油/官方示例）· 已下载 · 远端可更新。" +
+                    "点「使用此版本」即可切换；仅支持单一赛季的包会自动切到该赛季。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -271,6 +272,12 @@ fun AlgorithmSettingsScreen(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SettingsStatusChip(roleLabel, emphasis = info.id == active?.id)
+                    if (config.selectedScene !in info.supportedScenes && !info.isBuiltin) {
+                        SettingsStatusChip(
+                            "不含当前赛季",
+                            emphasis = false,
+                        )
+                    }
                     AlgorithmCard(
                         info = info,
                         status = status,
@@ -295,7 +302,15 @@ fun AlgorithmSettingsScreen(
                         },
                         onSelect = {
                             onSelect(info.id)
-                            onMessage("已选择 ${info.name}")
+                            val sceneHint = when {
+                                config.selectedScene in info.supportedScenes ->
+                                    "已选择 ${info.name}"
+                                info.supportedScenes.size == 1 ->
+                                    "已选择 ${info.name}，赛季已切到 ${info.supportedScenes.first().displayName()}"
+                                else ->
+                                    "已选择 ${info.name}；当前赛季不在其支持列表，识别可能走内置回退"
+                            }
+                            onMessage(sceneHint)
                         },
                         onDetails = { details = info },
                         onCancelDownload = { onCancelDownload(info.id) },

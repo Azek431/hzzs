@@ -256,8 +256,12 @@ data class AutomationConfig(
     val sweetTriggerDistancePlayerWidths: Float = 1.50f,
     /** 相对玩家宽度的触发距离（竹影）。 */
     val bambooTriggerDistancePlayerWidths: Float = 1.35f,
-    /** 相对玩家宽度的触发距离（海盐客厅，酱油脚本等效 ~1.4 倍）。 */
-    val seaSaltTriggerDistancePlayerWidths: Float = 1.40f,
+    /**
+     * 相对玩家宽度的触发距离（海盐客厅）。
+     * 酱油脚本按设计分辨率在较远 x 就点（约屏宽 0.3+），FIXED 玩家宽约 0.05，
+     * 1.4 倍仅 ~0.07 屏宽会导致「框已稳、永远 no_candidate」。默认放宽到约 5 倍玩家宽。
+     */
+    val seaSaltTriggerDistancePlayerWidths: Float = 5.0f,
 ) {
     companion object {
         /**

@@ -145,12 +145,13 @@ fun AutomationSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "触发距离（玩家宽度倍数）",
-                description = "障碍进入玩家前方该倍数距离内才规划动作。范围 0.5–4.0。",
+                description = "障碍进入玩家前方该倍数距离内才规划动作。范围 0.5–8.0。" +
+                    "海盐默认约 5 倍（FIXED 玩家宽时约 0.25 屏宽），过小会出现「框已稳却不动作」。",
             ) {
                 LabeledSlider(
                     "甜品工厂",
                     config.automation.sweetTriggerDistancePlayerWidths,
-                    0.5f..4f,
+                    0.5f..8f,
                 ) { value ->
                     update {
                         it.copy(automation = it.automation.copy(sweetTriggerDistancePlayerWidths = value))
@@ -159,7 +160,7 @@ fun AutomationSettingsScreen(
                 LabeledSlider(
                     "竹影书屋",
                     config.automation.bambooTriggerDistancePlayerWidths,
-                    0.5f..4f,
+                    0.5f..8f,
                 ) { value ->
                     update {
                         it.copy(automation = it.automation.copy(bambooTriggerDistancePlayerWidths = value))
@@ -168,7 +169,7 @@ fun AutomationSettingsScreen(
                 LabeledSlider(
                     "海盐客厅",
                     config.automation.seaSaltTriggerDistancePlayerWidths,
-                    0.5f..4f,
+                    0.5f..8f,
                 ) { value ->
                     update {
                         it.copy(automation = it.automation.copy(seaSaltTriggerDistancePlayerWidths = value))

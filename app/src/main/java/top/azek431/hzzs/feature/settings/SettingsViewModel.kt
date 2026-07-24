@@ -399,12 +399,28 @@ class SettingsViewModel @Inject constructor(
 
     fun cancelAlgorithmDownload(id: String) = algorithmCatalog.cancelDownload(id)
 
-    /** 钉选手动算法并即时落盘；分析运行中由激活协调器 pending。 */
+    /**
+     * 钉选手动算法并即时落盘；分析运行中由激活协调器 pending。
+     * 若包仅支持单一赛季且与当前赛季不一致，自动切换到该赛季，避免「钉选了海盐包仍跑竹影」。
+     */
     fun selectAlgorithm(id: String) {
         val selected = algorithmCatalog.selectInstalled(id) ?: return
-        update {
-            it.copy(
-                algorithm = it.algorithm.copy(
+        update { app ->
+            val scenes = selected.supportedScenes
+            val nextScene = when {
+                app.selectedScene in scenes -> app.selectedScene
+                scenes.size == 1 -> scenes.first()
+                else -> app.selectedScene
+            }
+            if (nextScene != app.selectedScene) {
+                AppLog.i(
+                    "algorithm",
+                    "selectAlgorithm auto scene ${app.selectedScene.name}→${nextScene.name} for ${selected.id}",
+                )
+            }
+            app.copy(
+                selectedScene = nextScene,
+                algorithm = app.algorithm.copy(
                     selectionMode = top.azek431.hzzs.core.model.AlgorithmSelectionMode.MANUAL,
                     pinnedAlgorithmId = selected.id,
                 ),

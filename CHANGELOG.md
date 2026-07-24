@@ -11,7 +11,9 @@
 
 ### 变更
 
+- **MCP 工具面扩展**：新增运行态快照、`patch_settings` 白名单局部改参、赛季/障碍/阈值、主题/悬浮窗、开发者开关与选项、自动操作门闩解释与启停、算法列表/激活/刷新/下载、日志查询与脱敏诊断导出、系统权限查询与设置跳转；资源 URI 同步扩容。HIGH_RISK 工具在 TRUSTED_SESSION 下拒绝。
 - **开发者入口收敛**：关于页与设置共用 `DeveloperSettingsScreen`（不再维护第二套开发者 UI）。解锁后设置首页才显示「开发者选项」分类；页内开关仅可关闭并隐藏入口，再次开启仍需关于页连点版本号。
+- **开发者设置体验重整**：顶部状态 Hero（日志/强制后端/调试帧/网格）；开关仅可关且关前确认；快捷排查（日志/算法流程/诊断导出）前置；日志级别改 FilterChip；`frameRateLimit` 折叠为保留字段；进页自动刷新调试帧计数；文案收口到 strings。
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 `false`（同机 RikkaHub 免填 Header）；开启鉴权时使用配置中持久化的 `authToken`，**不**在每次服务启动轮换，仅设置页「轮换 Token」主动更换。外部摄入不得静默关鉴权或改写令牌；Bearer 前缀比较大小写不敏感。
 - **算法运行轨迹日志**：新增 `AlgorithmRuntimeTrace`（最近 32 帧 ring，无像素）。帧循环写入识别摘要 / 检测明细 / Tracker 稳定帧 / 自动操作决策与 dispatch 结果；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`，仅在开发者开启且 `logLevel≤DEBUG` 时输出，并按「状态变化或每 12 帧」节流。诊断导出附带算法 pipeline 快照与最近帧轨迹。
 - **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 幂等预装到 `InstalledAlgorithmStore`（不经外装 Ed25519；不覆盖已装用户包）。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。
@@ -25,7 +27,6 @@
 - **算法库选包对齐赛季**：手动选用仅支持单一赛季的包（如酱油海盐）时自动切到该赛季；卡片标注「不含当前赛季」并 Snackbar 提示。
 - **VS Code 真机/JDWP 任务**：PowerShell `Continue=Stop` 下原生 `adb` 的 stderr 不再误杀任务；无设备/unauthorized/offline 打印排查提示；安装/logcat/转发统一走脚本闸门；JDWP 启动后轮询 PID；诊断导出默认 `local-diagnostics/device`；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1；避免 StrictMode 下盲读 `0`。
 - **海盐场景置信度与自动操作门闩**：FIXED_RATIO 不再按「玩家失败」压低 `sceneConfidence`；有障碍/找色命中时至少抬到 0.85/0.88，避免稳定检出 `SEA_PIT` 却因 `0.68<0.82` 永不派发手势。
-- **海盐触发距离默认放宽**：`seaSaltTriggerDistancePlayerWidths` 默认 1.4→5.0（对齐酱油较远点按；FIXED 玩家宽约 0.05 时 1.4 倍仅 ~0.07 屏宽会系统性 `no_candidate`）。`no_candidate` 决策串附带 pw/nearGap/sc 便于诊断。
 - **海盐多点找色对齐酱油脚本**：按 AutoJS 源（设计 1272×2772、颜色 `0xAARRGGBB`）重录大/小断崖、矮/高沙丘、船锚五条模板；搜索带默认 0.438–0.881、阈值 10；船锚动作为 `SLIDE`（向下滑）；bounds 用点集包络而非专用绘制层；不移植「复活」UI 点击。
 - **算法 analysisRunning 同步**：`VisionRuntimeController` start/stop/异常路径经 `AlgorithmCatalogController.setAnalysisRunning`，避免分析中下载半热激活与 UI pending 文案错位。
 - **无信任锚时下载按钮降级**：算法卡 `canDownloadRemote` + 状态 `trustAnchorsConfigured`；远端不可装时禁用「下载/更新」并给出说明。

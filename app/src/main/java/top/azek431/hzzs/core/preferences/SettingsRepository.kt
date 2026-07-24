@@ -375,13 +375,14 @@ fun AppConfig.validated(): AppConfig {
             bambooExperimentalAutoAction = automation.bambooExperimentalAutoAction,
             sweetTriggerDistancePlayerWidths = automation.sweetTriggerDistancePlayerWidths
                 .finiteOr(1.50f)
-                .coerceIn(0.5f, 4f),
+                .coerceIn(0.5f, 8f),
             bambooTriggerDistancePlayerWidths = automation.bambooTriggerDistancePlayerWidths
                 .finiteOr(1.35f)
-                .coerceIn(0.5f, 4f),
+                .coerceIn(0.5f, 8f),
+            // 海盐默认 5.0：FIXED 玩家宽约 0.05 时约 0.25 屏宽，对齐酱油较远点击；上限放宽到 8。
             seaSaltTriggerDistancePlayerWidths = automation.seaSaltTriggerDistancePlayerWidths
-                .finiteOr(1.40f)
-                .coerceIn(0.5f, 4f),
+                .finiteOr(5.0f)
+                .coerceIn(0.5f, 8f),
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
@@ -699,7 +700,7 @@ object ConfigJson {
                 bambooTriggerDistancePlayerWidths =
                     automation?.optDouble("bambooTriggerDistancePlayerWidths", 1.35)?.toFloat() ?: 1.35f,
                 seaSaltTriggerDistancePlayerWidths =
-                    automation?.optDouble("seaSaltTriggerDistancePlayerWidths", 1.40)?.toFloat() ?: 1.40f,
+                    automation?.optDouble("seaSaltTriggerDistancePlayerWidths", 5.0)?.toFloat() ?: 5.0f,
             ),
             mcp = defaults.mcp.copy(
                 enabled = mcp?.optBoolean("enabled", false) ?: false,

@@ -620,8 +620,17 @@ class VisionRuntimeController @Inject constructor(
             val actionable = tracked.count {
                 it.detection.actionable && !it.detection.diagnosticOnly
             }
+            val nearestGap = tracked
+                .asSequence()
+                .filter { it.detection.actionable && !it.detection.diagnosticOnly }
+                .map { it.detection.bounds.left - player.bounds.right }
+                .filter { it.isFinite() }
+                .minOrNull()
             return "skip:no_candidate stable=$stable actionable=$actionable " +
-                "trigDist=${"%.3f".format(triggerDistance)}"
+                "trigDist=${"%.3f".format(triggerDistance)} " +
+                "pw=${"%.3f".format(playerWidth)} " +
+                "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
+                "sc=${"%.2f".format(result.sceneConfidence)}"
         }
 
         val spatialKey = spatialKeyOf(candidate.detection)
