@@ -87,11 +87,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 脱敏校验 Secret 形态（长度/是否 PEM），绝不打印密钥内容
+          # 脱敏校验 Secret；双重 Base64 / 原文 PEM 由签包路径自愈，此处只 fail-closed 真正不可用的值
           python3 tools/algorithm/check_signing_secret.py
           KEY_ID="${ALGORITHM_SIGNING_KEY_ID:-hzzs-algorithm-official-1}"
-          echo "key_id=$KEY_ID"
-          # 去掉 Secret 内可能的换行/空白，避免 base64 validate 失败
+          if [[ -z "${ALGORITHM_SIGNING_KEY_ID:-}" ]]; then
+            echo "key_id defaulted to $KEY_ID (ALGORITHM_SIGNING_KEY_ID secret unset)"
+          else
+            echo "key_id=$KEY_ID"
+          fi
+          # 紧凑化空白；真正的双重解码在 sign_algorithm_pack.load_private_key 内自愈
           export ALGORITHM_SIGNING_PRIVATE_KEY_B64="$(
             python3 -c 'import os; print("".join(os.environ.get("ALGORITHM_SIGNING_PRIVATE_KEY_B64","").split()), end="")'
           )"

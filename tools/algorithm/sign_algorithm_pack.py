@@ -47,33 +47,40 @@ def decode_private_key_pem_from_secret(raw: str) -> tuple[bytes, dict[str, objec
     """Decode ALGORITHM_SIGNING_PRIVATE_KEY_B64 (or equivalent) to PEM bytes.
 
     Accepts, in order:
-    1. Raw PEM text (paste error)
+    1. Raw PEM text (paste error) — keep newlines/spaces in PEM headers
     2. base64(PEM bytes) — correct GitHub Secret form
     3. base64(base64(PEM)) — common double-encode when ToBase64String is applied
        to an already-base64 txt file; **auto-healed** once
 
     Returns (pem_bytes, diagnostics). Diagnostics never include key material.
     """
-    compact = "".join((raw or "").split())
+    text_in = raw or ""
+    stripped = text_in.strip()
+    compact = "".join(text_in.split())
     diag: dict[str, object] = {
-        "input_chars": len(raw or ""),
+        "input_chars": len(text_in),
         "compact_chars": len(compact),
         "form": "unknown",
         "autoheal_double_base64": False,
     }
-    if not compact:
+    if not stripped:
         raise AlgorithmPackError(
             "missing private key; set ALGORITHM_SIGNING_PRIVATE_KEY_B64 or pass --private-key"
         )
 
-    # 1) Raw PEM pasted into the secret
-    if compact.startswith("-----BEGIN") or "BEGIN PRIVATE KEY" in compact:
-        pem = compact.encode("utf-8")
+    # 1) Raw PEM pasted into the secret (do NOT collapse spaces — PEM headers need them)
+    if stripped.startswith("-----BEGIN") or "BEGIN PRIVATE KEY" in stripped:
+        pem = stripped.encode("utf-8")
         if not _looks_like_private_pem(pem):
             raise AlgorithmPackError("secret looks like PEM but is not a private key")
         diag["form"] = "raw_pem"
         diag["decoded_pem_bytes"] = len(pem)
         return pem, diag
+
+    if not compact:
+        raise AlgorithmPackError(
+            "missing private key; set ALGORITHM_SIGNING_PRIVATE_KEY_B64 or pass --private-key"
+        )
 
     # 2) Standard: base64(PEM)
     try:

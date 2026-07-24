@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -327,6 +328,45 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         b64 = base64.b64encode(pem).decode("ascii")
         key = load_private_key(private_key_path=None, private_key_b64=b64)
         self.assertIsNotNone(key)
+
+    def test_private_key_double_base64_autoheal(self) -> None:
+        """GitHub Secret 常见误配：对已是 base64 的 txt 再 ToBase64 一次。"""
+        from sign_algorithm_pack import decode_private_key_pem_from_secret
+
+        pem = self.private.read_bytes()
+        once = base64.b64encode(pem).decode("ascii")
+        twice = base64.b64encode(once.encode("ascii")).decode("ascii")
+        key = load_private_key(private_key_path=None, private_key_b64=twice)
+        self.assertIsNotNone(key)
+        decoded, diag = decode_private_key_pem_from_secret(twice)
+        self.assertTrue(diag.get("autoheal_double_base64"))
+        self.assertEqual(diag.get("form"), "double_base64_pem")
+        self.assertEqual(decoded, pem)
+
+    def test_private_key_raw_pem_secret(self) -> None:
+        pem = self.private.read_bytes().decode("ascii")
+        key = load_private_key(private_key_path=None, private_key_b64=pem)
+        self.assertIsNotNone(key)
+
+    def test_check_signing_secret_accepts_double_base64(self) -> None:
+        import subprocess
+
+        pem = self.private.read_bytes()
+        once = base64.b64encode(pem).decode("ascii")
+        twice = base64.b64encode(once.encode("ascii")).decode("ascii")
+        script = ALG / "check_signing_secret.py"
+        env = os.environ.copy()
+        env["ALGORITHM_SIGNING_PRIVATE_KEY_B64"] = twice
+        completed = subprocess.run(
+            [sys.executable, str(script)],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("secret_shape_ok=true", completed.stdout)
+        self.assertIn("autoheal_double_base64=True", completed.stdout)
 
     def test_parse_mirrors_defaults_and_github_only(self) -> None:
         from publish_algorithm_release import _parse_mirrors

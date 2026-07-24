@@ -41,6 +41,7 @@
 - **捆绑按 version 升级**：assets 更高 `versionCode` 且本地为 bundled/无 origin 时覆盖；网络包装 `originTag=network` 不被冲。开发：升 `manifest.version` → 同步 assets → 装 APK 即可，不必清数据。
 - **GitHub 自动算法热更**：`algorithm-release.yml` 在 `main` 上 push `algorithm-packs/**` 时自动签包写 `release-index`（默认 GitHub-only）；需 Secrets `ALGORITHM_SIGNING_*`。手机 `autoCheck` 拉目录后可下。无私钥 Secret 时 CI 会失败——先配密钥再推包。
 - **算法钥轮换**：`official-public-keys` 与 `AlgorithmTrustAnchors` 必须同钥；换钥后旧 APK 装不上新签包。Claude 会话环境通常读不到 GitHub Secrets，本地 env 无 B64 不代表网页没配好——以 Actions 日志为准。
+- **算法 Secret 双重 Base64**：`build/release-secrets/ALGORITHM_SIGNING_PRIVATE_KEY_B64.txt` 已是 base64(PEM)。GitHub Secret 应**原样粘贴**该文本（约 160 字符）。若再 `ToBase64String(文件)` 会变成约 216 字符，CI 曾报 `missing BEGIN PRIVATE KEY`。`sign_algorithm_pack.decode_private_key_pem_from_secret` 现对「双重编码 / 原文 PEM」**自动解一层**；`check_signing_secret` 会打 `autoheal_double_base64` 警告。仍推荐只编码一次。
 - **默认赛季单一真相**：只改 `AppConfig.DEFAULT_SELECTED_SCENE`；文档禁止写死赛季中文名/枚举。
 - **提交隔离**：UI/动效、算法网络、本机构建、IDE 脚本分提交；合 main 前可用 stash 隔开无关 WIP。
 - **日常开发分支**：默认在 `main` 直接迭代（用户偏好）；除非明确要求再开 feature 分支。
