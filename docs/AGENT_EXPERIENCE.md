@@ -20,7 +20,7 @@
 - **触发距离可自调**：`autoAdjustTriggerDistance` 默认 true；`TriggerDistanceAutoTuner` 在 no_candidate+近障碍时缓升、plan 成功过近时向基线缓降；落盘节流。用户拖滑条会清缓存。
 - **框有、手势无**：先看 `algo.decision`——`no_candidate` 是距离/几何；`no_accessibility` 是未开无障碍；`no_foreground` 是服务连了但拿不到前台（须主线程 refresh + `flagRetrieveInteractiveWindows`）。有框只说明算法/Overlay 通，不说明手势门控过。诊断导出现含 `a11y.connected` / `foreground.*` / `gesture.effective` / `disclaimerAcceptedVersion` / `triggerPlayerWidths`。
 - **自动复活用控件树而非找色**：快手小游戏「原地复活 / 重新冒险」TextView 常不可点且 dump 无按钮级 resource-id；`findAccessibilityNodeInfosByText` 精确文案 → 最近 clickable 祖先 → `boundsInScreen` 中心归一化点击。`autoReviveEnabled` 与障碍自动操作独立，默认开，冷却约 0.3s；诊断串 `plan revive press@x,y` / `skip:revive_no_a11y`。
-- **Shizuku DOUBLE_JUMP 超时与排查日志**：`GestureArbiter` 超时预算须覆盖两按 + 间隔 + 冷启动多条 input 候选；超时 detail 含 `budget/presses/waited`。Shell 回执带 `via=/tries=`。决策 ring（`AlgorithmRuntimeTrace` 最近 64 条 + 诊断「Algorithm decisions」）含 `calc` 触发距离/gap 与 `dispatch_*`；`package_gate` 会打印 restrict/allow 列表。排障：`logLevel=DEBUG` 看 `algo.frame/det`，INFO 已能看 decision 时间线。
+- **Shizuku DOUBLE_JUMP 超时与排查日志**：`GestureArbiter` 超时预算须覆盖两按 + 间隔 + 冷启动多条 input 候选；超时 detail 含 `budget/presses/waited`。Shell 回执带 `via=/tries=` 与双击 first/second。海盐双击间隔用 `DOUBLE_JUMP_GAP_SEA_MS=60`。决策 ring 含 `calc` 与 `dispatch_*`。排障：装含 e05369b+ 的包，钉选 `sea-salt-living-room-v1`，游戏前台再看 tries。
 
 ## 2026-07-23
 

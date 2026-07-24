@@ -81,12 +81,30 @@ class ShellInputGestureDispatcher(
                 !action.matchesPackage(recheck.packageName) ||
                 !action.matchesWindow(recheck.className)
             ) {
-                return DispatchReceipt(action, DispatchOutcome.REJECTED, "双击间隔前台已变化")
+                return DispatchReceipt(
+                    action,
+                    DispatchOutcome.REJECTED,
+                    "双击间隔前台已变化 first=${first.detail ?: "-"} " +
+                        "pkg=${recheck?.packageName ?: "null"}",
+                )
             }
             val second = dispatchStroke(action, action.gesture, width, height)
-            if (second.outcome != DispatchOutcome.COMPLETED) return second
+            if (second.outcome != DispatchOutcome.COMPLETED) {
+                // 保留第二下失败 detail，并附第一下摘要，便于 DOUBLE_JUMP 排障。
+                return second.copy(
+                    detail = listOfNotNull(
+                        second.detail,
+                        "first=${first.detail ?: "ok"}",
+                    ).joinToString(" "),
+                )
+            }
+            return DispatchReceipt(
+                action,
+                DispatchOutcome.COMPLETED,
+                "dbl first=${first.detail ?: "ok"} second=${second.detail ?: "ok"}",
+            )
         }
-        return DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
+        return first
     }
 
     private suspend fun dispatchStroke(

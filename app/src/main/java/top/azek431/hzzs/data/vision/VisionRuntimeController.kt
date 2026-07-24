@@ -1330,11 +1330,11 @@ class VisionRuntimeController @Inject constructor(
             Avoidance.NONE -> emptyList()
             Avoidance.JUMP -> listOf(PlannedStroke(jump, now, ACTION_TTL_MS))
             Avoidance.DOUBLE_JUMP -> {
+                // 海盐酱油脚本约 60ms 双击间隔；竹影/甜品沿用既有常量。
                 val gap = when (scene) {
                     SceneId.SWEET_FACTORY -> DOUBLE_JUMP_GAP_SWEET_MS
-                    SceneId.BAMBOO_BOOKSTORE,
-                    SceneId.SEA_SALT_LIVING_ROOM,
-                    -> DOUBLE_JUMP_GAP_BAMBOO_MS
+                    SceneId.BAMBOO_BOOKSTORE -> DOUBLE_JUMP_GAP_BAMBOO_MS
+                    SceneId.SEA_SALT_LIVING_ROOM -> DOUBLE_JUMP_GAP_SEA_MS
                 }
                 // 单规格携带 doublePressDelayMs，由分发层真正消费第二次按压间隔。
                 listOf(
@@ -1572,6 +1572,8 @@ class VisionRuntimeController @Inject constructor(
         const val ACTION_TTL_MS = 650L
         const val DOUBLE_JUMP_GAP_SWEET_MS = 75L
         const val DOUBLE_JUMP_GAP_BAMBOO_MS = 80L
+        /** 海盐酱油脚本双击间隔约 60ms。 */
+        const val DOUBLE_JUMP_GAP_SEA_MS = 60L
         const val SLIDE_TTL_SWEET_MS = 650L
         const val SLIDE_TTL_BAMBOO_MS = 600L
         /** 捕获时间戳到动作决策的最大允许延迟（含分析耗时）。 */
