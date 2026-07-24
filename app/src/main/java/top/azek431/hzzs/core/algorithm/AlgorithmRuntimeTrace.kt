@@ -158,6 +158,12 @@ data class AlgorithmFrameTraceEntry(
     }
 }
 
+/** 决策/计算时间线条目（无像素）。 */
+data class DecisionTraceEntry(
+    val epochMs: Long,
+    val message: String,
+)
+
 /**
  * 进程级算法帧轨迹 ring buffer + 可选 AppLog。
  */
@@ -165,11 +171,15 @@ object AlgorithmRuntimeTrace {
     /** 诊断与 UI 保留的最近帧数。 */
     const val CAPACITY = 32
 
+    /** 决策/计算时间线容量（dispatch/skip/calc）。 */
+    const val DECISION_CAPACITY = 64
+
     /** 状态未变时，每 N 帧写一次 DEBUG 摘要。 */
     const val PERIODIC_FRAMES = 12
 
     private val lock = Any()
     private val buffer = ArrayDeque<AlgorithmFrameTraceEntry>(CAPACITY)
+    private val decisionBuffer = ArrayDeque<DecisionTraceEntry>(DECISION_CAPACITY)
     private val revision = AtomicLong(0L)
     private val lastChangeSignature = AtomicReference<String?>(null)
     private var framesSinceLog = 0
@@ -185,6 +195,7 @@ object AlgorithmRuntimeTrace {
 
     fun resetSession() = synchronized(lock) {
         buffer.clear()
+        decisionBuffer.clear()
         lastChangeSignature.set(null)
         framesSinceLog = 0
         analysisSequenceCounter = 0L
@@ -221,19 +232,44 @@ object AlgorithmRuntimeTrace {
     /**
      * 决策类事件：不受帧节流限制，便于对照「为何动手/为何跳过」。
      *
-     * skip / plan / dispatch_* 用 INFO（默认可见）；其它 DEBUG。
+     * skip / plan / dispatch_* / probe / shell 用 INFO（默认可见）；其它 DEBUG。
      * 调用方应对决策串变化再写，避免每帧刷屏。
+     *
+     * 同时写入进程内 ring，诊断导出「Algorithm decisions」节可独立阅读。
      */
     fun logDecision(message: String) {
-        val clipped = message.take(500)
+        val clipped = message.take(720)
+        synchronized(lock) {
+            if (decisionBuffer.size >= DECISION_CAPACITY) decisionBuffer.removeFirst()
+            decisionBuffer.addLast(
+                DecisionTraceEntry(
+                    epochMs = System.currentTimeMillis(),
+                    message = clipped,
+                ),
+            )
+            revision.incrementAndGet()
+        }
         val levelUp = clipped.startsWith("skip:") ||
             clipped.startsWith("dispatch_") ||
-            clipped.startsWith("plan ")
+            clipped.startsWith("plan ") ||
+            clipped.startsWith("probe ") ||
+            clipped.startsWith("shell ") ||
+            clipped.startsWith("calc ")
         if (levelUp) {
             AppLog.i("algo.decision", clipped)
         } else {
             AppLog.d("algo.decision", clipped)
         }
+    }
+
+    /** 几何/触发距离等计算过程一行（INFO），写入决策 ring。 */
+    fun logCalc(message: String) {
+        logDecision("calc ${message.take(700)}")
+    }
+
+    fun recentDecisions(limit: Int = DECISION_CAPACITY): List<DecisionTraceEntry> = synchronized(lock) {
+        val n = limit.coerceAtMost(decisionBuffer.size).coerceAtLeast(0)
+        if (n == 0) emptyList() else decisionBuffer.toList().takeLast(n)
     }
 
     fun formatText(limit: Int = CAPACITY): String {
@@ -254,6 +290,23 @@ object AlgorithmRuntimeTrace {
         }
     }
 
+    /** 独立决策时间线（含 dispatch/skip/calc），供诊断导出。 */
+    fun formatDecisionText(limit: Int = DECISION_CAPACITY): String {
+        val items = recentDecisions(limit)
+        return buildString {
+            appendLine("HZZS algorithm decisions")
+            appendLine("count=${items.size} capacity=$DECISION_CAPACITY revision=${revision.get()}")
+            appendLine()
+            if (items.isEmpty()) {
+                appendLine("(none)")
+            } else {
+                items.forEachIndexed { index, item ->
+                    appendLine("${index + 1}. epochMs=${item.epochMs} ${item.message}")
+                }
+            }
+        }
+    }
+
     private fun emitAppLog(entry: AlgorithmFrameTraceEntry, forcedChange: Boolean) {
         val prefix = if (forcedChange) "Δ " else "… "
         AppLog.d("algo.frame", prefix + entry.formatL1())
@@ -264,7 +317,8 @@ object AlgorithmRuntimeTrace {
             AppLog.d("algo.track", it.take(500))
         }
         entry.decision?.takeIf { it.isNotBlank() }?.let {
-            AppLog.d("algo.decision", it.take(500))
+            // 帧内 decision 已可能经 logDecision 写过 INFO；此处 DEBUG 保留帧对齐副本。
+            AppLog.d("algo.decision", "frame ${it.take(500)}")
         }
     }
 }

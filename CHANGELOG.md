@@ -18,6 +18,7 @@
 
 ### 修复
 
+- **手势仲裁超时后持锁排空**：`GestureArbiter` 主超时后最多再等 1.5s drain，避免系统手势/shell 仍在飞时放行下一单；无障碍 `gestureGeneration` 使迟到 callback 失效。
 - **Shizuku DOUBLE_JUMP 仲裁超时预算**：`GestureArbiter` 按两按 + 间隔 + 冷启动多候选余量加宽，超时文案含 `budget/presses/waited`；Shell 回执带 `via/tries`，减少误报「手势回调超时」并便于定位慢在哪条 input。
 - **Shizuku 手势卡顿**：`input` 候选非首选短超时 fail-fast，并缓存本会话可用命令前缀；失败文案统一为 `input 命令失败或超时`。
 
@@ -44,7 +45,7 @@
 - **MCP 访问日志**：进程内 ring（`McpAccessLog`，约 200 条）记录连接/请求摘要（method、工具名、HTTP 状态、耗时、远端、错误码）；**永不**记 Bearer / `authToken` / arguments。设置 → MCP「访问日志」可开关（`accessLogEnabled`，默认开）；工具 `get_mcp_access_log` / `clear_mcp_access_log`；诊断导出含摘要段。配置 schema **9**。
 - **FastContourV2 编译期 profile 表**：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`；host smoke 增加 `profiles` 目标；仍不进 APK/CMake。
 
-- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。可点「授权 Shizuku」；已授权优先 **`/system/bin/settings`**（与手势 `input` 同源，防 Shizuku 子进程 PATH 空）；并试 secure / `cmd settings`；否则 `WRITE_SETTINGS` / Root。写后延迟回读；失败 Snackbar 可附 shell 摘要。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
+- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。可点「授权 Shizuku」；已授权优先 **`/system/bin/settings`**（与手势 `input` 同源，防 PATH 空），**首条成功即停**并缓存命令前缀；secure / `cmd` 为候选；否则 `WRITE_SETTINGS` / Root。授权在主线程、写盘在 IO；写后延迟回读；失败 Snackbar 可附 shell 摘要。诊断含 `system.pointerLocation` / Shizuku / `shell.prefix`。不进 AppConfig、不静默要权。
 - **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**（后续访问日志升 **9**）；外部摄入不得放宽策略。
 
 - **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。
@@ -74,6 +75,7 @@
 
 ### 修复
 
+- **草稿预览下触发距离自调不冲草稿**：新增 `SettingsRepository.updateSavedPreservingPreview`；运行时自调写盘不 `clearPreview`，并把触发距离合并进现有 preview。设置「保存并应用」对未改动的触发距离滑条合并磁盘自调值，避免盖回旧倍数。
 - **算法签名 Secret 双重 Base64 自愈**：`load_private_key` / CI `check_signing_secret` 识别并对「对 B64.txt 再 ToBase64 一次」的误配自动解一层；亦接受误贴的原文 PEM。日志只报 `form`/`autoheal` 不打印密钥。推荐仍只粘贴单次编码的 txt。
 - **CI 解析 KSP 插件**：`settings.gradle.kts` 的 `pluginManagement` 改为官方源优先（Google / Maven Central / Plugin Portal），阿里云镜像后置回退；`com.google.*` 内容过滤 **exclude** `com.google.devtools.ksp`（KSP 不在 Google Maven）。修复 Actions 上 `com.google.devtools.ksp:2.3.10` 找不到插件。
 - **外部摄入允许开自动操作时免责版本可随用户确认抬升**：`allowEnableAutomation` 时 `disclaimerAcceptedVersion` 取 baseline/candidate 较大值，避免 harden 后 `validated()` 因免责版本被压回 baseline 再次关掉 `enabled`（修复 `SettingsSessionTest.externalIngestCanEnableAutomationWithElevation`）。

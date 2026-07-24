@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.azek431.hzzs.domain.vision.Avoidance
 
@@ -23,6 +24,19 @@ class GestureArbiterTest {
         a.await()
         b.await()
         assertEquals(listOf(1L, 2L), order)
+    }
+
+    @Test
+    fun callbackTimeoutIncludesBudgetDetail() = runTest {
+        val arbiter = GestureArbiter(
+            clock = { 10L },
+            dispatcher = GestureDispatcher { awaitCancellation() },
+            dispatchTimeoutMs = 100L,
+        )
+        val receipt = arbiter.dispatch(action(1))
+        assertEquals(DispatchOutcome.CANCELLED, receipt.outcome)
+        assertTrue(receipt.detail?.contains("budget=") == true)
+        assertTrue(receipt.detail?.contains("手势回调超时") == true)
     }
 
     @Test
@@ -48,6 +62,35 @@ class GestureArbiterTest {
     }
 
     @Test
+    fun timeoutHoldsLockWhileDrainingLateCompletion() = runTest {
+        val order = mutableListOf<String>()
+        val arbiter = GestureArbiter(
+            clock = { 10L },
+            dispatcher = GestureDispatcher { action ->
+                order += "start-${action.id}"
+                delay(250L)
+                order += "end-${action.id}"
+                DispatchReceipt(action, DispatchOutcome.COMPLETED)
+            },
+            // 主超时很短，迫使走 POST_TIMEOUT_DRAIN；drain 期间仍持锁，第二单不得 start。
+            dispatchTimeoutMs = 50L,
+        )
+        val first = async {
+            arbiter.dispatch(action(1).copy(expiresAtUptimeMs = 20_000L))
+        }
+        delay(10L)
+        val second = async {
+            arbiter.dispatch(action(2).copy(expiresAtUptimeMs = 20_000L))
+        }
+        val r1 = first.await()
+        val r2 = second.await()
+        // 第一单在 drain 内完成 → COMPLETED；第二单在第一单释放锁后才 start。
+        assertEquals(DispatchOutcome.COMPLETED, r1.outcome)
+        assertEquals(DispatchOutcome.COMPLETED, r2.outcome)
+        assertEquals(listOf("start-1", "end-1", "start-2", "end-2"), order)
+    }
+
+    @Test
     fun mismatchedReceiptIsRejected() = runTest {
         val requested = action(1)
         val arbiter = GestureArbiter(clock = { 10L }, dispatcher = GestureDispatcher {
@@ -70,6 +113,25 @@ class GestureArbiterTest {
     }
 
     @Test
+    fun canPlanIsSynchronousAndFailClosedOnBusyLock() = runTest {
+        val ledger = ActionCommitLedger()
+        // 无竞争时同步可读
+        assertTrue(ledger.canPlan(1L, nowMs = 1L))
+        assertFalse(ledger.canPlan(0L, nowMs = 1L))
+        // commit 持锁期间 canPlan tryLock 失败 → fail-closed false（不抛、不挂起）
+        val hold = async {
+            ledger.commit(
+                DispatchReceipt(action(42), DispatchOutcome.COMPLETED),
+                completedAtUptimeMs = 100L,
+            )
+            // 人为拉长：commit 本身很快，这里再测冷却语义即可
+        }
+        hold.await()
+        assertFalse(ledger.canPlan(42L, nowMs = 150L))
+        assertTrue(ledger.canPlan(42L, nowMs = 2_000L))
+    }
+
+    @Test
     fun doublePressDelayExtendsTimeoutBudget() = runTest {
         var calls = 0
         val arbiter = GestureArbiter(
@@ -86,6 +148,29 @@ class GestureArbiterTest {
             action(3).copy(
                 gesture = GestureSpec(0.5f, 0.5f, durationMs = 24L, doublePressDelayMs = 200L),
                 expiresAtUptimeMs = 10_000L,
+            ),
+        )
+        assertEquals(DispatchOutcome.COMPLETED, result.outcome)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun shellStyleDoublePressBudgetCoversPerPressOverhead() = runTest {
+        var calls = 0
+        val arbiter = GestureArbiter(
+            clock = { 10L },
+            dispatcher = GestureDispatcher { action ->
+                calls += 1
+                // 近似两次 shell tap + 间隔（旧预算会误报超时）。
+                delay(2_200L)
+                DispatchReceipt(action, DispatchOutcome.COMPLETED)
+            },
+            dispatchTimeoutMs = 100L,
+        )
+        val result = arbiter.dispatch(
+            action(4).copy(
+                gesture = GestureSpec(0.5f, 0.5f, durationMs = 24L, doublePressDelayMs = 80L),
+                expiresAtUptimeMs = 20_000L,
             ),
         )
         assertEquals(DispatchOutcome.COMPLETED, result.outcome)

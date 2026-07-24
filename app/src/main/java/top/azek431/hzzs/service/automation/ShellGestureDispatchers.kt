@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.view.WindowManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,9 @@ class AccessibilityGestureDispatcher @Inject constructor() : GestureDispatcher {
  *
  * 兼容：Shizuku 子进程 PATH 常为空，优先绝对路径 `/system/bin/input`，
  * 失败再试 `cmd input`；失败 detail 带 exit/stderr 便于诊断。
+ *
+ * 性能：记住本会话首次成功的 input 前缀，后续优先该条；非首选候选短超时
+ * fail-fast，避免三条命令各等 1s+ 把 DOUBLE_JUMP 拖进「手势回调超时」。
  */
 /**
  * 仅同模块内由 Shizuku/Root 分发器持有；不直接注入到 feature。
@@ -43,6 +47,9 @@ class ShellInputGestureDispatcher(
     private val clock: () -> Long = SystemClock::elapsedRealtime,
     private val maxForegroundAgeMs: Long = 1_500L,
 ) : GestureDispatcher {
+
+    /** 成功过的 input 可执行前缀键（与坐标无关）。 */
+    private val preferredInputPrefix = AtomicReference<String?>(null)
 
     override suspend fun dispatch(action: AutomationAction): DispatchReceipt {
         val window = probe.snapshot()
@@ -96,7 +103,6 @@ class ShellInputGestureDispatcher(
         val isSwipe = endX != null && endY != null
         val x2 = if (isSwipe) (endX!!.coerceIn(0f, 1f) * (widthPixels - 1)).toInt() else x1
         val y2 = if (isSwipe) (endY!!.coerceIn(0f, 1f) * (heightPixels - 1)).toInt() else y1
-        val timeoutMs = (duration + 1_200L).coerceIn(1_000L, 4_000L)
         // 候选命令：绝对路径优先（PATH 空）；再 cmd input；最后裸 input。
         val candidates: List<Array<String>> = if (isSwipe) {
             listOf(
@@ -111,15 +117,40 @@ class ShellInputGestureDispatcher(
                 arrayOf("input", "tap", "$x1", "$y1"),
             )
         }
+        val preferred = preferredInputPrefix.get()
+        val ordered = if (preferred == null) {
+            candidates
+        } else {
+            val hit = candidates.filter { inputPrefixKey(it) == preferred }
+            val rest = candidates.filter { inputPrefixKey(it) != preferred }
+            if (hit.isEmpty()) candidates else hit + rest
+        }
         var lastDetail = "input_fail"
-        for (command in candidates) {
+        val strokeStarted = clock()
+        val tried = mutableListOf<String>()
+        for ((index, command) in ordered.withIndex()) {
+            val isPreferred = preferred != null && inputPrefixKey(command) == preferred
+            val isLast = index == ordered.lastIndex
+            // 非首选候选短超时快速失败；首选/最后一条给足单次 input 时间。
+            val timeoutMs = when {
+                isPreferred || isLast -> (duration + 900L).coerceIn(700L, 2_500L)
+                else -> FAIL_FAST_CANDIDATE_TIMEOUT_MS
+            }
+            val prefix = inputPrefixKey(command)
+            val attemptStarted = clock()
             val result = runCatching { runResult(command, timeoutMs) }
                 .getOrElse { ShellProcessSupport.ShellCommandResult(false, it.javaClass.simpleName) }
+            val attemptMs = clock() - attemptStarted
+            tried += "$prefix${if (isPreferred) "*" else ""}:${if (result.ok) "ok" else "fail"}/${attemptMs}ms"
             if (result.ok) {
+                preferredInputPrefix.set(prefix)
                 return@withContext DispatchReceipt(
                     action,
                     DispatchOutcome.COMPLETED,
-                    "px=${x1},${y1}" + if (isSwipe) "→${x2},${y2}" else "",
+                    "px=${x1},${y1}" +
+                        (if (isSwipe) "→${x2},${y2}" else "") +
+                        " via=$prefix strokeMs=${clock() - strokeStarted} " +
+                        "tries=${tried.joinToString("|")}",
                 )
             }
             lastDetail = result.detail ?: "input_fail"
@@ -127,8 +158,21 @@ class ShellInputGestureDispatcher(
         DispatchReceipt(
             action,
             DispatchOutcome.REJECTED,
-            "input 失败 px=${x1},${y1} $lastDetail",
+            "input 命令失败或超时 px=${x1},${y1} last=$lastDetail " +
+                "strokeMs=${clock() - strokeStarted} tries=${tried.joinToString("|")}",
         )
+    }
+
+    private companion object {
+        /** 非首选 input 变体的 fail-fast 超时（毫秒）。 */
+        const val FAIL_FAST_CANDIDATE_TIMEOUT_MS = 380L
+
+        /** 与具体坐标无关的命令前缀键，用于缓存可用 input 入口。 */
+        fun inputPrefixKey(command: Array<String>): String = when {
+            command.size >= 2 && command[0] == "cmd" && command[1] == "input" -> "cmd+input"
+            command.isNotEmpty() -> command[0]
+            else -> ""
+        }
     }
 }
 

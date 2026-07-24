@@ -58,6 +58,7 @@ import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
 import top.azek431.hzzs.service.automation.AccessibilityForegroundProbe
 import top.azek431.hzzs.service.automation.GestureDispatcherFactory
+import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
 import top.azek431.hzzs.service.capture.FrameSourceFactory
@@ -137,9 +138,10 @@ class VisionRuntimeController @Inject constructor(
     private val actionIds = AtomicLong(1)
     private val recentActionTimes = ArrayDeque<Long>()
     private val detectedPlayerReference = AtomicReference<Detection?>(null)
+    /** 自动复活连点冷却（elapsedRealtime）。 */
+    private val lastAutoReviveAtMs = AtomicLong(0L)
     private val actionMutex = Mutex()
     private val actionInFlight = AtomicBoolean(false)
-    private val trackRetryCounts = mutableMapOf<Long, Int>()
     private var lastOverlaySignature: Int = Int.MIN_VALUE
     private val triggerDistanceTuner = TriggerDistanceAutoTuner()
 
@@ -321,9 +323,10 @@ class VisionRuntimeController @Inject constructor(
 
     /** 取消在飞动作与动作协程（fail-closed），不清除帧循环状态。 */
     private fun cancelActions() {
+        // 只 cancel job；actionInFlight 由 actionJob 的 finally 清掉。
+        // 若此处提前 set(false)，旧 job 仍可能在 arbiter 里注入，下一帧会立刻 plan 叠点。
         actionJob?.cancel()
         actionJob = null
-        actionInFlight.set(false)
     }
 
     /**
@@ -554,11 +557,21 @@ class VisionRuntimeController @Inject constructor(
                         tracked = tracked,
                         frameTimestampNanos = frame.elapsedRealtimeNanos,
                     )
+                    val reviveDecision = maybeAutoRevive(token = token, config = config)
+                    val combinedDecision = when {
+                        reviveDecision != null && decision.startsWith("plan ") ->
+                            "$decision | $reviveDecision"
+                        reviveDecision != null &&
+                            (decision.startsWith("skip:") || decision.startsWith("error")) ->
+                            "$reviveDecision | $decision"
+                        reviveDecision != null -> reviveDecision
+                        else -> decision
+                    }
                     recordFrameTrace(
                         analysisSequence = trackingSequence,
                         result = trackedResult,
                         tracked = tracked,
-                        decision = decision,
+                        decision = combinedDecision,
                     )
 
                     frameCount++
@@ -618,6 +631,14 @@ class VisionRuntimeController @Inject constructor(
         frameTimestampNanos: Long,
     ): String {
         fun publish(decision: String): String {
+            // 规划期 skip/plan 也进决策 ring + INFO，便于与 dispatch_* 时间线对照。
+            if (
+                decision.startsWith("skip:") ||
+                decision.startsWith("plan ") ||
+                decision.startsWith("error")
+            ) {
+                AlgorithmRuntimeTrace.logDecision(decision)
+            }
             mutableStatus.update {
                 it.copy(
                     lastAutomationDecision = decision,
@@ -667,11 +688,11 @@ class VisionRuntimeController @Inject constructor(
         val triggerDistance = effectiveMultiplier * playerWidth
 
         // 水平门控：只丢掉「整块障碍已完全落在玩家身后」的目标。
-            // 旧逻辑要求 left >= player.right - margin，海盐 FIXED 玩家宽约 0.05 时
-            // 断崖/沙丘左缘略伸入玩家右侧（gap 为负）会被系统性滤掉 → 永远 no_candidate。
-            // 以障碍右缘是否仍越过玩家左缘为准；重叠（gap≤0）仍可触发。
-            val behindMargin = sceneConfig.thresholds.behindPlayerMarginRatio
-            val candidate = tracked
+        // 旧逻辑要求 left >= player.right - margin，海盐 FIXED 玩家宽约 0.05 时
+        // 断崖/沙丘左缘略伸入玩家右侧（gap 为负）会被系统性滤掉 → 永远 no_candidate。
+        // 以障碍右缘是否仍越过玩家左缘为准；重叠（gap≤0）仍可触发。
+        val behindMargin = sceneConfig.thresholds.behindPlayerMarginRatio
+        val candidate = tracked
             .asSequence()
             .filter { it.stableFrames >= sceneConfig.thresholds.stableFrames }
             .filter { it.detection.actionable && !it.detection.diagnosticOnly }
@@ -705,6 +726,17 @@ class VisionRuntimeController @Inject constructor(
                     !it.detection.diagnosticOnly &&
                     it.detection.bounds.right > player.bounds.left - behindMargin
             }
+            AlgorithmRuntimeTrace.logCalc(
+                "no_candidate scene=${config.selectedScene.name} " +
+                    "pw=${"%.3f".format(playerWidth)} mult=${"%.2f".format(effectiveMultiplier)} " +
+                    "trigDist=${"%.3f".format(triggerDistance)} " +
+                    "player=[${formatBounds(player.bounds)}] " +
+                    "nearGap=${nearestGap?.let { "%.3f".format(it) } ?: "-"} " +
+                    "stable=$stable act=$actionable behindOk=$passedBehind " +
+                    "sc=${"%.2f".format(result.sceneConfidence)} " +
+                    "algo=${result.activeAlgorithmId}@${result.activeAlgorithmVersion}" +
+                    if (result.usingBuiltinFallback) " builtin" else "",
+            )
             if (config.automation.autoAdjustTriggerDistance && actionable > 0) {
                 val now = SystemClock.uptimeMillis()
                 val adapted = triggerDistanceTuner.onNoCandidate(
@@ -755,12 +787,8 @@ class VisionRuntimeController @Inject constructor(
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
         // 规划期同步预检账本：避免帧环刷屏 plan、而 actionJob 全是 ledger skip。
-        // canPlan 为 suspend；此处在帧路径用 runBlocking 仅做短锁查询（无 IO）。
-        // fail-closed：预检异常时不规划，避免绕过冷却连点。
-        val ledgerAllows = runCatching {
-            kotlinx.coroutines.runBlocking { ledger.canPlan(candidate.trackId, spatialKey, now) }
-        }.getOrDefault(false)
-        if (!ledgerAllows) {
+        // canPlan 为短临界区同步读，无 IO，不在帧路径 runBlocking。
+        if (!ledger.canPlan(candidate.trackId, spatialKey, now)) {
             actionInFlight.set(false)
             return publish(
                 "skip:ledger track=${candidate.trackId} key=$spatialKey backend=${gestureEffective.name}",
@@ -805,7 +833,20 @@ class VisionRuntimeController @Inject constructor(
             "plan kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
                 "track=${candidate.trackId} stable=${candidate.stableFrames} " +
                 "conf=${"%.2f".format(candidate.detection.confidence)} " +
-                "backend=${gestureEffective.name} key=$spatialKey"
+                "gap=${"%.3f".format(gapAtPlan)} trig=${"%.3f".format(triggerDistance)} " +
+                "pw=${"%.3f".format(playerWidth)} " +
+                "obs=[${formatBounds(candidate.detection.bounds)}] " +
+                "player=[${formatBounds(player.bounds)}] " +
+                "backend=${gestureEffective.name} key=$spatialKey " +
+                "algo=${result.activeAlgorithmId}" +
+                if (result.usingBuiltinFallback) " builtin" else ""
+        AlgorithmRuntimeTrace.logCalc(
+            "candidate track=${candidate.trackId} kind=${candidate.detection.kind.name} " +
+                "avoid=${candidate.detection.avoidance.name} " +
+                "gap=${"%.3f".format(gapAtPlan)} trigDist=${"%.3f".format(triggerDistance)} " +
+                "jumpXHint=${"%.2f".format(safeJumpX(candidate.detection))} " +
+                "restrictPkgs=${config.automation.restrictPackages}",
+        )
         actionJob = scope.launch {
             try {
                 dispatchPlan(
@@ -981,7 +1022,16 @@ class VisionRuntimeController @Inject constructor(
             if (!packageAllowed) {
                 note(
                     "dispatch_skip:package_gate backend=${gestureBackend.name} " +
-                        "pkg=${foreground.packageName} track=${candidate.trackId}",
+                        "pkg=${foreground.packageName} " +
+                        "restrict=${config.automation.restrictPackages} " +
+                        "allow=${
+                            if (config.automation.restrictPackages) {
+                                config.automation.allowedPackages.sorted().joinToString(",").ifBlank { "-" }
+                            } else {
+                                "*"
+                            }
+                        } " +
+                        "track=${candidate.trackId}",
                 )
                 return@withLock
             }
@@ -1028,7 +1078,14 @@ class VisionRuntimeController @Inject constructor(
             note(
                 "dispatch_begin strokes=${plan.size} actions=$planActionCount " +
                     "kind=${candidate.detection.kind.name} avoid=${candidate.detection.avoidance.name} " +
-                    "backend=${gestureBackend.name} track=${candidate.trackId}",
+                    "backend=${gestureBackend.name} track=${candidate.trackId} " +
+                    "fg=${foreground.packageName} " +
+                    plan.joinToString(";") { stroke ->
+                        val g = stroke.gesture
+                        val dbl = if (g.doublePressDelayMs > 0L) " dbl=${g.doublePressDelayMs}" else ""
+                        val end = if (g.endX != null) "→${"%.2f".format(g.endX)},${"%.2f".format(g.endY)}" else ""
+                        "g=${"%.2f".format(g.startX)},${"%.2f".format(g.startY)}$end d=${g.durationMs}$dbl"
+                    }.take(220),
             )
 
             for ((index, stroke) in plan.withIndex()) {
@@ -1073,11 +1130,11 @@ class VisionRuntimeController @Inject constructor(
                             if (stroke.gesture.endX == null && stroke.gesture.doublePressDelayMs > 0L) {
                                 recentActionTimes.addLast(completedAt)
                             }
-                            trackRetryCounts.remove(candidate.trackId)
                             completed = true
                             note(
                                 "dispatch_ok action=${action.id} track=${candidate.trackId} " +
-                                    "backend=${gestureBackend.name} stroke=$index attempt=$attempt",
+                                    "backend=${gestureBackend.name} stroke=$index attempt=$attempt " +
+                                    "detail=${receipt.detail?.take(180) ?: "-"}",
                             )
                         }
                         DispatchOutcome.EXPIRED,
@@ -1085,8 +1142,6 @@ class VisionRuntimeController @Inject constructor(
                         DispatchOutcome.REJECTED,
                         -> {
                             attempt++
-                            val retriesUsed = (trackRetryCounts[candidate.trackId] ?: 0) + 1
-                            trackRetryCounts[candidate.trackId] = retriesUsed
                             note(
                                 "dispatch_fail outcome=${receipt.outcome.name} " +
                                     "backend=${gestureBackend.name} detail=${receipt.detail ?: "-"} " +
@@ -1191,41 +1246,52 @@ class VisionRuntimeController @Inject constructor(
         }
 
     /**
-     * 将自调后的触发倍数写回配置（节流）；失败只打日志，不打断帧循环。
+     * 将自调后的触发倍数写回**已保存**配置（节流）；失败只打日志，不打断帧循环。
+     *
+     * 经 [SettingsRepository.updateSavedPreservingPreview] 写盘，**不**清空设置页 preview 草稿；
+     * 若有草稿，会把触发距离字段合并进 preview，避免用户「保存并应用」时盖回旧值。
      */
     private fun maybePersistTriggerDistance(scene: SceneId, multiplier: Float, nowMs: Long) {
         if (!triggerDistanceTuner.shouldPersist(nowMs)) return
         scope.launch {
             runCatching {
-                val current = settingsRepository.snapshot()
-                val auto = current.automation
-                if (!auto.autoAdjustTriggerDistance) return@runCatching
                 val clamped = multiplier.coerceIn(0.5f, 8f)
-                val nextAuto = when (scene) {
-                    SceneId.SWEET_FACTORY ->
-                        if (kotlin.math.abs(auto.sweetTriggerDistancePlayerWidths - clamped) < 0.03f) {
-                            return@runCatching
-                        } else {
-                            auto.copy(sweetTriggerDistancePlayerWidths = clamped)
-                        }
-                    SceneId.BAMBOO_BOOKSTORE ->
-                        if (kotlin.math.abs(auto.bambooTriggerDistancePlayerWidths - clamped) < 0.03f) {
-                            return@runCatching
-                        } else {
-                            auto.copy(bambooTriggerDistancePlayerWidths = clamped)
-                        }
-                    SceneId.SEA_SALT_LIVING_ROOM ->
-                        if (kotlin.math.abs(auto.seaSaltTriggerDistancePlayerWidths - clamped) < 0.03f) {
-                            return@runCatching
-                        } else {
-                            auto.copy(seaSaltTriggerDistancePlayerWidths = clamped)
-                        }
+                val saved = settingsRepository.updateSavedPreservingPreview { snap ->
+                    val auto = snap.automation
+                    if (!auto.autoAdjustTriggerDistance) return@updateSavedPreservingPreview snap
+                    val nextAuto = when (scene) {
+                        SceneId.SWEET_FACTORY ->
+                            if (kotlin.math.abs(auto.sweetTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                                return@updateSavedPreservingPreview snap
+                            } else {
+                                auto.copy(sweetTriggerDistancePlayerWidths = clamped)
+                            }
+                        SceneId.BAMBOO_BOOKSTORE ->
+                            if (kotlin.math.abs(auto.bambooTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                                return@updateSavedPreservingPreview snap
+                            } else {
+                                auto.copy(bambooTriggerDistancePlayerWidths = clamped)
+                            }
+                        SceneId.SEA_SALT_LIVING_ROOM ->
+                            if (kotlin.math.abs(auto.seaSaltTriggerDistancePlayerWidths - clamped) < 0.03f) {
+                                return@updateSavedPreservingPreview snap
+                            } else {
+                                auto.copy(seaSaltTriggerDistancePlayerWidths = clamped)
+                            }
+                    }
+                    snap.copy(automation = nextAuto)
                 }
-                settingsRepository.save(current.copy(automation = nextAuto))
-                AppLog.i(
-                    "automation",
-                    "auto trigger distance scene=${scene.name} → ${"%.2f".format(clamped)}",
-                )
+                val persisted = when (scene) {
+                    SceneId.SWEET_FACTORY -> saved.automation.sweetTriggerDistancePlayerWidths
+                    SceneId.BAMBOO_BOOKSTORE -> saved.automation.bambooTriggerDistancePlayerWidths
+                    SceneId.SEA_SALT_LIVING_ROOM -> saved.automation.seaSaltTriggerDistancePlayerWidths
+                }
+                if (kotlin.math.abs(persisted - clamped) < 0.03f) {
+                    AppLog.i(
+                        "automation",
+                        "auto trigger distance scene=${scene.name} → ${"%.2f".format(clamped)}",
+                    )
+                }
             }.onFailure { error ->
                 AppLog.w(
                     "automation",
@@ -1318,6 +1384,92 @@ class VisionRuntimeController @Inject constructor(
                     now,
                     ACTION_TTL_MS,
                 ),
+            )
+        }
+    }
+
+    /**
+     * 自动复活：与障碍自动操作独立。
+     *
+     * 无障碍节点树按精确文案匹配「原地复活」「重新冒险」，点可点祖先屏幕中心。
+     * 冷却 [AUTO_REVIVE_COOLDOWN_MS]；需无障碍连接。返回非 null 决策串写入帧轨迹。
+     */
+    private fun maybeAutoRevive(token: Long, config: AppConfig): String? {
+        if (!config.automation.autoReviveEnabled) return null
+        if (!HzzsAccessibilityService.isConnected()) {
+            return "skip:revive_no_a11y"
+        }
+        val now = SystemClock.elapsedRealtime()
+        val last = lastAutoReviveAtMs.get()
+        if (last > 0L && now - last < AUTO_REVIVE_COOLDOWN_MS) {
+            return null
+        }
+        // 与障碍动作串行：有在飞手势时不抢。
+        if (actionInFlight.get()) return null
+        val center = HzzsAccessibilityService.findClickableCenterByExactTexts(
+            labels = AUTO_REVIVE_LABELS,
+            preferVisible = true,
+        ) ?: return null
+        if (!actionInFlight.compareAndSet(false, true)) return null
+        lastAutoReviveAtMs.set(now)
+        val (cx, cy) = center
+        val plannedAt = SystemClock.uptimeMillis()
+        actionJob = scope.launch {
+            try {
+                dispatchAutoReviveClick(
+                    token = token,
+                    config = config,
+                    centerX = cx,
+                    centerY = cy,
+                    plannedAt = plannedAt,
+                )
+            } finally {
+                actionInFlight.set(false)
+            }
+        }
+        return "plan revive press@${"%.2f".format(cx)},${"%.2f".format(cy)}"
+    }
+
+    private suspend fun dispatchAutoReviveClick(
+        token: Long,
+        config: AppConfig,
+        centerX: Float,
+        centerY: Float,
+        plannedAt: Long,
+    ) {
+        if (generation.get() != token) return
+        actionMutex.withLock {
+            if (generation.get() != token) return
+            if (!config.automation.autoReviveEnabled) {
+                AlgorithmRuntimeTrace.logDecision("dispatch_abort:revive_off")
+                return
+            }
+            val gestureBackend = resolveGestureBackend(config).effective
+            latestGestureBackend.set(gestureBackend)
+            val action = AutomationAction(
+                id = actionIds.getAndIncrement(),
+                trackId = AUTO_REVIVE_TRACK_ID,
+                avoidance = Avoidance.PRESS,
+                gesture = GestureSpec(
+                    startX = centerX.coerceIn(0f, 1f),
+                    startY = centerY.coerceIn(0f, 1f),
+                    durationMs = 24L,
+                ),
+                createdAtUptimeMs = plannedAt,
+                expiresAtUptimeMs = plannedAt + ACTION_TTL_MS,
+                allowedPackages = emptySet(),
+                requiredWindowClassPrefixes = emptySet(),
+                retryCount = 0,
+            )
+            AlgorithmRuntimeTrace.logDecision(
+                "dispatch_begin revive action=${action.id} backend=${gestureBackend.name} " +
+                    "xy=${"%.3f".format(centerX)},${"%.3f".format(centerY)}",
+            )
+            val receipt = arbiter.dispatch(action)
+            AlgorithmRuntimeTrace.logDecision(
+                "dispatch_${if (receipt.outcome == DispatchOutcome.COMPLETED) "ok" else "fail"} " +
+                    "revive outcome=${receipt.outcome.name} " +
+                    "detail=${receipt.detail?.take(80) ?: "-"}",
             )
         }
     }
@@ -1426,10 +1578,16 @@ class VisionRuntimeController @Inject constructor(
         const val SLIDE_TTL_BAMBOO_MS = 600L
         /** 捕获时间戳到动作决策的最大允许延迟（含分析耗时）。 */
         const val MAX_FRAME_AGE_MS = 1_000L
-        const val RETRY_BACKOFF_MS = 40L
+        /** 手势失败后的退避；过长会叠加 actionInFlight 占锁，体感更卡。 */
+        const val RETRY_BACKOFF_MS = 20L
         const val PERMISSION_BACKOFF_MS = 80L
         const val READY_NULL_FRAME_BACKOFF_MS = 12L
         const val IDLE_BACKOFF_MS = 80L
         const val DISABLED_SCENE_BACKOFF_MS = 250L
+        /** 自动复活连点冷却（与用户确认 0.3s 对齐）。 */
+        const val AUTO_REVIVE_COOLDOWN_MS = 300L
+        /** 账本用固定 track，避免与障碍 track 冲突。 */
+        const val AUTO_REVIVE_TRACK_ID = Long.MAX_VALUE - 7L
+        val AUTO_REVIVE_LABELS: List<String> = listOf("原地复活", "重新冒险")
     }
 }

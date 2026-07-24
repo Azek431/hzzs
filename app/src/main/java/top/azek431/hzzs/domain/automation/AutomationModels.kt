@@ -1,8 +1,10 @@
 package top.azek431.hzzs.domain.automation
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import top.azek431.hzzs.domain.vision.Avoidance
 
 /**
@@ -124,7 +126,7 @@ fun interface GestureDispatcher {
 class GestureArbiter(
     private val clock: () -> Long,
     private val dispatcher: GestureDispatcher,
-    private val dispatchTimeoutMs: Long = 1_500L,
+    private val dispatchTimeoutMs: Long = 2_000L,
 ) {
     init { require(dispatchTimeoutMs in 100L..10_000L) }
 
@@ -139,22 +141,79 @@ class GestureArbiter(
         if (clock() >= action.expiresAtUptimeMs) {
             return@withLock DispatchReceipt(action, DispatchOutcome.EXPIRED, "动作已过期")
         }
-        // 双击间隔会拉长整段 dispatch；超时至少覆盖两次 stroke + delay + 缓冲。
-        val neededMs = action.gesture.durationMs +
+        // 预算覆盖：双击间隔 + 每按 shell/无障碍注入余量 + 冷启动多候选试探。
+        // Shell 首次可能串行试 /system/bin/input、cmd input、input；非首选 fail-fast ~380ms，
+        // 但首选/末条可到 duration+900。DOUBLE_JUMP 两按 + 间隔时旧预算易误报「手势回调超时」。
+        val isClick = action.gesture.endX == null && action.gesture.endY == null
+        val pressCount = if (isClick && action.gesture.doublePressDelayMs > 0L) 2 else 1
+        val perPressBudgetMs = action.gesture.durationMs + PER_PRESS_SHELL_OVERHEAD_MS
+        val coldStartProbeMs = FAIL_FAST_CANDIDATE_BUDGET_MS * 2
+        val neededMs = perPressBudgetMs * pressCount +
             action.gesture.doublePressDelayMs +
-            action.gesture.durationMs +
-            500L
-        val timeoutMs = maxOf(dispatchTimeoutMs, neededMs).coerceAtMost(10_000L)
+            coldStartProbeMs +
+            ARBITER_SLACK_MS
+        val timeoutMs = maxOf(dispatchTimeoutMs, neededMs).coerceAtMost(MAX_ARBITER_TIMEOUT_MS)
+        val startedAt = clock()
+        // 超时后**仍持锁**再排空一小段，避免系统手势/shell 仍在飞时放行下一单。
         val receipt = runCatching {
-            withTimeoutOrNull(timeoutMs) { dispatcher.dispatch(action) }
-                ?: DispatchReceipt(action, DispatchOutcome.CANCELLED, "手势回调超时")
+            coroutineScope {
+                val job = async {
+                    runCatching { dispatcher.dispatch(action) }
+                        .getOrElse { error ->
+                            DispatchReceipt(
+                                action,
+                                DispatchOutcome.REJECTED,
+                                error.message ?: error.javaClass.simpleName,
+                            )
+                        }
+                }
+                val primary = withTimeoutOrNull(timeoutMs) { job.await() }
+                if (primary != null) {
+                    primary
+                } else {
+                    // 超时：继续持锁排空，防止叠点；排空后再记 CANCELLED。
+                    val drained = withTimeoutOrNull(POST_TIMEOUT_DRAIN_MS) { job.await() }
+                    if (drained == null) {
+                        job.cancel()
+                    }
+                    drained ?: DispatchReceipt(
+                        action,
+                        DispatchOutcome.CANCELLED,
+                        "手势回调超时 budget=${timeoutMs}ms presses=$pressCount " +
+                            "dur=${action.gesture.durationMs} dbl=${action.gesture.doublePressDelayMs} " +
+                            "waited=${clock() - startedAt}ms drain=${POST_TIMEOUT_DRAIN_MS}ms",
+                    )
+                }
+            }
         }.getOrElse { error ->
             DispatchReceipt(action, DispatchOutcome.REJECTED, error.message ?: error.javaClass.simpleName)
         }
         if (receipt.action.id != action.id || receipt.action.trackId != action.trackId) {
             return@withLock DispatchReceipt(action, DispatchOutcome.REJECTED, "手势回执与请求不匹配")
         }
+        // 成功路径也带上耗时，便于对照 shell 冷启动 vs 热路径。
+        if (receipt.outcome == DispatchOutcome.COMPLETED && receipt.detail?.contains("arbiterMs=") != true) {
+            val elapsed = clock() - startedAt
+            return@withLock receipt.copy(
+                detail = listOfNotNull(receipt.detail, "arbiterMs=$elapsed", "budget=${timeoutMs}ms")
+                    .joinToString(" "),
+            )
+        }
         receipt
+    }
+
+    private companion object {
+        /** 单次 shell/无障碍按压在 duration 之外的注入与进程开销预算。 */
+        const val PER_PRESS_SHELL_OVERHEAD_MS = 1_600L
+        /** 约两次非首选 input 候选 fail-fast（与 ShellInputGestureDispatcher 对齐量级）。 */
+        const val FAIL_FAST_CANDIDATE_BUDGET_MS = 400L
+        const val ARBITER_SLACK_MS = 500L
+        const val MAX_ARBITER_TIMEOUT_MS = 12_000L
+        /**
+         * 主超时后额外持锁等待在飞注入结束的上限。
+         * 防止「超时即空闲」导致系统手势与下一单叠加。
+         */
+        const val POST_TIMEOUT_DRAIN_MS = 1_500L
     }
 }
 
@@ -178,19 +237,28 @@ class ActionCommitLedger {
      *
      * @param spatialKey 可空；为空时只检查 track
      * @param nowMs 与写入时同一时钟基准（通常 [android.os.SystemClock.uptimeMillis]）
+     *
+     * 实现为同步快照读：冷却表仅在 [commit]/[reset] 与本方法内受 [mutex] 保护，
+     * 帧路径可直接调用，避免 `runBlocking` 嵌套。
      */
-    suspend fun canPlan(trackId: Long, spatialKey: String? = null, nowMs: Long = 0L): Boolean =
-        mutex.withLock {
-            if (trackId <= 0) return@withLock false
+    fun canPlan(trackId: Long, spatialKey: String? = null, nowMs: Long = 0L): Boolean {
+        if (trackId <= 0) return false
+        // 与 commit 互斥：短临界区读+ prune，无 IO。
+        // 使用 tryLock 失败时 fail-closed（视为不可规划），避免帧环阻塞。
+        if (!mutex.tryLock()) return false
+        return try {
             pruneLocked(nowMs)
             val trackAt = completedTracks[trackId]
-            if (trackAt != null && nowMs - trackAt < TRACK_COOLDOWN_MS) return@withLock false
+            if (trackAt != null && nowMs - trackAt < TRACK_COOLDOWN_MS) return false
             if (spatialKey != null) {
                 val previous = recentSpatialKeys[spatialKey]
-                if (previous != null && nowMs - previous < SPATIAL_COOLDOWN_MS) return@withLock false
+                if (previous != null && nowMs - previous < SPATIAL_COOLDOWN_MS) return false
             }
             true
+        } finally {
+            mutex.unlock()
         }
+    }
 
     /**
      * 根据回执提交。仅 [DispatchOutcome.COMPLETED] 写入去重集合。

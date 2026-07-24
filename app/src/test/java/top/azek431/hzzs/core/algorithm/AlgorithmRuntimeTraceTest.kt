@@ -98,6 +98,28 @@ class AlgorithmRuntimeTraceTest {
         assertFalse(AlgorithmRuntimeTrace.formatText().contains("seq=1"))
     }
 
+    @Test
+    fun logDecisionWritesRingAndInfo() {
+        AlgorithmRuntimeTrace.logDecision("skip:package_gate pkg=top.azek431.hzzs.debug")
+        AlgorithmRuntimeTrace.logCalc("trigDist=0.25 gap=-0.01")
+        val decisions = AlgorithmRuntimeTrace.recentDecisions()
+        assertEquals(2, decisions.size)
+        assertTrue(decisions[0].message.contains("package_gate"))
+        assertTrue(decisions[1].message.startsWith("calc "))
+        val text = AlgorithmRuntimeTrace.formatDecisionText()
+        assertTrue(text.contains("HZZS algorithm decisions"))
+        assertTrue(text.contains("package_gate"))
+        assertTrue(AppLog.snapshot().any { it.tag == "algo.decision" && it.message.contains("package_gate") })
+    }
+
+    @Test
+    fun resetSessionClearsDecisionRing() {
+        AlgorithmRuntimeTrace.logDecision("dispatch_ok action=1")
+        assertEquals(1, AlgorithmRuntimeTrace.recentDecisions().size)
+        AlgorithmRuntimeTrace.resetSession()
+        assertTrue(AlgorithmRuntimeTrace.recentDecisions().isEmpty())
+    }
+
     private fun sampleEntry(
         seq: Long,
         obstacleCount: Int,
