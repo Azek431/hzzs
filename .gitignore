@@ -276,6 +276,9 @@ hzzs-lint-errors*.txt
 # ============================================================
 
 /.backups/
+# 危险 Git 操作前的 bundle / meta（永不入库）
+/.git-backups/
+*.bundle
 *.log
 hs_err_pid*.log
 replay_pid*.log

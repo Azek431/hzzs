@@ -20,6 +20,7 @@
 
 ### 修复
 
+- **VS Code 真机/JDWP 任务**：PowerShell `Continue=Stop` 下原生 `adb` 的 stderr 不再误杀任务；无设备/unauthorized/offline 打印排查提示；安装/logcat/转发统一走脚本闸门；JDWP 启动后轮询 PID；诊断导出默认 `local-diagnostics/device`；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1；避免 StrictMode 下盲读 `0`。
 - **海盐场景置信度与自动操作门闩**：FIXED_RATIO 不再按「玩家失败」压低 `sceneConfidence`；有障碍/找色命中时至少抬到 0.85/0.88，避免稳定检出 `SEA_PIT` 却因 `0.68<0.82` 永不派发手势。
 - **海盐多点找色对齐酱油脚本**：按 AutoJS 源（设计 1272×2772、颜色 `0xAARRGGBB`）重录大/小断崖、矮/高沙丘、船锚五条模板；搜索带默认 0.438–0.881、阈值 10；船锚动作为 `SLIDE`（向下滑）；bounds 用点集包络而非专用绘制层；不移植「复活」UI 点击。
 - **算法 analysisRunning 同步**：`VisionRuntimeController` start/stop/异常路径经 `AlgorithmCatalogController.setAnalysisRunning`，避免分析中下载半热激活与 UI pending 文案错位。
@@ -47,6 +48,7 @@
 
 ### 修复
 
+- **VS Code 真机/JDWP 任务**：PowerShell `Continue=Stop` 下原生 `adb` 的 stderr 不再误杀任务；无设备/unauthorized/offline 打印排查提示；安装/logcat/转发统一走脚本闸门；JDWP 启动后轮询 PID；诊断导出默认 `local-diagnostics/device`；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1；避免 StrictMode 下盲读 `0`。
 - **前台服务 type（targetSdk 37）**：`MediaProjectionCaptureService` / `McpForegroundService` 在 API 34+ 调用带 `FOREGROUND_SERVICE_TYPE_*` 的 `startForeground`，避免 `MissingForegroundServiceTypeException`。
 - **录屏服务 `stopping` 闩**：stop 后同一 Service 实例再次 START 会重置 `stopping`，避免快速重开捕获永久空转；`fail/idle` 同步排空帧通道。
 - **MCP/外部配置摄入 harden**：`hardenedForExternalIngest` 禁止静默开自动操作、自提 MCP 权限级、静默开开发者/升权截图后端；MCP `preview_settings`/`save_settings` 相对 baseline 收敛。

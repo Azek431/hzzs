@@ -31,9 +31,10 @@ project_name: "hzzs"
 # When using multiple languages, the first language server that supports a given file will be used for that file.
 # The first language is the default language and the respective language server will be used as a fallback.
 # Note that when using the JetBrains backend, language servers are not used and this list is correspondingly ignored.
+# 默认只起 Kotlin，避免与 VS Code clangd / JetBrains 再叠 cpp LS 吃内存。
+# 需要 C++ 语义时再临时加回 cpp。
 languages:
 - kotlin
-- cpp
 
 # the encoding used by text files in the project
 # For a list of possible encodings, see https://docs.python.org/3.11/library/codecs.html#standard-encodings
@@ -58,7 +59,14 @@ ignore_all_files_in_gitignore: true
 # Maps the language key to the options.
 # Have a look at the docstring of the constructors of the LS implementations within solidlsp (e.g., for C# or PHP) to see which options are available.
 # No documentation on options means no options are available.
-ls_specific_settings: {}
+# Kotlin LS 默认堆过大时会与 Gradle/IDE 抢内存；收紧到 768m。
+ls_specific_settings:
+  kotlin:
+    jvm_options:
+    - -Xmx768m
+    - -XX:MaxMetaspaceSize=256m
+    - -XX:+UseG1GC
+    - -XX:+UseStringDeduplication
 
 # list of additional workspace folder paths for cross-package reference support (e.g. in monorepos).
 # Paths can be absolute or relative to the project root.

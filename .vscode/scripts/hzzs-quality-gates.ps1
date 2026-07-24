@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Run project quality gates (no Android device required).
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\hzzs-common.ps1"
@@ -7,16 +7,13 @@ $repo = Get-HzzsRepoRoot
 Set-Location $repo
 
 Write-HzzsHeader 'check_resources'
-python tools/quality/check_resources.py
-if ($LASTEXITCODE -ne 0) { throw 'check_resources failed' }
+Invoke-HzzsPython -PythonArgs @('tools/quality/check_resources.py') -FailureMessage 'check_resources failed'
 
 Write-HzzsHeader 'check_project'
-python tools/quality/check_project.py
-if ($LASTEXITCODE -ne 0) { throw 'check_project failed' }
+Invoke-HzzsPython -PythonArgs @('tools/quality/check_project.py') -FailureMessage 'check_project failed'
 
 Write-HzzsHeader 'compileall tools'
-python -m compileall -q tools
-if ($LASTEXITCODE -ne 0) { throw 'compileall failed' }
+Invoke-HzzsPython -PythonArgs @('-m', 'compileall', '-q', 'tools') -FailureMessage 'compileall tools failed'
 
 Write-Host ''
 Write-Host 'Quality gates PASS'

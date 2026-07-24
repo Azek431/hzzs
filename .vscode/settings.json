@@ -161,7 +161,10 @@
   "java.symbols.includeSourceMethodDeclarations": false,
 
   // JetBrains Kotlin LSP 是本项目 VS Code 内的主 Kotlin 语义服务。
-  // 限制堆与代码缓存，避免中小型 Android 工程空闲时常驻超过 1 GiB。
+  // 限制堆与代码缓存，避免中小型 Android 工程空闲时常驻过大。
+  // 必须关掉 fwcd.kotlin 语言服务，否则会与 JetBrains / Serena 叠多套 KLS。
+  "kotlin.languageServer.enabled": false,
+  "kotlin.debugAdapter.enabled": false,
   "intellij.additionalJvmArgs": [
     "-Xms128m",
     "-Xmx768m",
@@ -179,6 +182,9 @@
 
   // Python 工具仅扫描源码/脚本；生成物、备份和本机状态由 VS Code 统一排除。
   "python.analysis.exclude": [
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/.*",
     "**/.backups/**",
     "**/.claude/**",
     "**/.serena/cache/**",
@@ -194,6 +200,31 @@
   "eslint.enable": false,
   "cSpell.enabled": false,
   "auto-rename-tag.activationOnLanguage": [],
+
+  // 再砍一些空闲底噪（不改产品逻辑）
+  "telemetry.telemetryLevel": "off",
+  "files.maxMemoryForLargeFilesMB": 64,
+  "search.smartCase": true,
+  "search.collapseResults": "alwaysCollapse",
+  "editor.linkedEditing": false,
+  "editor.bracketPairColorization.enabled": false,
+  "editor.guides.bracketPairs": false,
+  "editor.occurrencesHighlight": "off",
+  "editor.renderWhitespace": "none",
+  "editor.wordWrap": "off",
+  "problems.decorations.enabled": false,
+  "scm.diffDecorations": "none",
+  "git.decorations.enabled": false,
+  "gitlens.codeLens.enabled": false,
+  "gitlens.currentLine.enabled": false,
+  "gitlens.hovers.enabled": false,
+  "gitlens.statusBar.enabled": false,
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autocomplete": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "cmake.configureOnOpen": false,
+  "cmake.autoSelectActiveFolder": false,
+  "makefile.configureOnOpen": false,
 
   "[kotlin]": {
     "editor.insertSpaces": true,

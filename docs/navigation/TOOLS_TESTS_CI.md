@@ -11,9 +11,11 @@
 | `tools/algorithm/` | 算法源树、签名密钥 | 校验结果、确定性 `.hzzsalg`、目录；`--execute` 可发布 | dry-run 不联网但仍需私钥；execute 需双源 token |
 | `tools/release/` | APK、版本与签名材料 | 更新索引、差分、发布辅助产物 | 发布时联网并需 Secrets |
 | `tools/dev/` | 本机 Gradle/Kotlin 缓存 | 停 daemon、修复本地缓存 | 否 |
-| `.vscode/scripts/` | ADB 设备/本机环境 | 启动、诊断、JDWP 与质量辅助 | 连接设备 |
+| `.vscode/scripts/` | ADB 设备/本机环境 | 启动、诊断、JDWP 与质量辅助 | 连接设备；说明见 `.vscode/scripts/README.md` |
 
 不要提交 `build/` 中的产物、签名包、私钥、公钥临时派生文件、日志或本机数据集。
+
+VS Code 真机任务要点：所有 adb 经 `Invoke-HzzsAdb`，避免 `$ErrorActionPreference=Stop` 把 stderr 当致命错误；无 device 时先可读失败再装包；JDWP 清理转发忽略 listener not found；诊断默认写 `local-diagnostics/device/`（可 `HZZS_DIAGNOSTICS_ROOT`）；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1。
 
 ## 最低质量门禁
 

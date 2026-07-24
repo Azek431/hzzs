@@ -24,7 +24,7 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 ### 本机 Kotlin IC / 低内存
 
 - 产品使用 **Hilt + KSP**（不再 kapt stub 双编译）。
-- 堆与 worker 按 low-memory / 4 线程画像写在根 `gradle.properties`；可用 `gradle.local.properties` 覆盖。
+- 堆与 worker 按「低内存开发机 + IDE 共存」写在根 `gradle.properties`；可用 `gradle.local.properties` 覆盖。
 - 若出现 `classpath-snapshot` / `shrunk-classpath-snapshot.bin` 找不到、IC 回退全量、或 `Gradle build daemon has been stopped: stop command received`：
 
 ```powershell

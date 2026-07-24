@@ -35,12 +35,17 @@
     },
     {
       "label": "📲 [HZZS] 安装 Debug APK",
-      "detail": "installDebug：构建并安装到已连接设备。安装身份 top.azek431.hzzs.debug。",
-      "type": "shell",
-      "command": ".\\gradlew.bat",
+      "detail": "先检查 adb device，再 installDebug。安装身份 top.azek431.hzzs.debug。无设备时给出可读提示。",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "--console=plain",
-        ":app:installDebug"
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/scripts/hzzs-install-debug.ps1"
       ],
       "problemMatcher": [],
       "runOptions": {
@@ -182,12 +187,17 @@
     },
     {
       "label": "🧽 [HZZS] 清空 logcat",
-      "detail": "adb logcat -c。真机复现前先清缓冲。",
-      "type": "shell",
-      "command": "adb",
+      "detail": "adb logcat -c。经脚本包装：无设备时可读失败；stderr 不误杀。",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "logcat",
-        "-c"
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/scripts/hzzs-logcat-clear.ps1"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -202,19 +212,16 @@
     {
       "label": "🐞 [HZZS] 监听核心 logcat",
       "detail": "长任务，需在终端面板手动停止（垃圾桶/停止按钮）。过滤 HZZS / 崩溃 / Activity / Window。不要放进 dependsOn 复合任务，否则会永远不结束。",
-      "type": "shell",
-      "command": "adb",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "logcat",
-        "-v",
-        "time",
-        "HZZS:D",
-        "AndroidRuntime:E",
-        "System.err:E",
-        "ActivityManager:I",
-        "ActivityTaskManager:I",
-        "WindowManager:I",
-        "*:S"
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/scripts/hzzs-logcat-watch.ps1"
       ],
       "problemMatcher": [],
       "runOptions": {
@@ -253,7 +260,7 @@
     },
     {
       "label": "📤 [HZZS] 导出诊断快照",
-      "detail": "导出到 D:\\Azek431-Archives\\hzzs-device-diagnostics（设备信息、双包状态、logcat、截图）。",
+      "detail": "导出到 local-diagnostics/device（可用 HZZS_DIAGNOSTICS_ROOT 覆盖）：设备信息、双包状态、logcat、截图。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -277,7 +284,7 @@
     },
     {
       "label": "🔌 [HZZS] 调试前置：安装+启动+JDWP",
-      "detail": "launch.json preLaunchTask：installDebug → 启动 Debug → forward tcp:5005 jdwp。",
+      "detail": "launch.json preLaunchTask：installDebug → 启动 Debug → forward tcp:5005 jdwp。清理旧转发时忽略 listener not found。",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -332,13 +339,19 @@
     },
     {
       "label": "🔌 [HZZS] 移除 JDWP 转发",
-      "detail": "adb forward --remove tcp:5005",
-      "type": "shell",
-      "command": "adb",
+      "detail": "adb forward --remove tcp:5005。无转发时不失败。",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "forward",
-        "--remove",
-        "tcp:5005"
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/scripts/hzzs-adb-forward-remove.ps1",
+        "-Port",
+        "5005"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -376,7 +389,7 @@
     },
     {
       "label": "✅ [HZZS] 验证 Debug（构建 + 单元测试）",
-      "detail": "assembleDebug + testDebugUnitTest。提交前快速验证。",
+      "detail": "assembleDebug + testDebugUnitTest。提交前快速验证。低内存机可能 OOM，可缩范围。",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [
@@ -403,7 +416,7 @@
     },
     {
       "label": "🛡️ [HZZS] 提交前完整验证",
-      "detail": "assembleDebug + testDebugUnitTest + lintDebug。最完整、最慢。",
+      "detail": "assembleDebug + testDebugUnitTest + lintDebug。最完整、最慢。低内存机可能 OOM。",
       "type": "shell",
       "command": ".\\gradlew.bat",
       "args": [

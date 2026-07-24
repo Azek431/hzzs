@@ -60,11 +60,11 @@ Write-Host "HZZS Gradle/Kotlin IC repair"
 Write-Host "Repo: $RepoRoot"
 
 $os = Get-CimInstance Win32_OperatingSystem
-$totalMb = [math]::Round($os.TotalVisibleMemorySize / 1KB, 0)
 $freeMb = [math]::Round($os.FreePhysicalMemory / 1KB, 0)
-Write-Host ("Memory: free {0} MB / total {1} MB" -f $freeMb, $totalMb)
+# 只打印空闲量，不打印本机总内存容量（避免把硬件画像写进日志/对话）
+Write-Host ("Memory: free {0} MB" -f $freeMb)
 if ($freeMb -lt 1500) {
-    Write-Host "WARNING: free RAM < 1.5 GiB. Close IDE language servers / extra Claude / browser tabs before compile." -ForegroundColor Yellow
+    Write-Host "WARNING: free RAM is tight. Close IDE language servers / extra Claude / browser tabs before compile." -ForegroundColor Yellow
 }
 
 if (-not $SkipStop) {

@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  清理本机 Serena / 多余 Kotlin LS 与缓存，恢复 low-memory profile 机器上的可用内存。
+  清理本机 Serena / 多余 Kotlin LS 与缓存，恢复与 IDE 共存时的可用内存。
 
 .DESCRIPTION
   典型症状：
@@ -152,7 +152,7 @@ if (Test-Path $projectYml) {
     }
 }
 Write-Host "  Global: $env:USERPROFILE\.serena\serena_config.yml (kotlin jvm + web_dashboard)"
-Write-Host "  After Claude restarts MCP: free RAM should stay > ~1.5 GiB for Gradle"
+Write-Host "  After Claude restarts MCP: keep enough free RAM for Gradle (close extra KLS if tight)"
 
 Write-Host ""
 Write-Host "Free RAM after: $(Get-FreeMb) MiB"
