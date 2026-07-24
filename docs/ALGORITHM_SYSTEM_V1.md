@@ -55,14 +55,36 @@
 
 不包含脚本、模型权重或远程 URL。  
 
-**客户端链路（已落地骨架）**：
+**客户端链路（已落地）**：
 
-- 目录：`AlgorithmNetworkClient` HTTPS 拉 `algorithms/{channel}.json`（Gitee/GitHub）
+- 目录：`AlgorithmNetworkClient` HTTPS 拉 `algorithms/{channel}.json`（Gitee/GitHub，可镜像回退）
 - 下载：size/sha256 + `AlgorithmPackVerifier`（ZIP 白名单 + Ed25519）
 - 落盘：`InstalledAlgorithmStore` → `filesDir/algorithms/installed/`
-- 激活：`AlgorithmActivationCoordinator`（save / start 安全点）
+- UI 目录状态：`AlgorithmCatalogController`（`StateFlow`；检查/下载/pending 徽章）
+- 激活：`AlgorithmActivationCoordinator`（**仅** save 后 `onConfigCommitted` / 分析 start 前 `ensureConfigured`）
 - **信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 当前含 `hzzs-algorithm-official-1`；列表为空时远端下载安装 fail-closed
-- **APK 捆绑**：`assets/algorithms/<id>/` 经 `BundledAlgorithmInstaller` 幂等预装（不经外装验签，不覆盖已装用户包）；设置「算法库」可切换内置 / 捆绑 / 远端
+- **APK 捆绑**：`assets/algorithms/<id>/` 经 `BundledAlgorithmInstaller` 幂等预装（不经外装验签；更高 version 可覆盖 bundled，不覆盖 `network` 外装）
+
+### 应用内选择与「待启用」（产品语义）
+
+```text
+检查更新 → 列表（内置 · 捆绑 · 已装 · 远端）
+→ 下载安装（需信任锚）→ 落盘
+→ MANUAL：点「使用此版本」钉选（写草稿 pinnedAlgorithmId）
+→ 保存并应用 → onConfigCommitted
+     · 未在分析：立即 configure Native
+     · 正在分析：pendingCatalogId，UI 可显示「待启用」；下次 start 再 ensureConfigured
+→ AUTO：按场景选已装兼容最新；autoDownload 仅在有锚时尝试
+```
+
+| UI 文案 | 条件 |
+| --- | --- |
+| 当前使用 | `active.id` 与解析结果一致且非 pending |
+| 待启用 | 分析运行中已换钉选，或 Catalog `PendingActivation`（引擎未切） |
+| 保存后启用 | 未分析时选包的提示（保存触发 configure）；**不是**永久卡死状态 |
+
+诊断导出字段：`algorithm.mode/pinned/channel`、`Algorithm activation id/generation/pendingCatalogId/analysisRunning`。  
+详细代理导航见 `docs/navigation/KOTLIN.md`「应用内算法包」与根 `CLAUDE.md` 算法发布节。
 
 ### `signature.json`
 

@@ -11,6 +11,7 @@
 
 ### 修复
 
+- **算法库「待启用」假阳性**：未分析时选包不再挂 `PendingActivation`；`bindSettings` 在钉选已与 `resolveActive` 一致且未分析时清除 pending。文档写明热更/激活语义（`KOTLIN.md` / `ALGORITHM_SYSTEM_V1` / `AGENTS`）。
 - **运行时安全门控跟 saved**：自动操作与截图后端不随设置草稿 preview 生效；主题/悬浮窗仍可 preview。
 - **Shell 前台解析优先 mResumed/topResumed**：避免 dumpsys 全文第一个 ActivityRecord 误当顶层；ledger commit 用真实完成时刻。
 
@@ -22,10 +23,11 @@
 
 ### 新增
 
+- **MCP 访问日志**：进程内 ring（`McpAccessLog`，约 200 条）记录连接/请求摘要（method、工具名、HTTP 状态、耗时、远端、错误码）；**永不**记 Bearer / `authToken` / arguments。设置 → MCP「访问日志」可开关（`accessLogEnabled`，默认开）；工具 `get_mcp_access_log` / `clear_mcp_access_log`；诊断导出含摘要段。配置 schema **9**。
 - **FastContourV2 编译期 profile 表**：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`；host smoke 增加 `profiles` 目标；仍不进 APK/CMake。
 
 - **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。binder 在未授权时可点「授权 Shizuku」；已授权优先 `ShellProcessSupport` 写 system/secure + `cmd settings`；否则 `WRITE_SETTINGS` / Root。写入后**回读校验**（system/secure 任一为 1）。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
-- **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**；外部摄入不得放宽策略。
+- **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**（后续访问日志升 **9**）；外部摄入不得放宽策略。
 
 - **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。
 

@@ -30,6 +30,9 @@ import javax.inject.Singleton
  * - 目录：HTTPS 拉 `algorithms/{channel}.json`（Gitee/GitHub，尊重 sourcePreference）
  * - 下载：HTTPS 资产 + size/sha256 + [AlgorithmPackVerifier] + [InstalledAlgorithmStore]
  * - 官方公钥未配置时：目录可展示，但下载安装 fail-closed
+ * - **「待启用」**：仅 [AlgorithmCatalogPhase.PendingActivation]——分析运行中改钉选时；
+ *   真正 Native configure 在 [AlgorithmActivationCoordinator]（save / start 安全点），见
+ *   `docs/navigation/KOTLIN.md` 与 `docs/ALGORITHM_SYSTEM_V1.md`
  *
  * 线程：状态更新在 Main；网络 IO 切 [Dispatchers.IO]。
  */
@@ -76,18 +79,24 @@ class AlgorithmCatalogController @Inject constructor(
         this.wifiOnly = wifiOnly
         mutableState.update { current ->
             val installed = mergeDiskInstalled(current.installed)
+            val active = resolveActive(installed, algorithm, selectedScene)
+            // pending 仅在「草稿/配置已钉选，但引擎尚未切到该包」时保留。
+            // 未分析且 resolveActive 已与钉选一致 → 清 pending（保存后不再假「待启用」）。
+            // 分析中钉选变更 → 保留 pending（须 stop 或下次 start 才 ensureConfigured）。
+            val pending = current.pendingActivation?.takeIf { pendingInfo ->
+                algorithm.selectionMode == AlgorithmSelectionMode.MANUAL &&
+                    algorithm.pinnedAlgorithmId == pendingInfo.id &&
+                    (analysisRunning || active?.id != pendingInfo.id)
+            }
             current.copy(
                 selectionMode = algorithm.selectionMode,
                 channel = algorithm.channel,
                 sourcePreference = sourcePreference,
                 analysisRunning = analysisRunning,
                 trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
-                installed = sortInstalled(installed, resolveActive(installed, algorithm, selectedScene)?.id),
-                active = resolveActive(installed, algorithm, selectedScene),
-                pendingActivation = current.pendingActivation?.takeIf {
-                    algorithm.selectionMode == AlgorithmSelectionMode.MANUAL &&
-                        algorithm.pinnedAlgorithmId == it.id
-                },
+                installed = sortInstalled(installed, active?.id),
+                active = active,
+                pendingActivation = pending,
             ).recomputePhase()
         }
     }
@@ -349,7 +358,9 @@ class AlgorithmCatalogController @Inject constructor(
     /**
      * 手动模式选择已安装算法。
      *
-     * 分析运行中或与当前 active 不同 → 仅 pending；
+     * - 分析运行中：写入 [AlgorithmCatalogState.pendingActivation]（引擎不半热切换）。
+     * - 未分析：不设 pending（草稿钉选经 [bindSettings]/[resolveActive] 即可反映；
+     *   真正 [VisionEngine.configureAlgorithm] 仍在 [AlgorithmActivationCoordinator.onConfigCommitted]）。
      * 真正写入 [AlgorithmConfig.pinnedAlgorithmId] 由设置 ViewModel 负责。
      */
     fun selectInstalled(algorithmId: String): AlgorithmPackageInfo? {
@@ -364,24 +375,25 @@ class AlgorithmCatalogController @Inject constructor(
             return null
         }
         mutableState.update { current ->
-            if (analysisRunning || current.active?.id != installed.id) {
-                current.copy(
+            when {
+                analysisRunning -> current.copy(
                     pendingActivation = installed,
                     phase = AlgorithmCatalogPhase.PendingActivation(
                         algorithmId = installed.id,
-                        message = if (analysisRunning) "下次启动分析时应用" else "保存后启用",
+                        message = "下次启动分析时应用",
                     ),
-                    message = if (analysisRunning) {
-                        "已选择 ${installed.name}，下次启动分析时应用"
-                    } else {
-                        "已选择 ${installed.name}，保存后启用"
-                    },
+                    message = "已选择 ${installed.name}，下次启动分析时应用",
                 )
-            } else {
-                current.copy(
+                current.active?.id == installed.id -> current.copy(
                     pendingActivation = null,
                     phase = AlgorithmCatalogPhase.Idle,
                     message = "已是当前算法",
+                )
+                else -> current.copy(
+                    // 未分析：不挂 pending 徽章；文案提示须保存才 configure Native
+                    pendingActivation = null,
+                    phase = AlgorithmCatalogPhase.Idle,
+                    message = "已选择 ${installed.name}，保存后启用",
                 )
             }
         }

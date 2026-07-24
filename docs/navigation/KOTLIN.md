@@ -123,23 +123,62 @@ Tracker 非线程安全，只由当前帧循环拥有；场景、算法 generati
 
 手势后端与截图后端正交：Shizuku/Root 可选手势注入，AUTO 永不升 Root。
 
-## 应用内算法包
+## 应用内算法包（更新 · 选择 · 「待启用」）
 
-稳定主链：
+### 网络热更主链
 
 ```text
-AlgorithmCatalogController
-→ AlgorithmNetworkClient 拉取 release-index 目录
-→ 同源下载包并校验 size + SHA-256
-→ AlgorithmPackVerifier（ZIP 白名单 + Ed25519）
-→ InstalledAlgorithmStore（应用私有目录）
-→ AlgorithmActivationCoordinator
-→ 安全点配置 Native profile
+设置「检查更新」/ autoCheck
+→ AlgorithmCatalogController.refreshCatalog
+→ AlgorithmNetworkClient 拉 release-index：algorithms/{stable|beta}.json
+→ 列表展示；点下载
+→ packages 资产 raw 下载 + size/sha256
+→ AlgorithmPackVerifier（ZIP 白名单 + Ed25519 + AlgorithmTrustAnchors）
+→ InstalledAlgorithmStore（filesDir/algorithms/installed/）
+→ （可选）AUTO 模式未分析时可 activateCatalog 立即 configure
 ```
 
-无信任锚时拒绝下载安装。分析运行中不得半途替换 profile；应记录 pending，在保存或下次启动等安全点激活。
+- **无 tag**：不读 GitHub Release；只认 `release-index` 分支文件。
+- **信任锚空**：目录可展示，**拒绝**远端下载安装；内置 + `assets/algorithms/*` 捆绑仍可用。
+- **通道**：`AlgorithmConfig.channel` = STABLE / BETA；海盐远端默认 beta。
+- **捆绑**：`BundledAlgorithmInstaller` 按更高 `versionCode` 覆盖同 origin 的 bundled；**不**冲掉 `originTag=network`。
 
-当前网络层需特别小心：镜像回退、App 版本兼容计算（`PackageManager` longVersionCode）、目录 id/sha256/路径校验。修改前先读 `AlgorithmNetworkClient.kt` 和 `AlgorithmCatalogController.kt`，不要只看设置页面。
+### 激活与「待启用」语义（必读）
+
+UI 徽章 **「待启用」** = `AlgorithmCatalogPhase.PendingActivation` / 卡片 `PENDING_ACTIVATION`，**不是**自动操作未开，也不是分析未启动。
+
+| 概念 | 真相源 | 含义 |
+| --- | --- | --- |
+| 钉选 / 草稿选择 | `AlgorithmConfig.pinnedAlgorithmId` + MANUAL 模式 | 用户想用的 catalog id |
+| UI `active` | `AlgorithmCatalogController` ← `resolveActive(draft/saved)` | **配置解析出的**当前包展示 |
+| 引擎真实 profile | `AlgorithmActivationCoordinator` + Native `configureAlgorithm` | 真正参与分析的参数 |
+| UI `pendingActivation` | Catalog 状态 | 分析**运行中**已改钉选，引擎尚未切换 |
+| 协调器 `pendingCatalogId` | ActivationCoordinator | save 时若在分析中，记一笔，**下次 start** `ensureConfigured` 消费 |
+
+```text
+点「使用此版本」
+→ Catalog.selectInstalled + ViewModel 写草稿 pinned（可自动切单赛季包场景）
+→ 顶栏「保存并应用」
+→ repository.save
+→ algorithmActivation.onConfigCommitted
+     ├─ 未分析 → 立即 activateCatalog → Native configure
+     └─ 分析中 → 只写 pendingCatalogId，引擎仍用旧 profile
+→ 下次「开始分析」VisionRuntimeController.start
+→ ensureConfigured：消费 pending 或按 saved 解析 → configure
+```
+
+**禁止**分析帧循环中途半热替换 Native profile（generation / Tracker 安全点）。
+
+排障对照诊断导出：
+
+- `algorithm.pinned` / `selectionMode` / `channel`
+- `Algorithm activation id=`（引擎侧）
+- `pendingCatalogId` / `analysisRunning`
+- pipeline 阶段与 `Last frame`
+
+常见误解：诊断里 `vision.running=false` 且 `usingBuiltinFallback=true`、钉选 `builtin-…` → 当前就是内置，**不应**再显示待启用；若仍显示，多半是 Catalog `pendingActivation` 未在 save/bind 后清除（见 `bindSettings` 清理条件）。
+
+修改前读：`AlgorithmCatalogController.kt`、`AlgorithmActivationCoordinator.kt`、`AlgorithmNetworkClient.kt`、设置页 `AlgorithmSettingsScreen.kt`。
 
 ## 对应测试与明显缺口
 

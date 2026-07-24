@@ -25,12 +25,18 @@
 - **检测更新**：读 `release-index` 的 `algorithms/stable.json|beta.json`，不是扫 Release。
 - **下载**：`algorithms/packages/<filename>` 的 raw URL（Gitee/GitHub 双源）。
 - **已有算法包**：
-  - `official-bamboo-baseline v0.1.0` — 竹影书屋默认阈值（作者：HZZS Official）
-  - `sea-salt-living-room-v1 v0.1.0` — 海盐客厅多点找色基线（作者：酱油，beta 通道）
+  - `official-bamboo-baseline v0.1.0` — 竹影书屋默认阈值（作者：HZZS Official，stable）
+  - `sea-salt-living-room-v1 v0.1.0` — 海盐客厅多点找色基线（作者：酱油，**beta** 通道）
 - **版本**：`manifest.json` 语义化 `MAJOR.MINOR.PATCH`（**首版 `0.1.0`**；与 App `0.1.0` 独立）。修一点 → `+PATCH`；完整一波 → `+MINOR`；破坏性 → `+MAJOR`。**先验证门禁通过再 bump**，禁止先改版本再测。
 - **通道**：`beta` 测试 / `stable` 稳定；用户设置 `AlgorithmConfig.channel` 自选；未验证勿上 stable。
-- **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。
+- **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。CI：`algorithm-release.yml` push `algorithm-packs/**` 可自动签包写 `release-index`（需 `ALGORITHM_SIGNING_*` Secrets；Secret 应为 **单次** base64(PEM)，对已是 b64 的 txt 再编码会双重 Base64，工具可自愈一层）。
 - **信任锚**：`AlgorithmTrustAnchors` 当前含 `hzzs-algorithm-official-1` 公钥；列表若空则外装 fail-closed。私钥永不入库。
+- **客户端激活（「待启用」）**：
+  - 点「使用此版本」→ 草稿 `pinnedAlgorithmId`（MANUAL）
+  - **保存并应用** → `AlgorithmActivationCoordinator.onConfigCommitted`：未分析则立即 `configure`；**分析中**只记 `pendingCatalogId`，UI 可显示「待启用」
+  - **开始分析** → `ensureConfigured` 消费 pending / 按 saved 解析
+  - UI `pendingActivation` ≠ 自动操作关；诊断看 `pinned` / activation `id` / `pendingCatalogId` / `analysisRunning`
+  - 详情：`docs/navigation/KOTLIN.md`、`docs/ALGORITHM_SYSTEM_V1.md`
 - **完整步骤与 AI 代发流程**：根目录 `CLAUDE.md` 节「算法包网络更新」；规范 `docs/ALGORITHM_SYSTEM_V1.md`。
 
 ## 快速开始
@@ -96,10 +102,13 @@ FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临�
 ```text
 SettingsHome + 分类子页（appearance / algorithm / capture / overlay / automation / network / mcp / developer）共享 SettingsViewModel
   → update() 乐观 UI + SettingsRepository.preview（草稿，不落盘）
+  → 算法页：bindSettings(draft) 刷新列表 active；选包写 pinned 草稿
   → 顶栏「保存并应用」→ SettingsRepository.save → AppConfig Flow
+  → algorithmActivation.onConfigCommitted（未分析立即 configure；分析中 pending）
   → 离开设置 / 切走主导航：dirty 则弹窗（保存并离开 / 丢弃 / 取消）
   → Theme / Runtime / MCP（preview 优先于已保存）
-AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
+AlgorithmCatalogController（检查/下载/pending 徽章）→ 算法页 UI
+开始分析 → VisionRuntimeController → ensureConfigured + setAnalysisRunning
 ```
 
 设置为**草稿预览 + 显式保存**：改动进进程内 preview，右上角「保存并应用」才落盘；分类间切换保留草稿。手动开自动操作等危险项先确认再写草稿；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开自动操作或自提 MCP 权限 / 关闭 `requireAuth` / 改写 `authToken`。
@@ -110,10 +119,11 @@ AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
 2. `GestureBackend` 与截图正交；手势 AUTO 优先无障碍、条件 Shizuku、永不 Root。
 3. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
 4. MCP 默认仅 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）。默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认；`toolPolicies` 可按工具覆盖。导入不得静默开局域网/自动操作/放宽工具策略（除非用户确认 elevations）。
-5. **代理可用 MCP 自测**：`adb forward tcp:18765 tcp:8765` → `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。优先 `get_status` / `get_runtime_snapshot` / `get_automation_gates`；Wi‑Fi 直连失败先怀疑 AP 隔离。详见根 `CLAUDE.md`「代理用 MCP 自测」。
-6. 主题包声明式 JSON，无脚本/远程资源。
-7. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
-8. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。
+5. MCP **访问日志**默认开（`accessLogEnabled`，schema **9**）：进程内 ring，无 Token/参数体；设置页 + `get_mcp_access_log`。绑定跟 `savedConfig`，策略/列表跟 `current()`；改权限级不重启服务。可选主机始终含 `127.0.0.1`。
+6. **代理可用 MCP 自测**：`adb forward tcp:18765 tcp:8765` → `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。优先 `get_status` / `get_runtime_snapshot` / `get_automation_gates` / `get_mcp_access_log`；Wi‑Fi 直连失败先怀疑 AP 隔离。详见根 `CLAUDE.md`「代理用 MCP 自测」。
+7. 主题包声明式 JSON，无脚本/远程资源。
+8. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
+9. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。
 
 ## 与历史 main 的关系
 

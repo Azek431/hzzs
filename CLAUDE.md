@@ -29,6 +29,8 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 自动操作需要当前免责声明版本；不再要求会话级 arm，启用后运行中直接规划手势。
 - MCP 默认「每次确认」、默认只监听 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
 - MCP 工具级策略 `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED` 覆盖全局权限；禁用工具不进 `tools/list`；外部摄入不得放宽策略；自管工具（`set_mcp_*`）为 HIGH_RISK。
+- MCP **访问日志**（`mcp.accessLogEnabled`，默认开；schema **9**）：进程内 ring `McpAccessLog`，记 method/工具/状态/耗时/远端摘要；**永不**记 Bearer、`authToken`、请求参数体；可关；设置页 + `get_mcp_access_log` / `clear_mcp_access_log`。
+- MCP **绑定身份**跟 `savedConfig`（端口/鉴权/LAN/启停）；**策略/列表/授权**跟 `current()`（可含设置草稿）。改 `permissionLevel` / `toolPolicies` **不**重启服务；改绑定会重启并清空会话。
 - Root、Shizuku、无障碍能力只能由用户**明确选择**。
 - 配置、主题包、更新清单、截图尺寸与 native 输入必须有边界校验。
 - 不得提交密钥、签名库、`local.properties`、真实环境变量、本地备份或生成二进制。
@@ -55,15 +57,16 @@ adb forward tcp:18765 tcp:8765
 
 1. `initialize` → 记下 `Mcp-Session-Id`（若有）→ `notifications/initialized`
 2. `tools/list` / `resources/list`
-3. **排障只读**：`get_status`、`get_runtime_snapshot`、`get_automation_gates`、`get_settings`（脱敏 Token）
+3. **排障只读**：`get_status`、`get_runtime_snapshot`、`get_automation_gates`、`get_settings`（脱敏 Token）、`get_mcp_status` / `get_mcp_access_log`
 4. 调参：`patch_settings` / `set_scene` / `set_threshold` 等；写操作受权限级与 `toolPolicies`，**ASK** 时须用户在手机确认
 5. 运行时：`start_analysis` / `stop_analysis` / `restart_analysis` / `cancel_actions`（HIGH_RISK 或需确认时勿连点）
 
 ### 硬规则
 
-- **不得**把 Bearer / 完整 `authToken` 写入仓库、提交说明或对话日志。
+- **不得**把 Bearer / 完整 `authToken` 写入仓库、提交说明或对话日志；访问日志摘要同样不得含 Token/参数体。
 - 外部导入 / `save_settings` 仍经 `hardenedForExternalIngest`；不得静默开自动操作或局域网。
 - 改 MCP 绑定/端口会重启服务、清空会话；旧 Session 下读工具应可降级，勿只报会话错误就停。
+- 设置页「可选主机」始终含 `127.0.0.1`（未开局域网也可复制回环 URL）；LAN IP 仅在允许局域网后追加。
 - 门禁：`python tools/quality/check_project.py` 校验 MCP 安全字面量（含 LAN 门控）。
 
 ## 坐标、线程与所有权
@@ -258,12 +261,17 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
   → raw 下 packages 资产；校验 size + sha256
   → AlgorithmPackVerifier（ZIP 白名单 + Ed25519 信任锚）
   → InstalledAlgorithmStore 落盘
-  → ActivationCoordinator：未分析且 AUTO 可立即 configure；否则 pending，save/下次 start
+  → MANUAL「使用此版本」写草稿 pinned → 保存 save
+  → ActivationCoordinator.onConfigCommitted：
+       未分析 → 立即 configure Native
+       分析中 → pendingCatalogId，UI 可「待启用」；下次 start ensureConfigured
+  → AUTO：未分析可下载后 activateCatalog；分析中仍 pending
 ```
 
 - 目录检查：小 JSON，**不**受「仅 Wi‑Fi 下大文件」限制。  
 - 包下载：遵守 `UpdateConfig.wifiOnly`。  
 - `algorithm.autoCheck`：启动时可刷新目录；`autoDownload`：仅在有信任锚时尝试下最新兼容包。
+- **「待启用」**：仅表示引擎尚未切到新钉选（分析中改包或 Catalog pending），**不是**自动操作关。诊断看 `pinned` / activation `id` / `pendingCatalogId`。导航全文：`docs/navigation/KOTLIN.md`、`docs/ALGORITHM_SYSTEM_V1.md`。
 
 ### 版本号与通道（算法包语义化版本）
 
