@@ -29,7 +29,7 @@
 - **应用内悬浮窗开关 ≠ 系统权限**：`OverlayConfig.enabled` 只控制是否尝试加窗；真正门闩是 `Settings.canDrawOverlays`。缺权限时帧循环可正常、芯片「无悬浮窗」，须引导用户进系统设置。
 - **信任锚 fail-closed**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 列表为空时外装「官方」算法包应被拒绝；内置与 APK 捆绑声明式包仍可用。
 - **算法发布无 tag**：包与目录都在 `release-index`（`algorithms/packages/` + `algorithms/{channel}.json`）；客户端不读 `releases/download`。用户说「上传到 GitHub 就能检测」= 更新该分支目录/包，不是 push main，也不是发 alg tag。
-- **AI 可代发**：流程写在根 `CLAUDE.md`「算法包网络更新」。用户说「发布 / 全部发布」视为授权 `--execute`；改包且要客户端可检查到时门禁后 **自动 bump + 上传**。缺 `GH_TOKEN`/`GITEE_TOKEN`/算法私钥则停下说明，禁止私钥进聊天/仓库。
+- **AI 可代发（能力保留，现阶段可搁置）**：流程写在根 `CLAUDE.md`「算法包网络更新」。用户**再次明确**要网络发布时才 `--execute`；缺 token/私钥则停下。2026-07-24 用户反馈签名发布偏重，**日常开发先不走 release-index**，以捆绑 `assets/algorithms` + 清 installed/数据为主；设置「检查算法」404 属预期。
 - **算法版本与通道**：包 `manifest.version` 用 semver，**首版 `0.1.0`**（补丁 +0.0.1 / 次要 +0.1.0 / 主要 +1.0.0）；**门禁全过才 bump**；`beta` vs `stable` 用户自选，未验证不上 stable。多包发布时通道跟各包 `manifest.channel`。
 - **清空数据 ≠ 网络更新**：清存储只重种 bundled；`release-index` 404 时检查算法永远失败。正式更新靠目录+包体，不靠卸 App。
 - **默认赛季单一真相**：只改 `AppConfig.DEFAULT_SELECTED_SCENE`；文档禁止写死赛季中文名/枚举。
