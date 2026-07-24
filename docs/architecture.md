@@ -98,14 +98,15 @@ DataStore 存储 schema **v9**（含 `automation.gestureBackend`、`mcp.toolPoli
 
 | 组件 | 职责 |
 | --- | --- |
-| `McpForegroundService` | loopback 监听、generation 启停、并发连接上限 |
+| `McpForegroundService` | loopback / 可选 LAN 监听、generation 启停、并发连接上限 |
 | `McpSessionManager` | 内存会话 / `Mcp-Session-Id`；服务重启清空 |
-| `McpProtocol` | initialize / initialized / 通知 202 / 错误码分类 |
-| `McpToolCatalog` | 描述驱动工具与严格 JSON Schema |
-| `McpActionRegistry` | 四级权限仲裁与语义动作 |
+| `McpProtocol` | initialize / initialized / 通知 202 / 错误码分类；失效会话对 tools/call 可降级 |
+| `McpToolCatalog` | 描述驱动工具与严格 JSON Schema；过滤 `DISABLED` |
+| `McpActionRegistry` | 四级权限 + 工具策略仲裁与语义动作 |
+| `McpAccessLog` | 进程内访问日志 ring（method/工具/状态/耗时/远端；无 Token/参数） |
 | `McpUiBridge` | 审批对话框与导航；停止时拒绝挂起审批 |
 
-权限：只读、每次确认、会话信任（绑定当前内存会话，不持久化）、完整访问。工具面覆盖运行态快照、局部 `patch_settings`、主题/悬浮窗/赛季阈值、开发者开关、算法目录/激活/下载、自动操作门闩、日志与诊断导出；HIGH_RISK 工具（开自动操作/开开发者/下载算法）在 TRUSTED_SESSION 下拒绝。设置页提供 URL / 导入 JSON / Token 一键复制，以及主动「轮换 Token」。`tools/call` 须完成握手；`tools/list` 可无会话探测。API 34+ 前台服务须带 `SPECIAL_USE` type。`preview_settings`/`save_settings` 相对已保存 baseline 做权限型字段收敛（含不得静默关 `requireAuth`、不得改写 `authToken`）。GET `/mcp` 返回 405（不提供 SSE 推送流）。
+权限：只读、每次确认、会话信任（绑定当前内存会话，不持久化）、完整访问；`toolPolicies` 可按工具覆盖。服务启停/端口/鉴权/LAN 跟 **`savedConfig`**；授权、`tools/list`、策略跟 **`current()`**。工具面覆盖运行态快照、局部 `patch_settings`、主题/悬浮窗/赛季阈值、开发者开关、算法目录/激活/下载、自动操作门闩、日志与诊断导出、MCP 自管与访问日志；HIGH_RISK 工具（开自动操作/开开发者/下载算法/改 MCP 权限策略）在 TRUSTED_SESSION 下拒绝。设置页提供 URL / 导入 JSON / Token 一键复制、可选主机（始终含 `127.0.0.1`）、工具策略弹窗与访问日志。`tools/call` 须完成握手；`tools/list` 可无会话探测。API 34+ 前台服务须带 `SPECIAL_USE` type。`preview_settings`/`save_settings` 相对已保存 baseline 做权限型字段收敛（含不得静默关 `requireAuth`、不得改写 `authToken`）。GET `/mcp` 返回 405（不提供 SSE 推送流）。
 
 ## C++ 视觉
 
