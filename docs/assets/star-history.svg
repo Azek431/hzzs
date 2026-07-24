@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" role="img" aria-label="Star History for Azek431/hzzs">
+  <title>Azek431/hzzs Star History</title>
+  <desc>Self-hosted chart for GitHub README. Official api.star-history.com currently times out for this repo; series uses public stargazers_count endpoints until star event timestamps are available.</desc>
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2f81f7" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#2f81f7" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="#0d1117"/>
+  <text x="72" y="28" fill="#e6edf3" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="20" font-weight="600">Star History</text>
+  <text x="72" y="48" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="13">Azek431/hzzs · 3 stars · 2026-07-06 → 2026-07-24</text>
+  <line x1="72" y1="408" x2="764" y2="408" stroke="#21262d" stroke-width="1"/>
+  <text x="60" y="412" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="end">0</text>
+  <line x1="72" y1="290.7" x2="764" y2="290.7" stroke="#21262d" stroke-width="1"/>
+  <text x="60" y="294.7" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="end">1</text>
+  <line x1="72" y1="173.3" x2="764" y2="173.3" stroke="#21262d" stroke-width="1"/>
+  <text x="60" y="177.3" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="end">2</text>
+  <line x1="72" y1="56" x2="764" y2="56" stroke="#21262d" stroke-width="1"/>
+  <text x="60" y="60" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="end">3</text>
+  <line x1="72" y1="56" x2="72" y2="408" stroke="#30363d" stroke-width="1.5"/>
+  <line x1="72" y1="408" x2="764" y2="408" stroke="#30363d" stroke-width="1.5"/>
+  <polygon points="72,408 72,408 764,56 764,408" fill="url(#fill)"/>
+  <polyline fill="none" stroke="#2f81f7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="72.0,408.0 764.0,56.0"/>
+  <circle cx="72" cy="408" r="5" fill="#2f81f7"/>
+  <circle cx="764" cy="56" r="5" fill="#2f81f7"/>
+  <text x="72" y="436" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle">2026-07-06</text>
+  <text x="764" y="436" fill="#8b949e" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle">2026-07-24</text>
+  <text x="764" y="42" fill="#e6edf3" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="13" text-anchor="middle">3</text>
+  <text x="72" y="462" fill="#6e7681" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="11">Self-hosted for README reliability. Official star-history embed kept above; regenerates from public GitHub metadata.</text>
+</svg>

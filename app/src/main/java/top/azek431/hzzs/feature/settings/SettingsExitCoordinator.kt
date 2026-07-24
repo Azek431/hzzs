@@ -3,9 +3,11 @@ package top.azek431.hzzs.feature.settings
 /**
  * 在应用级导航壳与设置模块之间转发“离开设置”意图。
  *
- * 即时保存模式下设置页不再拦截未保存草稿；协调器仅保证：
- * 1. 设置已挂载时，离开前先 [flush] 再导航；
- * 2. 若导航请求早于设置挂载，暂存最后一次请求，挂载后立即 flush+执行。
+ * 草稿预览模式下：
+ * 1. 设置已挂载时，离开前先交给设置侧拦截（可能弹未保存对话框）再导航；
+ * 2. 若导航请求早于设置挂载，暂存最后一次请求，挂载后立即交给拦截器。
+ *
+ * 拦截器负责：无草稿则直接 [onDone]；有草稿则弹窗后 save/discard 再 [onDone]；取消则不调用。
  *
  * 线程：仅由 Compose 主线程调用。
  */
@@ -14,8 +16,8 @@ class SettingsExitCoordinator {
     private var pendingAction: (() -> Unit)? = null
 
     /**
-     * 注册设置模块的刷盘回调。
-     * [flush] 应在配置落盘（或无挂起写）后调用 onDone。
+     * 注册设置模块的离开拦截回调。
+     * [flush] 应在用户确认离开（保存或丢弃）后调用 onDone；取消离开则不调用。
      */
     fun attach(flush: (onDone: () -> Unit) -> Unit): Registration {
         this.flusher = flush
@@ -26,7 +28,7 @@ class SettingsExitCoordinator {
         return Registration(this, flush)
     }
 
-    /** 请求在设置模块完成刷盘后执行 [action]。未挂载时暂存。 */
+    /** 请求在设置模块完成离开确认后执行 [action]。未挂载时暂存。 */
     fun request(action: () -> Unit) {
         val current = flusher
         if (current == null) {

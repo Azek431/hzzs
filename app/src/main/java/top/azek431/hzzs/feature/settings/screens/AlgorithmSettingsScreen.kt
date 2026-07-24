@@ -2,7 +2,7 @@
  * 算法库设置页。
  *
  * 职责：自动/手动选择、算法卡片切换（内置 / 捆绑 / 已装 / 远端）、检查更新。
- * 数据流：偏好经 [update] 即时落盘；检查/下载/选用经 ViewModel。
+ * 数据流：偏好经 [update] 草稿预览；检查/下载/选用经 ViewModel。
  * 边界：不直接网络/JNI；检测阈值见「检测参数」页。
  */
 package top.azek431.hzzs.feature.settings.screens

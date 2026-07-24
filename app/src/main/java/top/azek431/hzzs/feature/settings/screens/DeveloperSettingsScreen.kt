@@ -1,9 +1,11 @@
 /**
  * 开发者设置页。
  *
- * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格等高级调试项。
+ * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格、系统指针位置等高级调试项。
  * 安全：关于页连点版本号 7 次开启 [DeveloperConfig.enabled]；本页开关可关闭，关闭后设置首页隐藏入口。
- * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer。设置分类与关于入口共用本 Composable。
+ * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer；系统指针位置经 [SystemCapabilityAccess]
+ *（WRITE_SETTINGS 优先，已授权 Shizuku / Root 可 settings put），不静默要权。
+ * 设置分类与关于入口共用本 Composable。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -26,10 +28,20 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
 import top.azek431.hzzs.R
 import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.model.AppLogLevel
@@ -42,6 +54,9 @@ import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
+import top.azek431.hzzs.platform.compat.PointerLocationWritePath
+import top.azek431.hzzs.platform.compat.PointerLocationWriteResult
+import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.isSupportedOnThisDevice
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 
@@ -70,10 +85,47 @@ fun DeveloperSettingsScreen(
 ) {
     val dimensions = LocalHzzsDimensions.current
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
     // Pre-compute strings for use inside non-@Composable click handlers
     val exportChooserTitle = stringResource(R.string.dev_export_chooser)
     val diagnosticEmptyMsg = stringResource(R.string.dev_diagnostic_empty)
     val copyFailedMsg = stringResource(R.string.dev_copy_failed)
+    val pointerNeedWriteMsg = stringResource(R.string.dev_pointer_location_need_write)
+    val pointerWriteFailedMsg = stringResource(R.string.dev_pointer_location_write_failed)
+    val pointerViaWriteSettings = stringResource(R.string.dev_pointer_location_via_write_settings)
+    val pointerViaShizuku = stringResource(R.string.dev_pointer_location_via_shizuku)
+    val pointerViaRoot = stringResource(R.string.dev_pointer_location_via_root)
+    val pointerBusyMsg = stringResource(R.string.dev_pointer_location_busy)
+
+    // 系统指针位置：真相源是 Settings.System，不进 AppConfig；回页时刷新。
+    var canWriteSystem by remember {
+        mutableStateOf(SystemCapabilityAccess.canWriteSystemSettings(context))
+    }
+    var shizukuAuthorized by remember {
+        mutableStateOf(SystemCapabilityAccess.isShizukuAuthorized())
+    }
+    var pointerLocationOn by remember {
+        mutableStateOf(SystemCapabilityAccess.isPointerLocationEnabled(context))
+    }
+    var pointerBusy by remember { mutableStateOf(false) }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                canWriteSystem = SystemCapabilityAccess.canWriteSystemSettings(context)
+                shizukuAuthorized = SystemCapabilityAccess.isShizukuAuthorized()
+                pointerLocationOn = SystemCapabilityAccess.isPointerLocationEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val pointerSubtitle = when {
+        canWriteSystem -> stringResource(R.string.dev_pointer_location_subtitle)
+        shizukuAuthorized -> stringResource(R.string.dev_pointer_location_subtitle_shizuku)
+        else -> stringResource(R.string.dev_pointer_location_subtitle_elevated)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -138,7 +190,7 @@ fun DeveloperSettingsScreen(
                 }
             }
 
-            // ── 3. 坐标网格与导航 ──
+            // ── 3. 坐标网格 / 系统指针位置 / 导航 ──
             item {
                 SettingsSectionCard(
                     title = stringResource(R.string.dev_tools_title),
@@ -153,6 +205,66 @@ fun DeveloperSettingsScreen(
                             }
                         },
                     )
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_pointer_location_title),
+                        subtitle = pointerSubtitle,
+                        checked = pointerLocationOn,
+                        enabled = !pointerBusy,
+                        onCheckedChange = { wantOn ->
+                            if (pointerBusy) {
+                                onMessage(pointerBusyMsg)
+                                return@SettingsSwitchRow
+                            }
+                            // 乐观更新；失败再回读系统状态
+                            val previous = pointerLocationOn
+                            pointerLocationOn = wantOn
+                            pointerBusy = true
+                            scope.launch {
+                                val result = SystemCapabilityAccess.setPointerLocationEnabledBestEffort(
+                                    context,
+                                    wantOn,
+                                )
+                                canWriteSystem =
+                                    SystemCapabilityAccess.canWriteSystemSettings(context)
+                                shizukuAuthorized =
+                                    SystemCapabilityAccess.isShizukuAuthorized()
+                                pointerLocationOn =
+                                    SystemCapabilityAccess.isPointerLocationEnabled(context)
+                                pointerBusy = false
+                                when (result) {
+                                    is PointerLocationWriteResult.Success -> {
+                                        val msg = when (result.path) {
+                                            PointerLocationWritePath.WRITE_SETTINGS ->
+                                                pointerViaWriteSettings
+                                            PointerLocationWritePath.SHIZUKU ->
+                                                pointerViaShizuku
+                                            PointerLocationWritePath.ROOT ->
+                                                pointerViaRoot
+                                        }
+                                        onMessage(msg)
+                                    }
+                                    is PointerLocationWriteResult.Failed -> {
+                                        pointerLocationOn = previous
+                                        if (!result.canWriteSettings && !result.shizukuAuthorized) {
+                                            onMessage(pointerNeedWriteMsg)
+                                            SystemCapabilityAccess.openManageWriteSettings(context)
+                                        } else {
+                                            onMessage(pointerWriteFailedMsg)
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    if (!canWriteSystem && !shizukuAuthorized) {
+                        OutlinedButton(
+                            onClick = {
+                                SystemCapabilityAccess.openManageWriteSettings(context)
+                            },
+                        ) {
+                            Text(stringResource(R.string.dev_pointer_location_open_write_settings))
+                        }
+                    }
                     SettingsNavigationRow(
                         title = stringResource(R.string.dev_open_log_viewer),
                         subtitle = stringResource(R.string.dev_open_log_viewer_subtitle),

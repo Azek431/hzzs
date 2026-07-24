@@ -2,15 +2,17 @@
 
 ## 默认姿态
 
-- 默认截图后端是 **MediaProjection**；`AUTO` **不**自动请求 Root、Shizuku 或无障碍。
+- 默认截图后端是 **MediaProjection**；截图 `AUTO` **不**自动请求 Root、Shizuku 或无障碍。
+- 手势注入后端 `GestureBackend` 与截图后端**正交**；手势 `AUTO` 优先无障碍，仅当无障碍未连接且 Shizuku **已授权就绪** 时用 Shizuku input，**永不**静默升 Root、不在 AUTO 路径弹 Shizuku 授权。
 - 系统悬浮窗（`SYSTEM_ALERT_WINDOW`）与无障碍服务**不会**由应用静默开启；须用户在系统设置中明确授予。应用内「显示悬浮窗」开关不能代替系统权限。
 - 自动操作默认关闭；导入、备份和旧版本迁移不能静默开启。
 - 自动操作需要当前免责声明版本；启用后在分析运行中按识别结果直接规划手势。
 - MCP 默认关闭；启用后只监听 loopback；默认 **免 Bearer**（`requireAuth=false`，同机免填 Header）；开启鉴权时使用**持久化** `authToken`，仅用户主动「轮换 Token」时更换，**不**在每次服务启动轮换；默认每次写操作由手机确认。
+- MCP 单工具策略 `toolPolicies` 可强制确认 / 信任放行 / 禁用；外部摄入只能更严，不得把已禁用工具重新打开。
 - 主题包是有大小限制的声明式 JSON，不加载脚本、字体或远程资源。
 - 更新产物必须校验包名、版本、SHA-256、证书与签名清单。
 - 截图帧、日志、MCP 令牌和 DataStore 配置不进入系统云备份。
-- Root 命令分别读取 stdout/stderr，并限制输出、超时和图片尺寸。
+- Root / Shizuku 命令分别读取 stdout/stderr，并限制输出、超时和图片尺寸。
 
 ## 自动操作门控
 
@@ -19,18 +21,22 @@
 1. `automation.enabled == true`
 2. `disclaimerAcceptedVersion` 达到当前 `AppConfig.DISCLAIMER_VERSION`
 3. 视觉分析正在运行
-4. 无障碍服务已连接，前台窗口快照未过期
-5. 前台包名 ∈ 允许列表（与默认白名单求交）
-6. 前台窗口类名匹配允许模式
+4. 有效手势后端可用并完成前台门控：
+   - `ACCESSIBILITY`（及 AUTO 落在无障碍时）：服务已连接，前台窗口可解析（事件 + 主动刷新）
+   - `SHIZUKU` / `ROOT`：shell `input` 注入；前台包由 dumpsys 探测（失败 fail-closed）；`input` 完成语义为命令 exit0，**弱于** `dispatchGesture` 回执
+5. **可选**包名门控：仅当用户开启 `restrictPackages` 时，前台包须 ∈ `allowedPackages`（默认**不**限制；外部摄入不得静默关闭限制或扩大列表）
+6. 无障碍路径：前台窗口类名可用（空类名 fail-closed）；shell 路径 class 可空，仅包名+时效
 7. 场景置信度、障碍置信度、稳定帧、动作速率与手势回执校验通过
+8. 切换 `gestureBackend` / 其它安全边界 → `cancelActions()`；外部摄入 `saferGestureBackend` 禁止升风险序（AUTO &lt; 无障碍 &lt; Shizuku &lt; Root）
 
-失败路径应 fail-closed：`cancelActions()` 取消在飞动作、清空队列、不注入手势。
+失败路径应 fail-closed：`cancelActions()` 取消在飞动作、清空队列、不注入手势。  
+运行页展示 `lastAutomationDecision`；决策日志 `algo.decision` 的 skip/dispatch 以 INFO 输出。
 
 ## MCP
 
 | 层 | 要求 |
 |---|---|
-| 网络 | 仅 IPv4 loopback `127.0.0.1`（不绑 `0.0.0.0` / 不依赖 `::1`） |
+| 网络 | 默认 IPv4 loopback `127.0.0.1`；用户显式关闭 `bindLocalhostOnly` 后可绑 `0.0.0.0`（局域网）。导入不得静默开局域网。展示地址与绑定分离 |
 | 认证 | 默认免鉴权；开启 `requireAuth` 时用持久化 `authToken`（恒时比较，Bearer 前缀大小写不敏感）；**不**在每次启动轮换，仅设置页主动轮换 |
 | Origin | 空 / 字面量 `null` 允许；非空时必须是本机回环标识 |
 | 会话 | `Mcp-Session-Id` 仅内存；`initialize` 后即就绪；服务 stop/generation 推进后全部作废 |
@@ -40,6 +46,9 @@
 | 并发 | 连接数上限；超额 429 |
 | 审批 | 超时/停止服务时默认拒绝，避免断连后仍执行写副作用 |
 | 调试帧 | 需开发者选项与 MCP 显式允许；只暴露元数据或受控文件 |
+| 日志/诊断 | `get_logs` / `export_diagnostics` 需开发者；内容脱敏，不含 Bearer/像素 |
+| 高风险写 | 开启自动操作、开启开发者、下载算法包：TRUSTED_SESSION 拒绝，需每次确认或 FULL_ACCESS |
+| 局部补丁 | `patch_settings` 白名单路径，不得改 `automation.enabled` / MCP 鉴权令牌 / 自提权限级 |
 | 外部摄入 | 不得静默关闭 `requireAuth`、改写/清空 `authToken`、自提权限级或开启 MCP |
 
 ## 诊断与日志
@@ -50,6 +59,7 @@
 - 诊断导出（设置 / 关于）含版本、机型、配置摘要与最近日志；**不含** Bearer、签名密钥与调试帧像素。
 - 日志路径对 `Bearer …` 与常见 `token/secret/password` 键值做脱敏；MCP 连接串仅经用户显式「复制连接信息」进剪贴板，不得写入日志。
 - 关闭开发者选项后，DEBUG/VERBOSE 不再进入 ring buffer。
+- 系统「指针位置」开关写入 `Settings.System.POINTER_LOCATION`：优先用户授予「修改系统设置」；其次仅使用**已授权** Shizuku 或已可用 Root 执行 `settings put`。应用**不得**静默获得 `WRITE_SETTINGS`、**不得**在此路径弹 Shizuku 授权或静默升 Root，也不得把该状态写入导入配置。
 
 ## 截图与帧
 

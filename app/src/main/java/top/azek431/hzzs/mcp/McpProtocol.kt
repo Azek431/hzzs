@@ -18,6 +18,11 @@ class McpProtocol(
     private val actions: McpActionSurface,
     private val serverName: String = "HZZS",
     private val serverVersion: String = BuildConfig.VERSION_NAME,
+    /**
+     * 列出 tools 时按当前 MCP 配置过滤禁用项。
+     * 默认返回全量（兼容单测 Fake）；生产由 [McpService] 注入。
+     */
+    private val listTools: () -> org.json.JSONArray = { McpToolCatalog.toolsJson() },
 ) {
     sealed class DispatchResult {
         data class JsonResponse(val status: Int, val body: JSONObject, val sessionId: String? = null) : DispatchResult()
@@ -172,11 +177,16 @@ class McpProtocol(
         sessionId: String?,
         protocolVersionHeader: String?,
     ): DispatchResult {
-        // 无会话时：允许 ping / tools/list / resources/list（兼容未回传 Session 头的简化客户端）；
-        // tools/call 与 resources/read 仍要求有效会话，避免 TRUSTED_SESSION 被无状态滥用。
+        // 无会话：
+        // - ping / tools/list / resources/list：始终允许（发现面）
+        // - tools/call / resources/read：允许以 session=null 继续；
+        //   TRUSTED_SESSION 在 authorize 中会因无会话拒绝，ASK/FULL/只读按权限执行。
+        // 服务重启会清会话表，RikkaHub 等客户端常仍持旧 Mcp-Session-Id；
+        // 对无效 id 视为无会话，避免卡在 -32003 要求用户手动重连。
         val session = sessions.get(sessionId)
-        val allowWithoutSession = method in setOf("ping", "tools/list", "resources/list")
-        if (session == null && !allowWithoutSession) {
+        val discoveryOnly = method in setOf("ping", "tools/list", "resources/list")
+        val callLike = method in setOf("tools/call", "resources/read")
+        if (session == null && !discoveryOnly && !callLike) {
             return DispatchResult.HttpError(
                 400,
                 errorJson(
@@ -212,7 +222,7 @@ class McpProtocol(
         }
 
         val result = when (method) {
-            "tools/list" -> JSONObject().put("tools", McpToolCatalog.toolsJson())
+            "tools/list" -> JSONObject().put("tools", listTools())
             "tools/call" -> {
                 val name = params.requireString("name")
                 val arguments = params.optJSONObject("arguments") ?: JSONObject()
@@ -245,6 +255,7 @@ class McpProtocol(
                 "不支持的方法：$method",
             )
         }
+        // 若客户端带了失效 Session-Id，不回写错误 id；有有效会话则回写。
         return DispatchResult.JsonResponse(200, resultJson(id, result), session?.id)
     }
 }

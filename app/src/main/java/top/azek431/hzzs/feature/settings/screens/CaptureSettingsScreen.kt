@@ -2,7 +2,7 @@
  * 截图与权限设置页。
  *
  * 职责：按设备能力列表选择截图后端；AUTO 只走低权限公开接口。
- * 数据流：经 [update] 即时写入 [captureBackend]；切换高权后端须用户手动选择。
+ * 数据流：经 [update] 写入草稿预览 [captureBackend]；切换高权后端须用户手动选择。
  * 边界：不探测 Root/Shizuku 可用性之外的能力；不直接申请系统权限。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -27,7 +27,7 @@ import top.azek431.hzzs.platform.compat.CaptureCapability
 /**
  * 截图后端设置页。
  *
- * 仅改 [AppConfig.captureBackend] 并即时落盘。AUTO 文案强调不升权。
+ * 仅改 [AppConfig.captureBackend] 并草稿预览。AUTO 文案强调不升权。
  * 本页不直接申请录屏权限或探测 Root/Shizuku。
  */
 @Composable

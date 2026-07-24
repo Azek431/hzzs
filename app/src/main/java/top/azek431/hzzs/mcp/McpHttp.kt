@@ -128,6 +128,19 @@ fun isAllowedLoopbackOrigin(origin: String?): Boolean {
 }
 
 /**
+ * MCP 请求 Origin 门控。
+ *
+ * - 空 / 字面量 `"null"`：始终允许（CLI / 多数 MCP 客户端）。
+ * - loopback Origin：始终允许。
+ * - 其它 Origin：即使开启局域网也**拒绝**，降低恶意网页跨源触达风险（用户选 4A）。
+ */
+fun isAllowedMcpOrigin(origin: String?, allowLanBind: Boolean): Boolean {
+    if (isAllowedLoopbackOrigin(origin)) return true
+    // allowLanBind 仅影响绑定；非 loopback 浏览器 Origin 仍拒绝。
+    return false
+}
+
+/**
  * 校验 HTTP Authorization 头中的 Bearer 与服务端令牌。
  * 使用恒时比较，避免通过时序泄漏首个不匹配字符。
  * 前缀按 RFC 7235 做大小写不敏感匹配（`Bearer` / `bearer`）。

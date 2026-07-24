@@ -220,10 +220,20 @@ object AlgorithmRuntimeTrace {
 
     /**
      * 决策类事件：不受帧节流限制，便于对照「为何动手/为何跳过」。
-     * 仅写 AppLog；不单独占 ring（决策已嵌在帧 entry 时优先用帧）。
+     *
+     * skip / plan / dispatch_* 用 INFO（默认可见）；其它 DEBUG。
+     * 调用方应对决策串变化再写，避免每帧刷屏。
      */
     fun logDecision(message: String) {
-        AppLog.d("algo.decision", message.take(500))
+        val clipped = message.take(500)
+        val levelUp = clipped.startsWith("skip:") ||
+            clipped.startsWith("dispatch_") ||
+            clipped.startsWith("plan ")
+        if (levelUp) {
+            AppLog.i("algo.decision", clipped)
+        } else {
+            AppLog.d("algo.decision", clipped)
+        }
     }
 
     fun formatText(limit: Int = CAPACITY): String {

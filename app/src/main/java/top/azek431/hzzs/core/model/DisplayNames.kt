@@ -23,6 +23,14 @@ fun CaptureBackend.displayName(): String = when (this) {
     CaptureBackend.ROOT -> "Root"
 }
 
+/** 手势注入后端显示名。 */
+fun GestureBackend.displayName(): String = when (this) {
+    GestureBackend.AUTO -> "自动推荐"
+    GestureBackend.ACCESSIBILITY -> "无障碍手势"
+    GestureBackend.SHIZUKU -> "Shizuku input"
+    GestureBackend.ROOT -> "Root input"
+}
+
 /** 开发者强制截图后端的短标签（FilterChip）。 */
 fun CaptureBackend.developerLabel(): String = when (this) {
     CaptureBackend.AUTO -> "自动"
@@ -47,6 +55,14 @@ fun McpPermissionLevel.displayName(): String = when (this) {
     McpPermissionLevel.ASK_EVERY_TIME -> "每次确认"
     McpPermissionLevel.TRUSTED_SESSION -> "信任本次会话"
     McpPermissionLevel.FULL_ACCESS -> "完整访问"
+}
+
+/** MCP 单工具策略显示名。 */
+fun McpToolPolicy.displayName(): String = when (this) {
+    McpToolPolicy.DEFAULT -> "跟随全局"
+    McpToolPolicy.ALWAYS_ASK -> "始终确认"
+    McpToolPolicy.ALLOW_WHEN_TRUSTED -> "信任时放行"
+    McpToolPolicy.DISABLED -> "禁用"
 }
 
 /** 算法选择模式显示名。 */

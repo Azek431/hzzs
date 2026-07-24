@@ -8,7 +8,7 @@
 - 单一 `app` Android 模块与职责分包（Compose + Hilt）。
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
 - Material 3 首次引导（5 步：欢迎/赛季/截图/权限/完成；完成页折叠高级自动操作）、主题包、悬浮窗样式、设置即时落盘和开发者入口。
-- MCP 四级权限、IPv4 `127.0.0.1` 回环监听、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON。
+- MCP 四级权限 + 工具级策略覆盖、IPv4 默认 `127.0.0.1` 回环监听（可选局域网 `0.0.0.0`）、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON；设置页可搜索管理工具策略。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
 - C++ 算法引擎入口、海盐参数路径、输入边界、JNI 失败隔离与宿主机测试脚手架。

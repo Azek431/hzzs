@@ -76,6 +76,18 @@ enum class SceneId { SWEET_FACTORY, BAMBOO_BOOKSTORE, SEA_SALT_LIVING_ROOM }
  */
 enum class CaptureBackend { AUTO, MEDIA_PROJECTION, ACCESSIBILITY, SHIZUKU, ROOT }
 
+/**
+ * 自动操作手势注入后端。
+ *
+ * 与 [CaptureBackend] 正交：改截图不改手势，反之亦然。
+ *
+ * 安全不变量：
+ * - [AUTO] 优先无障碍；仅当无障碍未连接且 Shizuku **已授权就绪** 时用 Shizuku；
+ *   **永不**静默探测或升权到 Root，AUTO 路径不弹 Shizuku 授权。
+ * - [SHIZUKU] / [ROOT] 仅用户显式选择时启用。
+ */
+enum class GestureBackend { AUTO, ACCESSIBILITY, SHIZUKU, ROOT }
+
 /** 应用更新通道。 */
 enum class UpdateChannel { STABLE, BETA }
 
@@ -115,6 +127,32 @@ enum class McpPermissionLevel {
     ASK_EVERY_TIME,
     TRUSTED_SESSION,
     FULL_ACCESS,
+}
+
+/**
+ * 单个 MCP **工具** 的策略覆盖（相对全局 [McpPermissionLevel]）。
+ *
+ * 仅存非 [DEFAULT] 项；未知工具名在 [top.azek431.hzzs.core.preferences.validated] 时丢弃。
+ * 外部摄入只能更严（见 [top.azek431.hzzs.core.preferences.hardenedForExternalIngest]）。
+ */
+enum class McpToolPolicy {
+    /** 跟随全局权限级 + 工具固有 [top.azek431.hzzs.mcp.McpToolRisk]。 */
+    DEFAULT,
+
+    /**
+     * 非只读调用一律手机确认（即使全局为 TRUSTED_SESSION / FULL_ACCESS）。
+     * 全局 READ_ONLY 仍整表拒绝写。
+     */
+    ALWAYS_ASK,
+
+    /**
+     * 在 TRUSTED_SESSION / FULL_ACCESS 下普通写可不经审批；
+     * HIGH_RISK 仍须 FULL_ACCESS（或全局每次确认时走审批）。
+     */
+    ALLOW_WHEN_TRUSTED,
+
+    /** 从 tools/list 隐藏，tools/call 拒绝。 */
+    DISABLED,
 }
 
 /**
@@ -236,19 +274,36 @@ data class SceneConfig(
  * 自动操作配置。
  *
  * 默认关闭。导入/迁移不得静默开启。
- * 生效前还须：免责声明版本、视觉运行中、无障碍前台白名单等。
+ * 生效前还须：免责声明版本、视觉运行中、所选 [gestureBackend] 可用等。
+ *
+ * 包名：默认**不**限制前台包。仅当 [restrictPackages] 为 true 时，
+ * 才要求前台包 ∈ [allowedPackages]（用户可在设置中显式开启）。
  */
 data class AutomationConfig(
     val enabled: Boolean = false,
     val disclaimerAcceptedVersion: Int = 0,
+    /**
+     * 手势注入后端；默认 [GestureBackend.AUTO]（无障碍优先，条件 Shizuku，永不 Root）。
+     * 与 [AppConfig.captureBackend] 独立。
+     */
+    val gestureBackend: GestureBackend = GestureBackend.AUTO,
     /**
      * 竹影书屋实验性自动操作锁。
      *
      * 与自动化总开关叠加：即使已启用自动操作，未开启本开关时也不对竹影场景规划动作。
      */
     val bambooExperimentalAutoAction: Boolean = false,
-    /** 与内置默认集合求交后的允许包名。 */
-    val allowedPackages: Set<String> = DEFAULT_ALLOWED_PACKAGES,
+    /**
+     * 是否启用前台包名门控。
+     * 默认 false：任意前台包均可（仍须所选手势后端可用 + 其它门控）。
+     * 开启后仅 [allowedPackages] 内的包可派发手势；须用户在设置中明确打开。
+     */
+    val restrictPackages: Boolean = false,
+    /**
+     * 允许的前台包名集合。
+     * 仅在 [restrictPackages]=true 时生效；空集在 validated 时回退 [SUGGESTED_PACKAGES]。
+     */
+    val allowedPackages: Set<String> = SUGGESTED_PACKAGES,
     val maxActionsPerSecond: Int = 4,
     val minimumSceneConfidence: Float = 0.82f,
     val retryLimit: Int = 1,
@@ -270,33 +325,43 @@ data class AutomationConfig(
 ) {
     companion object {
         /**
-         * 默认允许的前台包（快手系小游戏容器）。
-         * 用户列表会与此集合求交，防止任意包名注入。
+         * 建议的前台包（快手系小游戏容器）。
+         * 仅作默认列表与「填入建议」；**不再**与用户列表强制求交。
          */
-        val DEFAULT_ALLOWED_PACKAGES: Set<String> = setOf(
+        val SUGGESTED_PACKAGES: Set<String> = setOf(
             "com.smile.gifmaker",
             "com.kuaishou.nebula",
         )
+
+        /** @deprecated 使用 [SUGGESTED_PACKAGES]；保留别名避免旧测试硬编码断裂。 */
+        @Deprecated("Renamed to SUGGESTED_PACKAGES", ReplaceWith("SUGGESTED_PACKAGES"))
+        val DEFAULT_ALLOWED_PACKAGES: Set<String> = SUGGESTED_PACKAGES
     }
 }
 
 /**
  * MCP 本地服务配置。
  *
- * 默认关闭；启用后仅 loopback。
- * [requireAuth] 默认 **false**（同机 RikkaHub 免填 Header）；开启后使用持久化 [authToken]，
- * **不会**在每次服务启动时轮换，仅用户在设置页主动「轮换 Token」时更新。
- * 权限型字段，设置预览阶段不启动服务。
+ * 默认关闭；启用后默认仅 loopback。
+ * [bindLocalhostOnly]=false 时服务绑定 `0.0.0.0`（局域网可达）；须用户在设置页显式确认风险。
+ * [requireAuth] 默认 **false**（同机 RikkaHub 免填 Header；局域网也可免鉴权但风险更高）；
+ * 开启后使用持久化 [authToken]，**不会**在每次服务启动时轮换，仅用户主动「轮换 Token」时更新。
+ * [toolPolicies]：按工具名覆盖审批/禁用；键为 MCP 工具准确名（如 `start_analysis`）。
+ * 权限型字段；设置预览阶段不启动服务。
  */
 data class McpConfig(
     val enabled: Boolean = false,
     val permissionLevel: McpPermissionLevel = McpPermissionLevel.ASK_EVERY_TIME,
     val port: Int = 8765,
+    /**
+     * true：只绑 IPv4 `127.0.0.1`（默认）。
+     * false：绑 `0.0.0.0`，同网段设备可连；外部导入默认不得静默打开。
+     */
     val bindLocalhostOnly: Boolean = true,
     val allowDebugFrames: Boolean = false,
     /**
      * 是否要求 `Authorization: Bearer`。
-     * 默认 false：同机客户端可不填请求头（仍仅 loopback）。
+     * 默认 false：客户端可不填请求头（loopback 或局域网均可，由用户自担风险）。
      */
     val requireAuth: Boolean = false,
     /**
@@ -305,7 +370,15 @@ data class McpConfig(
      * 不得写入日志；诊断导出须脱敏。
      */
     val authToken: String = "",
-)
+    /**
+     * 工具策略覆盖：仅保留非 [McpToolPolicy.DEFAULT] 的条目。
+     * 键必须是已知 MCP 工具名；未知键在校验时丢弃。
+     */
+    val toolPolicies: Map<String, McpToolPolicy> = emptyMap(),
+) {
+    fun policyFor(toolName: String): McpToolPolicy =
+        toolPolicies[toolName] ?: McpToolPolicy.DEFAULT
+}
 
 /**
  * 应用日志最低级别（开发者可配置）。
@@ -398,7 +471,7 @@ data class AppConfig(
 ) {
     companion object {
         /** DataStore 配置 schema 版本；迁移逻辑依赖此常量。 */
-        const val CURRENT_SCHEMA = 6
+        const val CURRENT_SCHEMA = 8
 
         /**
          * 自动操作免责声明版本。
@@ -444,8 +517,15 @@ data class RuntimeStatus(
     val overlayBlockReason: OverlayBlockReason? = null,
     val activeScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE,
     val activeBackend: CaptureBackend = CaptureBackend.AUTO,
+    /** 解析后的有效手势注入后端（AUTO 展开后）；未运行时默认 AUTO。 */
+    val activeGestureBackend: GestureBackend = GestureBackend.AUTO,
     val fps: Float = 0f,
     val processingMs: Float = 0f,
     val obstacleCount: Int = 0,
     val lastError: String? = null,
+    /**
+     * 最近一次自动操作决策摘要（skip / plan / dispatch_*）。
+     * 供运行页展示「为何没有动作」。
+     */
+    val lastAutomationDecision: String? = null,
 )

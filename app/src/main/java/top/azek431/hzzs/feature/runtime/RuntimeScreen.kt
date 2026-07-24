@@ -84,6 +84,35 @@ class RuntimeViewModel @Inject constructor(
     }
 }
 
+/** 将 skip/dispatch 决策串转成简短中文提示，便于用户对照。 */
+internal fun humanizeAutomationDecision(raw: String): String {
+    val key = raw.substringBefore(' ').substringBefore('=')
+    return when {
+        raw.startsWith("skip:automation_off") -> "自动操作总开关关闭，或免责声明版本不足。"
+        raw.startsWith("skip:scene_conf") -> "场景置信度低于设置中的最低阈值。"
+        raw.startsWith("skip:frame_age") -> "帧分析过慢，当前帧已过期。"
+        raw.startsWith("skip:bamboo_experimental_off") -> "竹影场景需在设置中单独打开实验性自动操作。"
+        raw.startsWith("skip:action_in_flight") -> "上一动作尚未结束。"
+        raw.startsWith("skip:no_player") -> "未识别到玩家参考，无法测距触发。"
+        raw.startsWith("skip:no_candidate") -> "没有稳定且可动作的障碍进入触发距离。"
+        raw.startsWith("skip:no_foreground") -> "手势后端读不到前台窗口（无障碍未连/Shell dumpsys 失败）。"
+        raw.startsWith("skip:package_gate") -> "已开启「仅允许指定应用」，当前前台不在列表中。"
+        raw.startsWith("skip:foreground_gate") -> "前台包名无效或状态不可用。"
+        raw.startsWith("plan ") -> "已选中候选，正在规划/派发手势。"
+        raw.startsWith("dispatch_ok") || raw.contains("dispatch_ok") -> "手势已成功注入。"
+        raw.startsWith("dispatch_fail") || raw.contains("dispatch_fail") -> "系统拒绝或取消了手势。"
+        raw.startsWith("dispatch_skip:package_gate") -> "派发时前台包不在允许列表。"
+        raw.startsWith("dispatch_skip:foreground_stale") -> "派发时前台快照已过期。"
+        raw.startsWith("dispatch_skip:foreground_recheck") -> "派发时前台窗口与规划时不一致。"
+        raw.startsWith("dispatch_skip:ledger") -> "同一目标刚成功过，账本去重冷却中。"
+        raw.startsWith("dispatch_skip:rate_limit") -> "达到每秒动作上限。"
+        raw.startsWith("dispatch_skip:empty_plan") -> "该障碍无规避动作（Avoidance.NONE）。"
+        raw.startsWith("dispatch_skip:no_foreground") -> "派发时前台不可用（检查手势后端）。"
+        raw.startsWith("dispatch_abort") -> "派发过程中自动操作已关闭。"
+        else -> "决策：$key"
+    }
+}
+
 @Composable
 fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
     val status by vm.status.collectAsState()
@@ -230,6 +259,21 @@ fun RuntimeScreen(vm: RuntimeViewModel = hiltViewModel()) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        val decision = status.lastAutomationDecision
+                        if (status.running && !decision.isNullOrBlank()) {
+                            Text(
+                                stringResource(R.string.runtime_automation_last_decision, decision),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            Text(
+                                humanizeAutomationDecision(decision),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
             }

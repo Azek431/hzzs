@@ -52,7 +52,7 @@ data class GestureSpec(
  * @property trackId Tracker 稳定 ID；成功提交后进入账本，避免重复规划
  * @property avoidance 规避类型，决定手势形态
  * @property createdAtUptimeMs / expiresAtUptimeMs 基于 `SystemClock.uptimeMillis` 的 TTL
- * @property allowedPackages 包名白名单；分发前仍须再校验前台包
+ * @property allowedPackages 包名白名单；**空集表示不限制包名**。分发前仍须再校验前台包（若非空）
  * @property requiredWindowClassPrefixes 可选窗口类前缀约束
  * @property retryCount 已重试次数（由运行时递增）
  */
@@ -71,9 +71,12 @@ data class AutomationAction(
         require(id > 0)
         require(trackId > 0)
         require(createdAtUptimeMs <= expiresAtUptimeMs)
-        require(allowedPackages.isNotEmpty())
         require(retryCount >= 0)
     }
+
+    /** 空集合表示不限制前台包；否则必须命中白名单。 */
+    fun matchesPackage(packageName: String): Boolean =
+        allowedPackages.isEmpty() || packageName in allowedPackages
 
     /** 空前缀集合表示不限制窗口类；否则任一前缀匹配即可。 */
     fun matchesWindow(className: String): Boolean =

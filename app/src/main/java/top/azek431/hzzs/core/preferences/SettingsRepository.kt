@@ -54,6 +54,12 @@ interface SettingsRepository {
     /** 读取已保存快照（不含预览）。 */
     suspend fun snapshot(): AppConfig
 
+    /**
+     * 当前生效配置：有预览草稿时返回预览，否则与 [snapshot] 相同。
+     * MCP 权限仲裁、tools/list 过滤与设置 UI 必须读此值，避免「页面已改、服务/工具仍读磁盘旧值」。
+     */
+    suspend fun current(): AppConfig
+
     /** 设置内存预览；不写盘。 */
     suspend fun preview(config: AppConfig)
 
@@ -68,6 +74,13 @@ interface SettingsRepository {
 
     /** 导出已校验配置的 JSON 文本。 */
     fun exportJson(config: AppConfig): String
+
+    /**
+     * MCP / 诊断通道导出：脱敏 [McpConfig.authToken]（有值时写 `***`），
+     * 避免 `get_settings` / `app://settings/current` 把 Bearer 明文交给 AI 客户端。
+     * 用户备份导出仍用 [exportJson] 完整写入。
+     */
+    fun exportJsonRedacted(config: AppConfig): String
 }
 
 /**
@@ -101,6 +114,15 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun snapshot(): AppConfig {
         migrateLegacyOnce()
+        val config = stored.first()
+        syncLogging(config)
+        return config
+    }
+
+    override suspend fun current(): AppConfig {
+        migrateLegacyOnce()
+        val temporary = preview.value
+        if (temporary != null) return temporary
         val config = stored.first()
         syncLogging(config)
         return config
@@ -314,11 +336,11 @@ fun obstaclesForScene(scene: SceneId): Set<ObstacleKind> = when (scene) {
  * - 数值 clamp 到产品允许区间
  * - 自动操作：免责声明版本不足时强制 `enabled=false`
  * - 包名与默认白名单求交
- * - MCP 始终 `bindLocalhostOnly=true`
+ * - MCP 端口 clamp；`bindLocalhostOnly` 保留用户选择（默认 true）
  * - schema 写回 [AppConfig.CURRENT_SCHEMA]
  *
  * 注意：本函数**不会**单独拦截「已接受免责声明后的 enabled=true」。
- * 外部 JSON / MCP 摄入请再经 [hardenedForExternalIngest]，避免静默开启自动操作或自提 MCP 权限。
+ * 外部 JSON / MCP 摄入请再经 [hardenedForExternalIngest]，避免静默开启自动操作、局域网监听或自提 MCP 权限。
  */
 fun AppConfig.validated(): AppConfig {
     val completeScenes = SceneId.entries.associateWith { id ->
@@ -340,15 +362,21 @@ fun AppConfig.validated(): AppConfig {
             ),
         )
     }
-    // 用户列表 ∩ 默认白名单；空则回退默认，防止任意包名注入。
-    // 显式 Set，避免 map/filter 链被推断成 List 后与 AutomationConfig.allowedPackages 不匹配。
+    // 清洗包名；开启限制时列表不能为空，空则回退建议包。不与内置集合求交。
     val packages: Set<String> = automation.allowedPackages
         .asSequence()
         .map(String::trim)
-        .filter(String::isNotBlank)
-        .filter { it in AutomationConfig.DEFAULT_ALLOWED_PACKAGES }
+        .filter { it.isNotBlank() && it.length <= 180 && it.none(Char::isWhitespace) }
         .toSet()
-        .ifEmpty { AutomationConfig.DEFAULT_ALLOWED_PACKAGES }
+        .let { cleaned ->
+            if (automation.restrictPackages && cleaned.isEmpty()) {
+                AutomationConfig.SUGGESTED_PACKAGES
+            } else {
+                cleaned
+            }
+        }
+        .take(32)
+        .toSet()
     return copy(
         schemaVersion = AppConfig.CURRENT_SCHEMA,
         theme = theme.copy(
@@ -369,6 +397,8 @@ fun AppConfig.validated(): AppConfig {
             // 免责声明未达当前版本时强制关闭，导入也走同一路径。
             enabled = automation.enabled &&
                 automation.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION,
+            gestureBackend = automation.gestureBackend,
+            restrictPackages = automation.restrictPackages,
             allowedPackages = packages,
             maxActionsPerSecond = automation.maxActionsPerSecond.coerceIn(1, 8),
             minimumSceneConfidence = automation.minimumSceneConfidence.finiteOr(0.82f).coerceIn(0.5f, 1f),
@@ -389,14 +419,27 @@ fun AppConfig.validated(): AppConfig {
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
-            // 安全不变量：禁止绑定非 loopback。
-            bindLocalhostOnly = true,
+            // 默认 true；false 表示用户明确允许局域网（0.0.0.0）。外部摄入另经 harden。
+            bindLocalhostOnly = mcp.bindLocalhostOnly,
             // requireAuth 默认 false；authToken 只保留安全 hex，长度上限防止异常配置。
             authToken = mcp.authToken
                 .trim()
                 .filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
                 .lowercase()
                 .take(128),
+            // 仅保留已知工具名 + 非 DEFAULT 覆盖；未知键丢弃，防止脏配置膨胀。
+            toolPolicies = mcp.toolPolicies
+                .filterKeys { name ->
+                    name.isNotBlank() &&
+                        name.length <= 64 &&
+                        name.all { ch -> ch.isLetterOrDigit() || ch == '_' }
+                }
+                .filterValues { it != McpToolPolicy.DEFAULT }
+                .toSortedMap()
+                .let { sorted ->
+                    // 已知工具名延迟由 MCP 目录校验；此处只做形态收敛，避免 core 依赖 mcp 包。
+                    sorted.entries.take(128).associate { it.toPair() }
+                },
         ),
         developer = developer.copy(
             frameRateLimit = developer.frameRateLimit.coerceIn(1, 120),
@@ -415,31 +458,77 @@ fun AppConfig.validated(): AppConfig {
 }
 
 /**
+ * 外部摄入时用户可显式同意的「升权」项。
+ *
+ * 默认全 false：导入/MCP 不得静默打开自动操作或局域网 MCP。
+ * UI 在检测到导入 JSON 会升权时弹风险确认，再把对应字段设为 true。
+ */
+data class ExternalIngestElevations(
+    /** 允许 candidate 将自动操作从关→开（仍须免责声明版本足够）。 */
+    val allowEnableAutomation: Boolean = false,
+    /** 允许 candidate 将 MCP 从仅 loopback 升到局域网（`bindLocalhostOnly=false`）。 */
+    val allowEnableMcpLan: Boolean = false,
+)
+
+/**
+ * 检测 [candidate] 相对 [baseline] 在 harden 默认规则下会被挡掉的升权项，供导入 UI 询问。
+ */
+fun AppConfig.externalIngestElevationsNeeded(baseline: AppConfig): ExternalIngestElevations {
+    val base = baseline.validated()
+    val candidate = validated()
+    return ExternalIngestElevations(
+        allowEnableAutomation = candidate.automation.enabled && !base.automation.enabled,
+        allowEnableMcpLan = !candidate.mcp.bindLocalhostOnly && base.mcp.bindLocalhostOnly,
+    )
+}
+
+/**
  * 外部摄入（配置导入、MCP `save_settings`/`preview_settings`）相对 [baseline] 的安全收敛。
  *
  * 硬规则（对齐 CLAUDE / SECURITY）：
- * - 不得静默把自动操作从关→开；若 baseline 已开，可保留；
+ * - 不得静默把自动操作从关→开；若 baseline 已开，可保留；用户确认后可经 [elevations] 放行；
+ * - 不得静默打开 MCP 局域网监听；用户确认后可经 [elevations] 放行；
  * - 不得自提 MCP `permissionLevel` / 不得静默打开 `mcp.enabled` / `allowDebugFrames`；
+ * - 不得静默放宽 MCP `toolPolicies`（只能更严：DEFAULT→ALWAYS_ASK/DISABLED 等，见 [mergeToolPoliciesStrict]）；
  * - 不得静默打开开发者选项或写入 `forceCaptureBackend`（避免升权截图后端）；
  * - 截图后端不得从低权限静默升到 Root/Shizuku/无障碍（保持 baseline 或更低风险）。
+ * - 手势后端不得从低风险静默升到 Shizuku/Root（保持 baseline 或更低风险）。
  *
  * 调用方应先 [validated] 再 harden，或对本函数返回值再 `validated()`。
  */
-fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
+fun AppConfig.hardenedForExternalIngest(
+    baseline: AppConfig,
+    elevations: ExternalIngestElevations = ExternalIngestElevations(),
+): AppConfig {
     val base = baseline.validated()
     val candidate = validated()
 
     val automation = candidate.automation.copy(
-        // 外部路径不得静默开启；仅当 baseline 已开时允许保持。
-        enabled = candidate.automation.enabled && base.automation.enabled,
+        // 外部路径不得静默开启；baseline 已开可保持；或用户确认 elevations。
+        enabled = candidate.automation.enabled &&
+            (base.automation.enabled || elevations.allowEnableAutomation),
         // 外部不得伪造「用户已接受」：免责版本只可 ≤ baseline。
         disclaimerAcceptedVersion = minOf(
             candidate.automation.disclaimerAcceptedVersion,
             base.automation.disclaimerAcceptedVersion,
         ),
+        gestureBackend = saferGestureBackend(
+            base.automation.gestureBackend,
+            candidate.automation.gestureBackend,
+        ),
         bambooExperimentalAutoAction =
             candidate.automation.bambooExperimentalAutoAction &&
                 base.automation.bambooExperimentalAutoAction,
+        // 外部不得静默关闭包限制；开启限制时列表不得悄悄扩大。
+        restrictPackages = candidate.automation.restrictPackages || base.automation.restrictPackages,
+        allowedPackages = if (base.automation.restrictPackages || candidate.automation.restrictPackages) {
+            val intersected = candidate.automation.allowedPackages.intersect(base.automation.allowedPackages)
+            intersected.ifEmpty {
+                base.automation.allowedPackages.ifEmpty { AutomationConfig.SUGGESTED_PACKAGES }
+            }
+        } else {
+            candidate.automation.allowedPackages
+        },
     )
 
     val mcp = candidate.mcp.copy(
@@ -450,7 +539,14 @@ fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
         // 外部不得静默关闭鉴权；也不得改写/清空配对令牌。
         requireAuth = candidate.mcp.requireAuth || base.mcp.requireAuth,
         authToken = base.mcp.authToken,
-        bindLocalhostOnly = true,
+        // 默认保持 loopback；仅 baseline 已开局域网，或用户确认 elevations 时允许 false。
+        bindLocalhostOnly = when {
+            candidate.mcp.bindLocalhostOnly -> true
+            !base.mcp.bindLocalhostOnly -> false
+            elevations.allowEnableMcpLan -> false
+            else -> true
+        },
+        toolPolicies = mergeToolPoliciesStrict(base.mcp.toolPolicies, candidate.mcp.toolPolicies),
     )
 
     val developer = candidate.developer.copy(
@@ -489,6 +585,40 @@ private fun minPermission(
     if (mcpPermissionRank(candidate) <= mcpPermissionRank(baseline)) candidate else baseline
 
 /**
+ * 工具策略「宽松度」：数字越大越宽松。
+ * 外部摄入只能取更严（数字更小）的一侧。
+ */
+private fun mcpToolPolicyRank(policy: McpToolPolicy): Int =
+    when (policy) {
+        McpToolPolicy.DISABLED -> 0
+        McpToolPolicy.ALWAYS_ASK -> 1
+        McpToolPolicy.DEFAULT -> 2
+        McpToolPolicy.ALLOW_WHEN_TRUSTED -> 3
+    }
+
+/**
+ * 合并工具策略：对每个工具取更严策略；baseline 中已 DISABLED 的不得被外部打开。
+ * 仅输出非 DEFAULT 条目。
+ */
+internal fun mergeToolPoliciesStrict(
+    baseline: Map<String, McpToolPolicy>,
+    candidate: Map<String, McpToolPolicy>,
+): Map<String, McpToolPolicy> {
+    val keys = baseline.keys + candidate.keys
+    val out = linkedMapOf<String, McpToolPolicy>()
+    for (key in keys) {
+        val base = baseline[key] ?: McpToolPolicy.DEFAULT
+        val cand = candidate[key] ?: McpToolPolicy.DEFAULT
+        val strict =
+            if (mcpToolPolicyRank(cand) <= mcpToolPolicyRank(base)) cand else base
+        if (strict != McpToolPolicy.DEFAULT) {
+            out[key] = strict
+        }
+    }
+    return out.toSortedMap()
+}
+
+/**
  * 截图后端风险序：AUTO/MP 最低；无障碍中等；Shizuku/Root 最高。
  * 外部摄入不得升到比 baseline 更高风险的后端。
  */
@@ -502,6 +632,23 @@ private fun saferCaptureBackend(
         CaptureBackend.ACCESSIBILITY -> 2
         CaptureBackend.SHIZUKU -> 3
         CaptureBackend.ROOT -> 4
+    }
+    return if (rank(candidate) <= rank(baseline)) candidate else baseline
+}
+
+/**
+ * 手势后端风险序：AUTO 最低；无障碍中等；Shizuku/Root 最高。
+ * 外部摄入不得升到比 baseline 更高风险的后端。
+ */
+internal fun saferGestureBackend(
+    baseline: GestureBackend,
+    candidate: GestureBackend,
+): GestureBackend {
+    fun rank(b: GestureBackend): Int = when (b) {
+        GestureBackend.AUTO -> 0
+        GestureBackend.ACCESSIBILITY -> 1
+        GestureBackend.SHIZUKU -> 2
+        GestureBackend.ROOT -> 3
     }
     return if (rank(candidate) <= rank(baseline)) candidate else baseline
 }
@@ -551,7 +698,9 @@ object ConfigJson {
             put("automation", JSONObject().apply {
                 put("enabled", safe.automation.enabled)
                 put("disclaimerAcceptedVersion", safe.automation.disclaimerAcceptedVersion)
+                put("gestureBackend", safe.automation.gestureBackend.name)
                 put("bambooExperimentalAutoAction", safe.automation.bambooExperimentalAutoAction)
+                put("restrictPackages", safe.automation.restrictPackages)
                 put("allowedPackages", JSONArray(safe.automation.allowedPackages.sorted()))
                 put("maxActionsPerSecond", safe.automation.maxActionsPerSecond)
                 put("minimumSceneConfidence", safe.automation.minimumSceneConfidence.toDouble())
@@ -579,6 +728,14 @@ object ConfigJson {
                 put("requireAuth", safe.mcp.requireAuth)
                 // 配对令牌仅存 DataStore；导出 JSON 同样写入（用户备份），日志路径须脱敏。
                 put("authToken", safe.mcp.authToken)
+                put(
+                    "toolPolicies",
+                    JSONObject().apply {
+                        safe.mcp.toolPolicies.forEach { (name, policy) ->
+                            put(name, policy.name)
+                        }
+                    },
+                )
             })
             put("developer", JSONObject().apply {
                 put("enabled", safe.developer.enabled)
@@ -692,8 +849,14 @@ object ConfigJson {
             automation = defaults.automation.copy(
                 enabled = automation?.optBoolean("enabled", false) ?: false,
                 disclaimerAcceptedVersion = automation?.optInt("disclaimerAcceptedVersion", 0) ?: 0,
+                gestureBackend = enumOr(
+                    automation?.optString("gestureBackend"),
+                    defaults.automation.gestureBackend,
+                ),
                 bambooExperimentalAutoAction =
                     automation?.optBoolean("bambooExperimentalAutoAction", false) ?: false,
+                // 缺字段默认 false：与产品「默认不限制包名」一致。
+                restrictPackages = automation?.optBoolean("restrictPackages", false) ?: false,
                 allowedPackages = automation?.optJSONArray("allowedPackages").toStringSet()
                     .ifEmpty { defaults.automation.allowedPackages },
                 maxActionsPerSecond = automation?.optInt("maxActionsPerSecond", 4) ?: 4,
@@ -718,6 +881,7 @@ object ConfigJson {
                 requireAuth = mcp?.optBoolean("requireAuth", defaults.mcp.requireAuth)
                     ?: defaults.mcp.requireAuth,
                 authToken = mcp?.optString("authToken")?.takeIf { it.isNotBlank() }.orEmpty(),
+                toolPolicies = decodeToolPolicies(mcp?.optJSONObject("toolPolicies")),
             ),
             developer = defaults.developer.copy(
                 enabled = developer?.optBoolean("enabled", false) ?: false,
@@ -793,6 +957,24 @@ object ConfigJson {
         put("clickThrough", overlay.clickThrough)
         put("snapToEdge", overlay.snapToEdge)
         put("lockPosition", overlay.lockPosition)
+    }
+
+    private fun decodeToolPolicies(obj: JSONObject?): Map<String, McpToolPolicy> {
+        if (obj == null) return emptyMap()
+        val out = linkedMapOf<String, McpToolPolicy>()
+        val keys = obj.keys()
+        var count = 0
+        while (keys.hasNext() && count < 128) {
+            val name = keys.next()
+            if (name.isNullOrBlank() || name.length > 64) continue
+            if (!name.all { ch -> ch.isLetterOrDigit() || ch == '_' }) continue
+            val policy = enumOr(obj.optString(name), McpToolPolicy.DEFAULT)
+            if (policy != McpToolPolicy.DEFAULT) {
+                out[name] = policy
+            }
+            count++
+        }
+        return out.toSortedMap()
     }
 
     private fun JSONArray?.toStringSet(): Set<String> = buildSet {

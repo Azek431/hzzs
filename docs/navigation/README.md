@@ -21,7 +21,7 @@ Compose 页面发出意图
 | 应用启动或主导航 | `app/.../MainActivity.kt`：`HzzsRoot`、`AppNavHost` | `HzzsApplication.kt`、各 `feature/*Screen.kt` | 根导航目前缺 UI/instrumentation 测试 |
 | 首页展示 | `feature/home/HomeScreen.kt` | `HomeViewModel` → 配置与运行状态 Flow | 相关纯逻辑测试 |
 | 开始/停止分析 | `feature/runtime/RuntimeScreen.kt`：`RuntimeViewModel.toggle` | `data/vision/VisionRuntimeController.start/stop` | 运行时端到端测试仍是缺口 |
-| 设置分类或即时落盘 | `feature/settings/SettingsScreen.kt`、`SettingsViewModel.kt` | `core/preferences/SettingsRepository.kt`、`SettingsExitCoordinator` | `SettingsSessionTest`、`SettingsExitCoordinatorTest`、`SettingsUiLogicTest` |
+| 设置分类或草稿保存 | `feature/settings/SettingsScreen.kt`、`SettingsViewModel.kt` | `core/preferences/SettingsRepository.kt`、`SettingsExitCoordinator` | `SettingsSessionTest`、`SettingsExitCoordinatorTest`、`SettingsUiLogicTest` |
 | 主题包 | `feature/settings/screens/AppearanceSettingsScreen.kt` | `core/theme/ThemePackage.kt` | `ThemePackageTest` |
 | 完整配置 JSON | `core/preferences/SettingsRepository.kt`：`ConfigJson` | `mcp/McpService.kt` 的外部摄入路径 | `SettingsSessionTest`；普通 UI 当前不提供完整配置导入 |
 | 截图后端 | `service/capture/FrameCapture.kt` | `CaptureSources.kt`、`platform/compat/CaptureCapabilities.kt` | `CaptureBackendResolutionTest`、`FrameSequenceTest` |
@@ -44,11 +44,11 @@ Compose 页面发出意图
 
 ```text
 设置控件
-→ SettingsViewModel.update（乐观 UI）
-→ 短防抖后 SettingsRepository.save（validated）
+→ SettingsViewModel.update（乐观 UI + repository.preview）
+→ 顶栏「保存并应用」→ SettingsRepository.save（validated）
 → SettingsRepository.config Flow
-→ Theme / Runtime / MCP 等订阅者
-→ 离开设置：flushNow 刷掉挂起写
+→ Theme / Runtime / MCP 等订阅者（preview 优先）
+→ 离开设置：dirty 弹窗（保存并离开 / 丢弃 / 取消）
 ```
 
 危险项（如手动开自动操作）先确认再写；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开启自动操作或自提权限。

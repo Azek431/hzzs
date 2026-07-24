@@ -42,7 +42,7 @@
 | 目标 / 编译 SDK | 37 |
 | 默认赛季 | 见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（文档不写死，避免与代码漂移） |
 | 模块形态 | 单一 `app` Gradle 模块 |
-| 配置 schema | DataStore v6 |
+| 配置 schema | DataStore v8 |
 
 首要目标：低权限默认、Android 7+ 兼容、比例坐标适配、设置即时落盘、算法结果可测试，以及让开发者和 AI 能快速理解并安全修改代码。
 
@@ -59,8 +59,8 @@
 - Material 3 内置主题、动态取色、AMOLED、高对比、自定义颜色与 `.hzzstheme` 主题包；动效受应用「减少动效 / 动画强度」与系统 animator 倍率约束。
 - 设置改动**即时落盘**（短防抖）；离开设置时刷盘。手动开启自动操作等危险项须先确认风险；导入/MCP 外部摄入不得静默开启自动操作或自提权限。
 - 首次启动引导（5 步：欢迎/赛季/截图/权限/完成；权限可稍后；完成页可折叠开启自动操作并风险确认）、简体中文免责声明。
-- 关于页连续点击版本号 7 次解锁开发者选项；解锁后设置首页出现「开发者选项」，页内可关闭。关于入口与设置入口共用同一开发者页；可选诊断导出（脱敏，不含 Bearer）。MCP 服务在独立「MCP 服务」分类页中配置。
-- MCP 本地服务：只读 / 每次确认 / 会话信任 / 完整访问四级权限。默认免鉴权；可选持久化 Bearer（仅主动轮换）。独立设置页含运行状态卡片、一键复制连接信息与使用引导。
+- 关于页连续点击版本号 7 次解锁开发者选项；解锁后设置首页出现「开发者选项」，页内可关闭。关于入口与设置入口共用同一开发者页；可开关系统「指针位置」（优先修改系统设置，已授权 Shizuku / Root 亦可）；可选诊断导出（脱敏，不含 Bearer）。MCP 服务在独立「MCP 服务」分类页中配置。
+- MCP 本地服务：只读 / 每次确认 / 会话信任 / 完整访问四级权限，可按工具覆盖策略（始终确认 / 信任放行 / 禁用）。默认免鉴权；可选持久化 Bearer（仅主动轮换）。设置页状态卡始终展示 `http://127.0.0.1:<port>/mcp`，并支持弹窗搜索管理工具策略。
 - 声明式算法包（Ed25519 验签；信任锚含 official-1 公钥；列表空时外装 fail-closed）；APK 可捆绑声明式包；内置算法回退。
 - C++ 输入边界、JNI 失败隔离、宿主机 Sanitizer、数据集回归与发布门禁。
 - Gitee 优先的双源签名更新与增量补丁工具链（应用内检查入口见设置/关于）。
@@ -79,21 +79,24 @@
 
 ## MCP
 
-MCP 服务默认关闭，只绑定设备回环地址（`127.0.0.1`）。传输为 **Streamable HTTP**（`POST /mcp`），兼容 [RikkaHub](https://github.com/rikkahub/rikkahub)、OperitAI、Claude Code 等客户端。
+MCP 服务默认关闭，**默认只绑定**设备 IPv4 回环（`127.0.0.1`）。可在设置中显式「允许局域网访问」后绑定 `0.0.0.0`（同 Wi‑Fi 可达）。传输为 **Streamable HTTP**（`POST /mcp`），兼容 [RikkaHub](https://github.com/rikkahub/rikkahub)、OperitAI、Claude Code 等客户端。
+
+设置 → MCP 服务提供**展示地址场景**（同机回环 / 电脑 ADB 转发 / 局域网 IP / 自定义主机）与**客户端导入格式**（RikkaHub `streamable_http` / Claude Code `http`）。展示场景只改复制文案；绑定由 loopback / 局域网开关决定。
 
 **同机 RikkaHub（推荐）**
 
 1. HZZS 设置 → MCP 服务 → 启用服务（即时生效）；**默认免 Bearer 鉴权**，同机客户端无需填请求头。
-2. 确认状态卡显示 `127.0.0.1:<port>` 正在运行。
-3. 点「复制 RikkaHub 导入 JSON」→ RikkaHub 设置 → MCP → 导入粘贴（类型必须是 **Streamable HTTP**，不要选 SSE）。
+2. 确认状态卡显示绑定 `127.0.0.1:<port>`（或局域网模式下 `0.0.0.0:<port>`）正在运行。
+3. 客户端格式选 RikkaHub → 点「复制导入 JSON」→ RikkaHub 设置 → MCP → 导入粘贴（类型必须是 **Streamable HTTP**，不要选 SSE）。
 4. 在 RikkaHub 助手里勾选该 MCP 服务器即可调用工具。
 
-服务只监听 IPv4 `127.0.0.1`（与导入 URL 一致）。若仍连不上：确认服务已启用并在运行、端口未被占用、RikkaHub 未误选 SSE。可选开启「要求 Bearer 鉴权」时 Token **持久保存**，重启不会自动更换；点「轮换 Token」后须重新复制/导入。
+若仍连不上：确认服务已启用并在运行、端口未被占用、客户端未误选 SSE。可选开启「要求 Bearer 鉴权」时 Token **持久保存**，重启不会自动更换；点「轮换 Token」后须重新复制/导入。
 
-**电脑端**
+**电脑端（Claude Code 等）**
 
-1. `adb forward tcp:<port> tcp:<port>`（端口以状态卡片为准）。
-2. URL：`http://127.0.0.1:<port>/mcp`；若开启鉴权再加 `Authorization: Bearer <token>`。
+1. **ADB**：展示场景选「电脑 ADB 转发」，执行 `adb forward tcp:<port> tcp:<port>`，URL 仍用 `http://127.0.0.1:<port>/mcp`。
+2. **局域网**：设置中确认开启「允许局域网访问」后，用手机 Wi‑Fi IPv4：`http://<lan-ip>:<port>/mcp`。
+3. 客户端格式选 Claude Code → 复制导入 JSON（`type: http`）到项目 `.mcp.json`；若开启鉴权再加 `Authorization: Bearer <token>`。
 
 应用内页面、状态、设置、分析和悬浮窗操作通过语义工具暴露（严格 inputSchema），不依赖屏幕坐标点击。常用能力包括：运行态快照、局部 `patch_settings`、赛季/阈值/主题/悬浮窗、开发者开关、算法列表/激活/下载、自动操作门闩解释、日志与脱敏诊断导出。写操作受四级权限；「信任本次会话」仅绑定当前内存会话，服务重启后失效。即使「完整访问」也不能绕过系统录屏 / 悬浮窗 / 无障碍 / 安装对话框。
 
@@ -296,6 +299,7 @@ CI 工作流：`.github/workflows/algorithm-release.yml`。
 
 ## Star History
 
+<!-- 官方嵌入（picture + sealed_token）结构保留。当前 api.star-history.com 对本仓库返回 timeout，GitHub 上主图会裂；下方仓库内 SVG 保证可见。 -->
 <a href="https://www.star-history.com/?repos=Azek431%2Fhzzs&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&theme=dark&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
@@ -303,6 +307,12 @@ CI 工作流：`.github/workflows/algorithm-release.yml`。
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
  </picture>
 </a>
+
+<p align="center">
+  <a href="https://www.star-history.com/#Azek431/hzzs&Date">
+    <img src="docs/assets/star-history.svg" alt="Star History" width="800" />
+  </a>
+</p>
 
 仓库地址：
 

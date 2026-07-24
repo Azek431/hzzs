@@ -11,6 +11,9 @@
 
 ### 新增
 
+- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`Settings.System.POINTER_LOCATION`）。优先 `WRITE_SETTINGS`；已授权 Shizuku 或可用 Root 时可 `settings put` 写入。经 `SystemCapabilityAccess`，不进 AppConfig、不静默要 Shizuku/Root 权。
+- **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**；外部摄入不得放宽策略。
+
 - **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。
 
 ### 变更
@@ -37,6 +40,9 @@
 
 ### 修复
 
+- **自动操作前台快照**：规划/派发改为 `foregroundSnapshot(refreshIfStale=true)`，刷新在主线程执行；区分 `skip:no_accessibility` 与 `skip:no_foreground`；不再因空 `className` 误杀；无障碍配置补 `flagRetrieveInteractiveWindows`。
+- **MCP 失效 Session 不再卡死工具调用**：服务重启/改绑定后会话表清空，客户端仍持旧 `Mcp-Session-Id` 时，`tools/call` 与 `resources/read` 降级为无会话继续（`TRUSTED_SESSION` 仍要求有效会话；`ASK`/`FULL` 按权限执行），避免 RikkaHub 报 `-32003` 需手动重连。
+- **MCP 状态卡始终展示 127.0.0.1**：未运行/局域网展示模式下也给出 `http://127.0.0.1:<port>/mcp`；当前展示 URL 不同时再另列一行。
 - **自动操作包名门控与 `restrictPackages` 对齐**：未开启「仅允许指定应用」时不再用建议包列表挡前台；派发时 `allowedPackages` 空集表示不限制。修正 CI `check_project` 旧规则与产品语义不一致导致的 Build 失败。
 - **海盐触发距离默认与校验**：`seaSaltTriggerDistancePlayerWidths` 默认 **5.0**（FIXED 玩家宽约 0.05 时约 0.25 屏宽，对齐酱油较远点击）；`validated`/滑条上限 **0.5–8**，避免旧 1.4 被钳在 4 内仍偏近导致「框已稳、no_candidate」。诊断 skip 文案补 `pw` / `nearGap` / `sc`。
 - **算法库选包对齐赛季**：手动选用仅支持单一赛季的包（如酱油海盐）时自动切到该赛季；卡片标注「不含当前赛季」并 Snackbar 提示。

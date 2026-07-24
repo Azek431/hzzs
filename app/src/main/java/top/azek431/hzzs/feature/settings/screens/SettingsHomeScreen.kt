@@ -3,7 +3,7 @@
  *
  * 职责：搜索 + 分组列出入口与当前摘要；点击打开子页。
  * 数据流：只读 [config]/[algorithmState]；不直接改配置。
- * 边界：返回本页不丢配置（即时落盘由 ViewModel 负责）。
+ * 边界：返回本页不丢配置（草稿预览由 ViewModel 负责）。
  */
 package top.azek431.hzzs.feature.settings.screens
 

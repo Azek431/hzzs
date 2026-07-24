@@ -458,7 +458,11 @@ fun SettingsHeroCard(
     }
 }
 
-/** 模块底部取消/保存栏；仅 dirty 时可保存。窄屏改为纵向动作区。 */
+/**
+ * 模块底部取消/保存栏（遗留组件）。
+ * 当前设置 UI 使用顶栏「保存并应用」，本组件无调用方；保留以便窄屏布局实验复用。
+ * 仅 dirty 时可保存。窄屏改为纵向动作区。
+ */
 @Composable
 fun SettingsSaveBar(
     dirty: Boolean,

@@ -2,7 +2,7 @@
  * 网络与更新设置页。
  *
  * 职责：下载来源、Wi‑Fi 策略、算法通道/自动检查、应用更新检查下载安装。
- * 数据流：偏好经 [update] 即时落盘；检查/下载/安装为 ViewModel 即时任务。
+ * 数据流：偏好经 [update] 草稿预览；检查/下载/安装为 ViewModel 即时任务。
  * 边界：不绕过签名校验；不在 feature 内直接 HTTP。
  * 算法包检查/下载已接入：HTTPS 目录 + 哈希 + Ed25519；无信任锚时下载 fail-closed。
  */
@@ -40,7 +40,7 @@ import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 /**
  * 网络与更新设置页。
  *
- * 应用更新检查/下载/安装走 ViewModel 即时任务；算法通道偏好即时落盘。
+ * 应用更新检查/下载/安装走 ViewModel 即时任务；算法通道偏好草稿预览。
  * 未发布签名索引时检查失败为预期。本页不绕过证书绑定验签。
  */
 @Composable

@@ -28,6 +28,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 自动操作默认关闭；配置导入与迁移**不得**静默开启。
 - 自动操作需要当前免责声明版本；不再要求会话级 arm，启用后运行中直接规划手势。
 - MCP 默认「每次确认」、只监听 loopback；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
+- MCP 工具级策略 `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED` 覆盖全局权限；禁用工具不进 `tools/list`；外部摄入不得放宽策略；自管工具（`set_mcp_*`）为 HIGH_RISK。
 - Root、Shizuku、无障碍能力只能由用户**明确选择**。
 - 配置、主题包、更新清单、截图尺寸与 native 输入必须有边界校验。
 - 不得提交密钥、签名库、`local.properties`、真实环境变量、本地备份或生成二进制。

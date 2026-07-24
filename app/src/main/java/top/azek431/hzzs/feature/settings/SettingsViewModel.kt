@@ -1,7 +1,8 @@
 /**
- * 设置模块 ViewModel：即时落盘（方案 C）。
+ * 设置模块 ViewModel：草稿预览 + 显式保存。
  *
- * 职责：订阅/维护当前 [AppConfig]；普通改动防抖后直接 [SettingsRepository.save]；
+ * 职责：订阅/维护当前草稿 [AppConfig]；普通改动经 [update] 写入内存预览（不落盘）；
+ * [save] 才 [SettingsRepository.save] 永久保存；[discard] 丢弃预览并恢复已保存快照。
  * 危险项（如开自动操作）由子页对话框确认后再调用 [update]。
  * 网络刷新与算法下载为即时任务，与配置字段无关。
  * 边界：不直接 JNI/Root/WindowManager；算法经 [AlgorithmCatalogController] /
@@ -19,7 +20,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +53,7 @@ import top.azek431.hzzs.mcp.McpServerState
 import top.azek431.hzzs.mcp.McpUiBridge
 import top.azek431.hzzs.nativevision.NativeVision
 import top.azek431.hzzs.platform.compat.CaptureCapabilityResolver
+import top.azek431.hzzs.platform.compat.GestureCapabilityResolver
 import java.io.File
 import javax.inject.Inject
 
@@ -67,14 +68,16 @@ data class UpdateUiState(
 /**
  * 设置模块配置编辑入口。
  *
- * 子页面共享本 ViewModel；改动经 [update] 乐观更新 UI 并防抖落盘。
- * 导入/MCP 等外部写入通过 [SettingsRepository.config] 回流，本地无挂起写时同步。
+ * 子页面共享本 ViewModel；改动经 [update] 乐观更新 UI 并写入进程内 preview。
+ * 仅 [save] 落盘；离开未保存时由 UI 弹窗后 [discard] 或 [save]。
+ * 导入/MCP 等外部写入通过 [SettingsRepository.config] 回流；本地有未保存草稿时不覆盖。
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @param:ApplicationContext private val appContext: Context,
     private val repository: SettingsRepository,
     private val capabilityResolver: CaptureCapabilityResolver,
+    private val gestureCapabilityResolver: GestureCapabilityResolver,
     private val updateRepository: UpdateRepository,
     private val algorithmCatalog: AlgorithmCatalogController,
     private val algorithmActivation: AlgorithmActivationCoordinator,
@@ -86,12 +89,18 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableConfig = MutableStateFlow(AppConfig())
     /**
-     * 当前设置页展示的配置（与磁盘一致或乐观领先一帧）。
+     * 当前设置页展示的配置（已保存快照，或带预览的草稿）。
      * 历史命名 [draft] 保留，避免子页签名大面积改动。
      */
     val draft: StateFlow<AppConfig> = mutableConfig.asStateFlow()
 
+    private val mutableDirty = MutableStateFlow(false)
+    /** 相对上次已保存快照是否有未提交预览。 */
+    val dirty: StateFlow<Boolean> = mutableDirty.asStateFlow()
+
     val capabilities = capabilityResolver.all()
+    /** 手势后端能力快照；进入页时可再刷新，首屏用构造时快照。 */
+    val gestureCapabilities = gestureCapabilityResolver.all()
     private val mutableUpdate = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = mutableUpdate.asStateFlow()
     val algorithmState: StateFlow<AlgorithmCatalogState> = algorithmCatalog.state
@@ -101,22 +110,27 @@ class SettingsViewModel @Inject constructor(
     private val mutableBenchmark = MutableStateFlow<Result<NativeBenchmarkResult>?>(null)
     val benchmark: StateFlow<Result<NativeBenchmarkResult>?> = mutableBenchmark.asStateFlow()
 
-    private var persistJob: Job? = null
-    private var pendingWrite: AppConfig? = null
-    private val writeMutex = Mutex()
+    /** 最近一次已保存快照（不含预览）。 */
+    private var baseline: AppConfig = AppConfig()
+    private val editMutex = Mutex()
+    private var previewJob: Job? = null
 
     init {
         viewModelScope.launch {
             val snap = repository.snapshot()
+            baseline = snap
             mutableConfig.value = snap
+            mutableDirty.value = false
             bindAlgorithm(snap)
             algorithmCatalog.refreshCatalog()
             refreshDebugFrameCount()
         }
         viewModelScope.launch {
             repository.config.collectLatest { remote ->
-                if (pendingWrite != null) return@collectLatest
+                // 本地有未保存草稿时，不以远端/预览回流覆盖编辑中的 UI。
+                if (mutableDirty.value) return@collectLatest
                 if (remote != mutableConfig.value) {
+                    baseline = remote
                     mutableConfig.value = remote
                     bindAlgorithm(remote)
                 }
@@ -191,65 +205,92 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * 乐观更新 UI 并防抖落盘。
+     * 乐观更新 UI 并写入进程内 preview（不落盘）。
      * 子页危险确认应在调用本方法前完成（如自动操作风险对话框）。
      */
     fun update(transform: (AppConfig) -> AppConfig) {
         val optimistic = transform(mutableConfig.value)
         mutableConfig.value = optimistic
-        pendingWrite = optimistic
+        val isDirty = optimistic != baseline
+        mutableDirty.value = isDirty
         bindAlgorithm(optimistic)
-        persistJob?.cancel()
-        persistJob = viewModelScope.launch {
-            delay(PERSIST_DEBOUNCE_MS)
-            flushPending()
-        }
-    }
-
-    /** 立即刷盘（离开设置、切走主导航时调用）。 */
-    fun flushNow(onDone: () -> Unit = {}) {
-        viewModelScope.launch {
-            persistJob?.cancel()
-            flushPending()
-            onDone()
-        }
-    }
-
-    private suspend fun flushPending() {
-        writeMutex.withLock {
-            val toWrite = pendingWrite ?: return
-            pendingWrite = null
-            runCatching {
-                repository.clearPreview()
-                repository.save(toWrite)
-                val saved = repository.snapshot()
-                mutableConfig.value = saved
-                bindAlgorithm(saved)
-                algorithmActivation.onConfigCommitted(
-                    config = saved.algorithm,
-                    selectedScene = saved.selectedScene,
-                )
-                AppLog.i(
-                    "settings",
-                    "settings saved developer=${saved.developer.enabled} logLevel=${saved.developer.logLevel}",
-                )
-            }.onFailure { error ->
-                pendingWrite = toWrite
-                AppLog.w(
-                    "settings",
-                    "settings save failed: ${error.message ?: error.javaClass.simpleName}",
-                )
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            editMutex.withLock {
+                if (isDirty) {
+                    repository.preview(optimistic)
+                } else {
+                    repository.clearPreview()
+                }
             }
         }
     }
 
-    /** 将主题包解码后写入主题/悬浮窗（保留当前悬浮窗开关）并落盘。 */
+    /**
+     * 将当前草稿校验后永久保存，并清空预览。
+     * [onDone] 在主协程完成后回调（成功或失败均调用，便于关闭离开对话框）。
+     */
+    fun save(onDone: (success: Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val ok = commitSave()
+            onDone(ok)
+        }
+    }
+
+    /** 丢弃草稿预览，恢复已保存快照。 */
+    fun discard(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            commitDiscard()
+            onDone()
+        }
+    }
+
+    private suspend fun commitSave(): Boolean = editMutex.withLock {
+        previewJob?.cancel()
+        val toWrite = mutableConfig.value
+        return runCatching {
+            repository.save(toWrite)
+            val saved = repository.snapshot()
+            baseline = saved
+            mutableConfig.value = saved
+            mutableDirty.value = false
+            bindAlgorithm(saved)
+            algorithmActivation.onConfigCommitted(
+                config = saved.algorithm,
+                selectedScene = saved.selectedScene,
+            )
+            AppLog.i(
+                "settings",
+                "settings saved developer=${saved.developer.enabled} logLevel=${saved.developer.logLevel}",
+            )
+            true
+        }.getOrElse { error ->
+            AppLog.w(
+                "settings",
+                "settings save failed: ${error.message ?: error.javaClass.simpleName}",
+            )
+            false
+        }
+    }
+
+    private suspend fun commitDiscard() = editMutex.withLock {
+        previewJob?.cancel()
+        repository.clearPreview()
+        val snap = repository.snapshot()
+        baseline = snap
+        mutableConfig.value = snap
+        mutableDirty.value = false
+        bindAlgorithm(snap)
+        AppLog.i("settings", "settings draft discarded")
+    }
+
+    /** 将主题包解码后写入主题/悬浮窗（保留当前悬浮窗开关）并进入预览。 */
     fun importTheme(raw: String) {
         val pack = ThemePackageCodec.decode(raw)
         update { it.copy(theme = pack.theme, overlay = pack.overlay.copy(enabled = it.overlay.enabled)) }
     }
 
-    /** 从当前配置导出声明式主题包 JSON。 */
+    /** 从当前草稿导出声明式主题包 JSON。 */
     fun exportTheme(): String {
         val config = mutableConfig.value
         return ThemePackageCodec.encode(
@@ -262,22 +303,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Composition 卸载时尽量刷盘；不再使用「预览层」语义。
-     * 真正的离开导航应走 [flushNow]。
+     * Composition 卸载时丢弃未保存预览，避免进程内 preview 残留影响其它界面。
+     * 正常离开应先经 UI 弹窗 [save]/[discard]。
      */
     fun onLeaveComposition() {
-        if (pendingWrite == null) return
+        if (!mutableDirty.value) return
         viewModelScope.launch {
-            persistJob?.cancel()
-            flushPending()
+            commitDiscard()
         }
     }
 
     fun checkForUpdates() {
         if (updateJob?.isActive == true) return
         updateJob = viewModelScope.launch {
-            persistJob?.cancel()
-            flushPending()
             val config = mutableConfig.value
             mutableUpdate.value = UpdateUiState(busy = true, message = "正在检查更新…")
             runCatching {
@@ -323,8 +361,6 @@ class SettingsViewModel @Inject constructor(
         val available = mutableUpdate.value.available ?: return
         if (updateJob?.isActive == true) return
         updateJob = viewModelScope.launch {
-            persistJob?.cancel()
-            flushPending()
             val config = mutableConfig.value
             mutableUpdate.value = mutableUpdate.value.copy(busy = true, message = "正在下载更新…")
             runCatching {
@@ -386,11 +422,11 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** 将忽略版本号即时写入配置。 */
+    /** 将忽略版本号写入草稿预览（需再点保存并应用才落盘）。 */
     fun ignoreAvailableUpdate() {
         val code = mutableUpdate.value.available?.manifest?.versionCode ?: return
         update { it.copy(update = it.update.copy(ignoredVersionCode = code)) }
-        mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本")
+        mutableUpdate.value = mutableUpdate.value.copy(message = "已忽略该版本（保存后生效）")
     }
 
     fun refreshAlgorithms() = algorithmCatalog.refreshCatalog(force = true)
@@ -400,7 +436,7 @@ class SettingsViewModel @Inject constructor(
     fun cancelAlgorithmDownload(id: String) = algorithmCatalog.cancelDownload(id)
 
     /**
-     * 钉选手动算法并即时落盘；分析运行中由激活协调器 pending。
+     * 钉选手动算法写入草稿预览；分析运行中由激活协调器在真正 [save] 后 pending。
      * 若包仅支持单一赛季且与当前赛季不一致，自动切换到该赛季，避免「钉选了海盐包仍跑竹影」。
      */
     fun selectAlgorithm(id: String) {
@@ -452,9 +488,5 @@ class SettingsViewModel @Inject constructor(
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-    }
-
-    private companion object {
-        const val PERSIST_DEBOUNCE_MS = 40L
     }
 }

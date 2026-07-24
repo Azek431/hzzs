@@ -2,7 +2,7 @@
  * 悬浮窗设置页。
  *
  * 职责：编辑悬浮窗开关、样式、主题、透明度与显示项；展示系统悬浮窗权限状态。
- * 数据流：经 [update] 即时落盘，配置流驱动 OverlayController。
+ * 数据流：经 [update] 草稿预览，配置流驱动 OverlayController。
  * 边界：不创建/操作 WindowManager；跳转系统设置经 [SystemCapabilityAccess]；加窗由 service 层完成。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -45,7 +45,7 @@ import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 /**
  * 悬浮窗样式设置页。
  *
- * 主题/样式变更即时落盘并反映到 OverlayController。
+ * 主题/样式变更草稿预览并反映到 OverlayController。
  * 不直接操作 WindowManager；真正加窗/移窗由 service 层完成。
  */
 @Composable

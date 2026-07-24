@@ -262,6 +262,7 @@ private fun HzzsRoot(
     val config by vm.config.collectAsState()
     val approval by vm.approval.collectAsState()
     val mcpNavigation by vm.mcpNavigation.collectAsState()
+    val mcpSettingsSubRoute by vm.mcpUiBridge.settingsSubRoute.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(
@@ -270,13 +271,15 @@ private fun HzzsRoot(
         config.mcp.permissionLevel,
         config.mcp.requireAuth,
         config.mcp.authToken,
+        config.mcp.bindLocalhostOnly,
     ) {
         syncMcpService(
             context = context,
             enabled = config.mcp.enabled,
             fingerprint =
                 "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}:" +
-                    "${config.mcp.requireAuth}:${config.mcp.authToken}",
+                    "${config.mcp.requireAuth}:${config.mcp.authToken}:" +
+                    "${config.mcp.bindLocalhostOnly}",
         )
     }
     LaunchedEffect(Unit) {
@@ -296,6 +299,10 @@ private fun HzzsRoot(
                 onSaveDonation = onSaveDonation,
                 requestedRoute = mcpNavigation,
                 onRouteConsumed = vm::consumeMcpNavigation,
+                settingsSubRoute = mcpSettingsSubRoute,
+                onSettingsSubRouteConsumed = { route ->
+                    vm.mcpUiBridge.consumeSettingsSubRoute(route)
+                },
             )
         }
 
@@ -316,6 +323,8 @@ private fun MainNavigation(
     onSaveDonation: (DonationKind) -> Unit,
     requestedRoute: String?,
     onRouteConsumed: (String) -> Unit,
+    settingsSubRoute: String? = null,
+    onSettingsSubRouteConsumed: (String) -> Unit = {},
 ) {
     val nav = rememberNavController()
     val settingsExitCoordinator = remember { SettingsExitCoordinator() }
@@ -360,6 +369,8 @@ private fun MainNavigation(
                     nav = nav,
                     onSaveDonation = onSaveDonation,
                     settingsExitCoordinator = settingsExitCoordinator,
+                    settingsSubRoute = settingsSubRoute,
+                    onSettingsSubRouteConsumed = onSettingsSubRouteConsumed,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -383,6 +394,8 @@ private fun MainNavigation(
                     nav = nav,
                     onSaveDonation = onSaveDonation,
                     settingsExitCoordinator = settingsExitCoordinator,
+                    settingsSubRoute = settingsSubRoute,
+                    onSettingsSubRouteConsumed = onSettingsSubRouteConsumed,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -395,6 +408,8 @@ private fun AppNavHost(
     nav: NavHostController,
     onSaveDonation: (DonationKind) -> Unit,
     settingsExitCoordinator: SettingsExitCoordinator,
+    settingsSubRoute: String? = null,
+    onSettingsSubRouteConsumed: (String) -> Unit = {},
     modifier: Modifier,
 ) {
     val motion = LocalHzzsMotion.current
@@ -418,6 +433,8 @@ private fun AppNavHost(
             SettingsScreen(
                 exitCoordinator = settingsExitCoordinator,
                 onExit = { nav.popBackStack() },
+                initialSubRoute = settingsSubRoute,
+                onInitialSubRouteConsumed = onSettingsSubRouteConsumed,
             )
         }
         composable(Destination.ABOUT.route) {

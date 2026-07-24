@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.AutomationConfig
+import top.azek431.hzzs.core.model.GestureBackend
 import top.azek431.hzzs.core.model.SceneId
 
 class SettingsSessionTest {
@@ -95,26 +96,99 @@ class SettingsSessionTest {
         val clamped = AppConfig().copy(
             automation = AutomationConfig(seaSaltTriggerDistancePlayerWidths = 99f),
         ).validated()
-        assertEquals(4f, clamped.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
+        assertEquals(8f, clamped.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
 
         val missingField = JSONObject(ConfigJson.encode(AppConfig()))
         missingField.getJSONObject("automation").remove("seaSaltTriggerDistancePlayerWidths")
         val fallback = ConfigJson.decode(missingField.toString())
-        assertEquals(1.40f, fallback.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
+        assertEquals(5.0f, fallback.automation.seaSaltTriggerDistancePlayerWidths, 0.001f)
     }
 
     @Test
-    fun importedAutomationPackagesAreRestrictedToKnownGameHosts() {
-        val imported = JSONObject(ConfigJson.encode(AppConfig())).apply {
-            getJSONObject("automation").put(
-                "allowedPackages",
-                org.json.JSONArray(listOf("com.example.untrusted", "com.smile.gifmaker")),
-            )
-        }
+    fun packageRestrictionDefaultsOffAndAllowsCustomPackages() {
+        val defaults = ConfigJson.decode(ConfigJson.encode(AppConfig()))
+        assertFalse(defaults.automation.restrictPackages)
 
-        val decoded = ConfigJson.decode(imported.toString())
-        assertEquals(setOf("com.smile.gifmaker"), decoded.automation.allowedPackages)
-        assertTrue(decoded.automation.allowedPackages.all { it in AutomationConfig.DEFAULT_ALLOWED_PACKAGES })
+        val custom = AppConfig().copy(
+            automation = AutomationConfig(
+                restrictPackages = true,
+                allowedPackages = setOf("com.example.game", "com.smile.gifmaker"),
+            ),
+        )
+        val decoded = ConfigJson.decode(ConfigJson.encode(custom)).validated()
+        assertTrue(decoded.automation.restrictPackages)
+        assertEquals(setOf("com.example.game", "com.smile.gifmaker"), decoded.automation.allowedPackages)
+    }
+
+    @Test
+    fun gestureBackendDefaultsAutoAndRoundTrips() {
+        val defaults = ConfigJson.decode(ConfigJson.encode(AppConfig()))
+        assertEquals(GestureBackend.AUTO, defaults.automation.gestureBackend)
+        assertEquals(AppConfig.CURRENT_SCHEMA, defaults.schemaVersion)
+
+        val root = AppConfig().copy(
+            automation = AutomationConfig(gestureBackend = GestureBackend.ROOT),
+        )
+        val decoded = ConfigJson.decode(ConfigJson.encode(root))
+        assertEquals(GestureBackend.ROOT, decoded.automation.gestureBackend)
+
+        val missing = JSONObject(ConfigJson.encode(AppConfig()))
+        missing.getJSONObject("automation").remove("gestureBackend")
+        assertEquals(GestureBackend.AUTO, ConfigJson.decode(missing.toString()).automation.gestureBackend)
+    }
+
+    @Test
+    fun externalIngestCannotEscalateGestureBackend() {
+        val baseline = AppConfig(
+            automation = AutomationConfig(gestureBackend = GestureBackend.AUTO),
+        )
+        val malicious = AppConfig(
+            automation = AutomationConfig(gestureBackend = GestureBackend.ROOT),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertEquals(GestureBackend.AUTO, hardened.automation.gestureBackend)
+
+        val mid = AppConfig(
+            automation = AutomationConfig(gestureBackend = GestureBackend.ACCESSIBILITY),
+        )
+        val fromMid = AppConfig(
+            automation = AutomationConfig(gestureBackend = GestureBackend.SHIZUKU),
+        ).hardenedForExternalIngest(mid)
+        assertEquals(GestureBackend.ACCESSIBILITY, fromMid.automation.gestureBackend)
+
+        val allowDown = AppConfig(
+            automation = AutomationConfig(gestureBackend = GestureBackend.AUTO),
+        ).hardenedForExternalIngest(
+            AppConfig(automation = AutomationConfig(gestureBackend = GestureBackend.ROOT)),
+        )
+        assertEquals(GestureBackend.AUTO, allowDown.automation.gestureBackend)
+    }
+
+    @Test
+    fun emptyAllowedPackagesWithRestrictionFallsBackToSuggested() {
+        val restrictedEmpty = AppConfig().copy(
+            automation = AutomationConfig(restrictPackages = true, allowedPackages = emptySet()),
+        ).validated()
+        assertEquals(AutomationConfig.SUGGESTED_PACKAGES, restrictedEmpty.automation.allowedPackages)
+    }
+
+    @Test
+    fun externalIngestCannotSilentlyDisablePackageRestriction() {
+        val baseline = AppConfig(
+            automation = AutomationConfig(
+                restrictPackages = true,
+                allowedPackages = setOf("com.smile.gifmaker"),
+            ),
+        )
+        val malicious = AppConfig(
+            automation = AutomationConfig(
+                restrictPackages = false,
+                allowedPackages = setOf("com.example.untrusted"),
+            ),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertTrue(hardened.automation.restrictPackages)
+        assertEquals(setOf("com.smile.gifmaker"), hardened.automation.allowedPackages)
     }
 
     @Test
@@ -181,15 +255,57 @@ class SettingsSessionTest {
             mcp = defaults.mcp.copy(
                 requireAuth = true,
                 authToken = "aabbccddeeff00112233445566778899aabbccddeeff0011",
+                toolPolicies = mapOf(
+                    "start_analysis" to top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+                    "set_theme" to top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+                ),
             ),
         )
         val encoded = ConfigJson.encode(withToken)
         val decoded = ConfigJson.decode(encoded)
         assertTrue(decoded.mcp.requireAuth)
         assertEquals(withToken.mcp.authToken, decoded.mcp.authToken)
+        assertEquals(
+            top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+            decoded.mcp.toolPolicies["start_analysis"],
+        )
+        assertEquals(
+            top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+            decoded.mcp.toolPolicies["set_theme"],
+        )
         // 缺字段回退产品默认（免鉴权）
         val legacy = ConfigJson.decode("""{"schemaVersion":6,"mcp":{"enabled":false,"port":8765}}""")
         assertFalse(legacy.mcp.requireAuth)
+        assertTrue(legacy.mcp.toolPolicies.isEmpty())
+    }
+
+    @Test
+    fun externalIngestCannotRelaxToolPolicies() {
+        val baseline = AppConfig(
+            mcp = AppConfig().mcp.copy(
+                toolPolicies = mapOf(
+                    "start_analysis" to top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+                    "set_theme" to top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+                ),
+            ),
+        )
+        val malicious = AppConfig(
+            mcp = AppConfig().mcp.copy(
+                toolPolicies = mapOf(
+                    "start_analysis" to top.azek431.hzzs.core.model.McpToolPolicy.ALLOW_WHEN_TRUSTED,
+                    "set_theme" to top.azek431.hzzs.core.model.McpToolPolicy.DEFAULT,
+                ),
+            ),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertEquals(
+            top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+            hardened.mcp.toolPolicies["start_analysis"],
+        )
+        assertEquals(
+            top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+            hardened.mcp.toolPolicies["set_theme"],
+        )
     }
 
     @Test
@@ -226,4 +342,42 @@ class SettingsSessionTest {
         assertTrue(hardened.automation.enabled)
         assertEquals(3, hardened.automation.maxActionsPerSecond)
     }
+
+    @Test
+    fun externalIngestCannotSilentlyEnableMcpLan() {
+        val baseline = AppConfig()
+        val malicious = AppConfig(
+            mcp = top.azek431.hzzs.core.model.McpConfig(bindLocalhostOnly = false),
+        )
+        val hardened = malicious.hardenedForExternalIngest(baseline)
+        assertTrue(hardened.mcp.bindLocalhostOnly)
+        val allowed = malicious.hardenedForExternalIngest(
+            baseline,
+            top.azek431.hzzs.core.preferences.ExternalIngestElevations(allowEnableMcpLan = true),
+        )
+        assertFalse(allowed.mcp.bindLocalhostOnly)
+        val needed = malicious.externalIngestElevationsNeeded(baseline)
+        assertTrue(needed.allowEnableMcpLan)
+        assertFalse(needed.allowEnableAutomation)
+    }
+
+    @Test
+    fun externalIngestCanEnableAutomationWithElevation() {
+        val baseline = AppConfig()
+        val candidate = AppConfig(
+            automation = AutomationConfig(
+                enabled = true,
+                disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION,
+            ),
+        )
+        assertFalse(candidate.hardenedForExternalIngest(baseline).automation.enabled)
+        val allowed = candidate.hardenedForExternalIngest(
+            baseline,
+            top.azek431.hzzs.core.preferences.ExternalIngestElevations(allowEnableAutomation = true),
+        )
+        assertTrue(allowed.automation.enabled)
+        val needed = candidate.externalIngestElevationsNeeded(baseline)
+        assertTrue(needed.allowEnableAutomation)
+    }
+
 }

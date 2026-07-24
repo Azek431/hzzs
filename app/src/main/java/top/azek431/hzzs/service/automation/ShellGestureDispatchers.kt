@@ -1,0 +1,158 @@
+package top.azek431.hzzs.service.automation
+
+import android.content.Context
+import android.os.SystemClock
+import android.view.WindowManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import top.azek431.hzzs.domain.automation.AutomationAction
+import top.azek431.hzzs.domain.automation.DispatchOutcome
+import top.azek431.hzzs.domain.automation.DispatchReceipt
+import top.azek431.hzzs.domain.automation.GestureDispatcher
+import top.azek431.hzzs.domain.automation.GestureSpec
+
+/**
+ * 无障碍手势注入：委托 [HzzsAccessibilityService]（生产唯一 dispatchGesture 持有者）。
+ */
+@Singleton
+class AccessibilityGestureDispatcher @Inject constructor() : GestureDispatcher {
+    override suspend fun dispatch(action: AutomationAction): DispatchReceipt =
+        HzzsAccessibilityService.dispatchCurrent(action)
+}
+
+/**
+ * 通过 shell `input tap/swipe` 注入手势（Shizuku 或 Root）。
+ *
+ * 完成语义：命令 exit 0 = COMPLETED，**弱于**无障碍 GestureResultCallback。
+ * 前台门控使用注入的 [ForegroundWindowProbe]（dumpsys）。
+ */
+class ShellInputGestureDispatcher(
+    private val probe: ForegroundWindowProbe,
+    private val screenSize: () -> Pair<Int, Int>,
+    private val runOk: suspend (command: Array<String>, timeoutMs: Long) -> Boolean,
+    private val clock: () -> Long = SystemClock::elapsedRealtime,
+    private val maxForegroundAgeMs: Long = 1_500L,
+) : GestureDispatcher {
+
+    override suspend fun dispatch(action: AutomationAction): DispatchReceipt {
+        val window = probe.snapshot()
+            ?: return DispatchReceipt(action, DispatchOutcome.REJECTED, "前台窗口状态不可用")
+        if (clock() - window.observedAtMs > maxForegroundAgeMs) {
+            return DispatchReceipt(action, DispatchOutcome.REJECTED, "前台窗口状态已过期")
+        }
+        if (!action.matchesPackage(window.packageName) || !action.matchesWindow(window.className)) {
+            return DispatchReceipt(action, DispatchOutcome.REJECTED, "当前页面不在允许范围")
+        }
+        val (width, height) = screenSize()
+        if (width <= 1 || height <= 1) {
+            return DispatchReceipt(action, DispatchOutcome.REJECTED, "屏幕尺寸无效")
+        }
+        val first = dispatchStroke(action, action.gesture, width, height)
+        if (first.outcome != DispatchOutcome.COMPLETED) return first
+        val doubleDelay = action.gesture.doublePressDelayMs
+        val isClick = action.gesture.endX == null && action.gesture.endY == null
+        if (isClick && doubleDelay > 0L) {
+            delay(doubleDelay.coerceIn(1L, 2_000L))
+            val second = dispatchStroke(action, action.gesture, width, height)
+            if (second.outcome != DispatchOutcome.COMPLETED) return second
+        }
+        return DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
+    }
+
+    private suspend fun dispatchStroke(
+        action: AutomationAction,
+        gesture: GestureSpec,
+        widthPixels: Int,
+        heightPixels: Int,
+    ): DispatchReceipt = withContext(Dispatchers.IO) {
+        val x1 = (gesture.startX.coerceIn(0f, 1f) * (widthPixels - 1)).toInt()
+        val y1 = (gesture.startY.coerceIn(0f, 1f) * (heightPixels - 1)).toInt()
+        val endX = gesture.endX
+        val endY = gesture.endY
+        val duration = gesture.durationMs.coerceIn(10L, 1_000L)
+        val command = if (endX != null && endY != null) {
+            val x2 = (endX.coerceIn(0f, 1f) * (widthPixels - 1)).toInt()
+            val y2 = (endY.coerceIn(0f, 1f) * (heightPixels - 1)).toInt()
+            arrayOf("input", "swipe", "$x1", "$y1", "$x2", "$y2", "$duration")
+        } else {
+            arrayOf("input", "tap", "$x1", "$y1")
+        }
+        val timeoutMs = (duration + 800L).coerceIn(800L, 4_000L)
+        val ok = runCatching { runOk(command, timeoutMs) }.getOrDefault(false)
+        if (ok) {
+            DispatchReceipt(action, DispatchOutcome.COMPLETED, null)
+        } else {
+            DispatchReceipt(action, DispatchOutcome.REJECTED, "input 命令失败或超时")
+        }
+    }
+}
+
+/** Shizuku input 分发器持有者（含前台 probe 缓存可重置）。 */
+@Singleton
+class ShizukuGestureDispatcher @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+) : GestureDispatcher {
+    private val probe = ShellForegroundProbe(
+        runner = ShellCommandRunner { command, maxBytes, timeout ->
+            ShellProcessSupport.runShizuku(command, maxBytes, timeout)
+        },
+    )
+
+    fun clearForegroundCache() = probe.clearCache()
+
+    private val inner = ShellInputGestureDispatcher(
+        probe = probe,
+        screenSize = { screenSize(context) },
+        runOk = { command, timeout -> ShellProcessSupport.runShizukuOk(command, timeout) },
+    )
+
+    override suspend fun dispatch(action: AutomationAction): DispatchReceipt = inner.dispatch(action)
+}
+
+/** Root input 分发器。 */
+@Singleton
+class RootGestureDispatcher @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+) : GestureDispatcher {
+    private val probe = ShellForegroundProbe(
+        runner = ShellCommandRunner { command, maxBytes, timeout ->
+            val joined = command.joinToString(" ") { arg ->
+                if (arg.any { it.isWhitespace() }) "\"$arg\"" else arg
+            }
+            ShellProcessSupport.runRoot(joined, maxBytes, timeout)
+        },
+    )
+
+    fun clearForegroundCache() = probe.clearCache()
+
+    private val inner = ShellInputGestureDispatcher(
+        probe = probe,
+        screenSize = { screenSize(context) },
+        runOk = { command, timeout ->
+            val joined = command.joinToString(" ") { arg ->
+                if (arg.any { it.isWhitespace() }) "\"$arg\"" else arg
+            }
+            ShellProcessSupport.runRootOk(joined, timeout)
+        },
+    )
+
+    override suspend fun dispatch(action: AutomationAction): DispatchReceipt = inner.dispatch(action)
+}
+
+private fun screenSize(context: Context): Pair<Int, Int> {
+    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        val bounds = wm.currentWindowMetrics.bounds
+        bounds.width() to bounds.height()
+    } else {
+        @Suppress("DEPRECATION")
+        val metrics = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        wm.defaultDisplay.getRealMetrics(metrics)
+        metrics.widthPixels to metrics.heightPixels
+    }
+}

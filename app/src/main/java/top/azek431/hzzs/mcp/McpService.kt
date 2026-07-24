@@ -29,12 +29,13 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 /**
- * 最小子集的 MCP Streamable-HTTP JSON-RPC 前台服务，仅绑定 IPv4 loopback。
+ * 最小子集的 MCP Streamable-HTTP JSON-RPC 前台服务。
  *
  * 安全边界：
- * - 只绑定 `127.0.0.1`（不用 [InetAddress.getLoopbackAddress] 的 ::1，避免 RikkaHub 填 127.0.0.1 连不上）。
- * - 不监听局域网；本机可通过 ADB `forward` 暴露给电脑上的 Claude Code / RikkaHub / OperitAI。
- * - 可选 Bearer（默认关；开启时用配置中持久化 authToken，不在每次启动轮换）；Origin 仅允许空 / "null" / loopback。
+ * - 默认只绑定 IPv4 `127.0.0.1`（不用 [InetAddress.getLoopbackAddress] 的 ::1）。
+ * - 用户显式关闭 [top.azek431.hzzs.core.model.McpConfig.bindLocalhostOnly] 时绑定 `0.0.0.0`（局域网）。
+ * - 可选 Bearer（默认关；开启时用配置中持久化 authToken，不在每次启动轮换）。
+ * - Origin：空 / "null" / loopback 允许；非 loopback 浏览器 Origin 一律拒绝（即使局域网模式）。
  * - 会话内存化 + generation；TRUSTED_SESSION 不跨服务生命周期持久化。
  * - 工具调用仍受 [McpActionRegistry] 四级权限约束，不能绕过 Android 系统权限对话框。
  *
@@ -56,7 +57,15 @@ class McpForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        protocol = McpProtocol(sessions, registry)
+        protocol = McpProtocol(
+            sessions = sessions,
+            actions = registry,
+            listTools = {
+                // 同步快照：避免 tools/list 暴露用户已禁用工具
+                val mcp = kotlinx.coroutines.runBlocking { settings.snapshot().mcp }
+                McpToolCatalog.toolsJson(McpToolPolicySupport.effectiveTools(mcp))
+            },
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -105,11 +114,11 @@ class McpForegroundService : Service() {
             stopSelf()
             return
         }
-        // 安全不变量：禁止绑定非 loopback（配置字段 bindLocalhostOnly 强制 true）。
-        // 门禁仍要求代码中出现 getLoopbackAddress 字面量（见下方引用），实际绑定 IPv4。
+        // 门禁仍要求代码中出现 getLoopbackAddress 字面量；默认绑定 IPv4 loopback。
         @Suppress("UNUSED_VARIABLE")
         val loopbackGate = InetAddress.getLoopbackAddress()
         val requireAuth = config.requireAuth
+        val bindLocalhostOnly = config.bindLocalhostOnly
         // 配对令牌持久化：不在每次启动轮换；缺省时生成一次并写回配置。
         val token = when {
             !requireAuth -> ""
@@ -128,13 +137,17 @@ class McpForegroundService : Service() {
             }
         }
         try {
-            // 强制 IPv4 127.0.0.1：Android 上 getLoopbackAddress() 常为 ::1，
-            // 而 RikkaHub / 文档 URL 使用 127.0.0.1，二者在部分 ROM 上不互通。
-            val ipv4Loopback = InetAddress.getByName("127.0.0.1")
+            // loopback：强制 IPv4 127.0.0.1（避免 ::1 与客户端 127.0.0.1 不通）。
+            // 局域网：0.0.0.0（所有网卡）；仅用户显式关闭 bindLocalhostOnly。
+            val bindAddress = if (bindLocalhostOnly) {
+                InetAddress.getByName("127.0.0.1")
+            } else {
+                InetAddress.getByName("0.0.0.0")
+            }
             val socket = ServerSocket().apply {
                 reuseAddress = true
                 bind(
-                    InetSocketAddress(ipv4Loopback, config.port),
+                    InetSocketAddress(bindAddress, config.port),
                     McpLimits.ACCEPT_BACKLOG,
                 )
             }
@@ -143,20 +156,39 @@ class McpForegroundService : Service() {
                 return
             }
             server = socket
-            // 不写 token 到日志；仅记录端口、权限级与鉴权开关。
+            val lanIps = if (bindLocalhostOnly) emptyList() else listLanIpv4Addresses()
+            val bindLabel = if (bindLocalhostOnly) {
+                "127.0.0.1:${config.port}"
+            } else {
+                "0.0.0.0:${config.port}"
+            }
+            // 不写 token 到日志；仅记录绑定、端口、权限级与鉴权开关。
             AppLog.i(
                 "mcp",
-                "MCP listening on 127.0.0.1:${config.port} " +
+                "MCP listening on $bindLabel " +
                     "level=${config.permissionLevel.name} auth=${if (requireAuth) "bearer" else "off"} " +
+                    "lan=${if (bindLocalhostOnly) "off" else "on"} " +
                     "(gate=${loopbackGate.hostAddress})",
             )
-            publishState(true, config.port, token, requireAuth, null)
+            publishState(
+                running = true,
+                port = config.port,
+                token = token,
+                requireAuth = requireAuth,
+                bindLocalhostOnly = bindLocalhostOnly,
+                lanAddresses = lanIps,
+                error = null,
+            )
+            val notifyExtra = buildString {
+                append(bindLabel)
+                append(" · ")
+                append(config.permissionLevel.name)
+                if (!requireAuth) append(" · 免鉴权")
+                if (!bindLocalhostOnly) append(" · 局域网")
+            }
             getSystemService(NotificationManager::class.java).notify(
                 NOTIFICATION_ID,
-                notification(
-                    "127.0.0.1:${config.port} · ${config.permissionLevel.name}" +
-                        if (requireAuth) "" else " · 免鉴权",
-                ),
+                notification(notifyExtra),
             )
             while (!stopping.get() && generation == runGeneration.get()) {
                 val client = runCatching { socket.accept() }.getOrNull() ?: break
@@ -177,10 +209,18 @@ class McpForegroundService : Service() {
                 }
                 scope.launch {
                     try {
-                        handle(client, token, requireAuth, generation)
+                        handle(client, token, requireAuth, bindLocalhostOnly, generation)
                     } finally {
                         sessions.releaseConnection()
-                        publishState(true, config.port, token, requireAuth, null)
+                        publishState(
+                            running = true,
+                            port = config.port,
+                            token = token,
+                            requireAuth = requireAuth,
+                            bindLocalhostOnly = bindLocalhostOnly,
+                            lanAddresses = if (bindLocalhostOnly) emptyList() else listLanIpv4Addresses(),
+                            error = null,
+                        )
                     }
                 }
             }
@@ -202,6 +242,7 @@ class McpForegroundService : Service() {
         socket: Socket,
         token: String,
         requireAuth: Boolean,
+        bindLocalhostOnly: Boolean,
         generation: Long,
     ) {
         socket.use { client ->
@@ -232,7 +273,16 @@ class McpForegroundService : Service() {
                         generation == runGeneration.get() &&
                         !stopping.get()
 
-                if (!dispatchOne(request, output, token, requireAuth, generation, keepAlive)) {
+                if (!dispatchOne(
+                        request,
+                        output,
+                        token,
+                        requireAuth,
+                        bindLocalhostOnly,
+                        generation,
+                        keepAlive,
+                    )
+                ) {
                     return
                 }
                 if (!keepAlive) return
@@ -248,6 +298,7 @@ class McpForegroundService : Service() {
         output: BufferedOutputStream,
         token: String,
         requireAuth: Boolean,
+        bindLocalhostOnly: Boolean,
         generation: Long,
         keepAlive: Boolean,
     ): Boolean {
@@ -330,7 +381,7 @@ class McpForegroundService : Service() {
             )
             return keepAlive
         }
-        if (!isAllowedLoopbackOrigin(request.origin)) {
+        if (!isAllowedMcpOrigin(request.origin, allowLanBind = !bindLocalhostOnly)) {
             writeHttp(
                 output,
                 403,
@@ -414,6 +465,8 @@ class McpForegroundService : Service() {
         port: Int,
         token: String,
         requireAuth: Boolean,
+        bindLocalhostOnly: Boolean = true,
+        lanAddresses: List<String> = emptyList(),
         error: String?,
     ) {
         uiBridge.updateServerState(
@@ -422,6 +475,8 @@ class McpForegroundService : Service() {
                 port = port,
                 token = token,
                 requireAuth = requireAuth,
+                bindLocalhostOnly = bindLocalhostOnly,
+                lanAddresses = lanAddresses,
                 lastError = error,
                 activeSessions = sessions.sessionCount(),
             ),

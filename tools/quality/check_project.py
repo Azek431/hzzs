@@ -159,7 +159,7 @@ for token in (
     "isAllowedLoopbackOrigin",
     "isAllowedMcpOrigin",
     "MessageDigest.isEqual",
-    "settings.snapshot().mcp.permissionLevel",
+    "settings.snapshot().mcp",
     "list_debug_frames",
     "clear_debug_frames",
     "Mcp-Session-Id",
@@ -173,6 +173,10 @@ for token in (
     "generateMcpAuthToken",
     "bindLocalhostOnly",
     "listLanIpv4Addresses",
+    "McpToolPolicy",
+    "toolPolicies",
+    "get_mcp_status",
+    "set_mcp_tool_policy",
 ):
     check(token in mcp, f"mcp:{token}", "MCP control/safety invariant missing")
 # 默认仍须 loopback；允许源码出现 0.0.0.0 仅当用户显式 bindLocalhostOnly=false。

@@ -689,7 +689,12 @@ class VisionRuntimeController @Inject constructor(
 
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
-        val foreground = HzzsAccessibilityService.foregroundSnapshot()
+        // 规划期必须主动刷新：仅靠事件缓存时，长时间无切窗/未开无障碍会系统性 skip:no_foreground。
+        if (!HzzsAccessibilityService.isConnected()) {
+            actionInFlight.set(false)
+            return "skip:no_accessibility"
+        }
+        val foreground = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true)
         if (foreground == null) {
             actionInFlight.set(false)
             return "skip:no_foreground"
@@ -698,12 +703,14 @@ class VisionRuntimeController @Inject constructor(
         val packageRestricted = config.automation.restrictPackages
         val packageAllowed = !packageRestricted ||
             foreground.packageName in config.automation.allowedPackages
-        if (foregroundClassName.isBlank() ||
+        // className 可为空（部分 ROM / 游戏壳）；有包名即可做包门控，类名仅在非空时参与 recheck 前缀。
+        if (foreground.packageName.isBlank() ||
             SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
             !packageAllowed
         ) {
             actionInFlight.set(false)
-            return "skip:foreground_gate pkg=${foreground.packageName} restrict=$packageRestricted"
+            return "skip:foreground_gate pkg=${foreground.packageName.ifBlank { "-" }} " +
+                "cls=${foregroundClassName.ifBlank { "-" }} restrict=$packageRestricted"
         }
 
         val planSummary =
@@ -840,20 +847,30 @@ class VisionRuntimeController @Inject constructor(
                 return
             }
 
-            val foreground = HzzsAccessibilityService.foregroundSnapshot() ?: run {
+            if (!HzzsAccessibilityService.isConnected()) {
+                AlgorithmRuntimeTrace.logDecision(
+                    "dispatch_skip:no_accessibility track=${candidate.trackId}",
+                )
+                return@withLock
+            }
+            val foreground = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true) ?: run {
                 AlgorithmRuntimeTrace.logDecision("dispatch_skip:no_foreground track=${candidate.trackId}")
                 return@withLock
             }
             val packageRestricted = config.automation.restrictPackages
             val packageAllowed = !packageRestricted ||
                 foreground.packageName in config.automation.allowedPackages
+            val classStillMatches = foregroundClassName.isBlank() ||
+                foreground.className.isBlank() ||
+                foreground.className.startsWith(foregroundClassName)
             if (
                 SystemClock.elapsedRealtime() - foreground.observedAtMs > FOREGROUND_MAX_AGE_MS ||
                 !packageAllowed ||
-                !foreground.className.startsWith(foregroundClassName)
+                !classStillMatches
             ) {
                 AlgorithmRuntimeTrace.logDecision(
                     "dispatch_skip:foreground_recheck pkg=${foreground.packageName} " +
+                        "cls=${foreground.className.ifBlank { "-" }} " +
                         "restrict=$packageRestricted track=${candidate.trackId}",
                 )
                 return@withLock

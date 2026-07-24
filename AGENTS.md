@@ -109,7 +109,7 @@ AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
 1. `CaptureBackend.AUTO` **只**走 MediaProjection，不探测 Root/Shizuku/无障碍。
 2. `GestureBackend` 与截图正交；手势 AUTO 优先无障碍、条件 Shizuku、永不 Root。
 3. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
-4. MCP 仅 loopback；默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认。设置页展示地址/客户端方言只改复制文案，不得绑 `0.0.0.0`。
+4. MCP 默认仅 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）。默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认；`toolPolicies` 可按工具覆盖。导入不得静默开局域网/自动操作/放宽工具策略（除非用户确认 elevations）。
 5. 主题包声明式 JSON，无脚本/远程资源。
 6. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
 7. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。

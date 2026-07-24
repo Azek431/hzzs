@@ -22,9 +22,16 @@ class McpUiBridge @Inject constructor() {
     private val mutableApproval = MutableStateFlow<McpApprovalRequest?>(null)
     val approval: StateFlow<McpApprovalRequest?> = mutableApproval.asStateFlow()
 
-    /** MCP 请求的语义路由；Compose 导航消费后清除。 */
+    /** MCP 请求的一级路由：home / runtime / settings / about；Compose 导航消费后清除。 */
     private val mutableNavigation = MutableStateFlow<String?>(null)
     val navigation: StateFlow<String?> = mutableNavigation.asStateFlow()
+
+    /**
+     * 设置模块内子路由（appearance / mcp / developer / log_viewer 等）。
+     * 与 [navigation]=settings 配合：先打开设置，再进入分类。
+     */
+    private val mutableSettingsSubRoute = MutableStateFlow<String?>(null)
+    val settingsSubRoute: StateFlow<String?> = mutableSettingsSubRoute.asStateFlow()
 
     private val approvalMutex = Any()
     private var approvalDeferred: CompletableDeferred<Boolean>? = null
@@ -71,12 +78,57 @@ class McpUiBridge @Inject constructor() {
         }
     }
 
+    /**
+     * 请求导航。支持：
+     * - 一级：`home` / `runtime` / `settings` / `about`
+     * - 设置子页：`settings/mcp`、`appearance`、`developer`、`log_viewer` 等
+     */
     fun requestNavigation(route: String) {
-        mutableNavigation.value = route
+        val normalized = route.trim().trimStart('/').lowercase()
+        val (top, sub) = resolveNavigation(normalized)
+        if (sub != null) {
+            mutableSettingsSubRoute.value = sub
+        }
+        mutableNavigation.value = top
     }
 
     fun consumeNavigation(route: String) {
         if (mutableNavigation.value == route) mutableNavigation.value = null
+    }
+
+    fun consumeSettingsSubRoute(route: String) {
+        if (mutableSettingsSubRoute.value == route) mutableSettingsSubRoute.value = null
+    }
+
+    private fun resolveNavigation(route: String): Pair<String, String?> {
+        val settingsPrefixes = listOf("settings/", "setting/")
+        for (prefix in settingsPrefixes) {
+            if (route.startsWith(prefix)) {
+                val sub = route.removePrefix(prefix).ifBlank { "settings_home" }
+                return "settings" to normalizeSettingsSub(sub)
+            }
+        }
+        val bareSettings = setOf(
+            "appearance", "overlay", "capture", "algorithm", "detection",
+            "automation", "network", "mcp", "developer",
+            "settings_home", "log_viewer", "algorithm_pipeline",
+            "logs", "pipeline",
+        )
+        if (route in bareSettings) {
+            return "settings" to normalizeSettingsSub(route)
+        }
+        val top = when (route) {
+            "home", "runtime", "settings", "about" -> route
+            else -> route // 交由调用方校验
+        }
+        return top to null
+    }
+
+    private fun normalizeSettingsSub(sub: String): String = when (sub) {
+        "home", "settings_home" -> "settings_home"
+        "logs", "log", "log_viewer" -> "log_viewer"
+        "pipeline", "algorithm_pipeline", "algo_pipeline" -> "algorithm_pipeline"
+        else -> sub
     }
 
     private companion object {

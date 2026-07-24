@@ -2,7 +2,7 @@
  * 检测与识别参数设置页。
  *
  * 职责：赛季、障碍开关、玩家基准、工作宽度与自动动作门控参数。
- * 数据流：经 [update] 即时落盘；不直接 JNI。
+ * 数据流：经 [update] 草稿预览；不直接 JNI。
  * 边界：算法包选择在「算法库」页；本页只调用户侧阈值。
  */
 package top.azek431.hzzs.feature.settings.screens

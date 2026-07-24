@@ -97,8 +97,61 @@ class McpProtocolTest {
         }
         assertTrue(McpToolCatalog.tools.any { it.name == "navigate" })
         assertTrue(McpToolCatalog.tools.any { it.name == "list_debug_frames" })
+        assertTrue(McpToolCatalog.tools.any { it.name == "patch_settings" })
+        assertTrue(McpToolCatalog.tools.any { it.name == "get_runtime_snapshot" })
+        assertTrue(McpToolCatalog.tools.any { it.name == "set_developer_enabled" })
+        assertTrue(McpToolCatalog.tools.any { it.name == "get_mcp_status" })
+        assertTrue(McpToolCatalog.tools.any { it.name == "set_mcp_tool_policy" })
+        assertTrue(McpToolCatalog.resources.any { it.uri == "app://runtime/snapshot" })
+        assertTrue(McpToolCatalog.resources.any { it.uri == "app://mcp/status" })
         assertNotNull(McpToolCatalog.tool("get_status"))
         assertEquals(null, McpToolCatalog.tool("arm_automation"))
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("download_algorithm")!!.risk)
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("set_automation_enabled")!!.risk)
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("set_mcp_enabled")!!.risk)
+        assertTrue(
+            McpToolCatalog.toolsJson().getJSONObject(0).getString("description")
+                .contains("工具名:"),
+        )
+    }
+
+    @Test
+    fun toolPolicySupportFiltersDisabledAndApproval() {
+        val cfg = top.azek431.hzzs.core.model.McpConfig(
+            toolPolicies = mapOf(
+                "start_analysis" to top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+                "set_theme" to top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+            ),
+        )
+        assertFalse(McpToolPolicySupport.isEnabled(cfg, "start_analysis"))
+        assertTrue(McpToolPolicySupport.isEnabled(cfg, "get_status"))
+        assertTrue(
+            McpToolPolicySupport.effectiveTools(cfg).none { it.name == "start_analysis" },
+        )
+        assertTrue(
+            McpToolPolicySupport.requiresPhoneApproval(
+                McpToolRisk.WRITE,
+                top.azek431.hzzs.core.model.McpPermissionLevel.FULL_ACCESS,
+                top.azek431.hzzs.core.model.McpToolPolicy.ALWAYS_ASK,
+            ),
+        )
+        assertEquals(
+            null,
+            McpToolPolicySupport.hardRejectReason(
+                McpToolRisk.WRITE,
+                top.azek431.hzzs.core.model.McpPermissionLevel.FULL_ACCESS,
+                top.azek431.hzzs.core.model.McpToolPolicy.DEFAULT,
+                hasTrustedSession = true,
+            ),
+        )
+        assertNotNull(
+            McpToolPolicySupport.hardRejectReason(
+                McpToolRisk.HIGH_RISK,
+                top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
+                top.azek431.hzzs.core.model.McpToolPolicy.DEFAULT,
+                hasTrustedSession = true,
+            ),
+        )
     }
 
     @Test
@@ -260,7 +313,8 @@ class McpProtocolTest {
     }
 
     @Test
-    fun missingSessionRejectedForToolCallButListAllowed() = runBlocking {
+    fun missingOrStaleSessionStillAllowsToolCallAndList() = runBlocking {
+        // 服务重启后会话表清空；旧 Mcp-Session-Id 应降级为无会话，tools/call 仍可走权限层。
         val protocol = McpProtocol(McpSessionManager(), FakeActions(), serverVersion = "t")
         val call = protocol.dispatch(
             JSONObject()
@@ -271,11 +325,12 @@ class McpProtocolTest {
                     "params",
                     JSONObject().put("name", "get_status").put("arguments", JSONObject()),
                 ),
-            existingSessionId = null,
+            existingSessionId = "stale-session-id",
             protocolVersionHeader = null,
         )
-        assertTrue(call is McpProtocol.DispatchResult.HttpError)
-        assertEquals(400, (call as McpProtocol.DispatchResult.HttpError).status)
+        val callBody = (call as McpProtocol.DispatchResult.JsonResponse).body
+        assertTrue(callBody.has("result"))
+        assertTrue(callBody.getJSONObject("result").has("content"))
 
         val list = protocol.dispatch(
             JSONObject()
@@ -300,6 +355,60 @@ class McpProtocolTest {
         assertTrue(locked.rikkaHubImportJson().contains("Bearer abc"))
     }
 
+    @Test
+    fun endpointDisplayModesAndClientDialects() {
+        val state = McpServerState(running = true, port = 8765, token = "tok", requireAuth = true)
+        assertEquals("127.0.0.1", state.resolveDisplayHost(McpEndpointDisplayMode.LOOPBACK))
+        assertEquals("127.0.0.1", state.resolveDisplayHost(McpEndpointDisplayMode.ADB_FORWARD))
+        assertEquals("tunnel.example", state.resolveDisplayHost(McpEndpointDisplayMode.CUSTOM, "tunnel.example"))
+        assertEquals("127.0.0.1", state.resolveDisplayHost(McpEndpointDisplayMode.CUSTOM, "  "))
+        assertEquals(
+            "http://tunnel.example:8765/mcp",
+            state.endpointUrlFor(McpEndpointDisplayMode.CUSTOM, "tunnel.example"),
+        )
+        assertEquals("adb forward tcp:8765 tcp:8765", state.adbForwardCommand())
+        val claude = state.clientImportJson(
+            dialect = McpClientImportDialect.CLAUDE_CODE,
+            host = "127.0.0.1",
+        )
+        assertTrue(claude.contains("\"type\": \"http\""))
+        assertTrue(claude.contains("http://127.0.0.1:8765/mcp"))
+        assertTrue(claude.contains("Bearer tok"))
+        val custom = state.clientImportJson(
+            dialect = McpClientImportDialect.RIKKAHUB,
+            host = "10.0.0.2",
+        )
+        assertTrue(custom.contains("streamable_http"))
+        assertTrue(custom.contains("http://10.0.0.2:8765/mcp"))
+        assertEquals("http://[::1]:8765/mcp", state.endpointUrl("::1"))
+    }
+
+
+    @Test
+    fun endpointDisplayModesIncludeLan() {
+        val state = McpServerState(
+            running = true,
+            port = 8765,
+            bindLocalhostOnly = false,
+            lanAddresses = listOf("192.168.1.8", "10.0.0.2"),
+        )
+        assertEquals(
+            "192.168.1.8",
+            state.resolveDisplayHost(McpEndpointDisplayMode.LAN),
+        )
+        assertEquals(
+            "10.0.0.2",
+            state.resolveDisplayHost(McpEndpointDisplayMode.LAN, preferredLanHost = "10.0.0.2"),
+        )
+        assertEquals(
+            "http://192.168.1.8:8765/mcp",
+            state.endpointUrlFor(McpEndpointDisplayMode.LAN),
+        )
+        assertTrue(isAllowedMcpOrigin(null, allowLanBind = true))
+        assertTrue(isAllowedMcpOrigin("http://127.0.0.1", allowLanBind = true))
+        assertFalse(isAllowedMcpOrigin("http://evil.example", allowLanBind = true))
+    }
+
     private class FakeActions : McpActionSurface {
         override suspend fun readResource(uri: String): JSONObject =
             JSONObject().put("uri", uri)
@@ -311,4 +420,3 @@ class McpProtocolTest {
         ): JSONObject = JSONObject().put("ok", true).put("tool", tool)
     }
 }
-

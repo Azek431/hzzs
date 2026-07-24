@@ -1,9 +1,10 @@
 /**
  * 设置模块 Compose 入口与嵌套导航。
  *
- * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；改动即时落盘。
- * 数据流：订阅 draft/update/algorithm；子页经 [SettingsViewModel.update] 改配置。
- * 边界：不直接 JNI/权限运行时；离开时 [SettingsViewModel.flushNow] 刷盘。
+ * 职责：首页 + 分类子页共享同一 [SettingsViewModel]；改动进入草稿预览，
+ * 顶栏右上角「保存并应用」才落盘；离开模块时若 dirty 弹窗。
+ * 数据流：订阅 draft/dirty/update/algorithm；子页经 [SettingsViewModel.update] 改草稿。
+ * 边界：不直接 JNI/权限运行时。
  */
 package top.azek431.hzzs.feature.settings
 
@@ -11,17 +12,22 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -66,16 +72,21 @@ import top.azek431.hzzs.feature.settings.screens.SettingsHomeScreen
 
 /**
  * 设置模块入口：首页 + 分类子页共享同一 [SettingsViewModel]。
- * 配置改动即时落盘；离开时刷盘。宽屏左侧常驻首页目录，右侧为分类内容。
+ * 配置改动为草稿预览；右上角「保存并应用」落盘；离开时未保存弹窗。
+ * 宽屏左侧常驻首页目录，右侧为分类内容。分类间切换保留草稿。
+ * [initialSubRoute] 供 MCP 深链打开指定分类（如 mcp / developer / log_viewer）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onExit: () -> Unit,
     exitCoordinator: SettingsExitCoordinator? = null,
+    initialSubRoute: String? = null,
+    onInitialSubRouteConsumed: (String) -> Unit = {},
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val config by vm.draft.collectAsState()
+    val dirty by vm.dirty.collectAsState()
     val updateState by vm.updateState.collectAsState()
     val algorithmState by vm.algorithmState.collectAsState()
     val nav = rememberNavController()
@@ -83,19 +94,44 @@ fun SettingsScreen(
     val route = entry?.destination?.route ?: SettingsRoutes.HOME
     val onHome = route == SettingsRoutes.HOME
     var message by remember { mutableStateOf<String?>(null) }
+    var pendingLeave by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val currentOnExit by rememberUpdatedState(onExit)
+    val currentDirty by rememberUpdatedState(dirty)
 
     fun leave(action: () -> Unit = currentOnExit) {
-        vm.flushNow(action)
+        if (currentDirty) {
+            pendingLeave = action
+        } else {
+            action()
+        }
     }
 
     DisposableEffect(exitCoordinator, vm) {
-        val registration = exitCoordinator?.attach { onDone -> vm.flushNow(onDone) }
+        val registration = exitCoordinator?.attach { onDone -> leave(onDone) }
         onDispose {
             registration?.dispose()
             vm.onLeaveComposition()
         }
+    }
+
+    // MCP / 外部深链：打开设置后进入指定子页。
+    LaunchedEffect(initialSubRoute) {
+        val target = initialSubRoute?.trim()?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
+        val dest = when (target) {
+            SettingsRoutes.HOME, "home" -> SettingsRoutes.HOME
+            SettingsRoutes.LOG_VIEWER, "logs", "log" -> SettingsRoutes.LOG_VIEWER
+            SettingsRoutes.ALGORITHM_PIPELINE, "pipeline" -> SettingsRoutes.ALGORITHM_PIPELINE
+            else -> SettingsCategory.entries.firstOrNull { it.route == target }?.route
+        }
+        if (dest != null && dest != route) {
+            if (dest == SettingsRoutes.HOME) {
+                nav.popBackStack(SettingsRoutes.HOME, inclusive = false)
+            } else {
+                nav.navigate(dest) { launchSingleTop = true }
+            }
+        }
+        onInitialSubRouteConsumed(target)
     }
 
     BackHandler {
@@ -107,6 +143,7 @@ fun SettingsScreen(
     }
 
     val settingsLabel = stringResource(R.string.nav_settings)
+    val savedMessage = stringResource(R.string.settings_saved)
 
     // 关闭开发者后设置首页隐藏入口；若仍停在开发者路由则回首页。
     LaunchedEffect(config.developer.enabled, route) {
@@ -137,6 +174,50 @@ fun SettingsScreen(
         else -> settingsLabel
     }
 
+    if (pendingLeave != null) {
+        AlertDialog(
+            onDismissRequest = { pendingLeave = null },
+            title = { Text(stringResource(R.string.settings_unsaved_title)) },
+            text = { Text(stringResource(R.string.settings_unsaved_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val action = pendingLeave
+                        vm.save { success ->
+                            if (success) {
+                                pendingLeave = null
+                                message = savedMessage
+                                action?.invoke()
+                            } else {
+                                message = "保存失败，请重试"
+                            }
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_save_and_leave))
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            val action = pendingLeave
+                            pendingLeave = null
+                            vm.discard {
+                                action?.invoke()
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.action_discard))
+                    }
+                    TextButton(onClick = { pendingLeave = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -151,6 +232,24 @@ fun SettingsScreen(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                         )
+                    }
+                },
+                actions = {
+                    if (dirty) {
+                        TextButton(
+                            onClick = {
+                                vm.save { success ->
+                                    message = if (success) savedMessage else "保存失败，请重试"
+                                }
+                            },
+                        ) {
+                            Icon(
+                                Icons.Rounded.Save,
+                                contentDescription = null,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.settings_save_and_apply))
+                        }
                     }
                 },
             )
@@ -287,7 +386,11 @@ private fun SettingsNavHost(
             OverlaySettingsScreen(config = config, update = vm::update)
         }
         composable(SettingsCategory.AUTOMATION.route) {
-            AutomationSettingsScreen(config = config, update = vm::update)
+            AutomationSettingsScreen(
+                config = config,
+                gestureCapabilities = vm.gestureCapabilities,
+                update = vm::update,
+            )
         }
         composable(SettingsCategory.NETWORK.route) {
             NetworkUpdateSettingsScreen(

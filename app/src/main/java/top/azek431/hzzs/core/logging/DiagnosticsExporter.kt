@@ -93,12 +93,30 @@ object DiagnosticsExporter {
             appendLine("overlay.enabled=${config.overlay.enabled}")
             appendLine("overlay.style=${config.overlay.style.name}")
             appendLine("automation.enabled=${config.automation.enabled}")
+            appendLine("automation.gestureBackend=${config.automation.gestureBackend.name}")
+            appendLine("automation.restrictPackages=${config.automation.restrictPackages}")
+            appendLine(
+                "automation.allowedPackages=" +
+                    config.automation.allowedPackages.sorted().joinToString(",").ifBlank { "-" },
+            )
+            appendLine(
+                "automation.bambooExperimental=${config.automation.bambooExperimentalAutoAction}",
+            )
             appendLine("mcp.enabled=${config.mcp.enabled}")
             appendLine("mcp.permission=${config.mcp.permissionLevel.name}")
             appendLine("mcp.requireAuth=${config.mcp.requireAuth}")
             // 只写是否有 token，不写明文。
             appendLine("mcp.authTokenConfigured=${config.mcp.authToken.isNotBlank()}")
             appendLine("mcp.allowDebugFrames=${config.mcp.allowDebugFrames}")
+            appendLine("mcp.toolPolicyOverrides=${config.mcp.toolPolicies.size}")
+            if (config.mcp.toolPolicies.isNotEmpty()) {
+                appendLine(
+                    "mcp.toolPolicies=" +
+                        config.mcp.toolPolicies.entries
+                            .sortedBy { it.key }
+                            .joinToString(",") { "${it.key}:${it.value.name}" },
+                )
+            }
             appendLine("developer.enabled=${config.developer.enabled}")
             appendLine(
                 "developer.forceCapture=${config.developer.forceCaptureBackend?.name ?: "FOLLOW"}",
@@ -154,6 +172,10 @@ object DiagnosticsExporter {
                 appendLine("vision.processingMs=${"%.2f".format(runtime.processingMs)}")
                 appendLine("vision.obstacleCount=${runtime.obstacleCount}")
                 appendLine("vision.lastError=${runtime.lastError?.let(AppLog::redact) ?: "-"}")
+                appendLine(
+                    "vision.lastAutomationDecision=" +
+                        (runtime.lastAutomationDecision?.let(AppLog::redact) ?: "-"),
+                )
             } else {
                 appendLine("vision.running=unknown")
             }
