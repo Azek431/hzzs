@@ -75,9 +75,11 @@ float clamp01(float v) {
  *
  * 真相源：酱油 AutoJS 脚本（设计分辨率 1272×2772，颜色 0xAARRGGBB）。
  * - 偏移 = 设计像素 / 设计边长（与 等比x/y 一致）；
- * - 不移植「复活」UI 点击（算法包不得控手势/点按钮）；
+ * - 只输出 Detection（bounds 等计算数据），不绘制、不控手势；
+ * - 屏幕呈现由 App Overlay 读通用 Detection 完成（数据关联、职责分离）；
+ * - 不移植「复活」UI 点击（算法包不得点按钮）；
  * - 船锚脚本为向下滑 → Avoidance::SLIDE；
- * - 大/小断崖拆分（双跳 / 单跳）；无专用绘制层。
+ * - 大/小断崖拆分（双跳 / 单跳）。
  */
 std::vector<MultiColorPattern> sea_salt_multicolor_rules(
     const SceneAlgorithmParamsNative& params) {
@@ -209,6 +211,7 @@ std::vector<MultiColorPattern> sea_salt_multicolor_rules(
  *
  * 规则来自 sea_salt_multicolor_rules（编译期模板 + profile 阈值），
  * 不在帧路径解析 JSON。仅合并非 PLAYER 的障碍检测。
+ * 产出的是计算数据（Detection），不是绘制指令；HUD 是否画框由 App 配置决定。
  */
 void append_multicolor_detections(
     Result& out,

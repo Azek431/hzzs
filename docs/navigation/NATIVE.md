@@ -103,6 +103,10 @@ CapturedFrame 持有池化像素与释放回调
 
 多点找色已进入海盐客厅分析热路径（声明式模板 + profile 阈值，帧路径不解析 JSON）。
 
+**职责**：Native/算法包只产出 `Detection`（计算数据），**不**绘制。屏幕框/轮廓由 Kotlin
+`withApproximateDisplayContour` + `OverlayController` 按悬浮窗配置呈现——**数据关联、职责分离**。
+禁止找色专用绘制通道。
+
 | 环节 | 当前状态 |
 | --- | --- |
 | 模板和相关类型 | 已存在（`sea_salt_multicolor_rules`） |

@@ -1,12 +1,13 @@
 package top.azek431.hzzs.domain.vision
 
 /**
- * 为已经通过 Native 与 Validator 门禁的检测框生成低点数近似碰撞轮廓。
+ * 为已经通过 Native 与 Validator 门禁的检测框生成低点数近似显示轮廓。
  *
  * 重要语义：
- * - 轮廓只用于 HUD；动作、追踪、触发距离继续读取 [Detection.bounds]。
- * - 所有点都被限制在 bounds 内。
- * - 每种障碍都包含 bounds 的四个极值，所以关键碰撞边界误差为 0。
+ * - 本函数属于 **App 呈现层** 的数据增强，不是算法包/找色引擎的一部分。
+ * - 算法只提供 [Detection.bounds] 等计算结果；此处生成的轮廓仅供 HUD 绘制。
+ * - 动作、追踪、触发距离继续只读 [Detection.bounds]。
+ * - 所有点都被限制在 bounds 内；每种障碍保留 left/top/right/bottom 极值。
  */
 fun Detection.withApproximateDisplayContour(): Detection {
     if (kind == ObjectKind.PLAYER) return copy(displayContour = emptyList())

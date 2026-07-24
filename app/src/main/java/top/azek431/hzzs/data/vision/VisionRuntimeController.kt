@@ -482,6 +482,7 @@ class VisionRuntimeController @Inject constructor(
                     // Tracker 稳定帧按已分析帧计数，避免 conflated/排空帧让序号跳跃。
                     trackingSequence++
                     val tracked = tracker.update(trackingSequence, resultWithReference.detections)
+                    // 算法只产出 Detection；近似轮廓是 App 呈现增强，供 Overlay 绘制，不回写规划几何。
                     val trackedResult = resultWithReference.copy(
                         detections = tracked.map { it.detection.withApproximateDisplayContour() },
                     )

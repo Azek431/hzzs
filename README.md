@@ -124,11 +124,13 @@ tools/              质量检查、视觉回归和发布工具
 
 ```text
 FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
-  → NativeVisionEngine (JNI)
+  → NativeVisionEngine (JNI)  【算法：只算 Detection，不绘制】
   → VisionResultValidator → MultiObjectTracker
-  → displayContour（仅 HUD，可选）→ OverlayController（双层：穿透框 + 可拖 HUD）
+  → displayContour（App 呈现增强，仅 HUD）→ OverlayController（双层：穿透框 + 可拖 HUD）
   → (自动操作门控通过后) GestureArbiter → 无障碍手势
 ```
+
+算法与绘制经 `Detection` 数据关联、职责分离：Native/算法包不绘制；是否画框由悬浮窗配置决定。
 
 ## 构建
 

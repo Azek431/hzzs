@@ -27,8 +27,8 @@ platform 仅通过接口向运行时暴露能力
 3. `NativeVisionEngine` 经 `NativeVision` JNI 调用 C++，再映射为领域模型。
 4. `VisionResultValidator` 应用类别过滤、置信度与坐标不变量。
 5. `MultiObjectTracker` 做跨帧稳定；稳定帧序号按已分析帧计数，避免 CONFLATED/排空导致跳跃。
-6. Tracker 之后可为障碍附加仅 HUD 使用的 `displayContour`（近似模板，非 C++ 像素轮廓）；动作仍只读 `bounds`。
-7. 结果进入 `OverlayController` 双层持久 Canvas 悬浮窗（穿透全屏检测框 + 可拖 HUD）；`SYSTEM_ALERT_WINDOW` 未授予时 fail-closed 并写入 `RuntimeStatus.overlayBlockReason`，分析循环不中断。若 HUD 已显示，取帧前临时 `INVISIBLE` 并等待一次显示提交，MediaProjection/AUTO 再排空可能含旧合成层的一帧后恢复。自动操作只有通过全部门控后才进入 `GestureArbiter`。
+6. Tracker 之后可为障碍附加仅 HUD 使用的 `displayContour`（App 呈现增强 / 近似模板，非算法绘制、非 C++ 像素轮廓）；动作仍只读 `bounds`。
+7. 结果进入 `OverlayController` 双层持久 Canvas 悬浮窗（穿透全屏检测框 + 可拖 HUD）——**呈现层**消费算法 `Detection`，算法本身不绘制；`SYSTEM_ALERT_WINDOW` 未授予时 fail-closed 并写入 `RuntimeStatus.overlayBlockReason`，分析循环不中断。若 HUD 已显示，取帧前临时 `INVISIBLE` 并等待一次显示提交，MediaProjection/AUTO 再排空可能含旧合成层的一帧后恢复。自动操作只有通过全部门控后才进入 `GestureArbiter`。
 
 帧循环是 native 引擎与 tracker 的**唯一所有者**。配置收集器只替换不可变快照。`generation` 令牌防止已停止会话的陈旧帧写回 UI。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md`。
 
@@ -50,9 +50,9 @@ platform 仅通过接口向运行时暴露能力
 
 DataStore 存储 schema **v6**。`SettingsRepository` 以已保存配置为真相源，仍保留进程内 preview 层（引导/外部预览可用）。
 
-- 设置 UI 为首页 + 分类子页，共享同一 `SettingsViewModel`；控件改动短防抖后 **即时落盘**。
+- 设置 UI 为首页 + 分类子页，共享同一 `SettingsViewModel`；控件改动写入 **进程内 preview 草稿**，顶栏「保存并应用」才 `save` 落盘。
 - 危险项（如手动开自动操作）由子页确认后再写；导入/MCP 外部摄入经 `hardenedForExternalIngest`。
-- `SettingsExitCoordinator` 在离开设置（Bottom Bar / Navigation Rail / 返回 / MCP 路由）前调用 `flushNow` 刷盘。
+- `SettingsExitCoordinator` 在离开设置（Bottom Bar / Navigation Rail / 返回 / MCP 路由）前交给设置侧：无草稿直接离开，有草稿弹窗（保存并离开 / 丢弃 / 取消）。
 - 首页分组（显示 / 采集与识别 / 安全与自动化 / 网络与扩展 / 高级）+ 搜索 + 紧凑分类行。
 - `AlgorithmCatalogController` 以 StateFlow 暴露算法目录、下载进度与镜像状态；网络刷新/下载为即时任务。
 - 开发者选项：关于页连点版本号 7 次开启后，设置首页出现「开发者选项」；页内开关可关闭并隐藏入口。关于与设置共用 `DeveloperSettingsScreen`；`DeveloperConfig.logLevel` 持久化。`frameRateLimit` 仍校验但完成驱动取帧下**不消费**。
@@ -75,17 +75,20 @@ DataStore 存储 schema **v6**。`SettingsRepository` 以已保存配置为真�
 
 ## 自动操作
 
-默认关闭。运行路径：
+默认关闭。手势注入后端 `GestureBackend`（`AUTO` / `ACCESSIBILITY` / `SHIZUKU` / `ROOT`）与截图 `CaptureBackend` 正交。运行路径：
 
 ```text
-自动操作门控（enabled + 免责声明版本 + 运行中 + 无障碍前台窗口）
+自动操作门控（enabled + 免责声明版本 + 运行中 + 有效手势后端前台）
   → 帧龄校验（默认 ≤1000ms，含分析耗时；过旧帧不动作）
   → 独立 actionJob 规划/执行（不阻塞取帧）
   → GestureArbiter（串行、TTL、回执、retryLimit）
-  → HzzsAccessibilityService.dispatchGesture
+  → GestureDispatcherFactory
+       ├─ ACCESSIBILITY → HzzsAccessibilityService.dispatchGesture
+       ├─ SHIZUKU → input tap/swipe + dumpsys 前台
+       └─ ROOT → su -c input … + dumpsys 前台
 ```
 
-门控包括：设置开关、免责声明版本、视觉运行中、无障碍前台包白名单、窗口类名、场景置信度、帧时效、竹影实验锁、空间去重与动作速率。自动操作启用后不再要求会话级 arm，在分析运行中识别达标直接规划手势；`cancelActions()` 会取消在飞动作；MCP/外部 JSON 经 `hardenedForExternalIngest` 不得静默开启自动操作或自提 MCP 权限。
+`resolveEffectiveGestureBackend`：AUTO 优先无障碍已连接，否则已授权 Shizuku，**永不 Root**。门控还包括：可选包名限制、场景置信度、帧时效、竹影实验锁、空间去重与动作速率。切换 `gestureBackend` 会 `cancelActions()` 但不重启截图。MCP/外部 JSON 经 `hardenedForExternalIngest` 不得静默开启自动操作、不得升手势/截图风险序或自提 MCP 权限。
 
 ## MCP
 
@@ -102,7 +105,7 @@ DataStore 存储 schema **v6**。`SettingsRepository` 以已保存配置为真�
 | `McpActionRegistry` | 四级权限仲裁与语义动作 |
 | `McpUiBridge` | 审批对话框与导航；停止时拒绝挂起审批 |
 
-权限：只读、每次确认、会话信任（绑定当前内存会话，不持久化）、完整访问。设置页提供 URL / RikkaHub 导入 JSON / Token 一键复制，以及主动「轮换 Token」。`tools/call` 须完成握手；`tools/list` 可无会话探测。API 34+ 前台服务须带 `SPECIAL_USE` type。`preview_settings`/`save_settings` 相对已保存 baseline 做权限型字段收敛（含不得静默关 `requireAuth`、不得改写 `authToken`）。GET `/mcp` 返回 405（不提供 SSE 推送流）。
+权限：只读、每次确认、会话信任（绑定当前内存会话，不持久化）、完整访问。工具面覆盖运行态快照、局部 `patch_settings`、主题/悬浮窗/赛季阈值、开发者开关、算法目录/激活/下载、自动操作门闩、日志与诊断导出；HIGH_RISK 工具（开自动操作/开开发者/下载算法）在 TRUSTED_SESSION 下拒绝。设置页提供 URL / 导入 JSON / Token 一键复制，以及主动「轮换 Token」。`tools/call` 须完成握手；`tools/list` 可无会话探测。API 34+ 前台服务须带 `SPECIAL_USE` type。`preview_settings`/`save_settings` 相对已保存 baseline 做权限型字段收敛（含不得静默关 `requireAuth`、不得改写 `authToken`）。GET `/mcp` 返回 405（不提供 SSE 推送流）。
 
 ## C++ 视觉
 

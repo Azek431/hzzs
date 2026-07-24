@@ -33,10 +33,13 @@ import kotlin.coroutines.resume
 import kotlin.math.max
 
 /**
- * 主线程持有的持久悬浮窗控制器。
+ * 主线程持有的持久悬浮窗控制器（**呈现层**，不执行算法）。
  *
  * 线程不变量：所有 WindowManager.add/update/remove 与 View 更新必须在主线程
  *（本类统一 [Dispatchers.Main.immediate]）。
+ *
+ * 与算法的关联：只消费 [VisionResult] / [Detection]（算法计算结果）。
+ * 算法包与找色引擎不绘制；是否画框由 [OverlayConfig.showBoxes] 等配置决定。
  *
  * 双窗架构（默认）：
  * - 穿透全屏层：FLAG_NOT_TOUCHABLE，绘制检测框 / 坐标网格，不挡游戏手势；

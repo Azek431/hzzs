@@ -9,7 +9,7 @@
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
 - **MCP 工具面**：优先 `get_runtime_snapshot` / `get_automation_gates` 排障；调参用 `patch_settings` 或 `set_scene`/`set_threshold`/`set_theme`，勿整包乱写 `save_settings`。开开发者/自动操作/下算法是 HIGH_RISK。
-- **酱油多点找色移植要点**：脚本无绘制；设计分辨率 **1272×2772**（非注释 1080）；颜色 Java 有符号 `0xAARRGGBB`；region 约 left0.23/top0.44/right1/bottom0.88；阈值默认 10。HZZS 只走 `Detection.bounds` 通用 HUD；「复活」不进算法包动作。
+- **酱油多点找色移植要点**：脚本/算法**只算数据、不绘制**；设计分辨率 **1272×2772**（非注释 1080）；颜色 Java 有符号 `0xAARRGGBB`；region 约 left0.23/top0.44/right1/bottom0.88；阈值默认 10。HZZS：`Detection.bounds` → 通用 Overlay 呈现（`showBoxes` 等）；「复活」不进算法包动作。勿把「算法无绘制」误解为「屏幕上不该有框」。
 - **场景必须匹配包**：`sea-salt-living-room-v1` 只声明海盐；钉选后若场景仍是竹影则找色不会跑。现手动选**仅单赛季**包会自动切赛季；多赛季包仍须用户自选场景。
 - **海盐触发距离默认 5.0 玩家宽**：FIXED 玩家宽约 0.05 时 1.4 仅 ~0.07 屏宽，酱油较远点击约 0.25+ 屏宽 → 默认 5.0；`validated` 上限 8。调参看 `algo.decision` 的 `nearGap`/`trigDist`。
 - **触发距离可自调**：`autoAdjustTriggerDistance` 默认 true；`TriggerDistanceAutoTuner` 在 no_candidate+近障碍时缓升、plan 成功过近时向基线缓降；落盘节流。用户拖滑条会清缓存。

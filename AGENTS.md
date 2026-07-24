@@ -70,7 +70,7 @@ top.azek431.hzzs/
 ├─ data/vision/    VisionRuntimeController、NativeVisionEngine、Tracker
 ├─ feature/        onboarding / home / runtime / settings / about
 ├─ service/        capture / overlay / automation
-├─ platform/compat CaptureCapabilities、SystemCapabilityAccess（悬浮窗/无障碍跳转）
+├─ platform/compat CaptureCapabilities、GestureCapabilities、SystemCapabilityAccess（悬浮窗/无障碍跳转）
 ├─ mcp/            McpService、Protocol、Session、ToolCatalog、ActionRegistry、UiBridge
 └─ nativevision/   NativeVision JNI 边界
 
@@ -82,34 +82,37 @@ app/src/test/      JVM 单测 + cpp/native_tests.cpp
 
 ```text
 FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临时隐身）
-  → NativeVisionEngine (JNI)
+  → NativeVisionEngine (JNI)  【算法：只算 Detection 数据，不绘制】
   → VisionResultValidator → MultiObjectTracker（分析序号）
-  → displayContour（仅 HUD，可选）→ OverlayController（双层：穿透框 + 可拖 HUD；缺权限 fail-closed）
-  → (自动操作门控通过后，独立 actionJob) GestureArbiter → HzzsAccessibilityService
+  → displayContour（App 呈现增强，仅 HUD）→ OverlayController（双层：穿透框 + 可拖 HUD；缺权限 fail-closed）
+  → (自动操作门控通过后，独立 actionJob) GestureArbiter → GestureDispatcherFactory
+       （ACCESSIBILITY dispatchGesture / SHIZUKU·ROOT input + dumpsys 前台）
 ```
 
-动作 / 距离 / Tracker 几何只读 `Detection.bounds`。`displayContour` 不得参与规划。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md` 与根目录 `CLAUDE.md` 的 Git / 运行时约定。
+**算法 ↔ 绘制**：经 `Detection` 数据关联、职责分离——Native/算法包不算绘制；框是否出现由 `overlay.showBoxes` 等决定。动作 / 距离 / Tracker 几何只读 `Detection.bounds`。`displayContour` 不得参与规划。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md` 与根目录 `CLAUDE.md`。
 
 ### 配置流
 
 ```text
 SettingsHome + 分类子页（appearance / algorithm / capture / overlay / automation / network / mcp / developer）共享 SettingsViewModel
-  → update() 乐观 UI + 短防抖 → SettingsRepository.save → AppConfig Flow
-  → 离开设置 / 切走主导航：flushNow
-  → Theme / Runtime / MCP
+  → update() 乐观 UI + SettingsRepository.preview（草稿，不落盘）
+  → 顶栏「保存并应用」→ SettingsRepository.save → AppConfig Flow
+  → 离开设置 / 切走主导航：dirty 则弹窗（保存并离开 / 丢弃 / 取消）
+  → Theme / Runtime / MCP（preview 优先于已保存）
 AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
 ```
 
-设置**即时落盘**（无模块级「保存并应用」草稿）。手动开自动操作等危险项先确认再写；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开自动操作或自提 MCP 权限 / 关闭 `requireAuth` / 改写 `authToken`。
+设置为**草稿预览 + 显式保存**：改动进进程内 preview，右上角「保存并应用」才落盘；分类间切换保留草稿。手动开自动操作等危险项先确认再写草稿；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开自动操作或自提 MCP 权限 / 关闭 `requireAuth` / 改写 `authToken`。
 
 ## 安全不变量（修改时必须保持）
 
 1. `CaptureBackend.AUTO` **只**走 MediaProjection，不探测 Root/Shizuku/无障碍。
-2. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
-3. MCP 仅 loopback；默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认。
-4. 主题包声明式 JSON，无脚本/远程资源。
-5. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
-6. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。
+2. `GestureBackend` 与截图正交；手势 AUTO 优先无障碍、条件 Shizuku、永不 Root。
+3. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
+4. MCP 仅 loopback；默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认。设置页展示地址/客户端方言只改复制文案，不得绑 `0.0.0.0`。
+5. 主题包声明式 JSON，无脚本/远程资源。
+6. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
+7. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。
 
 ## 与历史 main 的关系
 

@@ -8,6 +8,8 @@
  * - 在帧中寻找匹配的模式
  * - 输出标准化 Detection 协议（Kind + 归一化边界框 + Avoidance）
  *
+ * 不负责绘制：本模块只产生计算数据；屏幕呈现由 App Overlay 读取 Detection 完成。
+ *
  * 坐标约定：所有模式坐标使用视口归一化 `[0,1]`；
  * 输入帧为 ARGB 像素（`FrameView::pixels` 为 `uint32_t*`）。
  *
