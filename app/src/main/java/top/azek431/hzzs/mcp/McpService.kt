@@ -59,21 +59,51 @@ class McpForegroundService : Service() {
     /** tools/list 过滤用：跟 current/preview 刷新，避免每次 list 都 runBlocking。 */
     private val toolPolicyConfig = AtomicReference(McpConfig())
     /**
+     * 按 toolPolicies 指纹缓存 tools/list JSON，避免每次 list 过滤+重建。
+     * 策略变更时 [toolPolicyConfig] 更新会自然 miss。
+     */
+    private val toolsListCache = AtomicReference(ToolsListCache())
+    /**
      * 局域网 IPv4 缓存：避免每个连接结束都枚举网卡。
      * 仅 bindLocalhostOnly=false 时使用；TTL 见 [LAN_CACHE_TTL_MS]。
      */
     private val lanCache = AtomicReference(LanCache())
+    /** publishState 节流：连接高频结束时避免刷 StateFlow。 */
+    private val lastPublishAtMs = AtomicLong(0L)
 
     private data class LanCache(
         val addresses: List<String> = emptyList(),
         val fetchedAtMs: Long = 0L,
     )
 
+    private data class ToolsListCache(
+        val fingerprint: String = "",
+        val json: org.json.JSONArray? = null,
+    )
+
+    private fun toolsListJsonCached(): org.json.JSONArray {
+        val mcp = toolPolicyConfig.get()
+        val fingerprint = toolPoliciesFingerprint(mcp)
+        val hit = toolsListCache.get()
+        if (hit.json != null && hit.fingerprint == fingerprint) return hit.json
+        val json = McpToolCatalog.toolsJson(McpToolPolicySupport.effectiveTools(mcp))
+        toolsListCache.set(ToolsListCache(fingerprint, json))
+        return json
+    }
+
+    private fun toolPoliciesFingerprint(mcp: McpConfig): String {
+        if (mcp.toolPolicies.isEmpty()) return ""
+        return mcp.toolPolicies.entries
+            .sortedBy { it.key }
+            .joinToString(";") { "${it.key}=${it.value.name}" }
+    }
+
     private fun cachedLanAddresses(bindLocalhostOnly: Boolean): List<String> {
         if (bindLocalhostOnly) return emptyList()
         val now = System.currentTimeMillis()
         val hit = lanCache.get()
-        if (hit.addresses.isNotEmpty() && now - hit.fetchedAtMs < LAN_CACHE_TTL_MS) {
+        // 空列表也缓存一小段时间，避免无网卡时每连接都扫。
+        if (now - hit.fetchedAtMs < LAN_CACHE_TTL_MS) {
             return hit.addresses
         }
         val fresh = listLanIpv4Addresses()
@@ -87,16 +117,15 @@ class McpForegroundService : Service() {
         protocol = McpProtocol(
             sessions = sessions,
             actions = registry,
-            listTools = {
-                McpToolCatalog.toolsJson(
-                    McpToolPolicySupport.effectiveTools(toolPolicyConfig.get()),
-                )
-            },
+            listTools = { toolsListJsonCached() },
         )
         scope.launch {
             // 工具策略与访问日志开关可随设置草稿即时变化；服务绑定仍只读 snapshot。
             settings.config.collectLatest { cfg ->
-                toolPolicyConfig.set(cfg.mcp)
+                val previous = toolPolicyConfig.getAndSet(cfg.mcp)
+                if (previous.toolPolicies != cfg.mcp.toolPolicies) {
+                    toolsListCache.set(ToolsListCache())
+                }
                 McpAccessLog.setEnabled(cfg.mcp.accessLogEnabled)
             }
         }
@@ -248,15 +277,22 @@ class McpForegroundService : Service() {
                         handle(client, token, requireAuth, bindLocalhostOnly, generation)
                     } finally {
                         sessions.releaseConnection()
-                        publishState(
-                            running = true,
-                            port = config.port,
-                            token = token,
-                            requireAuth = requireAuth,
-                            bindLocalhostOnly = bindLocalhostOnly,
-                            lanAddresses = cachedLanAddresses(bindLocalhostOnly),
-                            error = null,
-                        )
+                        // 节流：高频 keep-alive 结束不必每次刷 UI 会话数。
+                        val now = System.currentTimeMillis()
+                        val last = lastPublishAtMs.get()
+                        if (now - last >= STATE_PUBLISH_MIN_INTERVAL_MS &&
+                            lastPublishAtMs.compareAndSet(last, now)
+                        ) {
+                            publishState(
+                                running = true,
+                                port = config.port,
+                                token = token,
+                                requireAuth = requireAuth,
+                                bindLocalhostOnly = bindLocalhostOnly,
+                                lanAddresses = cachedLanAddresses(bindLocalhostOnly),
+                                error = null,
+                            )
+                        }
                     }
                 }
             }
@@ -378,7 +414,12 @@ class McpForegroundService : Service() {
             writeHttp(
                 output,
                 200,
-                JSONObject().put("status", "ok").put("sessions", sessions.sessionCount()),
+                JSONObject()
+                    .put("status", "ok")
+                    .put("sessions", sessions.sessionCount())
+                    .put("connections", sessions.activeConnectionCount())
+                    .put("accessLog", McpAccessLog.size())
+                    .put("generation", sessions.currentGeneration()),
                 keepAlive = keepAlive,
             )
             logAccess(200, note = "health")
@@ -626,5 +667,7 @@ class McpForegroundService : Service() {
         private const val NOTIFICATION_ID = 432
         /** 局域网 IP 列表缓存，避免每连接枚举 NetworkInterface。 */
         private const val LAN_CACHE_TTL_MS = 15_000L
+        /** 连接结束写回 UI 状态的最小间隔，避免 keep-alive 风暴。 */
+        private const val STATE_PUBLISH_MIN_INTERVAL_MS = 400L
     }
 }

@@ -32,7 +32,7 @@ data class McpAccessLogEntry(
     val sessionPrefix: String = "",
     val note: String = "",
 ) {
-    fun formatLine(timeFormat: SimpleDateFormat = defaultTimeFormat()): String = buildString {
+    fun formatLine(timeFormat: SimpleDateFormat = threadLocalTimeFormat()): String = buildString {
         append(timeFormat.format(Date(epochMs)))
         append(' ')
         append(httpMethod)
@@ -84,6 +84,13 @@ data class McpAccessLogEntry(
             SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply {
                 timeZone = TimeZone.getDefault()
             }
+
+        /** SimpleDateFormat 非线程安全；每线程复用一份。 */
+        private val timeFormatTls = object : ThreadLocal<SimpleDateFormat>() {
+            override fun initialValue(): SimpleDateFormat = defaultTimeFormat()
+        }
+
+        fun threadLocalTimeFormat(): SimpleDateFormat = timeFormatTls.get()
     }
 }
 
@@ -164,6 +171,8 @@ object McpAccessLog {
             snapshot(limit, newestFirst).forEach { put(it.toJson()) }
         }
 
-    fun formatText(limit: Int = CAPACITY, newestFirst: Boolean = true): String =
-        snapshot(limit, newestFirst).joinToString("\n") { it.formatLine() }
+    fun formatText(limit: Int = CAPACITY, newestFirst: Boolean = true): String {
+        val fmt = McpAccessLogEntry.threadLocalTimeFormat()
+        return snapshot(limit, newestFirst).joinToString("\n") { it.formatLine(fmt) }
+    }
 }

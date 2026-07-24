@@ -347,6 +347,7 @@ object McpToolCatalog {
                     )
                     .put("theme", stringProp("悬浮窗主题枚举"))
                     .put("showBoxes", boolProp("检测框"))
+                    .put("persistBoxes", boolProp("检测框持久绘制（丢检短时保留）"))
                     .put("showText", boolProp("文字"))
                     .put("showFps", boolProp("FPS"))
                     .put("showConfidence", boolProp("置信度"))
@@ -619,28 +620,53 @@ object McpToolCatalog {
 
     fun knownToolNames(): Set<String> = byName.keys
 
+    /**
+     * 全量 tools / resources JSON 缓存。
+     * 调用方只读（协议层写入 HTTP 响应前 toString）；禁止 mutate 返回值。
+     */
+    @Volatile
+    private var fullToolsJsonCache: JSONArray? = null
+
+    @Volatile
+    private var resourcesJsonCache: JSONArray? = null
+
+    /**
+     * @param include 要暴露的工具集合；默认全量。策略过滤时传入 [McpToolPolicySupport.effectiveTools]。
+     */
     fun toolsJson(
         include: Collection<McpToolDescriptor> = tools,
-    ): JSONArray = JSONArray().apply {
-        include.forEach { tool ->
-            put(
-                JSONObject()
-                    .put("name", tool.name)
-                    .put("description", McpToolLabels.clientDescription(tool))
-                    .put("inputSchema", tool.inputSchema),
-            )
+    ): JSONArray {
+        if (include === tools || (include is List && include.size == tools.size && include == tools)) {
+            fullToolsJsonCache?.let { return it }
+            return buildToolsJson(tools).also { fullToolsJsonCache = it }
         }
+        return buildToolsJson(include)
     }
 
-    fun resourcesJson(): JSONArray = JSONArray().apply {
-        resources.forEach { resource ->
-            put(
-                JSONObject()
-                    .put("uri", resource.uri)
-                    .put("name", resource.name)
-                    .put("description", resource.description)
-                    .put("mimeType", resource.mimeType),
-            )
-        }
+    fun resourcesJson(): JSONArray {
+        resourcesJsonCache?.let { return it }
+        return JSONArray().apply {
+            resources.forEach { resource ->
+                put(
+                    JSONObject()
+                        .put("uri", resource.uri)
+                        .put("name", resource.name)
+                        .put("description", resource.description)
+                        .put("mimeType", resource.mimeType),
+                )
+            }
+        }.also { resourcesJsonCache = it }
     }
+
+    private fun buildToolsJson(include: Collection<McpToolDescriptor>): JSONArray =
+        JSONArray().apply {
+            include.forEach { tool ->
+                put(
+                    JSONObject()
+                        .put("name", tool.name)
+                        .put("description", McpToolLabels.clientDescription(tool))
+                        .put("inputSchema", tool.inputSchema),
+                )
+            }
+        }
 }

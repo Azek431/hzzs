@@ -24,6 +24,13 @@ class McpProtocol(
      */
     private val listTools: () -> org.json.JSONArray = { McpToolCatalog.toolsJson() },
 ) {
+    private companion object {
+        /** 无会话也允许的发现面。 */
+        private val DISCOVERY_METHODS = setOf("ping", "tools/list", "resources/list")
+        /** 可降级为无会话继续的调用面（TRUSTED 仍在 authorize 拒绝）。 */
+        private val CALL_LIKE_METHODS = setOf("tools/call", "resources/read")
+        private val REQUIRES_INITIALIZED = setOf("tools/call", "resources/read")
+    }
     sealed class DispatchResult {
         data class JsonResponse(val status: Int, val body: JSONObject, val sessionId: String? = null) : DispatchResult()
         data class Accepted(val sessionId: String? = null) : DispatchResult()
@@ -184,8 +191,8 @@ class McpProtocol(
         // 服务重启会清会话表，RikkaHub 等客户端常仍持旧 Mcp-Session-Id；
         // 对无效 id 视为无会话，避免卡在 -32003 要求用户手动重连。
         val session = sessions.get(sessionId)
-        val discoveryOnly = method in setOf("ping", "tools/list", "resources/list")
-        val callLike = method in setOf("tools/call", "resources/read")
+        val discoveryOnly = method in DISCOVERY_METHODS
+        val callLike = method in CALL_LIKE_METHODS
         if (session == null && !discoveryOnly && !callLike) {
             return DispatchResult.HttpError(
                 400,
@@ -198,7 +205,7 @@ class McpProtocol(
         }
         if (session != null &&
             !session.initialized &&
-            method in setOf("tools/call", "resources/read")
+            method in REQUIRES_INITIALIZED
         ) {
             throw McpRpcException(
                 McpErrorCodes.NOT_INITIALIZED,

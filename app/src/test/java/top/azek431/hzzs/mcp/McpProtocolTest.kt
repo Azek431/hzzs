@@ -113,6 +113,54 @@ class McpProtocolTest {
             McpToolCatalog.toolsJson().getJSONObject(0).getString("description")
                 .contains("工具名:"),
         )
+        // 全量 tools/list 与 resources 复用缓存实例（只读约定）。
+        assertTrue(McpToolCatalog.toolsJson() === McpToolCatalog.toolsJson())
+        assertTrue(McpToolCatalog.resourcesJson() === McpToolCatalog.resourcesJson())
+        val filtered = McpToolPolicySupport.effectiveTools(
+            top.azek431.hzzs.core.model.McpConfig(
+                toolPolicies = mapOf(
+                    "start_analysis" to top.azek431.hzzs.core.model.McpToolPolicy.DISABLED,
+                ),
+            ),
+        )
+        assertTrue(filtered.none { it.name == "start_analysis" })
+        assertTrue(McpToolCatalog.toolsJson(filtered).length() < McpToolCatalog.tools.size)
+    }
+
+    @Test
+    fun accessLogRingDropsOldestAndNeverRequiresArgs() {
+        McpAccessLog.clear()
+        McpAccessLog.setEnabled(true)
+        repeat(McpAccessLog.CAPACITY + 5) { i ->
+            McpAccessLog.record(
+                remote = "127.0.0.1:$i",
+                httpMethod = "POST",
+                path = "/mcp",
+                rpcMethod = "tools/call",
+                tool = "get_status",
+                httpStatus = 200,
+                durationMs = i.toLong(),
+            )
+        }
+        assertEquals(McpAccessLog.CAPACITY, McpAccessLog.size())
+        val newest = McpAccessLog.snapshot(limit = 1).single()
+        assertEquals(McpAccessLog.CAPACITY + 4L, newest.durationMs)
+        val text = McpAccessLog.formatText(limit = 3)
+        assertTrue(text.contains("get_status"))
+        assertFalse(text.contains("Bearer"))
+        McpAccessLog.setEnabled(false)
+        McpAccessLog.record(
+            remote = "x",
+            httpMethod = "POST",
+            path = "/mcp",
+            httpStatus = 200,
+            durationMs = 1,
+            note = "should_not_append",
+        )
+        assertEquals(McpAccessLog.CAPACITY, McpAccessLog.size())
+        McpAccessLog.setEnabled(true)
+        McpAccessLog.clear()
+        assertEquals(0, McpAccessLog.size())
     }
 
     @Test

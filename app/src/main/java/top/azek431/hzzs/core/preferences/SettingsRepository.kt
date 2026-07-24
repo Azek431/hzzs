@@ -23,6 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.*
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -103,14 +104,22 @@ class DataStoreSettingsRepository @Inject constructor(
     /** 非空时覆盖 stored，供设置页预览。 */
     private val preview = MutableStateFlow<AppConfig?>(null)
     private val migrationMutex = Mutex()
+    /**
+     * 最近一次已解码的磁盘配置（不含 preview）。
+     * MCP tools/call 热路径的 [current]/[snapshot] 优先读此缓存，
+     * 避免每次 `stored.first()` 再走一遍 DataStore map。
+     */
+    private val savedCache = AtomicReference<AppConfig?>(null)
 
     /** 磁盘配置流；首次收集时触发一次性旧版迁移。 */
     private val stored: Flow<AppConfig> = flow {
         migrateLegacyOnce()
         emitAll(context.settingsDataStore.data.map { preferences ->
-            preferences[configKey]
+            val decoded = preferences[configKey]
                 ?.let { raw -> runCatching { ConfigJson.decode(raw) }.getOrElse { AppConfig() } }
                 ?: AppConfig()
+            savedCache.set(decoded)
+            decoded
         })
     }
 
@@ -122,7 +131,7 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun snapshot(): AppConfig {
         migrateLegacyOnce()
-        val config = stored.first()
+        val config = savedCache.get() ?: stored.first()
         syncLogging(config)
         return config
     }
@@ -130,8 +139,12 @@ class DataStoreSettingsRepository @Inject constructor(
     override suspend fun current(): AppConfig {
         migrateLegacyOnce()
         val temporary = preview.value
-        if (temporary != null) return temporary
-        val config = stored.first()
+        if (temporary != null) {
+            // 预览草稿即时生效；访问日志开关与草稿同步。
+            top.azek431.hzzs.mcp.McpAccessLog.setEnabled(temporary.mcp.accessLogEnabled)
+            return temporary
+        }
+        val config = savedCache.get() ?: stored.first()
         syncLogging(config)
         return config
     }
@@ -148,6 +161,8 @@ class DataStoreSettingsRepository @Inject constructor(
         val safe = config.validated()
         context.settingsDataStore.edit { it[configKey] = ConfigJson.encode(safe) }
         preview.value = null
+        // 在 DataStore 回流前即可命中缓存，避免紧随 save 的 MCP 调用再等 disk。
+        savedCache.set(safe)
         syncLogging(safe)
         AppLog.i("settings", "config saved schema=${safe.schemaVersion} developer=${safe.developer.enabled}")
     }
