@@ -88,7 +88,7 @@ class RuntimeViewModel @Inject constructor(
 internal fun humanizeAutomationDecision(raw: String): String {
     val key = raw.substringBefore(' ').substringBefore('=')
     return when {
-        raw.startsWith("skip:automation_off") -> "自动操作总开关关闭，或免责声明版本不足。"
+        raw.startsWith("skip:automation_off") -> "自动操作总开关关闭（免责声明不足时也会被校验关掉）。"
         raw.startsWith("skip:scene_conf") -> "场景置信度低于设置中的最低阈值。"
         raw.startsWith("skip:frame_age") -> "帧分析过慢，当前帧已过期。"
         raw.startsWith("skip:bamboo_experimental_off") ->

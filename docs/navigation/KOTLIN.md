@@ -35,13 +35,13 @@ AndroidManifest.xml
 | `mcp` | IPv4 loopback MCP、会话握手、审批和外部摄入 | `McpService.kt` / `McpHttp.kt` / `McpProtocol.kt` / `McpToolCatalog.kt` | 绕过系统权限对话框；把 TRUSTED_SESSION 当持久特权；绑 `0.0.0.0` |
 | `nativevision` | JNI 声明与库加载 | `NativeVision.kt` | 跨调用保存像素地址 |
 
-## 配置状态：即时落盘
+## 配置状态：草稿预览 + 显式保存
 
 持久化真相源是 `DataStoreSettingsRepository`：
 
 ```text
 DataStore 中的 config_json
-+ 进程内 preview（引导/外部预览仍可使用）
++ 进程内 preview（设置草稿 / 引导 / MCP 预览）
 → preview 存在时优先
 → SettingsRepository.config
 ```
@@ -49,19 +49,23 @@ DataStore 中的 config_json
 设置模块共享一个 `SettingsViewModel`：
 
 ```text
-snapshot / config 回流 → 界面展示
-控件修改 → 乐观更新 UI
-→ 短防抖后 repository.save（validated）
-→ 清 preview → algorithmActivation.onConfigCommitted
-离开设置 / 切走主导航 → SettingsExitCoordinator → flushNow
+snapshot / config 回流 → 界面展示（本地 dirty 时不覆盖草稿）
+控件修改 → 乐观更新 UI → repository.preview
+顶栏「保存并应用」→ repository.save → algorithmActivation.onConfigCommitted
+离开设置 / 切走主导航 → SettingsExitCoordinator → dirty 弹窗（save / discard / cancel）
+分类间切换 → 保留同一会话草稿
 ```
 
-手动开启自动操作等危险项由子页对话框确认后再调用 `update`。导入配置 / MCP 外部摄入仍走 `hardenedForExternalIngest`，不得静默开自动操作或自提权限。
+自动操作 / 截图后端在运行时经 `withSavedSafetyGates` 强制取 `savedConfig`，草稿预览不得派发手势或换源。MCP 服务启停跟 `savedConfig`；策略/`tools/list` 跟 `current()`。
+
+运行时触发距离自调经 `updateSavedPreservingPreview` 写盘（不清 preview）；设置 `save` 对用户未改的触发距离滑条合并磁盘自调值。
+
+手动开启自动操作等危险项由子页对话框确认后再调用 `update`（仍为草稿）。导入配置 / MCP 外部摄入仍走 `hardenedForExternalIngest`，不得静默开自动操作或自提权限。
 
 ### 两种“导入”不要混淆
 
 - 完整 `AppConfig` JSON：`ConfigJson`，当前主要由 MCP 读取/预览/保存；外部输入必须再经 `hardenedForExternalIngest(baseline)`，不能提权。
-- 主题包 `.hzzstheme`：`ThemePackageCodec`，普通 UI 可导入导出，仅允许受限声明式主题/悬浮窗外观字段，导入后即时写入主题相关字段。
+- 主题包 `.hzzstheme`：`ThemePackageCodec`，普通 UI 可导入导出，仅允许受限声明式主题/悬浮窗外观字段，导入后进入设置草稿预览，需保存并应用才落盘。
 
 ## 截图与帧生命周期
 

@@ -431,7 +431,6 @@ class VisionRuntimeController @Inject constructor(
                     trackingSequence = -1L
                     ledger.reset()
                     recentActionTimes.clear()
-                    trackRetryCounts.clear()
                     detectedPlayerReference.set(null)
                     lastOverlaySignature = Int.MIN_VALUE
                     pipelineScene = config.selectedScene
@@ -1523,7 +1522,6 @@ class VisionRuntimeController @Inject constructor(
         mutableLatestResult.value = null
         detectedPlayerReference.set(null)
         recentActionTimes.clear()
-        trackRetryCounts.clear()
         lastOverlaySignature = Int.MIN_VALUE
     }
 

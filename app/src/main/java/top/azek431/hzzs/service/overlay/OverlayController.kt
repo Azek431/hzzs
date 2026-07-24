@@ -8,6 +8,7 @@ import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Choreographer
 import android.view.Gravity
@@ -31,7 +32,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.math.max
-
+import kotlin.math.roundToInt
 /**
  * 主线程持有的持久悬浮窗控制器（**呈现层**，不执行算法）。
  *
@@ -325,6 +326,9 @@ private class VisionOverlayView(
     private var lastContentSignature = Int.MIN_VALUE
     private var lastRawX = 0f
     private var lastRawY = 0f
+    /** 仅 HUD 用的短时残留框；不参与规划。 */
+    private val persistedBoxes = LinkedHashMap<Long, PersistedBox>()
+    private var lastPersistPruneAtMs = 0L
 
     fun update(
         config: OverlayConfig,
@@ -338,6 +342,11 @@ private class VisionOverlayView(
             this.config.scale != config.scale ||
             this.config.textScale != config.textScale ||
             this.role == OverlayLayerRole.INTERACTIVE_HUD
+        if (role == OverlayLayerRole.PASS_THROUGH_BOXES) {
+            mergePersistedBoxes(config, result)
+        } else if (!config.persistBoxes || !config.showBoxes) {
+            persistedBoxes.clear()
+        }
         val contentSignature = contentSignature(config, result, showCoordinateGrid)
         val unchanged = !sizeMayChange && contentSignature == lastContentSignature
         this.config = config
@@ -347,6 +356,51 @@ private class VisionOverlayView(
         if (!unchanged) {
             lastContentSignature = contentSignature
             invalidate()
+        } else if (
+            role == OverlayLayerRole.PASS_THROUGH_BOXES &&
+            config.persistBoxes &&
+            config.showBoxes &&
+            persistedBoxes.isNotEmpty()
+        ) {
+            // 残留框随时间淡出：即使检测签名未变也要周期重绘。
+            val now = SystemClock.uptimeMillis()
+            if (now - lastPersistPruneAtMs >= PERSIST_REDRAW_INTERVAL_MS) {
+                lastPersistPruneAtMs = now
+                invalidate()
+            }
+        }
+    }
+
+    private fun mergePersistedBoxes(config: OverlayConfig, result: VisionResult?) {
+        if (!config.persistBoxes || !config.showBoxes) {
+            persistedBoxes.clear()
+            return
+        }
+        val now = SystemClock.uptimeMillis()
+        val live = result?.detections.orEmpty()
+            .asSequence()
+            .filter { config.showDiagnostics || !it.diagnosticOnly }
+            .toList()
+        val liveIds = live.mapTo(HashSet()) { it.id }
+        for (detection in live) {
+            persistedBoxes[detection.id] = PersistedBox(
+                detection = detection,
+                lastSeenUptimeMs = now,
+            )
+        }
+        val iter = persistedBoxes.entries.iterator()
+        while (iter.hasNext()) {
+            val entry = iter.next()
+            if (entry.key in liveIds) continue
+            if (now - entry.value.lastSeenUptimeMs > PERSIST_BOX_TTL_MS) {
+                iter.remove()
+            }
+        }
+        // 硬上限，避免长时间堆积。
+        while (persistedBoxes.size > MAX_PERSISTED_BOXES) {
+            val oldest = persistedBoxes.entries.minByOrNull { it.value.lastSeenUptimeMs }?.key
+            if (oldest == null) break
+            persistedBoxes.remove(oldest)
         }
     }
 
@@ -365,6 +419,7 @@ private class VisionOverlayView(
         hash = 31 * hash + (config.textScale * 100f).toInt()
         hash = 31 * hash + config.orientation.hashCode()
         hash = 31 * hash + config.showBoxes.hashCode()
+        hash = 31 * hash + config.persistBoxes.hashCode()
         hash = 31 * hash + config.showText.hashCode()
         hash = 31 * hash + config.showConfidence.hashCode()
         hash = 31 * hash + config.showFps.hashCode()
@@ -386,6 +441,13 @@ private class VisionOverlayView(
             detection.displayContour.forEach { point ->
                 hash = 31 * hash + (point.x * 2000f).toInt()
                 hash = 31 * hash + (point.y * 2000f).toInt()
+            }
+        }
+        if (config.persistBoxes && role == OverlayLayerRole.PASS_THROUGH_BOXES) {
+            hash = 31 * hash + persistedBoxes.size
+            persistedBoxes.values.forEach { box ->
+                hash = 31 * hash + box.detection.id.hashCode()
+                hash = 31 * hash + (box.lastSeenUptimeMs / 100L).toInt()
             }
         }
         hash = 31 * hash + (result?.error?.hashCode() ?: 0)
@@ -463,9 +525,39 @@ private class VisionOverlayView(
                     drawCoordinateGrid(canvas, accent, scale)
                 }
                 // 检测框始终画在穿透层：不挡触摸；clickThrough 仅保留为兼容配置项。
+                // persistBoxes 时合并短时残留框（仅 HUD，不参与规划）。
                 if (config.showBoxes) {
                     current.player?.takeIf { config.style == OverlayStyle.DEBUG_HUD }?.let {
                         drawDetection(canvas, it, Color.WHITE, strokeWidth, "玩家")
+                    }
+                    val now = SystemClock.uptimeMillis()
+                    val liveIds = current.detections
+                        .asSequence()
+                        .filter { config.showDiagnostics || !it.diagnosticOnly }
+                        .mapTo(HashSet()) { it.id }
+                    if (config.persistBoxes) {
+                        persistedBoxes.values
+                            .asSequence()
+                            .filter { it.detection.id !in liveIds }
+                            .forEach { box ->
+                                val age = now - box.lastSeenUptimeMs
+                                if (age > PERSIST_BOX_TTL_MS) return@forEach
+                                val fade = (1f - age.toFloat() / PERSIST_BOX_TTL_MS.toFloat())
+                                    .coerceIn(0.25f, 0.85f)
+                                val base = if (box.detection.actionable) {
+                                    accent
+                                } else {
+                                    withAlpha(accent, 145)
+                                }
+                                val faded = withAlpha(base, (fade * 180f).roundToInt().coerceIn(40, 180))
+                                drawDetection(
+                                    canvas,
+                                    box.detection,
+                                    faded,
+                                    strokeWidth,
+                                    detectionKindDisplayName(box.detection.kind.name),
+                                )
+                            }
                     }
                     current.detections
                         .asSequence()
@@ -689,4 +781,17 @@ private class VisionOverlayView(
         Color.green(color),
         Color.blue(color),
     )
+
+    private data class PersistedBox(
+        val detection: Detection,
+        val lastSeenUptimeMs: Long,
+    )
+
+    private companion object {
+        /** 丢检后仍绘制的最长时间（毫秒）。 */
+        const val PERSIST_BOX_TTL_MS = 700L
+        /** 残留框淡出时的最小重绘间隔，避免每帧无意义 invalidate。 */
+        const val PERSIST_REDRAW_INTERVAL_MS = 90L
+        const val MAX_PERSISTED_BOXES = 24
+    }
 }

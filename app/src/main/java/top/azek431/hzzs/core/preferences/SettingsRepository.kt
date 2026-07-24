@@ -76,6 +76,15 @@ interface SettingsRepository {
     /** 校验后持久化，并清空预览。 */
     suspend fun save(config: AppConfig)
 
+    /**
+     * 仅更新已保存配置，**不**清空 [preview]。
+     *
+     * 供运行时自调触发距离等后台写盘路径使用，避免设置页未保存草稿被 `save()` 清掉。
+     * 若当前有 preview，会把 [transform] 后的 **automation 触发距离字段** 合并进 preview，
+     * 使后续「保存并应用」不会用过期草稿盖回自调结果。
+     */
+    suspend fun updateSavedPreservingPreview(transform: (AppConfig) -> AppConfig): AppConfig
+
     /** 解析外部 JSON 并校验；**不**自动 harden。MCP/导入 UI 须再调 [hardenedForExternalIngest]。 */
     suspend fun importJson(json: String): AppConfig
 
@@ -165,6 +174,31 @@ class DataStoreSettingsRepository @Inject constructor(
         savedCache.set(safe)
         syncLogging(safe)
         AppLog.i("settings", "config saved schema=${safe.schemaVersion} developer=${safe.developer.enabled}")
+    }
+
+    override suspend fun updateSavedPreservingPreview(transform: (AppConfig) -> AppConfig): AppConfig {
+        val current = snapshot()
+        val safe = transform(current).validated()
+        context.settingsDataStore.edit { it[configKey] = ConfigJson.encode(safe) }
+        savedCache.set(safe)
+        val activePreview = preview.value
+        if (activePreview != null) {
+            // 草稿保留用户其它字段；仅同步自调写入的触发距离，避免保存草稿时回退。
+            preview.value = activePreview.copy(
+                automation = activePreview.automation.copy(
+                    sweetTriggerDistancePlayerWidths = safe.automation.sweetTriggerDistancePlayerWidths,
+                    bambooTriggerDistancePlayerWidths = safe.automation.bambooTriggerDistancePlayerWidths,
+                    seaSaltTriggerDistancePlayerWidths = safe.automation.seaSaltTriggerDistancePlayerWidths,
+                ),
+            ).validated()
+        }
+        // 有草稿时日志仍跟已保存开发者开关，不因 preview 改变 logLevel。
+        syncLogging(safe)
+        AppLog.i(
+            "settings",
+            "config saved (preserve preview) schema=${safe.schemaVersion} hadPreview=${activePreview != null}",
+        )
+        return safe
     }
 
     /** 将已保存开发者日志策略同步到 [AppLog]（预览不改日志级别）。 */
@@ -451,6 +485,8 @@ fun AppConfig.validated(): AppConfig {
                 .finiteOr(5.0f)
                 .coerceIn(0.5f, 8f),
             autoAdjustTriggerDistance = automation.autoAdjustTriggerDistance,
+            // 自动复活与障碍连点独立；默认开，导入允许保持（风险低于连跳）。
+            autoReviveEnabled = automation.autoReviveEnabled,
         ),
         mcp = mcp.copy(
             port = mcp.port.coerceIn(1024, 65535),
@@ -763,6 +799,7 @@ object ConfigJson {
                     safe.automation.seaSaltTriggerDistancePlayerWidths.toDouble(),
                 )
                 put("autoAdjustTriggerDistance", safe.automation.autoAdjustTriggerDistance)
+                put("autoReviveEnabled", safe.automation.autoReviveEnabled)
             })
             put("mcp", JSONObject().apply {
                 put("enabled", safe.mcp.enabled)
@@ -874,6 +911,7 @@ object ConfigJson {
                 textScale = overlay?.optDouble("textScale", 1.0)?.toFloat() ?: 1f,
                 orientation = enumOr(overlay?.optString("orientation"), defaults.overlay.orientation),
                 showBoxes = overlay?.optBoolean("showBoxes", true) ?: true,
+                persistBoxes = overlay?.optBoolean("persistBoxes", true) ?: true,
                 showText = overlay?.optBoolean("showText", true) ?: true,
                 showFps = overlay?.optBoolean("showFps", false) ?: false,
                 showConfidence = overlay?.optBoolean("showConfidence", false) ?: false,
@@ -916,6 +954,7 @@ object ConfigJson {
                     automation?.optDouble("seaSaltTriggerDistancePlayerWidths", 5.0)?.toFloat() ?: 5.0f,
                 autoAdjustTriggerDistance =
                     automation?.optBoolean("autoAdjustTriggerDistance", true) ?: true,
+                autoReviveEnabled = automation?.optBoolean("autoReviveEnabled", true) ?: true,
             ),
             mcp = defaults.mcp.copy(
                 enabled = mcp?.optBoolean("enabled", false) ?: false,
@@ -1000,6 +1039,7 @@ object ConfigJson {
         put("textScale", overlay.textScale.toDouble())
         put("orientation", overlay.orientation.name)
         put("showBoxes", overlay.showBoxes)
+        put("persistBoxes", overlay.persistBoxes)
         put("showText", overlay.showText)
         put("showFps", overlay.showFps)
         put("showConfidence", overlay.showConfidence)

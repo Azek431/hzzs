@@ -212,6 +212,11 @@ data class OverlayConfig(
     val textScale: Float = 1f,
     val orientation: OverlayOrientation = OverlayOrientation.HORIZONTAL,
     val showBoxes: Boolean = true,
+    /**
+     * 检测框持久绘制：丢检/闪检时短时保留上一帧框（仅 HUD，不参与规划）。
+     * 默认开启，减少「框闪一下就空」的观感。
+     */
+    val persistBoxes: Boolean = true,
     val showText: Boolean = true,
     val showFps: Boolean = false,
     val showConfidence: Boolean = false,
@@ -327,6 +332,14 @@ data class AutomationConfig(
      * 默认开启；关闭后仅使用上方固定倍数。不改变自动化总开关与其它门控。
      */
     val autoAdjustTriggerDistance: Boolean = true,
+    /**
+     * 自动复活（与 [enabled] 障碍自动操作**独立**）。
+     *
+     * 默认开启。经无障碍节点树按文案匹配「原地复活」「重新冒险」，
+     * 取可点击祖先 `boundsInScreen` 中心点击（**不用**多点找色）。
+     * 需无障碍服务连接；导入允许保持开启（风险低于障碍连点）。
+     */
+    val autoReviveEnabled: Boolean = true,
 ) {
     companion object {
         /**
@@ -482,7 +495,7 @@ data class AppConfig(
 ) {
     companion object {
         /** DataStore 配置 schema 版本；迁移逻辑依赖此常量。 */
-        const val CURRENT_SCHEMA = 9
+        const val CURRENT_SCHEMA = 10
 
         /**
          * 自动操作免责声明版本。

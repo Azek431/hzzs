@@ -194,6 +194,22 @@ fun AutomationSettingsScreen(
                         }
                     },
                 )
+                Spacer(Modifier.height(8.dp))
+                SettingsSwitchRow(
+                    title = "自动复活",
+                    subtitle = if (config.automation.autoReviveEnabled) {
+                        "已开启：无障碍识别「原地复活 / 重新冒险」并点按钮中心（不用找色）；" +
+                            "与上方障碍自动操作独立，冷却约 0.3 秒"
+                    } else {
+                        "已关闭：不自动点复活控件"
+                    },
+                    checked = config.automation.autoReviveEnabled,
+                    onCheckedChange = { value ->
+                        update {
+                            it.copy(automation = it.automation.copy(autoReviveEnabled = value))
+                        }
+                    },
+                )
             }
         }
         item {

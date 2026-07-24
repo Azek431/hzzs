@@ -7,7 +7,9 @@ import android.graphics.Path
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +22,7 @@ import top.azek431.hzzs.domain.automation.DispatchReceipt
 import top.azek431.hzzs.domain.automation.GestureDispatcher
 import top.azek431.hzzs.domain.automation.GestureSpec
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
@@ -41,6 +44,11 @@ import kotlin.coroutines.resume
  */
 class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
     private val foreground = AtomicReference<ForegroundWindow?>(null)
+    /**
+     * 手势 generation：超时/取消后递增，使迟到的 GestureResultCallback 无法 complete 旧 deferred，
+     * 避免与下一单叠点（配合 GestureArbiter 超时后持锁排空）。
+     */
+    private val gestureGeneration = AtomicLong(0)
 
     override fun onServiceConnected() {
         current.set(this)
@@ -185,16 +193,27 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             )
             .build()
         val result = CompletableDeferred<DispatchReceipt>()
+        val generation = gestureGeneration.get()
         val accepted = dispatchGesture(description, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
-                result.complete(DispatchReceipt(action, DispatchOutcome.COMPLETED, null))
+                // 仅当前 generation 可 complete，防止超时后迟到回调污染下一单。
+                if (gestureGeneration.get() == generation) {
+                    result.complete(DispatchReceipt(action, DispatchOutcome.COMPLETED, null))
+                }
             }
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                result.complete(DispatchReceipt(action, DispatchOutcome.CANCELLED, "系统取消手势"))
+                if (gestureGeneration.get() == generation) {
+                    result.complete(DispatchReceipt(action, DispatchOutcome.CANCELLED, "系统取消手势"))
+                }
             }
         }, null)
         if (!accepted) return DispatchReceipt(action, DispatchOutcome.REJECTED, "系统拒绝手势")
-        return result.await()
+        return try {
+            result.await()
+        } finally {
+            // 无论完成/取消/协程取消：抬 generation，使迟到 callback 失效。
+            gestureGeneration.incrementAndGet()
+        }
     }
 
     /**
@@ -269,6 +288,67 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             className.startsWith("androidx.")
     }
 
+    /**
+     * 主线程：按精确文案在活动根节点中查找，返回可点区域屏幕归一化中心。
+     * 多标签按 [labels] 顺序优先（调用方先列「原地复活」再「重新冒险」）。
+     */
+    private fun findClickableCenterByExactTextsLocked(
+        labels: Collection<String>,
+        preferVisible: Boolean,
+    ): Pair<Float, Float>? {
+        val root = rootInActiveWindow ?: return null
+        val wanted = labels.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (wanted.isEmpty()) {
+            runCatching { root.recycle() }
+            return null
+        }
+        try {
+            val (widthPx, heightPx) = realDisplaySize()
+            if (widthPx <= 1 || heightPx <= 1) return null
+            for (label in wanted) {
+                val nodes = root.findAccessibilityNodeInfosByText(label) ?: continue
+                try {
+                    for (node in nodes) {
+                        val nodeText = node.text?.toString()?.trim().orEmpty()
+                        val nodeDesc = node.contentDescription?.toString()?.trim().orEmpty()
+                        if (nodeText != label && nodeDesc != label) continue
+                        val target = nearestClickable(node) ?: continue
+                        if (!target.isEnabled) continue
+                        if (preferVisible && !target.isVisibleToUser) continue
+                        val rect = Rect()
+                        target.getBoundsInScreen(rect)
+                        if (rect.width() < 8 || rect.height() < 8) continue
+                        val cx = ((rect.left + rect.right) * 0.5f) / widthPx.toFloat()
+                        val cy = ((rect.top + rect.bottom) * 0.5f) / heightPx.toFloat()
+                        if (!cx.isFinite() || !cy.isFinite()) continue
+                        return cx.coerceIn(0f, 1f) to cy.coerceIn(0f, 1f)
+                    }
+                } finally {
+                    nodes.forEach { runCatching { it.recycle() } }
+                }
+            }
+            return null
+        } finally {
+            runCatching { root.recycle() }
+        }
+    }
+
+    /** 自身可点则用自身，否则向上找可点击祖先（最多 12 层）。 */
+    private fun nearestClickable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var cur: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (cur != null && depth < 12) {
+            if (cur.isClickable && cur.isEnabled) return cur
+            val parent = cur.parent
+            if (cur !== node) {
+                runCatching { cur.recycle() }
+            }
+            cur = parent
+            depth++
+        }
+        return null
+    }
+
     /** 最近观察到的前台窗口；[observedAtMs] 用于过期门禁。 */
     data class ForegroundWindow(val packageName: String, val className: String, val observedAtMs: Long)
 
@@ -326,6 +406,44 @@ class HzzsAccessibilityService : AccessibilityService(), GestureDispatcher {
             val service = current.get()
                 ?: return DispatchReceipt(action, DispatchOutcome.REJECTED, "无障碍服务未连接")
             return service.dispatch(action)
+        }
+
+        /**
+         * 在活动窗口中按**精确文案**查找可点目标，返回屏幕归一化中心点。
+         *
+         * 布局 dump 中「原地复活 / 重新冒险」TextView 本身常不可点且无 viewId；
+         * 取最近可点击祖先的 [AccessibilityNodeInfo.getBoundsInScreen] 中心。
+         * 当前 dump 亦无稳定 resource-id 绑在按钮上，故以文案为主、可选 id 为辅。
+         *
+         * @return 归一化 [0,1] 中心；未找到或无障碍未连接时 null
+         */
+        fun findClickableCenterByExactTexts(
+            labels: Collection<String>,
+            preferVisible: Boolean = true,
+        ): Pair<Float, Float>? {
+            val service = current.get() ?: return null
+            if (labels.isEmpty()) return null
+            return try {
+                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                    service.findClickableCenterByExactTextsLocked(labels, preferVisible)
+                } else {
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    val box = arrayOfNulls<Pair<Float, Float>>(1)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            box[0] = service.findClickableCenterByExactTextsLocked(labels, preferVisible)
+                        } catch (_: Throwable) {
+                            box[0] = null
+                        } finally {
+                            latch.countDown()
+                        }
+                    }
+                    latch.await(120, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    box[0]
+                }
+            } catch (_: Throwable) {
+                null
+            }
         }
 
         /**

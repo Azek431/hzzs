@@ -24,6 +24,7 @@ class McpSettingsPatchTest {
                 "theme.preset" to "OCEAN",
                 "overlay.style" to "COMPACT",
                 "overlay.showFps" to true,
+                "overlay.persistBoxes" to false,
             ),
         )
         assertEquals(SceneId.BAMBOO_BOOKSTORE, next.selectedScene)
@@ -31,6 +32,7 @@ class McpSettingsPatchTest {
         assertEquals(ThemePreset.OCEAN, next.theme.preset)
         assertEquals(OverlayStyle.COMPACT, next.overlay.style)
         assertTrue(next.overlay.showFps)
+        assertFalse(next.overlay.persistBoxes)
     }
 
     @Test
@@ -68,6 +70,22 @@ class McpSettingsPatchTest {
         assertTrue(next.theme.reduceMotion)
         assertEquals(9001, next.mcp.port)
         assertFalse(next.mcp.requireAuth)
+    }
+
+    @Test
+    fun appliesAutoRevivePatch() {
+        val base = AppConfig()
+        assertTrue(base.automation.autoReviveEnabled)
+        val off = McpSettingsPatch.apply(
+            base,
+            mapOf("automation.autoReviveEnabled" to false),
+        )
+        assertFalse(off.automation.autoReviveEnabled)
+        val on = McpSettingsPatch.apply(
+            off,
+            mapOf("automation.autoReviveEnabled" to true),
+        )
+        assertTrue(on.automation.autoReviveEnabled)
     }
 
     @Test

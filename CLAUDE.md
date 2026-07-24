@@ -29,7 +29,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 自动操作需要当前免责声明版本；不再要求会话级 arm，启用后运行中直接规划手势。
 - MCP 默认「每次确认」、默认只监听 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
 - MCP 工具级策略 `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED` 覆盖全局权限；禁用工具不进 `tools/list`；外部摄入不得放宽策略；自管工具（`set_mcp_*`）为 HIGH_RISK。
-- MCP **访问日志**（`mcp.accessLogEnabled`，默认开；schema **9**）：进程内 ring `McpAccessLog`，记 method/工具/状态/耗时/远端摘要；**永不**记 Bearer、`authToken`、请求参数体；可关；设置页 + `get_mcp_access_log` / `clear_mcp_access_log`。
+- MCP **访问日志**（`mcp.accessLogEnabled`，默认开）：进程内 ring `McpAccessLog`，记 method/工具/状态/耗时/远端摘要；**永不**记 Bearer、`authToken`、请求参数体；可关；设置页 + `get_mcp_access_log` / `clear_mcp_access_log`。配置 schema **10**（含 `overlay.persistBoxes` 默认开、自动复活等；访问日志自 schema 9 起）。
 - MCP **绑定身份**跟 `savedConfig`（端口/鉴权/LAN/启停）；**策略/列表/授权**跟 `current()`（可含设置草稿）。改 `permissionLevel` / `toolPolicies` **不**重启服务；改绑定会重启并清空会话。
 - Root、Shizuku、无障碍能力只能由用户**明确选择**。
 - 配置、主题包、更新清单、截图尺寸与 native 输入必须有边界校验。

@@ -4,7 +4,7 @@
  * 职责：调试帧管理、日志级别、强制截图后端、Native Benchmark、坐标网格、系统指针位置等高级调试项。
  * 安全：关于页连点版本号 7 次开启 [DeveloperConfig.enabled]；本页开关可关闭，关闭后设置首页隐藏入口。
  * 边界：不启动 MCP 服务本体；诊断导出不含 Bearer；系统指针位置经 [SystemCapabilityAccess]
- *（**已授权 Shizuku 优先** → WRITE_SETTINGS → Root；与手势同源 ShellProcessSupport），不静默要权。
+ *（可点授权 Shizuku → 绝对路径 settings 首成功即停 → WRITE_SETTINGS → Root），不静默要权。
  * 设置分类与关于入口共用本 Composable。
  */
 package top.azek431.hzzs.feature.settings.screens
@@ -252,7 +252,7 @@ fun DeveloperSettingsScreen(
                                                 SystemCapabilityAccess.isPointerLocationEnabled(
                                                     context,
                                                 )
-                                            val msg = when (result.path) {
+                                            val base = when (result.path) {
                                                 PointerLocationWritePath.WRITE_SETTINGS ->
                                                     pointerViaWriteSettings
                                                 PointerLocationWritePath.SHIZUKU ->
@@ -260,21 +260,32 @@ fun DeveloperSettingsScreen(
                                                 PointerLocationWritePath.ROOT ->
                                                     pointerViaRoot
                                             }
-                                            onMessage(msg)
+                                            val via = result.via
+                                                ?.takeIf { it.isNotBlank() && it != "content_resolver" }
+                                                ?.let { " · $it" }
+                                                .orEmpty()
+                                            onMessage(base + via)
                                         }
                                         is PointerLocationWriteResult.Failed -> {
                                             pointerLocationOn = result.observedEnabled
+                                            val shellHint = result.lastShellDetail
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?.let { " ($it)" }
+                                                .orEmpty()
                                             when {
                                                 result.shizukuAuthorized ->
-                                                    onMessage(pointerShizukuFailedMsg)
-                                                !result.canWriteSettings &&
-                                                    !result.shizukuBinderAlive -> {
+                                                    onMessage(pointerShizukuFailedMsg + shellHint)
+                                                result.shizukuBinderAlive &&
+                                                    !result.shizukuAuthorized ->
+                                                    onMessage(pointerShizukuDeniedMsg)
+                                                !result.canWriteSettings -> {
                                                     onMessage(pointerNeedWriteMsg)
                                                     SystemCapabilityAccess.openManageWriteSettings(
                                                         context,
                                                     )
                                                 }
-                                                else -> onMessage(pointerWriteFailedMsg)
+                                                else ->
+                                                    onMessage(pointerWriteFailedMsg + shellHint)
                                             }
                                         }
                                     }

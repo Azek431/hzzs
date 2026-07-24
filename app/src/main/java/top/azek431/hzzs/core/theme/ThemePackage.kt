@@ -67,6 +67,7 @@ object ThemePackageCodec {
                 put("textScale", value.overlay.textScale.toDouble())
                 put("orientation", value.overlay.orientation.name)
                 put("showBoxes", value.overlay.showBoxes)
+                put("persistBoxes", value.overlay.persistBoxes)
                 put("showText", value.overlay.showText)
                 put("showFps", value.overlay.showFps)
                 put("showConfidence", value.overlay.showConfidence)
@@ -116,6 +117,7 @@ object ThemePackageCodec {
                 textScale = overlay.optDouble("textScale", 1.0).toFloat().finite(1f, 0.75f, 2f),
                 orientation = enumOr(overlay.optString("orientation"), OverlayOrientation.HORIZONTAL),
                 showBoxes = overlay.optBoolean("showBoxes", true),
+                persistBoxes = overlay.optBoolean("persistBoxes", true),
                 showText = overlay.optBoolean("showText", true),
                 showFps = overlay.optBoolean("showFps", false),
                 showConfidence = overlay.optBoolean("showConfidence", false),

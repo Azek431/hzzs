@@ -54,6 +54,9 @@ object McpSettingsPatch {
             )
             "overlay.scale" -> cfg.copy(overlay = cfg.overlay.copy(scale = float(raw, path)))
             "overlay.showBoxes" -> cfg.copy(overlay = cfg.overlay.copy(showBoxes = bool(raw, path)))
+            "overlay.persistBoxes" -> cfg.copy(
+                overlay = cfg.overlay.copy(persistBoxes = bool(raw, path)),
+            )
             "overlay.showText" -> cfg.copy(overlay = cfg.overlay.copy(showText = bool(raw, path)))
             "overlay.showFps" -> cfg.copy(overlay = cfg.overlay.copy(showFps = bool(raw, path)))
             "overlay.showConfidence" -> cfg.copy(
@@ -115,6 +118,9 @@ object McpSettingsPatch {
             }
             "automation.autoAdjustTriggerDistance" -> cfg.copy(
                 automation = cfg.automation.copy(autoAdjustTriggerDistance = bool(raw, path)),
+            )
+            "automation.autoReviveEnabled" -> cfg.copy(
+                automation = cfg.automation.copy(autoReviveEnabled = bool(raw, path)),
             )
             "automation.gestureBackend" -> cfg.copy(
                 automation = cfg.automation.copy(gestureBackend = enumValue(raw, path)),

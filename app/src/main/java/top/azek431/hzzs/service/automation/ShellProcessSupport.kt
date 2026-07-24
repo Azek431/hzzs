@@ -179,7 +179,8 @@ object ShellProcessSupport {
                 val count = stream.read(buffer)
                 if (count < 0) break
                 if (output.size().toLong() + count.toLong() > maxBytes.toLong()) {
-                    // 截断后仍返回已读内容，供 dumpsys 解析尝试
+                    // 截断后仍返回已读内容供 dumpsys 解析；上层 finally 会 destroy 进程，
+                    // 避免 stdout 堵管拖死 waitFor。
                     break
                 }
                 output.write(buffer, 0, count)

@@ -252,7 +252,11 @@ class SettingsViewModel @Inject constructor(
 
     private suspend fun commitSave(): Boolean = editMutex.withLock {
         previewJob?.cancel()
-        val toWrite = mutableConfig.value
+        // 运行时可能已 updateSavedPreservingPreview 自调触发距离；
+        // 用户未改对应滑条时，合并磁盘值，避免草稿保存盖回旧倍数。
+        val draft = mutableConfig.value
+        val disk = repository.snapshot()
+        val toWrite = mergeRuntimeOwnedAutomationFields(draft, baseline, disk)
         return runCatching {
             repository.save(toWrite)
             val saved = repository.snapshot()
@@ -276,6 +280,40 @@ class SettingsViewModel @Inject constructor(
             )
             false
         }
+    }
+
+    /**
+     * 对「草稿未改、磁盘已自调」的触发距离字段取磁盘值；用户在设置里改过的滑条保留草稿。
+     */
+    private fun mergeRuntimeOwnedAutomationFields(
+        draft: AppConfig,
+        base: AppConfig,
+        disk: AppConfig,
+    ): AppConfig {
+        val d = draft.automation
+        val b = base.automation
+        val s = disk.automation
+        fun pick(draftV: Float, baseV: Float, diskV: Float): Float =
+            if (draftV == baseV) diskV else draftV
+        return draft.copy(
+            automation = d.copy(
+                sweetTriggerDistancePlayerWidths = pick(
+                    d.sweetTriggerDistancePlayerWidths,
+                    b.sweetTriggerDistancePlayerWidths,
+                    s.sweetTriggerDistancePlayerWidths,
+                ),
+                bambooTriggerDistancePlayerWidths = pick(
+                    d.bambooTriggerDistancePlayerWidths,
+                    b.bambooTriggerDistancePlayerWidths,
+                    s.bambooTriggerDistancePlayerWidths,
+                ),
+                seaSaltTriggerDistancePlayerWidths = pick(
+                    d.seaSaltTriggerDistancePlayerWidths,
+                    b.seaSaltTriggerDistancePlayerWidths,
+                    s.seaSaltTriggerDistancePlayerWidths,
+                ),
+            ),
+        )
     }
 
     private suspend fun commitDiscard() = editMutex.withLock {

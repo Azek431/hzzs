@@ -187,6 +187,14 @@ fun OverlaySettingsScreen(
                     },
                 )
                 SettingsSwitchRow(
+                    title = "检测框一直绘制",
+                    subtitle = "丢检/闪检时短时保留上一帧框（默认开）；仅 HUD，不参与自动操作规划。",
+                    checked = config.overlay.persistBoxes,
+                    onCheckedChange = { value ->
+                        update { it.copy(overlay = it.overlay.copy(persistBoxes = value)) }
+                    },
+                )
+                SettingsSwitchRow(
                     title = "显示状态文字",
                     checked = config.overlay.showText,
                     onCheckedChange = { value ->

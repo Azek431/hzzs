@@ -133,25 +133,33 @@ class ShellForegroundProbe(
     }
 
     private suspend fun queryOnce(): ForegroundWindowSnapshot? {
-        // 优先 activity 段；超时收紧，避免卡在 dumpsys 上导致动作过时。
-        val primary = runner.run(
-            arrayOf("dumpsys", "activity", "activities"),
-            MAX_STDOUT_BYTES,
-            TIMEOUT_MS,
-        )
-        ShellForegroundParser.parse(primary.orEmpty())?.let { snap ->
-            return snap.copy(observedAtMs = clock())
+        // 优先 activity 段；绝对路径兜底（部分 Shizuku 子进程 PATH 空）。
+        // 超时收紧，避免卡在 dumpsys 上导致动作过时。
+        for (command in DUMPS_ACTIVITY_CANDIDATES) {
+            val primary = runner.run(command, MAX_STDOUT_BYTES, TIMEOUT_MS)
+            ShellForegroundParser.parse(primary.orEmpty())?.let { snap ->
+                return snap.copy(observedAtMs = clock())
+            }
         }
-        val secondary = runner.run(
-            arrayOf("dumpsys", "window", "windows"),
-            MAX_STDOUT_BYTES,
-            TIMEOUT_MS,
-        )
-        return ShellForegroundParser.parse(secondary.orEmpty())?.copy(observedAtMs = clock())
+        for (command in DUMPS_WINDOW_CANDIDATES) {
+            val secondary = runner.run(command, MAX_STDOUT_BYTES, TIMEOUT_MS)
+            ShellForegroundParser.parse(secondary.orEmpty())?.let { snap ->
+                return snap.copy(observedAtMs = clock())
+            }
+        }
+        return null
     }
 
     private companion object {
         const val MAX_STDOUT_BYTES = 256 * 1024
         const val TIMEOUT_MS = 900L
+        val DUMPS_ACTIVITY_CANDIDATES = listOf(
+            arrayOf("/system/bin/dumpsys", "activity", "activities"),
+            arrayOf("dumpsys", "activity", "activities"),
+        )
+        val DUMPS_WINDOW_CANDIDATES = listOf(
+            arrayOf("/system/bin/dumpsys", "window", "windows"),
+            arrayOf("dumpsys", "window", "windows"),
+        )
     }
 }

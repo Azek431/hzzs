@@ -36,6 +36,7 @@ import top.azek431.hzzs.data.vision.DebugFrameRecorder
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
+import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -200,12 +201,18 @@ class McpActionRegistry @Inject constructor(
                 arguments.requireString("backend"),
             )
             val persist = arguments.optBoolean("persist", true)
+            if (!persist) {
+                // 运行时 automation 只消费 saved（withSavedSafetyGates）；预览改手势后端不会派发。
+                error(
+                    "手势后端仅随已保存配置生效：请 set_gesture_backend(persist=true) 或设置页「保存并应用」",
+                )
+            }
             applyConfig(
                 { it.copy(automation = it.automation.copy(gestureBackend = backend)) },
-                persist,
+                persist = true,
             )
             runtime.cancelPendingActions()
-            ok("手势后端已设为 ${backend.name}")
+            ok("手势后端已保存为 ${backend.name}（运行时立即按 saved 解析）")
         }
         "run_diagnostics" -> JSONObject().apply {
             put("status", runtime.status.value.toJson())
@@ -285,7 +292,14 @@ class McpActionRegistry @Inject constructor(
             if (arguments.has("enabled")) patches.put("overlay.enabled", arguments.getBoolean("enabled"))
             arguments.optString("style").takeIf { it.isNotBlank() }?.let { patches.put("overlay.style", it) }
             arguments.optString("theme").takeIf { it.isNotBlank() }?.let { patches.put("overlay.theme", it) }
-            listOf("showBoxes", "showText", "showFps", "showConfidence", "showDiagnostics").forEach { key ->
+            listOf(
+                "showBoxes",
+                "persistBoxes",
+                "showText",
+                "showFps",
+                "showConfidence",
+                "showDiagnostics",
+            ).forEach { key ->
                 if (arguments.has(key)) patches.put("overlay.$key", arguments.getBoolean(key))
             }
             if (arguments.has("backgroundAlpha")) {
@@ -842,25 +856,39 @@ class McpActionRegistry @Inject constructor(
     }
 
     private suspend fun automationGatesJson(): JSONObject {
-        val cfg = settings.current()
+        // automation / 手势后端以 saved 为准（与 VisionRuntimeController 一致）；草稿不派发。
+        val saved = settings.snapshot()
         val status = runtime.status.value
         val latest = runtime.latestResult.value
         val a11y = HzzsAccessibilityService.isConnected()
-        val auto = cfg.automation
+        val auto = saved.automation
         val disclaimerOk = auto.disclaimerAcceptedVersion >= AppConfig.DISCLAIMER_VERSION
         val sceneConf = latest?.sceneConfidence
         val sceneOk = sceneConf == null || sceneConf >= auto.minimumSceneConfidence
-        // 仅在无障碍相关后端时用 a11y 快照估包门控；Shell 后端无 a11y 快照不算 packageBlocked。
-        val fg = HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true)
         val gestureRequested = auto.gestureBackend
-        val gestureEffective = status.activeGestureBackend
-        val needsA11y =
-            gestureEffective == GestureBackend.ACCESSIBILITY ||
-                gestureRequested == GestureBackend.ACCESSIBILITY ||
-                (gestureRequested == GestureBackend.AUTO &&
-                    gestureEffective != GestureBackend.SHIZUKU &&
-                    gestureEffective != GestureBackend.ROOT)
-        val packageBlocked = auto.restrictPackages && needsA11y &&
+        val gestureEffective = when {
+            status.running -> status.activeGestureBackend
+            else -> resolveEffectiveGestureBackend(
+                gestureBackend = gestureRequested,
+                accessibilityConnected = a11y,
+                shizukuReady = runCatching {
+                    top.azek431.hzzs.service.automation.ShellProcessSupport.isShizukuAuthorized()
+                }.getOrDefault(false),
+            ).effective
+        }
+        val needsA11y = gestureEffective == GestureBackend.ACCESSIBILITY ||
+            gestureRequested == GestureBackend.ACCESSIBILITY ||
+            (gestureRequested == GestureBackend.AUTO &&
+                gestureEffective != GestureBackend.SHIZUKU &&
+                gestureEffective != GestureBackend.ROOT)
+        // 前台：无障碍路径用 a11y 快照；Shell 路径无法在此同步 dumpsys（避免卡 MCP），
+        // 包门控仅在有 a11y 快照或非 restrict 时可信。
+        val fg = if (needsA11y || auto.restrictPackages) {
+            HzzsAccessibilityService.foregroundSnapshot(refreshIfStale = true)
+        } else {
+            null
+        }
+        val packageBlocked = auto.restrictPackages &&
             (fg == null || fg.packageName !in auto.allowedPackages)
         val blockers = buildList {
             if (!auto.enabled) add("automation.enabled=false")
@@ -868,7 +896,6 @@ class McpActionRegistry @Inject constructor(
                 add("disclaimerAcceptedVersion=${auto.disclaimerAcceptedVersion}<${AppConfig.DISCLAIMER_VERSION}")
             }
             if (!status.running) add("analysis.not_running")
-            // 无障碍未连接仅在有效手势后端依赖无障碍时阻塞列表提示。
             if (!a11y && needsA11y) {
                 add("accessibility.not_connected")
             }
@@ -878,11 +905,13 @@ class McpActionRegistry @Inject constructor(
             if (packageBlocked) {
                 add(
                     "package_gate restrict=true pkg=${fg?.packageName ?: "n/a"} " +
-                        "allowed=${auto.allowedPackages.sorted().joinToString(",")}",
+                        "allowed=${auto.allowedPackages.sorted().joinToString(",")}" +
+                        if (!needsA11y) " (foreground via a11y probe; shell may differ)" else "",
                 )
             }
         }
         return JSONObject().apply {
+            put("source", "saved")
             put("automationEnabled", auto.enabled)
             put("gestureBackend", gestureRequested.name)
             put("activeGestureBackend", gestureEffective.name)
@@ -891,7 +920,7 @@ class McpActionRegistry @Inject constructor(
             put("disclaimerOk", disclaimerOk)
             put("analysisRunning", status.running)
             put("accessibilityConnected", a11y)
-            put("selectedScene", cfg.selectedScene.name)
+            put("selectedScene", saved.selectedScene.name)
             put("sceneConfidence", sceneConf?.toDouble() ?: JSONObject.NULL)
             put("minimumSceneConfidence", auto.minimumSceneConfidence.toDouble())
             put("sceneConfidenceOk", sceneOk)
@@ -901,6 +930,10 @@ class McpActionRegistry @Inject constructor(
             put("restrictPackages", auto.restrictPackages)
             put("allowedPackages", JSONArray(auto.allowedPackages.sorted()))
             put("foregroundPackage", fg?.packageName ?: JSONObject.NULL)
+            put(
+                "foregroundSource",
+                if (needsA11y) "accessibility" else "accessibility_probe_for_package_gate",
+            )
             put("lastAutomationDecision", status.lastAutomationDecision ?: JSONObject.NULL)
             put("maxActionsPerSecond", auto.maxActionsPerSecond)
             put("canDispatchLikely", blockers.isEmpty())
