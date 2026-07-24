@@ -18,6 +18,7 @@
 
 ### 修复
 
+- **手势链路加固（审计）**：`ActionCommitLedger.canPlan` 改为同步 tryLock（帧路径去掉 `runBlocking`）；`cancelActions` 不再提前清 `actionInFlight`（由 actionJob finally 释放，防叠点）；dumpsys 前台探测补 `/system/bin/dumpsys` 候选；MCP `get_automation_gates` 读 **saved** 并标注 source；`set_gesture_backend(persist=false)` 明确拒绝（运行时只跟 saved）；运行页 `automation_off` 文案收紧。
 - **手势仲裁超时后持锁排空**：`GestureArbiter` 主超时后最多再等 1.5s drain，避免系统手势/shell 仍在飞时放行下一单；无障碍 `gestureGeneration` 使迟到 callback 失效。
 - **Shizuku DOUBLE_JUMP 仲裁超时预算**：`GestureArbiter` 按两按 + 间隔 + 冷启动多候选余量加宽，超时文案含 `budget/presses/waited`；Shell 回执带 `via/tries`，减少误报「手势回调超时」并便于定位慢在哪条 input。
 - **Shizuku 手势卡顿**：`input` 候选非首选短超时 fail-fast，并缓存本会话可用命令前缀；失败文案统一为 `input 命令失败或超时`。
