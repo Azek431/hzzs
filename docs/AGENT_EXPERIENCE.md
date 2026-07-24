@@ -6,13 +6,14 @@
 ## 2026-07-24
 
 - **MCP 代理自测（ADB 优先）**：真机 MCP 启用后，`adb forward tcp:18765 tcp:8765`，客户端 URL `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。已验证 `initialize` / `tools/list` / `get_status` / `get_runtime_snapshot` / `get_settings` / `resources/list`。Wi‑Fi 直连 `192.168.x:8765` 常因 AP 隔离超时，**不等于** MCP 坏；`lanHosts` 里 `10.x` 可能是蜂窝、`100.x` 是 Tailscale，优先同网 `192.168.x`。进程 D 状态超时 → 拉前台再测。详见根 `CLAUDE.md`「代理用 MCP 自测」。
-- **FastContourV2 host smoke 与正式 host 分离**：`python tools/vision_v2/run_host_smoke.py` 只编 `vision_v2` 独立 exe（`build/vision-v2-host/`），**不要**塞进 `build_host.*` / `CMakeLists.txt` / APK。core/boundary/pipeline/profiles 烟雾；固定贴图 profile 经 `generate_fixed_profiles_inc.py` 写入 `generated/fixed_profiles_v2.h`，**帧路径不读 JSON**。Shadow/JNI 另授权。
+- **FastContourV2 host smoke 与正式 host 分离**：`python tools/vision_v2/run_host_smoke.py` 只编 `vision_v2` 独立 exe（`build/vision-v2-host/`），**不要**塞进 `build_host.*` / `CMakeLists.txt` / APK。core/boundary/pipeline/profiles/sea_gap 烟雾；固定贴图 `generate_fixed_profiles_inc.py` → `fixed_profiles_v2.h`；海盐 `generate_sea_profiles_inc.py` → `sea_profiles_v2.h`（设计 1272×2772 + `scale_strip_profile`）；竹影缺口 `detect_bamboo_gaps` 无 OpenCV。**帧路径不读 JSON**。Shadow/JNI 另授权。
 - **VS Code 任务 + adb + PowerShell Stop**：原生 `adb` 写 stderr 时，在 `Continue=Stop` 下会变 NativeCommandError。统一 `Invoke-HzzsAdb`；`--remove` 无转发时用 `-IgnoreFailure`。嵌套脚本用 `return` 勿 `exit`。脚本用 **UTF-8 BOM** 兼容 Windows PowerShell 5.1；`Set-StrictMode` 下勿盲读未赋值 `0`。
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
 - **MCP 工具面**：优先 `get_runtime_snapshot` / `get_automation_gates` 排障；调参用 `patch_settings` 或 `set_scene`/`set_threshold`/`set_theme`，勿整包乱写 `save_settings`。开开发者/自动操作/下算法是 HIGH_RISK。`navigate` 支持 `settings/mcp` 等深链；`cancel_actions` / `restart_analysis` 可直接控运行时。
 - **MCP 工具策略 + 失效会话**：`mcp.toolPolicies` 可 DISABLED/ALWAYS_ASK；设置页用弹窗搜索，勿内联长列表。改端口/LAN 会重启服务清空 Session——旧 `Mcp-Session-Id` 下 `tools/call` 应降级无会话继续，勿硬挡 `-32003`（TRUSTED 仍需有效会话）。状态卡始终给 `http://127.0.0.1:<port>/mcp`。
 - **MCP 访问日志 + 主机列表**：`McpAccessLog` 默认开，只记摘要不记 Token/参数；`get_mcp_access_log` 排障。可选主机**始终**含 `127.0.0.1`（未开 LAN 也显示）。改 `permissionLevel` 不重启服务（指纹不含权限级）。
+- **MCP 热路径缓存**：`SettingsRepository.savedCache` 让 `current()` 不每 call 撞 DataStore；服务内 `toolsListCache` 按策略指纹；`McpToolCatalog.toolsJson()` 全量只建一次。改策略会清服务侧 list 缓存。`/health` 可看 sessions/connections。
 - **酱油多点找色移植要点**：脚本/算法**只算数据、不绘制**；设计分辨率 **1272×2772**（非注释 1080）；颜色 Java 有符号 `0xAARRGGBB`；region 约 left0.23/top0.44/right1/bottom0.88；阈值默认 10。HZZS：`Detection.bounds` → 通用 Overlay 呈现（`showBoxes` 等）；「复活」不进算法包动作。勿把「算法无绘制」误解为「屏幕上不该有框」。
 - **场景必须匹配包**：`sea-salt-living-room-v1` 只声明海盐；钉选后若场景仍是竹影则找色不会跑。现手动选**仅单赛季**包会自动切赛季；多赛季包仍须用户自选场景。
 - **海盐触发距离默认 5.0 玩家宽**：FIXED 玩家宽约 0.05 时 1.4 仅 ~0.07 屏宽，酱油较远点击约 0.25+ 屏宽 → 默认 5.0；`validated` 上限 8。调参看 `algo.decision` 的 `nearGap`/`trigDist`。
@@ -45,6 +46,7 @@
 - **算法钥轮换**：`official-public-keys` 与 `AlgorithmTrustAnchors` 必须同钥；换钥后旧 APK 装不上新签包。Claude 会话环境通常读不到 GitHub Secrets，本地 env 无 B64 不代表网页没配好——以 Actions 日志为准。
 - **算法 Secret 双重 Base64**：`build/release-secrets/ALGORITHM_SIGNING_PRIVATE_KEY_B64.txt` 已是 base64(PEM)。GitHub Secret 应**原样粘贴**该文本（约 160 字符）。若再 `ToBase64String(文件)` 会变成约 216 字符，CI 曾报 `missing BEGIN PRIVATE KEY`。`sign_algorithm_pack.decode_private_key_pem_from_secret` 现对「双重编码 / 原文 PEM」**自动解一层**；`check_signing_secret` 会打 `autoheal_double_base64` 警告。仍推荐只编码一次。
 - **UI「待启用」≠ 分析/自动操作关**：是算法 **PendingActivation**——分析中改了钉选，或 Catalog 仍挂 pending。引擎真相看诊断 `Algorithm activation id` / `pendingCatalogId`；保存后未分析应 `onConfigCommitted` 立即 configure，`bindSettings` 须在 active 已对齐钉选时清掉 pending。详情写在 `docs/navigation/KOTLIN.md` 与 `ALGORITHM_SYSTEM_V1.md`。
+- **算法改内容自动 PATCH**：不要只改 `rules.json` 不升版本（远端同 version 哈希不可变）。用 `prepare_algorithm_release.py --auto-bump` 或 push `algorithm-packs/**` 让 CI 对比远端后 PATCH+发布；大改用 `--level minor/major`。
 - **默认赛季单一真相**：只改 `AppConfig.DEFAULT_SELECTED_SCENE`；文档禁止写死赛季中文名/枚举。
 - **提交隔离**：UI/动效、算法网络、本机构建、IDE 脚本分提交；合 main 前可用 stash 隔开无关 WIP。
 - **日常开发分支**：默认在 `main` 直接迭代（用户偏好）；除非明确要求再开 feature 分支。
