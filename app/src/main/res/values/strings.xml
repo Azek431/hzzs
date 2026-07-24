@@ -295,6 +295,7 @@
     <string name="dev_section_enable_desc">高级调试项；需通过关于页连续点击版本号解锁。</string>
     <string name="dev_enable_switch">启用开发者选项</string>
     <string name="dev_enable_subtitle">已解锁：以下所有调试功能均可用</string>
+    <string name="dev_enable_subtitle_off">关闭后隐藏调试帧、强制截图后端等高级项</string>
     <string name="dev_debug_frames_title">调试帧管理</string>
     <string name="dev_debug_frames_desc">最多 20 张，约每 5 秒采样；当前 %1$d 张</string>
     <string name="dev_save_debug_frames">保存调试帧</string>
