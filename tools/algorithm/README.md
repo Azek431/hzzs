@@ -32,3 +32,29 @@ python -m unittest discover -s tools/algorithm/tests -v
 
 密钥使用 Secrets `ALGORITHM_SIGNING_PRIVATE_KEY_B64` / `ALGORITHM_SIGNING_KEY_ID`，**不要**使用 APK keystore。  
 规范见 [`docs/ALGORITHM_SYSTEM_V1.md`](../../docs/ALGORITHM_SYSTEM_V1.md)。
+
+## 自动发布（GitHub push）
+
+`.github/workflows/algorithm-release.yml`：
+
+| 触发 | 行为 |
+| --- | --- |
+| `push` 到 `main` 且路径含 `algorithm-packs/**` / `tools/algorithm/**` | 校验 → 签名 → **execute** 写 `release-index` |
+| `workflow_dispatch` | 可选手动；默认真发布 |
+
+- 默认镜像 **`github` only**（`github.token`）；仓库若配置了 `GITEE_TOKEN` 可在手动运行时选 `github,gitee`。
+- 必填 Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`（建议 `hzzs-algorithm-official-1`）。
+- 发布脚本：`--mirrors github` 或环境变量 `ALGORITHM_PUBLISH_MIRRORS`。
+- 手机侧：`algorithm.autoCheck` 启动时拉 `algorithms/{channel}.json`（Gitee 优先可回退 GitHub raw）。
+
+本地 dry-run（GitHub only）：
+
+```powershell
+python tools/algorithm/publish_algorithm_release.py `
+  --source algorithm-packs/official-bamboo-baseline `
+  --work-dir build/algorithm-release/bamboo `
+  --channel stable `
+  --mirrors github `
+  --private-key <本机私钥路径> `
+  --key-id hzzs-algorithm-official-1
+```

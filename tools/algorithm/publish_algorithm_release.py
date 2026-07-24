@@ -165,6 +165,25 @@ def write_sha256sums(paths: list[Path], output: Path) -> None:
     output.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
+def _parse_mirrors(raw: str | None) -> list[str]:
+    """Return ordered unique mirrors: github and/or gitee. Default both."""
+    text = (raw or "github,gitee").strip().lower()
+    if not text:
+        text = "github,gitee"
+    out: list[str] = []
+    for part in text.replace(";", ",").split(","):
+        name = part.strip()
+        if not name:
+            continue
+        if name not in ("github", "gitee"):
+            raise AlgorithmPackError(f"unknown mirror: {name} (use github and/or gitee)")
+        if name not in out:
+            out.append(name)
+    if not out:
+        raise AlgorithmPackError("at least one publish mirror required")
+    return out
+
+
 def _publish_release_index_file(
     *,
     owner: str,
@@ -173,9 +192,10 @@ def _publish_release_index_file(
     content: bytes,
     gh_token: str,
     gitee_token: str,
+    mirrors: list[str],
     message: str | None = None,
 ) -> None:
-    """Create/update a single file on release-index for GitHub and Gitee."""
+    """Create/update a single file on release-index for selected mirrors."""
     if not content or len(content) > 1024 * 1024:
         raise AlgorithmPackError(f"content size invalid for {path}")
     if not path.startswith("algorithms/"):
@@ -183,104 +203,110 @@ def _publish_release_index_file(
     branch = "release-index"
     commit_msg = message or f"更新 {path}"
 
-    api = f"https://api.github.com/repos/{owner}/{repo}"
-    headers = {
-        "Authorization": f"Bearer {gh_token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "HZZS-Algorithm-Publisher",
-    }
-    try:
-        with urlopen(Request(api + f"/git/ref/heads/{branch}", headers=headers), timeout=30) as response:
-            response.read()
-    except HTTPError as error:
-        if error.code != 404:
-            raise AlgorithmPackError(f"GitHub ref lookup failed: {error.code}") from error
-        with urlopen(Request(api + "/git/ref/heads/main", headers=headers), timeout=30) as response:
-            main = json.loads(response.read().decode("utf-8"))
-        create = Request(
-            api + "/git/refs",
-            data=json.dumps(
-                {"ref": f"refs/heads/{branch}", "sha": main["object"]["sha"]}
-            ).encode(),
-            headers={**headers, "Content-Type": "application/json"},
-            method="POST",
-        )
-        with urlopen(create, timeout=30) as response:
-            response.read()
+    if "github" in mirrors:
+        if not gh_token:
+            raise AlgorithmPackError("GH_TOKEN/GITHUB_TOKEN required for github mirror")
+        api = f"https://api.github.com/repos/{owner}/{repo}"
+        headers = {
+            "Authorization": f"Bearer {gh_token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "HZZS-Algorithm-Publisher",
+        }
+        try:
+            with urlopen(Request(api + f"/git/ref/heads/{branch}", headers=headers), timeout=30) as response:
+                response.read()
+        except HTTPError as error:
+            if error.code != 404:
+                raise AlgorithmPackError(f"GitHub ref lookup failed: {error.code}") from error
+            with urlopen(Request(api + "/git/ref/heads/main", headers=headers), timeout=30) as response:
+                main = json.loads(response.read().decode("utf-8"))
+            create = Request(
+                api + "/git/refs",
+                data=json.dumps(
+                    {"ref": f"refs/heads/{branch}", "sha": main["object"]["sha"]}
+                ).encode(),
+                headers={**headers, "Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(create, timeout=30) as response:
+                response.read()
 
-    sha = None
-    try:
-        with urlopen(
-            Request(api + f"/contents/{path}?ref={branch}", headers=headers),
-            timeout=30,
-        ) as response:
-            current = json.loads(response.read().decode("utf-8"))
-            sha = current.get("sha")
-            # immutable: same content → skip
-            if current.get("content"):
-                existing = base64.b64decode("".join(current["content"].split()))
-                if existing == content:
-                    _log(f"GitHub {path} unchanged, skip")
-                    sha = "skip"
-    except HTTPError as error:
-        if error.code != 404:
-            raise AlgorithmPackError(f"GitHub content lookup failed: {error.code}") from error
+        sha = None
+        try:
+            with urlopen(
+                Request(api + f"/contents/{path}?ref={branch}", headers=headers),
+                timeout=30,
+            ) as response:
+                current = json.loads(response.read().decode("utf-8"))
+                sha = current.get("sha")
+                # immutable: same content → skip
+                if current.get("content"):
+                    existing = base64.b64decode("".join(current["content"].split()))
+                    if existing == content:
+                        _log(f"GitHub {path} unchanged, skip")
+                        sha = "skip"
+        except HTTPError as error:
+            if error.code != 404:
+                raise AlgorithmPackError(f"GitHub content lookup failed: {error.code}") from error
 
-    if sha != "skip":
-        body: dict[str, Any] = {
+        if sha != "skip":
+            body: dict[str, Any] = {
+                "message": commit_msg,
+                "content": base64.b64encode(content).decode("ascii"),
+                "branch": branch,
+            }
+            if sha:
+                body["sha"] = sha
+            put = Request(
+                api + f"/contents/{path}",
+                data=json.dumps(body).encode("utf-8"),
+                headers={**headers, "Content-Type": "application/json"},
+                method="PUT",
+            )
+            with urlopen(put, timeout=60) as response:
+                response.read()
+
+    if "gitee" in mirrors:
+        if not gitee_token:
+            raise AlgorithmPackError("GITEE_TOKEN required for gitee mirror")
+        gitee_api = f"https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}"
+        gitee_sha = None
+        try:
+            with urlopen(
+                Request(f"{gitee_api}?access_token={gitee_token}&ref={branch}", method="GET"),
+                timeout=30,
+            ) as response:
+                current = json.loads(response.read().decode("utf-8"))
+                gitee_sha = current.get("sha")
+                if current.get("content"):
+                    existing = base64.b64decode("".join(str(current["content"]).split()))
+                    if existing == content:
+                        _log(f"Gitee {path} unchanged, skip")
+                        return
+        except HTTPError as error:
+            if error.code != 404:
+                raise AlgorithmPackError(f"Gitee content lookup failed: {error.code}") from error
+
+        form = {
+            "access_token": gitee_token,
             "message": commit_msg,
             "content": base64.b64encode(content).decode("ascii"),
             "branch": branch,
         }
-        if sha:
-            body["sha"] = sha
-        put = Request(
-            api + f"/contents/{path}",
-            data=json.dumps(body).encode("utf-8"),
-            headers={**headers, "Content-Type": "application/json"},
+        if gitee_sha:
+            form["sha"] = gitee_sha
+        put_gitee = Request(
+            gitee_api,
+            data=urlencode(form).encode("utf-8"),
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "HZZS-Algorithm-Publisher",
+            },
             method="PUT",
         )
-        with urlopen(put, timeout=60) as response:
+        with urlopen(put_gitee, timeout=60) as response:
             response.read()
-
-    gitee_api = f"https://gitee.com/api/v5/repos/{owner}/{repo}/contents/{path}"
-    gitee_sha = None
-    try:
-        with urlopen(
-            Request(f"{gitee_api}?access_token={gitee_token}&ref={branch}", method="GET"),
-            timeout=30,
-        ) as response:
-            current = json.loads(response.read().decode("utf-8"))
-            gitee_sha = current.get("sha")
-            if current.get("content"):
-                existing = base64.b64decode("".join(str(current["content"]).split()))
-                if existing == content:
-                    _log(f"Gitee {path} unchanged, skip")
-                    return
-    except HTTPError as error:
-        if error.code != 404:
-            raise AlgorithmPackError(f"Gitee content lookup failed: {error.code}") from error
-
-    form = {
-        "access_token": gitee_token,
-        "message": commit_msg,
-        "content": base64.b64encode(content).decode("ascii"),
-        "branch": branch,
-    }
-    if gitee_sha:
-        form["sha"] = gitee_sha
-    put_gitee = Request(
-        gitee_api,
-        data=urlencode(form).encode("utf-8"),
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "HZZS-Algorithm-Publisher",
-        },
-        method="PUT",
-    )
-    with urlopen(put_gitee, timeout=60) as response:
-        response.read()
 
 
 def _publish_algorithm_index(
@@ -291,6 +317,7 @@ def _publish_algorithm_index(
     content: bytes,
     gh_token: str,
     gitee_token: str,
+    mirrors: list[str],
 ) -> None:
     _publish_release_index_file(
         owner=owner,
@@ -299,6 +326,7 @@ def _publish_algorithm_index(
         content=content,
         gh_token=gh_token,
         gitee_token=gitee_token,
+        mirrors=mirrors,
         message=f"更新 algorithms/{channel}.json",
     )
 
@@ -351,18 +379,23 @@ def publish(arguments: argparse.Namespace) -> int:
     repo = arguments.repo
     gh_token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     gitee_token = os.environ.get("GITEE_TOKEN")
+    mirrors = _parse_mirrors(
+        getattr(arguments, "mirrors", None) or os.environ.get("ALGORITHM_PUBLISH_MIRRORS")
+    )
+    _log(f"publish mirrors={','.join(mirrors)}")
 
-    if not dry_run and not gh_token:
-        raise AlgorithmPackError("GH_TOKEN/GITHUB_TOKEN required for --execute")
-    if not dry_run and not gitee_token:
-        raise AlgorithmPackError("GITEE_TOKEN required for --execute")
+    if not dry_run:
+        if "github" in mirrors and not gh_token:
+            raise AlgorithmPackError("GH_TOKEN/GITHUB_TOKEN required for github mirror")
+        if "gitee" in mirrors and not gitee_token:
+            raise AlgorithmPackError("GITEE_TOKEN required for gitee mirror")
 
     # 资产先上 release-index，再写目录（不创建 Release tag）
     package_bytes = signed_path.read_bytes()
     if dry_run:
         _log(
             f"[dry-run] would upload {asset_path} (+ SHA256SUMS, public key) "
-            "to release-index on GitHub and Gitee"
+            f"to release-index on {', '.join(mirrors)}"
         )
     else:
         _publish_release_index_file(
@@ -372,6 +405,7 @@ def publish(arguments: argparse.Namespace) -> int:
             content=package_bytes,
             gh_token=gh_token or "",
             gitee_token=gitee_token or "",
+            mirrors=mirrors,
             message=f"发布算法包 {manifest['id']} {manifest['version']}",
         )
         _publish_release_index_file(
@@ -381,6 +415,7 @@ def publish(arguments: argparse.Namespace) -> int:
             content=checksums.read_bytes(),
             gh_token=gh_token or "",
             gitee_token=gitee_token or "",
+            mirrors=mirrors,
             message=f"更新算法包校验和 {manifest['id']} {manifest['version']}",
         )
         _publish_release_index_file(
@@ -390,18 +425,23 @@ def publish(arguments: argparse.Namespace) -> int:
             content=public_b64_path.read_bytes(),
             gh_token=gh_token or "",
             gitee_token=gitee_token or "",
+            mirrors=mirrors,
             message="更新算法官方公钥",
         )
         _log(f"uploaded package to release-index {asset_path}")
 
     local_sha = verified["sha256"]
     if dry_run:
-        _log("[dry-run] skip anonymous dual-source download verification")
+        _log("[dry-run] skip anonymous download verification")
     else:
-        for base in (
-            f"https://raw.githubusercontent.com/{owner}/{repo}/release-index",
-            f"https://gitee.com/{owner}/{repo}/raw/release-index",
-        ):
+        verify_bases: list[str] = []
+        if "github" in mirrors:
+            verify_bases.append(
+                f"https://raw.githubusercontent.com/{owner}/{repo}/release-index"
+            )
+        if "gitee" in mirrors:
+            verify_bases.append(f"https://gitee.com/{owner}/{repo}/raw/release-index")
+        for base in verify_bases:
             url = f"{base}/{asset_path}"
             data = anonymous_download(url)
             remote_sha = sha256_bytes(data)
@@ -464,7 +504,7 @@ def publish(arguments: argparse.Namespace) -> int:
     if dry_run:
         _log(
             f"[dry-run] would publish catalog to release-index algorithms/{channel}.json "
-            "on GitHub and Gitee AFTER assets verified"
+            f"on {', '.join(mirrors)} AFTER assets verified"
         )
     else:
         _publish_algorithm_index(
@@ -474,8 +514,9 @@ def publish(arguments: argparse.Namespace) -> int:
             content=catalog_path.read_bytes(),
             gh_token=gh_token or "",
             gitee_token=gitee_token or "",
+            mirrors=mirrors,
         )
-        _log(f"published algorithms/{channel}.json on GitHub and Gitee")
+        _log(f"published algorithms/{channel}.json on {', '.join(mirrors)}")
 
     _log("DONE")
     return 0
@@ -492,6 +533,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--private-key-b64")
     parser.add_argument("--key-id", default=os.environ.get("ALGORITHM_SIGNING_KEY_ID"))
     parser.add_argument("--generated-at")
+    parser.add_argument(
+        "--mirrors",
+        default=os.environ.get("ALGORITHM_PUBLISH_MIRRORS", "github,gitee"),
+        help="Comma-separated publish targets: github and/or gitee (default both).",
+    )
     parser.add_argument(
         "--execute",
         action="store_true",

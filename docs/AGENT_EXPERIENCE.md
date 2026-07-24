@@ -8,6 +8,7 @@
 - **VS Code 任务 + adb + PowerShell Stop**：原生 `adb` 写 stderr 时，在 `Continue=Stop` 下会变 NativeCommandError。统一 `Invoke-HzzsAdb`；`--remove` 无转发时用 `-IgnoreFailure`。嵌套脚本用 `return` 勿 `exit`。脚本用 **UTF-8 BOM** 兼容 Windows PowerShell 5.1；`Set-StrictMode` 下勿盲读未赋值 `0`。
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
+- **MCP 工具面**：优先 `get_runtime_snapshot` / `get_automation_gates` 排障；调参用 `patch_settings` 或 `set_scene`/`set_threshold`/`set_theme`，勿整包乱写 `save_settings`。开开发者/自动操作/下算法是 HIGH_RISK。
 - **酱油多点找色移植要点**：脚本无绘制；设计分辨率 **1272×2772**（非注释 1080）；颜色 Java 有符号 `0xAARRGGBB`；region 约 left0.23/top0.44/right1/bottom0.88；阈值默认 10。HZZS 只走 `Detection.bounds` 通用 HUD；「复活」不进算法包动作。
 - **场景必须匹配包**：`sea-salt-living-room-v1` 只声明海盐；钉选后若场景仍是竹影则找色不会跑。现手动选**仅单赛季**包会自动切赛季；多赛季包仍须用户自选场景。
 - **海盐触发距离默认 5.0 玩家宽**：FIXED 玩家宽约 0.05 时 1.4 仅 ~0.07 屏宽，酱油较远点击约 0.25+ 屏宽 → 默认 5.0；`validated` 上限 8。调参看 `algo.decision` 的 `nearGap`/`trigDist`。
@@ -34,7 +35,8 @@
 - **AI 可代发（能力保留，现阶段可搁置）**：流程写在根 `CLAUDE.md`「算法包网络更新」。用户**再次明确**要网络发布时才 `--execute`；缺 token/私钥则停下。2026-07-24 用户反馈签名发布偏重，**日常开发先不走 release-index**，以捆绑 `assets/algorithms` + 清 installed/数据为主；设置「检查算法」404 属预期。
 - **算法版本与通道**：包 `manifest.version` 用 semver，**首版 `0.1.0`**（补丁 +0.0.1 / 次要 +0.1.0 / 主要 +1.0.0）；**门禁全过才 bump**；`beta` vs `stable` 用户自选，未验证不上 stable。多包发布时通道跟各包 `manifest.channel`。
 - **清空数据 ≠ 网络更新**：清存储只重种 bundled；`release-index` 404 时检查算法永远失败。正式更新靠目录+包体，不靠卸 App。
-- **捆绑按 version 升级**：assets 更高 `versionCode` 且本地为 bundled/无 origin 时覆盖；网络包装 `originTag=network` 不被冲。开发：升 `manifest.version` → 同步 assets → 装 APK 即可，不必清数据。仅 push GitHub 源文件手机不会变，除非 CI 发到 `release-index` 或用户装了含新 assets 的 APK。
+- **捆绑按 version 升级**：assets 更高 `versionCode` 且本地为 bundled/无 origin 时覆盖；网络包装 `originTag=network` 不被冲。开发：升 `manifest.version` → 同步 assets → 装 APK 即可，不必清数据。
+- **GitHub 自动算法热更**：`algorithm-release.yml` 在 `main` 上 push `algorithm-packs/**` 时自动签包写 `release-index`（默认 GitHub-only）；需 Secrets `ALGORITHM_SIGNING_*`。手机 `autoCheck` 拉目录后可下。无私钥 Secret 时 CI 会失败——先配密钥再推包。
 - **默认赛季单一真相**：只改 `AppConfig.DEFAULT_SELECTED_SCENE`；文档禁止写死赛季中文名/枚举。
 - **提交隔离**：UI/动效、算法网络、本机构建、IDE 脚本分提交；合 main 前可用 stash 隔开无关 WIP。
 - **日常开发分支**：默认在 `main` 直接迭代（用户偏好）；除非明确要求再开 feature 分支。

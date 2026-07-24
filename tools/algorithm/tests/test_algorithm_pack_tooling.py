@@ -328,6 +328,16 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         key = load_private_key(private_key_path=None, private_key_b64=b64)
         self.assertIsNotNone(key)
 
+    def test_parse_mirrors_defaults_and_github_only(self) -> None:
+        from publish_algorithm_release import _parse_mirrors
+
+        self.assertEqual(_parse_mirrors(None), ["github", "gitee"])
+        self.assertEqual(_parse_mirrors("github"), ["github"])
+        self.assertEqual(_parse_mirrors("github,gitee"), ["github", "gitee"])
+        self.assertEqual(_parse_mirrors("gitee,github,gitee"), ["gitee", "github"])
+        with self.assertRaises(AlgorithmPackError):
+            _parse_mirrors("gitlab")
+
     def test_catalog_merge_keeps_other_algorithms(self) -> None:
         from publish_algorithm_release import merge_catalog_algorithms
 

@@ -19,6 +19,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - 根目录只保留 Gradle、CI、发布工具、质量脚本与文档；**不得**重建根级业务 Gradle 模块。
 - Android 版本判断集中在 `platform/compat` 或平台实现层。
 - `CaptureBackend.AUTO` 只能走低权限公开接口，**不得**探测或调用 Root / Shizuku / 无障碍。
+- `GestureBackend.AUTO` 优先无障碍；仅当无障碍未连接且 Shizuku **已授权就绪** 时用 Shizuku input；**永不**静默升 Root / 不在 AUTO 路径弹 Shizuku 授权。手势与截图后端正交。
 - `feature` 不直接做 Root / Shell / JNI / WindowManager；经注入的 data/service 控制器。
 - 目录级细则：`app/CLAUDE.md`、`app/src/main/java/top/azek431/hzzs/CLAUDE.md`、`app/src/main/cpp/CLAUDE.md`。
 
@@ -35,7 +36,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 - 视觉结果使用视口归一化坐标 `[0, 1]`；像素换算只允许在绘制层与手势分发层。
 - `Detection.bounds` 是动作、Tracker 与距离的几何真相源；`displayContour`（若有）**仅**供 HUD，不得参与规划。
-- **多点找色引擎**（`multicolor_detector.h/.cpp`）：模板坐标归一化；阈值/搜索带经 `SceneAlgorithmParams.multicolorThreshold` 与 `searchRegionTopRatio/BottomRatio`；不在帧路径解析 JSON；**不**加找色专用绘制。
+- **多点找色引擎**（`multicolor_detector.h/.cpp`）：模板坐标归一化；阈值/搜索带经 `SceneAlgorithmParams.multicolorThreshold` 与 `searchRegionTopRatio/BottomRatio`；不在帧路径解析 JSON。**算法只算数据**（`Detection`/`bounds`），**不**自带绘制；屏幕呈现由 App 通用 HUD 读取检测结果完成（二者经数据关联，职责分离）。
 - 截图帧有明确 `close()` 生命周期，禁止跨帧保存底层缓冲引用。
 - WindowManager / View / Accessibility 回调必须在主线程协调。
 - C++ 输入缓冲只在 JNI 调用期间借用；Native **不得**持有 Java 数组地址。
@@ -51,10 +52,10 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 ## 多点找色检测（CC-2）
 
 - 算法包 `sea-salt-living-room-v1`（作者：酱油，beta 通道）含海盐多点找色模板。
-- `find_multi_color_patterns()` 扫描 `MultiColorPattern[]` 输出 `Detection`；不控制手势或权限。
+- `find_multi_color_patterns()` 扫描 `MultiColorPattern[]` 输出 `Detection`；不控制手势、权限或绘制。
 - 模板在 `sea_salt_living_room.cpp`（设计 1272×2772、AutoJS `0xAARRGGBB`），经 `append_multicolor_detections` 合并；颜色谓词路径仍作辅检。
 - 默认搜索带约 top0.438/bottom0.881、阈值 10（可经 rules 覆盖）；禁止帧路径解析 JSON。
-- **不**加找色专用绘制（仅通用 `Detection.bounds`）；不移植脚本「复活」UI 点击。
+- **数据 ↔ 绘制关联**：算法产出 `Detection.bounds` → Tracker / 可选 `displayContour`（仅 HUD）→ `OverlayController` 按 `overlay.showBoxes` 等配置呈现；**禁止**找色专用绘制通道；不移植脚本「复活」UI 点击。
 
 ## Core Philosophy · 编程核心哲学（硬约束）
 
@@ -277,16 +278,17 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 4. **首次目录为空**（`release-index` 404）：仍可按上表首发 `0.1.0`（无需为「能检查到」强行 +PATCH，除非该 version 已在远端占用）。  
 5. **密钥与 token**：只从环境变量或用户给出的**本机路径**读取；**禁止**要求用户把私钥/token 贴进聊天；**禁止**写入仓库或 commit。  
 6. 发布成功后：用匿名 raw 抽查目录/包体；同步相关 docs/`CHANGELOG` 若用户可见；**记得 git commit** 源树 version/changelog 变更（与 [[remember-to-git-commit]] 一致）。  
-7. 同步 **assets 捆绑树**（`app/src/main/assets/algorithms/<id>/`）与 `algorithm-packs/<id>/` 内容一致，避免 APK 出厂种子与已发布包分叉（bundled 仍不覆盖已装同 id，正式升级靠网络目录）。
+7. 同步 **assets 捆绑树**（`app/src/main/assets/algorithms/<id>/`）与 `algorithm-packs/<id>/` 内容一致。bundled 在更高 `versionCode` 时可覆盖同 origin 的已装种子；网络外装 `originTag=network` 不被冲。  
+8. **CI 自动发布（推荐）**：`main` 上 push 触及 `algorithm-packs/**` 时，`.github/workflows/algorithm-release.yml` 会签包并写 `release-index`（默认 **GitHub-only**）。仓库需已配置 `ALGORITHM_SIGNING_PRIVATE_KEY_B64` + `ALGORITHM_SIGNING_KEY_ID`；有 `GITEE_TOKEN` 时可选手动双端。手机 `algorithm.autoCheck` 即可拉目录。
 
 #### 0. 确认前置
 
-- [ ] 真上传：本机是否有可用 `GH_TOKEN`/`GITHUB_TOKEN`、`GITEE_TOKEN`、算法签名私钥（路径或 `ALGORITHM_SIGNING_PRIVATE_KEY_B64`）；**禁止**用户把私钥贴进聊天  
+- [ ] 真上传：CI Secrets 或本机 `GH_TOKEN`/`GITHUB_TOKEN`、算法签名私钥；**Gitee 可选**（`--mirrors github` 可不配 `GITEE_TOKEN`）；**禁止**用户把私钥贴进聊天  
 - [ ] 通道：各包 `manifest.channel` 或用户指定；未说清时实验默认 **beta**；明确「正式/稳定」才 stable  
 - [ ] 版本意图：内容未变且远端尚无该 version → 可发当前 version；内容已变 → 门禁后 **bump**（补丁/次要/主要见上表）  
 - [ ] 源树：用户说「全部」→ 枚举 `algorithm-packs/*/` 中含 `manifest.json`+`rules.json` 的目录；否则用用户点名的源树  
 - [ ] `AlgorithmTrustAnchors` 是否已配置；若空须告知「目录可更新，手机仍装不上外装包」  
-- [ ] 缺密钥/token：**立即停止 `--execute`**，列出缺失项与设置方式，不假装已发布  
+- [ ] 缺密钥：**立即停止 `--execute`**，列出缺失项与设置方式，不假装已发布  
 
 #### 1. 改包内容（若需要）— **先不改 version**
 
@@ -311,6 +313,7 @@ python tools/algorithm/publish_algorithm_release.py `
   --source algorithm-packs/official-bamboo-baseline `
   --work-dir build/algorithm-release `
   --channel stable `
+  --mirrors github `
   --private-key <用户本机密钥路径> `
   --key-id hzzs-algorithm-official-1
 ```
@@ -318,12 +321,15 @@ python tools/algorithm/publish_algorithm_release.py `
 多包时对每个源树重复；通道与该包一致。  
 期望：`would upload algorithms/packages/…`、`would publish catalog … algorithms/{channel}.json`；**不得**出现 create GitHub release / `alg-` tag。
 
-#### 5. 真发布（用户已说发布 / 常驻约定第 2 条 + 门禁已过 + 密钥齐）
+#### 5. 真发布（CI 自动 或 用户已说发布 + 密钥齐）
+
+**优先**：commit + push `main`（含 `algorithm-packs/**`）→ Actions「Publish official algorithm pack」自动 `--execute`（GitHub-only）。
+
+本机手动（GitHub only）：
 
 ```powershell
-# 在本机 shell 预先设置（勿贴进聊天记录）：
+# 本机 shell 预先设置（勿贴进聊天）：
 # $env:GH_TOKEN / $env:GITHUB_TOKEN
-# $env:GITEE_TOKEN
 # $env:ALGORITHM_SIGNING_PRIVATE_KEY_B64  或  --private-key 路径
 # $env:ALGORITHM_SIGNING_KEY_ID = "hzzs-algorithm-official-1"
 
@@ -331,18 +337,12 @@ python tools/algorithm/publish_algorithm_release.py `
   --source algorithm-packs/official-bamboo-baseline `
   --work-dir build/algorithm-release/bamboo `
   --channel stable `
-  --key-id hzzs-algorithm-official-1 `
-  --execute
-
-python tools/algorithm/publish_algorithm_release.py `
-  --source algorithm-packs/sea-salt-living-room-v1 `
-  --work-dir build/algorithm-release/sea-salt `
-  --channel beta `
+  --mirrors github `
   --key-id hzzs-algorithm-official-1 `
   --execute
 ```
 
-成功：packages 有新 filename；双侧 raw hash 一致且验签过；**最后**目录 JSON 含对应 version。
+成功：packages 有新 filename；所选镜像 raw hash 一致且验签过；**最后**目录 JSON 含对应 version。
 
 #### 6. 首次「手机能装」
 

@@ -1,42 +1,61 @@
 name: Publish official algorithm pack
 
+# push algorithm-packs on main → sign + write release-index → phone autoCheck can fetch.
+# Default mirror: GitHub only (github.token). Optional dual-publish if GITEE_TOKEN is set.
+# Required Secrets: ALGORITHM_SIGNING_PRIVATE_KEY_B64, ALGORITHM_SIGNING_KEY_ID
+
 on:
+  push:
+    branches: [main]
+    paths:
+      - "algorithm-packs/**"
+      - "tools/algorithm/**"
+      - ".github/workflows/algorithm-release.yml"
   workflow_dispatch:
     inputs:
       source_dir:
-        description: Algorithm source directory under algorithm-packs/
-        required: true
-        default: algorithm-packs/official-bamboo-baseline
+        description: Single pack under algorithm-packs/ (empty = all packs with manifest)
+        required: false
+        default: ""
       channel:
-        description: Catalog channel
-        required: true
-        default: stable
+        description: Force channel (auto = each pack manifest.channel)
+        required: false
+        default: auto
         type: choice
         options:
+          - auto
           - stable
           - beta
       execute:
-        description: Perform network publish (false = dry-run only)
+        description: Network publish (false = dry-run only)
         required: true
-        default: false
+        default: true
         type: boolean
+      mirrors:
+        description: github and/or gitee
+        required: false
+        default: github
+        type: choice
+        options:
+          - github
+          - github,gitee
+          - gitee
 
 permissions:
   contents: write
 
-# 同通道串行，避免两个包同时合并写回 channel.json 互相覆盖。
 concurrency:
-  group: algorithm-release-channel-${{ inputs.channel }}
+  group: algorithm-release-main
   cancel-in-progress: false
 
 env:
-  GITEE_OWNER: Azek431
-  GITEE_REPO: hzzs
+  REPO_OWNER: Azek431
+  REPO_NAME: hzzs
 
 jobs:
   publish-algorithm:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,68 +64,110 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: python3 -m pip install --disable-pip-version-check --quiet cryptography requests
 
-      - name: Validate source path
-        shell: bash
-        run: |
-          SOURCE='${{ inputs.source_dir }}'
-          if [[ "$SOURCE" != algorithm-packs/* ]]; then
-            echo "source_dir must stay under algorithm-packs/" >&2
-            exit 1
-          fi
-          if [[ "$SOURCE" == *..* ]]; then
-            echo "path traversal rejected" >&2
-            exit 1
-          fi
-          test -d "$SOURCE"
-          test -f "$SOURCE/manifest.json"
-          test -f "$SOURCE/rules.json"
-          test -f "$SOURCE/CHANGELOG.txt"
-
       - name: Unit tests
         run: python3 -m unittest discover -s tools/algorithm/tests -v
 
-      - name: Dry-run or execute publish
+      - name: Resolve packs and publish
         env:
           ALGORITHM_SIGNING_PRIVATE_KEY_B64: ${{ secrets.ALGORITHM_SIGNING_PRIVATE_KEY_B64 }}
           ALGORITHM_SIGNING_KEY_ID: ${{ secrets.ALGORITHM_SIGNING_KEY_ID }}
           GH_TOKEN: ${{ github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SOURCE: ${{ github.event.inputs.source_dir }}
+          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
+          INPUT_EXECUTE: ${{ github.event.inputs.execute }}
+          INPUT_MIRRORS: ${{ github.event.inputs.mirrors }}
         shell: bash
         run: |
           set -euo pipefail
+
           if [[ -z "${ALGORITHM_SIGNING_PRIVATE_KEY_B64:-}" ]]; then
-            echo "ALGORITHM_SIGNING_PRIVATE_KEY_B64 secret is required" >&2
+            echo "::error::ALGORITHM_SIGNING_PRIVATE_KEY_B64 secret is required"
             exit 1
           fi
-          if [[ -z "${ALGORITHM_SIGNING_KEY_ID:-}" ]]; then
-            echo "ALGORITHM_SIGNING_KEY_ID secret is required" >&2
-            exit 1
+          KEY_ID="${ALGORITHM_SIGNING_KEY_ID:-hzzs-algorithm-official-1}"
+
+          EXECUTE=true
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "${INPUT_EXECUTE:-true}" != "true" ]]; then
+            EXECUTE=false
           fi
-          ARGS=(
-            --source '${{ inputs.source_dir }}'
-            --work-dir build/algorithm-release
-            --channel '${{ inputs.channel }}'
-            --owner "$GITEE_OWNER"
-            --repo "$GITEE_REPO"
-            --key-id "$ALGORITHM_SIGNING_KEY_ID"
+
+          MIRRORS="${INPUT_MIRRORS:-}"
+          if [[ -z "$MIRRORS" ]]; then
+            if [[ -n "${GITEE_TOKEN:-}" ]]; then
+              MIRRORS="github,gitee"
+            else
+              MIRRORS="github"
+            fi
+          fi
+          if [[ "$MIRRORS" == *gitee* && -z "${GITEE_TOKEN:-}" ]]; then
+            echo "GITEE_TOKEN missing; falling back to github-only"
+            MIRRORS="github"
+          fi
+          export ALGORITHM_PUBLISH_MIRRORS="$MIRRORS"
+          echo "mirrors=$MIRRORS execute=$EXECUTE"
+
+          mapfile -t PACKS < <(
+            if [[ -n "${INPUT_SOURCE:-}" ]]; then
+              echo "$INPUT_SOURCE"
+            else
+              for d in algorithm-packs/*/; do
+                [[ -f "${d}manifest.json" && -f "${d}rules.json" ]] || continue
+                base=$(basename "$d")
+                [[ "$base" == official-public-keys ]] && continue
+                echo "algorithm-packs/$base"
+              done | sort
+            fi
           )
-          if [[ '${{ inputs.execute }}' == 'true' ]]; then
-            if [[ -z "${GITEE_TOKEN:-}" ]]; then
-              echo "GITEE_TOKEN secret is required for execute mode" >&2
+          if [[ ${#PACKS[@]} -eq 0 ]]; then
+            echo "No algorithm packs found" >&2
+            exit 1
+          fi
+          echo "packs: ${PACKS[*]}"
+
+          for SOURCE in "${PACKS[@]}"; do
+            if [[ "$SOURCE" != algorithm-packs/* || "$SOURCE" == *..* ]]; then
+              echo "invalid source: $SOURCE" >&2
               exit 1
             fi
-            ARGS+=(--execute)
-          fi
-          python3 tools/algorithm/publish_algorithm_release.py "${ARGS[@]}"
+            test -d "$SOURCE"
+            test -f "$SOURCE/manifest.json"
+            test -f "$SOURCE/rules.json"
+
+            CHANNEL="${INPUT_CHANNEL:-auto}"
+            if [[ -z "$CHANNEL" || "$CHANNEL" == "auto" ]]; then
+              CHANNEL=$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1],encoding="utf-8")); ch=(m.get("channel") or "stable").strip().lower(); print("beta" if ch=="beta" else "stable")' "$SOURCE/manifest.json")
+            fi
+            SAFE_NAME=$(basename "$SOURCE")
+            WORK="build/algorithm-release/${SAFE_NAME}"
+            mkdir -p "$WORK"
+            ARGS=(
+              --source "$SOURCE"
+              --work-dir "$WORK"
+              --channel "$CHANNEL"
+              --owner "$REPO_OWNER"
+              --repo "$REPO_NAME"
+              --key-id "$KEY_ID"
+              --mirrors "$MIRRORS"
+            )
+            if [[ "$EXECUTE" == "true" ]]; then
+              ARGS+=(--execute)
+            fi
+            echo "::group::publish $SOURCE channel=$CHANNEL"
+            python3 tools/algorithm/publish_algorithm_release.py "${ARGS[@]}"
+            echo "::endgroup::"
+          done
 
       - name: Upload local artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: algorithm-release-${{ inputs.channel }}
+          name: algorithm-release
           path: build/algorithm-release/
-          if-no-files-found: error
+          if-no-files-found: ignore

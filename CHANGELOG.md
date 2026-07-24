@@ -9,8 +9,13 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。
+
 ### 变更
 
+- **算法 push 自动发布（GitHub）**：`algorithm-release.yml` 在 `main` 上变更 `algorithm-packs/**` 时自动签 `.hzzsalg` 并写入 `release-index`；默认仅 GitHub 镜像（可选 Gitee）。`publish_algorithm_release.py` 支持 `--mirrors github`。手机保持 `algorithm.autoCheck` 即可检查/下载（需配置算法签名 Secrets）。
 - **触发距离运行时自调**：`AutomationConfig.autoAdjustTriggerDistance` 默认开启。分析中若有可行动障碍却因距离略远 `no_candidate`，按 `nearGap` 缓升玩家宽度倍数（冷却与单步上限）；规划成功且间隙偏近时向滑条基线缓降；约 4s 节流写回配置。设置「自动操作」可关；**不**静默开自动操作。
 - **首次引导 5 步重构**：欢迎（产品+隐私合并）→ 赛季 → 截图（与设置同源 `CaptureCapability`，仅 AUTO/录屏/无障碍）→ 权限（可稍后）→ 完成（外观预览 + 折叠高级自动操作）。对齐 Design System 2.0（HeroCard / SectionCard / Callout / RadioCard）；步骤点指示；自动操作默认关，折叠区开启仍走倒计时+免责声明。
 - **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
