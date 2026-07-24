@@ -161,14 +161,15 @@ class GestureArbiter(
 /**
  * 动作提交账本：跨帧去重。
  *
- * - track 维度：成功完成的 track 不再规划
+ * - track 维度：成功完成后短冷却，**非永久**封禁（无尽跑同 track 会持续靠近，需可再动）
  * - 空间维度：同一空间键在冷却窗口内不重复规划
  *
  * 场景 / 算法切换时应 [reset]。
  */
 class ActionCommitLedger {
     private val mutex = Mutex()
-    private val completedTracks = mutableSetOf<Long>()
+    /** trackId → 最近成功提交的 uptimeMs。 */
+    private val completedTracks = mutableMapOf<Long, Long>()
     /** 空间去重键 → 最近成功时间；短时间内同位置不再规划。 */
     private val recentSpatialKeys = mutableMapOf<String, Long>()
 
@@ -176,11 +177,14 @@ class ActionCommitLedger {
      * 是否允许为该 track / 空间位置规划新动作。
      *
      * @param spatialKey 可空；为空时只检查 track
-     * @param nowMs 与写入时同一时钟基准
+     * @param nowMs 与写入时同一时钟基准（通常 [android.os.SystemClock.uptimeMillis]）
      */
     suspend fun canPlan(trackId: Long, spatialKey: String? = null, nowMs: Long = 0L): Boolean =
         mutex.withLock {
-            if (trackId <= 0 || trackId in completedTracks) return@withLock false
+            if (trackId <= 0) return@withLock false
+            pruneLocked(nowMs)
+            val trackAt = completedTracks[trackId]
+            if (trackAt != null && nowMs - trackAt < TRACK_COOLDOWN_MS) return@withLock false
             if (spatialKey != null) {
                 val previous = recentSpatialKeys[spatialKey]
                 if (previous != null && nowMs - previous < SPATIAL_COOLDOWN_MS) return@withLock false
@@ -193,9 +197,10 @@ class ActionCommitLedger {
      */
     suspend fun commit(receipt: DispatchReceipt, spatialKey: String? = null) = mutex.withLock {
         if (receipt.outcome == DispatchOutcome.COMPLETED) {
-            completedTracks += receipt.action.trackId
+            val at = receipt.action.createdAtUptimeMs
+            completedTracks[receipt.action.trackId] = at
             if (spatialKey != null) {
-                recentSpatialKeys[spatialKey] = receipt.action.createdAtUptimeMs
+                recentSpatialKeys[spatialKey] = at
             }
         }
     }
@@ -206,7 +211,24 @@ class ActionCommitLedger {
         recentSpatialKeys.clear()
     }
 
+    private fun pruneLocked(nowMs: Long) {
+        if (nowMs <= 0L) return
+        val trackIter = completedTracks.entries.iterator()
+        while (trackIter.hasNext()) {
+            if (nowMs - trackIter.next().value >= TRACK_COOLDOWN_MS) trackIter.remove()
+        }
+        val spatialIter = recentSpatialKeys.entries.iterator()
+        while (spatialIter.hasNext()) {
+            if (nowMs - spatialIter.next().value >= SPATIAL_COOLDOWN_MS * 4) spatialIter.remove()
+        }
+    }
+
     private companion object {
+        /**
+         * 同 track 成功动作后的冷却。须短于「障碍仍在视野」的典型时长，
+         * 否则一次 dispatch_ok 会让后续帧全部 ledger skip（用户观感=不再自动操作）。
+         */
+        const val TRACK_COOLDOWN_MS = 900L
         /** 同位置成功动作后的冷却毫秒数。 */
         const val SPATIAL_COOLDOWN_MS = 700L
     }

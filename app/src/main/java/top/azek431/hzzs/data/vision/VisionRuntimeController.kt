@@ -744,6 +744,17 @@ class VisionRuntimeController @Inject constructor(
 
         val spatialKey = spatialKeyOf(candidate.detection)
         val now = SystemClock.uptimeMillis()
+        // 规划期同步预检账本：避免帧环刷屏 plan、而 actionJob 全是 ledger skip。
+        // canPlan 为 suspend；此处在帧路径用 runBlocking 仅做短锁查询（无 IO）。
+        val ledgerAllows = runCatching {
+            kotlinx.coroutines.runBlocking { ledger.canPlan(candidate.trackId, spatialKey, now) }
+        }.getOrDefault(true)
+        if (!ledgerAllows) {
+            actionInFlight.set(false)
+            return publish(
+                "skip:ledger track=${candidate.trackId} key=$spatialKey backend=${gestureEffective.name}",
+            )
+        }
         // 规划期：无障碍可同步快照；Shell（Shizuku/Root）完整 dumpsys 放到 actionJob，避免卡帧。
         val planForegroundClass: String
         if (gestureEffective == GestureBackend.ACCESSIBILITY) {

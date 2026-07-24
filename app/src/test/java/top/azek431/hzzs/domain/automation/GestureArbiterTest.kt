@@ -61,9 +61,12 @@ class GestureArbiterTest {
         val ledger = ActionCommitLedger()
         val action = action(9)
         ledger.commit(DispatchReceipt(action, DispatchOutcome.CANCELLED))
-        assertEquals(true, ledger.canPlan(9))
+        assertEquals(true, ledger.canPlan(9, nowMs = 10L))
         ledger.commit(DispatchReceipt(action, DispatchOutcome.COMPLETED))
-        assertEquals(false, ledger.canPlan(9))
+        // 冷却内不可再规划
+        assertEquals(false, ledger.canPlan(9, nowMs = action.createdAtUptimeMs + 100L))
+        // 冷却后可再规划（同 track 在无尽跑中会再次靠近）
+        assertEquals(true, ledger.canPlan(9, nowMs = action.createdAtUptimeMs + 2_000L))
     }
 
     @Test
