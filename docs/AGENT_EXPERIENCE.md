@@ -5,6 +5,7 @@
 
 ## 2026-07-24
 
+- **MCP 代理自测（ADB 优先）**：真机 MCP 启用后，`adb forward tcp:18765 tcp:8765`，客户端 URL `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。已验证 `initialize` / `tools/list` / `get_status` / `get_runtime_snapshot` / `get_settings` / `resources/list`。Wi‑Fi 直连 `192.168.x:8765` 常因 AP 隔离超时，**不等于** MCP 坏；`lanHosts` 里 `10.x` 可能是蜂窝、`100.x` 是 Tailscale，优先同网 `192.168.x`。进程 D 状态超时 → 拉前台再测。详见根 `CLAUDE.md`「代理用 MCP 自测」。
 - **FastContourV2 host smoke 与正式 host 分离**：`python tools/vision_v2/run_host_smoke.py` 只编 `vision_v2` 独立 exe（`build/vision-v2-host/`），**不要**塞进 `build_host.*` / `CMakeLists.txt` / APK。core/boundary/pipeline/profiles 烟雾；固定贴图 profile 经 `generate_fixed_profiles_inc.py` 写入 `generated/fixed_profiles_v2.h`，**帧路径不读 JSON**。Shadow/JNI 另授权。
 - **VS Code 任务 + adb + PowerShell Stop**：原生 `adb` 写 stderr 时，在 `Continue=Stop` 下会变 NativeCommandError。统一 `Invoke-HzzsAdb`；`--remove` 无转发时用 `-IgnoreFailure`。嵌套脚本用 `return` 勿 `exit`。脚本用 **UTF-8 BOM** 兼容 Windows PowerShell 5.1；`Set-StrictMode` 下勿盲读未赋值 `0`。
 

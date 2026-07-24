@@ -113,6 +113,11 @@ object DiagnosticsExporter {
             // 只写是否有 token，不写明文。
             appendLine("mcp.authTokenConfigured=${config.mcp.authToken.isNotBlank()}")
             appendLine("mcp.allowDebugFrames=${config.mcp.allowDebugFrames}")
+            appendLine("mcp.accessLogEnabled=${config.mcp.accessLogEnabled}")
+            appendLine(
+                "mcp.accessLogCount=" +
+                    runCatching { top.azek431.hzzs.mcp.McpAccessLog.size() }.getOrDefault(0),
+            )
             appendLine("mcp.toolPolicyOverrides=${config.mcp.toolPolicies.size}")
             if (config.mcp.toolPolicies.isNotEmpty()) {
                 appendLine(
@@ -200,6 +205,16 @@ object DiagnosticsExporter {
                 appendLine("mcp.lastError=${mcp.lastError?.let(AppLog::redact) ?: "-"}")
             } else {
                 appendLine("mcp.running=unknown")
+            }
+            appendLine()
+            appendLine("== MCP access log (newest first, max 40) ==")
+            val access = runCatching {
+                top.azek431.hzzs.mcp.McpAccessLog.formatText(limit = 40, newestFirst = true)
+            }.getOrDefault("")
+            if (access.isBlank()) {
+                appendLine("(none)")
+            } else {
+                appendLine(access)
             }
             appendLine()
             appendLine("== Algorithm pipeline ==")

@@ -47,6 +47,8 @@ object McpToolLabels {
         // MCP 自管
         "get_mcp_status" to "读取 MCP 服务状态",
         "list_mcp_tools" to "列出 MCP 工具与策略",
+        "get_mcp_access_log" to "读取 MCP 访问日志",
+        "clear_mcp_access_log" to "清空 MCP 访问日志",
         "set_mcp_enabled" to "开/关 MCP 服务",
         "set_mcp_permission_level" to "设置 MCP 全局权限级",
         "set_mcp_auth" to "设置 MCP Bearer 鉴权",

@@ -94,9 +94,10 @@ class McpForegroundService : Service() {
             },
         )
         scope.launch {
-            // 工具策略可随设置草稿即时变化；服务绑定仍只读 snapshot（见 startServer）。
+            // 工具策略与访问日志开关可随设置草稿即时变化；服务绑定仍只读 snapshot。
             settings.config.collectLatest { cfg ->
                 toolPolicyConfig.set(cfg.mcp)
+                McpAccessLog.setEnabled(cfg.mcp.accessLogEnabled)
             }
         }
     }
@@ -316,6 +317,7 @@ class McpForegroundService : Service() {
                         bindLocalhostOnly,
                         generation,
                         keepAlive,
+                        remote = client.remoteSocketAddress?.toString().orEmpty(),
                     )
                 ) {
                     return
@@ -336,7 +338,31 @@ class McpForegroundService : Service() {
         bindLocalhostOnly: Boolean,
         generation: Long,
         keepAlive: Boolean,
+        remote: String,
     ): Boolean {
+        val startedAt = System.currentTimeMillis()
+        fun logAccess(
+            httpStatus: Int,
+            rpcMethod: String = "",
+            tool: String = "",
+            rpcErrorCode: Int? = null,
+            sessionId: String? = null,
+            note: String = "",
+        ) {
+            McpAccessLog.record(
+                remote = remote,
+                httpMethod = request.method,
+                path = request.path,
+                rpcMethod = rpcMethod,
+                tool = tool,
+                httpStatus = httpStatus,
+                rpcErrorCode = rpcErrorCode,
+                durationMs = System.currentTimeMillis() - startedAt,
+                sessionId = sessionId,
+                note = note,
+            )
+        }
+
         if (generation != runGeneration.get() || stopping.get()) {
             writeHttp(
                 output,
@@ -344,6 +370,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.SERVER_ERROR, "服务已停止"),
                 keepAlive = false,
             )
+            logAccess(404, note = "stopped")
             return false
         }
 
@@ -354,10 +381,10 @@ class McpForegroundService : Service() {
                 JSONObject().put("status", "ok").put("sessions", sessions.sessionCount()),
                 keepAlive = keepAlive,
             )
+            logAccess(200, note = "health")
             return keepAlive
         }
 
-        // OPTIONS：部分客户端预检；loopback 下宽松允许。
         if (request.method == "OPTIONS" && request.path == "/mcp") {
             writeHttp(
                 output,
@@ -372,10 +399,10 @@ class McpForegroundService : Service() {
                 ),
                 keepAlive = keepAlive,
             )
+            logAccess(204, note = "options")
             return keepAlive
         }
 
-        // Streamable HTTP：GET /mcp 可选 SSE；本实现 JSON 单响应模式 → 405（客户端应继续 POST）。
         if (request.method == "GET" && request.path == "/mcp") {
             writeHttp(
                 output,
@@ -384,6 +411,7 @@ class McpForegroundService : Service() {
                 mapOf("Allow" to "POST, DELETE, OPTIONS"),
                 keepAlive = keepAlive,
             )
+            logAccess(405, note = "sse_not_supported")
             return keepAlive
         }
 
@@ -395,6 +423,7 @@ class McpForegroundService : Service() {
                     errorJson(null, McpErrorCodes.UNAUTHORIZED, "MCP 配对令牌无效"),
                     keepAlive = keepAlive,
                 )
+                logAccess(401, note = "auth_failed")
                 return keepAlive
             }
             sessions.remove(request.mcpSessionId)
@@ -404,6 +433,7 @@ class McpForegroundService : Service() {
                 JSONObject().put("ok", true),
                 keepAlive = keepAlive,
             )
+            logAccess(200, sessionId = request.mcpSessionId, note = "session_delete")
             return keepAlive
         }
 
@@ -414,6 +444,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.METHOD_NOT_FOUND, "接口不存在"),
                 keepAlive = keepAlive,
             )
+            logAccess(404, note = "unknown_path")
             return keepAlive
         }
         if (!isAllowedMcpOrigin(request.origin, allowLanBind = !bindLocalhostOnly)) {
@@ -423,6 +454,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.FORBIDDEN_ORIGIN, "MCP Origin 不允许"),
                 keepAlive = false,
             )
+            logAccess(403, note = "origin_denied")
             return false
         }
         if (!authOk(requireAuth, request.authorization, token)) {
@@ -432,6 +464,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.UNAUTHORIZED, "MCP 配对令牌无效"),
                 keepAlive = keepAlive,
             )
+            logAccess(401, note = "auth_failed")
             return keepAlive
         }
 
@@ -442,6 +475,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.PARSE_ERROR, "空请求体"),
                 keepAlive = keepAlive,
             )
+            logAccess(400, note = "empty_body")
             return keepAlive
         }
         val root = runCatching { JSONObject(request.body) }.getOrElse {
@@ -451,6 +485,7 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.PARSE_ERROR, "JSON 解析失败"),
                 keepAlive = keepAlive,
             )
+            logAccess(400, note = "json_parse")
             return keepAlive
         }
 
@@ -461,7 +496,14 @@ class McpForegroundService : Service() {
                 errorJson(null, McpErrorCodes.SERVER_ERROR, "服务已停止"),
                 keepAlive = false,
             )
+            logAccess(404, note = "stopped")
             return false
+        }
+
+        val rpcMethod = root.optString("method").orEmpty()
+        val toolName = when (rpcMethod) {
+            "tools/call" -> root.optJSONObject("params")?.optString("name").orEmpty()
+            else -> ""
         }
 
         when (
@@ -476,15 +518,41 @@ class McpForegroundService : Service() {
                     result.sessionId?.let { put("Mcp-Session-Id", it) }
                 }
                 writeHttp(output, 202, null, headers, keepAlive = keepAlive)
+                logAccess(
+                    httpStatus = 202,
+                    rpcMethod = rpcMethod,
+                    tool = toolName,
+                    sessionId = result.sessionId ?: request.mcpSessionId,
+                    note = "accepted",
+                )
             }
             is McpProtocol.DispatchResult.JsonResponse -> {
                 val headers = buildMap {
                     result.sessionId?.let { put("Mcp-Session-Id", it) }
                 }
                 writeHttp(output, result.status, result.body, headers, keepAlive = keepAlive)
+                val errCode = result.body.optJSONObject("error")?.optInt("code")
+                logAccess(
+                    httpStatus = result.status,
+                    rpcMethod = rpcMethod,
+                    tool = toolName,
+                    rpcErrorCode = if (result.body.has("error")) errCode else null,
+                    sessionId = result.sessionId ?: request.mcpSessionId,
+                    note = if (result.body.has("error")) "rpc_error" else "ok",
+                )
             }
             is McpProtocol.DispatchResult.HttpError -> {
                 writeHttp(output, result.status, result.body, keepAlive = keepAlive)
+                val errCode = result.body?.optJSONObject("error")?.optInt("code")
+                    ?: result.body?.optInt("code")
+                logAccess(
+                    httpStatus = result.status,
+                    rpcMethod = rpcMethod,
+                    tool = toolName,
+                    rpcErrorCode = errCode,
+                    sessionId = request.mcpSessionId,
+                    note = "http_error",
+                )
             }
         }
         return keepAlive

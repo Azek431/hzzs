@@ -43,6 +43,7 @@
 | 权限 | 只读 / 每次确认 / 会话信任 / 完整访问 |
 | 工具策略 | `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`；禁用项不进 `tools/list`（策略读 `current()`，可含设置预览） |
 | 服务绑定 | 前台服务启停/端口/鉴权/LAN **仅**跟已保存配置（`savedConfig`）；草稿不重启 socket。改 `permissionLevel` / `toolPolicies` 不重启服务（运行时读 `current()`） |
+| 访问日志 | 进程内 ring（`McpAccessLog`，默认开）；记 method/工具/状态/耗时/远端摘要；**永不**记 Bearer/参数体；可关 `accessLogEnabled` |
 | 会话信任 | 绑定当前内存会话；**不得**把 TRUSTED_SESSION 当跨重启持久特权 |
 | 失效会话 | 服务重启后旧 `Mcp-Session-Id` 对 `tools/call` 降级无会话继续；TRUSTED 仍须有效会话 |
 | 完整访问 | 仅应用内权限，**不能**绕过系统录屏 / 悬浮窗 / 无障碍 / 安装界面 |

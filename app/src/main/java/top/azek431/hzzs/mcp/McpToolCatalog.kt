@@ -520,6 +520,22 @@ object McpToolCatalog {
             ),
         ),
         McpToolDescriptor(
+            name = "get_mcp_access_log",
+            description = "读取 MCP 访问日志 ring（method/工具/状态/耗时；不含 Token 与参数体）",
+            risk = McpToolRisk.READ,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("limit", intProp("条数，默认 50，最大 200"))
+                    .put("newestFirst", boolProp("新在前，默认 true")),
+            ),
+        ),
+        McpToolDescriptor(
+            name = "clear_mcp_access_log",
+            description = "清空 MCP 访问日志 ring",
+            risk = McpToolRisk.WRITE,
+            inputSchema = emptyObjectSchema(),
+        ),
+        McpToolDescriptor(
             name = "set_mcp_enabled",
             description = "开启或关闭 MCP 本地服务（mcp.enabled）。关闭会使当前连接断开",
             risk = McpToolRisk.HIGH_RISK,

@@ -158,6 +158,8 @@ class DataStoreSettingsRepository @Inject constructor(
             enabled = config.developer.enabled,
             level = config.developer.logLevel,
         )
+        // MCP 访问日志开关与配置同步（预览路径 current() 也会调用）。
+        top.azek431.hzzs.mcp.McpAccessLog.setEnabled(config.mcp.accessLogEnabled)
     }
 
     override suspend fun importJson(json: String): AppConfig = ConfigJson.decode(json).validated()
@@ -439,6 +441,7 @@ fun AppConfig.validated(): AppConfig {
             port = mcp.port.coerceIn(1024, 65535),
             // 默认 true；false 表示用户明确允许局域网（0.0.0.0）。外部摄入另经 harden。
             bindLocalhostOnly = mcp.bindLocalhostOnly,
+            accessLogEnabled = mcp.accessLogEnabled,
             // requireAuth 默认 false；authToken 只保留安全 hex，长度上限防止异常配置。
             authToken = mcp.authToken
                 .trim()
@@ -753,6 +756,7 @@ object ConfigJson {
                 put("bindLocalhostOnly", safe.mcp.bindLocalhostOnly)
                 put("allowDebugFrames", safe.mcp.allowDebugFrames)
                 put("requireAuth", safe.mcp.requireAuth)
+                put("accessLogEnabled", safe.mcp.accessLogEnabled)
                 // 配对令牌仅存 DataStore；导出 JSON 同样写入（用户备份），日志路径须脱敏。
                 put("authToken", safe.mcp.authToken)
                 put(
@@ -907,6 +911,10 @@ object ConfigJson {
                 // 缺字段跟随产品默认 false（同机免鉴权）；已落盘的 true/false 原样读取。
                 requireAuth = mcp?.optBoolean("requireAuth", defaults.mcp.requireAuth)
                     ?: defaults.mcp.requireAuth,
+                accessLogEnabled = mcp?.optBoolean(
+                    "accessLogEnabled",
+                    defaults.mcp.accessLogEnabled,
+                ) ?: defaults.mcp.accessLogEnabled,
                 authToken = mcp?.optString("authToken")?.takeIf { it.isNotBlank() }.orEmpty(),
                 toolPolicies = decodeToolPolicies(mcp?.optJSONObject("toolPolicies")),
             ),

@@ -48,7 +48,7 @@ platform 仅通过接口向运行时暴露能力
 
 ## 配置
 
-DataStore 存储 schema **v8**（含 `automation.gestureBackend` 与 `mcp.toolPolicies` 工具级策略覆盖）。`SettingsRepository` 以已保存配置为真相源，仍保留进程内 preview 层（引导/外部预览可用）。
+DataStore 存储 schema **v9**（含 `automation.gestureBackend`、`mcp.toolPolicies`、`mcp.accessLogEnabled`）。`SettingsRepository` 以已保存配置为真相源，仍保留进程内 preview 层（引导/外部预览可用）。
 
 - 设置 UI 为首页 + 分类子页，共享同一 `SettingsViewModel`；控件改动写入 **进程内 preview 草稿**，顶栏「保存并应用」才 `save` 落盘。
 - 危险项（如手动开自动操作）由子页确认后再写；导入/MCP 外部摄入经 `hardenedForExternalIngest`。

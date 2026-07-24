@@ -75,6 +75,7 @@ import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsStatusChip
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
+import top.azek431.hzzs.mcp.McpAccessLog
 import top.azek431.hzzs.mcp.McpClientImportDialect
 import top.azek431.hzzs.mcp.McpEndpointDisplayMode
 import top.azek431.hzzs.mcp.McpServerState
@@ -125,13 +126,16 @@ fun McpSettingsScreen(
     var lanRiskDialog by remember { mutableStateOf(false) }
     var uiLanIps by remember { mutableStateOf(emptyList<String>()) }
     var toolsDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var accessLogRevision by remember { mutableStateOf(0L) }
 
     LaunchedEffect(config.mcp.bindLocalhostOnly, mcpState.running, mcpState.lanAddresses) {
-        uiLanIps = when {
+        // 始终把 127.0.0.1 放在可选主机最前；再附 LAN 地址（开局域网时优先用服务探测结果）。
+        val lanOnly = when {
             mcpState.running && mcpState.lanAddresses.isNotEmpty() -> mcpState.lanAddresses
-            !config.mcp.bindLocalhostOnly -> listLanIpv4Addresses()
+            !config.mcp.bindLocalhostOnly -> listLanIpv4Addresses(includeLoopback = false)
             else -> emptyList()
         }
+        uiLanIps = listOf("127.0.0.1") + lanOnly.filter { it != "127.0.0.1" }
         if (preferredLanHost.isNotBlank() && preferredLanHost !in uiLanIps) {
             preferredLanHost = uiLanIps.firstOrNull().orEmpty()
         }
@@ -339,37 +343,52 @@ fun McpSettingsScreen(
                         }
                     },
                 )
-                if (!config.mcp.bindLocalhostOnly) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.mcp_lan_ips_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (uiLanIps.isEmpty()) {
-                        Text(
-                            stringResource(R.string.mcp_lan_ips_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 4.dp),
-                        ) {
-                            uiLanIps.forEach { ip ->
-                                FilterChip(
-                                    selected = preferredLanHost == ip,
-                                    onClick = {
-                                        preferredLanHost = ip
-                                        displayMode = McpEndpointDisplayMode.LAN.name
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.mcp_lan_ips_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.mcp_lan_ips_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    uiLanIps.forEach { ip ->
+                        FilterChip(
+                            selected = preferredLanHost == ip,
+                            onClick = {
+                                preferredLanHost = ip
+                                displayMode = if (ip == "127.0.0.1") {
+                                    McpEndpointDisplayMode.LOOPBACK.name
+                                } else {
+                                    McpEndpointDisplayMode.LAN.name
+                                }
+                            },
+                            label = {
+                                Text(
+                                    if (ip == "127.0.0.1") {
+                                        stringResource(R.string.mcp_lan_ip_loopback_chip)
+                                    } else {
+                                        ip
                                     },
-                                    label = { Text(ip) },
                                 )
-                            }
-                        }
+                            },
+                        )
                     }
+                }
+                if (uiLanIps.none { it != "127.0.0.1" } && !config.mcp.bindLocalhostOnly) {
+                    Text(
+                        stringResource(R.string.mcp_lan_ips_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
             }
         }
@@ -629,6 +648,77 @@ fun McpSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(stringResource(R.string.mcp_rotate_token))
+                    }
+                }
+            }
+        }
+
+        item {
+            val accessEntries = remember(accessLogRevision, config.mcp.accessLogEnabled) {
+                McpAccessLog.snapshot(limit = 30, newestFirst = true)
+            }
+            SettingsSectionCard(
+                title = stringResource(R.string.mcp_access_log_section_title),
+                description = stringResource(R.string.mcp_access_log_section_desc),
+            ) {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.mcp_access_log_switch),
+                    subtitle = stringResource(R.string.mcp_access_log_switch_subtitle),
+                    checked = config.mcp.accessLogEnabled,
+                    onCheckedChange = { value ->
+                        update { it.copy(mcp = it.mcp.copy(accessLogEnabled = value)) }
+                        McpAccessLog.setEnabled(value)
+                    },
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.mcp_access_log_count, accessEntries.size),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                if (accessEntries.isEmpty()) {
+                    Text(
+                        stringResource(R.string.mcp_access_log_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    accessEntries.take(12).forEach { entry ->
+                        Text(
+                            entry.formatLine(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                            modifier = Modifier.padding(vertical = 2.dp),
+                        )
+                    }
+                    if (accessEntries.size > 12) {
+                        Text(
+                            "…共 ${accessEntries.size} 条，可用 get_mcp_access_log 拉取完整 ring",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        McpAccessLog.clear()
+                        accessLogRevision = McpAccessLog.revision()
+                        onMessage(context.getString(R.string.mcp_access_log_cleared))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = accessEntries.isNotEmpty(),
+                ) {
+                    Text(stringResource(R.string.mcp_access_log_clear))
+                }
+                // 轮询 revision，避免额外 ViewModel
+                LaunchedEffect(config.mcp.enabled, config.mcp.accessLogEnabled) {
+                    while (true) {
+                        val rev = McpAccessLog.revision()
+                        if (rev != accessLogRevision) accessLogRevision = rev
+                        delay(1_200)
                     }
                 }
             }

@@ -72,6 +72,7 @@
 - **MCP 服务热路径**：改权限级不再重启 socket（指纹不含 `permissionLevel`）；LAN IP 列表 15s 缓存；`SecureRandom` 复用；`bumpGeneration` 不清连接计数。
 - **MCP 失效 Session 不再卡死工具调用**：服务重启/改绑定后会话表清空，客户端仍持旧 `Mcp-Session-Id` 时，`tools/call` 与 `resources/read` 降级为无会话继续（`TRUSTED_SESSION` 仍要求有效会话；`ASK`/`FULL` 按权限执行），避免 RikkaHub 报 `-32003` 需手动重连。
 - **MCP 状态卡始终展示 127.0.0.1**：未运行/局域网展示模式下也给出 `http://127.0.0.1:<port>/mcp`；当前展示 URL 不同时再另列一行。
+- **MCP 可选主机列表含回环**：设置「可选主机」始终列出 `127.0.0.1`（未开局域网也可点选）；LAN 地址在其后。
 - **MCP 读生效配置并脱敏 Token**：授权/`tools/list` 用 `settings.current()`；`get_settings` 与 `app://settings/current` 经 `exportJsonRedacted`（`authToken`→`***`）。
 - **手势后端决策同源**：规划/派发决策摘要带 `backend=`；Shell 路径规划期不卡帧 dumpsys，派发时 `snapshotForeground` 同源探测。
 - **自动操作包名门控与 `restrictPackages` 对齐**：未开启「仅允许指定应用」时不再用建议包列表挡前台；派发时 `allowedPackages` 空集表示不限制。修正 CI `check_project` 旧规则与产品语义不一致导致的 Build 失败。

@@ -463,6 +463,19 @@ class McpActionRegistry @Inject constructor(
         "list_mcp_tools" -> listMcpToolsJson(
             includeDisabled = arguments.optBoolean("includeDisabled", true),
         )
+        "get_mcp_access_log" -> {
+            val limit = arguments.optInt("limit", 50).coerceIn(1, McpAccessLog.CAPACITY)
+            val newestFirst = arguments.optBoolean("newestFirst", true)
+            JSONObject()
+                .put("enabled", McpAccessLog.isEnabled())
+                .put("count", McpAccessLog.size())
+                .put("capacity", McpAccessLog.CAPACITY)
+                .put("entries", McpAccessLog.toJsonArray(limit, newestFirst))
+        }
+        "clear_mcp_access_log" -> {
+            McpAccessLog.clear()
+            ok("MCP 访问日志已清空")
+        }
         "set_mcp_enabled" -> {
             val enabled = arguments.getBoolean("enabled")
             applyConfig({ it.copy(mcp = it.mcp.copy(enabled = enabled)) }, persist = true)
@@ -605,6 +618,8 @@ class McpActionRegistry @Inject constructor(
             put("requireAuth", mcp.requireAuth)
             put("tokenConfigured", mcp.authToken.isNotBlank())
             put("allowDebugFrames", mcp.allowDebugFrames)
+            put("accessLogEnabled", mcp.accessLogEnabled)
+            put("accessLogCount", McpAccessLog.size())
             put("activeSessions", state.activeSessions)
             put("lastError", state.lastError)
             put(

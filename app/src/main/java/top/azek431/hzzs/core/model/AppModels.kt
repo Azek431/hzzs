@@ -352,6 +352,7 @@ data class AutomationConfig(
  * [requireAuth] 默认 **false**（同机 RikkaHub 免填 Header；局域网也可免鉴权但风险更高）；
  * 开启后使用持久化 [authToken]，**不会**在每次服务启动时轮换，仅用户主动「轮换 Token」时更新。
  * [toolPolicies]：按工具名覆盖审批/禁用；键为 MCP 工具准确名（如 `start_analysis`）。
+ * [accessLogEnabled]：是否写入进程内 MCP 访问日志 ring（默认 true；永不记 Token/参数体）。
  * 权限型字段；设置预览阶段不启动服务。
  */
 data class McpConfig(
@@ -380,6 +381,11 @@ data class McpConfig(
      * 键必须是已知 MCP 工具名；未知键在校验时丢弃。
      */
     val toolPolicies: Map<String, McpToolPolicy> = emptyMap(),
+    /**
+     * 是否记录 MCP 访问日志（进程内 ring，见 [top.azek431.hzzs.mcp.McpAccessLog]）。
+     * 默认 true；关闭后不再追加，已有条目保留直至清空。
+     */
+    val accessLogEnabled: Boolean = true,
 ) {
     fun policyFor(toolName: String): McpToolPolicy =
         toolPolicies[toolName] ?: McpToolPolicy.DEFAULT
@@ -476,7 +482,7 @@ data class AppConfig(
 ) {
     companion object {
         /** DataStore 配置 schema 版本；迁移逻辑依赖此常量。 */
-        const val CURRENT_SCHEMA = 8
+        const val CURRENT_SCHEMA = 9
 
         /**
          * 自动操作免责声明版本。
