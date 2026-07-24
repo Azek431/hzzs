@@ -9,15 +9,28 @@
 
 当前文件**没有加入 CMakeLists.txt**，不会改变 Android Native Library。CC 应先读取最新 `main` 的类型、ABI、测试脚本和并行改动，再决定复用、重命名、拆分或重新接线。
 
-独立宿主机烟雾测试：
+独立宿主机烟雾测试（**不**进入 `libhzzs_vision` / Android NDK）：
+
+```powershell
+# 推荐：跨平台入口（Windows 走 ps1，其它走 bash；勿直接 exec 无 +x 的 .sh）
+python tools/vision_v2/run_host_smoke.py
+python tools/vision_v2/run_host_smoke.py --sanitize address
+python tools/vision_v2/run_host_smoke.py --sanitize undefined
+python tools/vision_v2/run_host_smoke.py --test boundary
+```
 
 ```bash
-c++ -std=c++20 -Wall -Wextra -Werror \
-  app/src/main/cpp/vision_v2/fast_contour_core.cpp \
-  app/src/main/cpp/vision_v2/fast_contour_core_test.cpp \
-  -o /tmp/fast_contour_core_test
-/tmp/fast_contour_core_test
+# 或显式脚本
+bash tools/vision_v2/build_host_smoke.sh
+bash tools/vision_v2/build_host_smoke.sh --sanitize=address
 ```
+
+产物目录：`build/vision-v2-host/`（已被根 `.gitignore` 的 `build/` 忽略）。
+
+- `fast_contour_core_test`：LUT / 稀疏验证 / arena / 贴边 happy path
+- `fast_contour_core_boundary_test`：非法输入、容量边界
+
+**不要**把本目录源文件加入 `app/src/main/cpp/CMakeLists.txt` 或 `tools/vision/build_host.*`，除非单独授权 APK/Shadow 接线阶段。
 
 正式集成要求：
 

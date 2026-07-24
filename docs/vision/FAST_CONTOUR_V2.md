@@ -49,7 +49,9 @@ FastContourV2 试图用一套底层适配三个赛季：
 
 1. Python 基准和参数留在 `tools/vision_v2/`；
 2. 独立 C++ core 与 host test，不加入现有 native library；
-3. 在最新 `main` 上由 CC 手工完成最小 CMake 接线；
+   **当前进度**：`python tools/vision_v2/run_host_smoke.py`（core + boundary；可选 ASan/UBSan）。
+   产物在 `build/vision-v2-host/`，**未**进入 `CMakeLists.txt` / `build_host.*` / APK。
+3. 在最新 `main` 上由 CC 手工完成最小 CMake 接线（仅授权后）；
 4. 先运行 ShadowCompare，只记录新旧差异；
 5. 分赛季验证后再考虑切换默认后端；
 6. 蛋糕低对比轮廓、大水坑缺少正例等空白未解决前不得宣称完成。

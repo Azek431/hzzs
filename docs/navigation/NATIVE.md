@@ -127,7 +127,10 @@ CapturedFrame 持有池化像素与释放回调
 | JVM | `app/src/test/java/.../domain/vision`、`service/capture` | Validator、近似轮廓、帧租约 | JNI 描述符与设备内存边界 |
 | Native direct | `app/src/test/cpp/native_tests.cpp` | profile、scene 边界、输入约束、基本并发 | Java/JNI round-trip |
 | Host ABI | `tools/vision/run_host_tests.py`、`host_api.cpp` | 宿主 ABI、bounds、mask、代表帧稳定性 | Android Image/JNI/Tracker |
+| FastContourV2 host（未接线） | `python tools/vision_v2/run_host_smoke.py`；源在 `app/src/main/cpp/vision_v2/` | LUT/稀疏验证/arena/贴边与边界输入 | 完整赛季检测、ShadowCompare、APK |
 | 设备 | 当前没有完整 `androidTest` 链 | 真机权限、JNI、厂商行为 | 尚待补充 |
+
+`vision_v2` **不得**在未单独授权时加入 `CMakeLists.txt` 或 `tools/vision/build_host.*`。Legacy `libhzzs_vision` 与 FastContour host smoke 产物目录分离（`build/host/` vs `build/vision-v2-host/`）。
 
 host 测试的 scene 和 Kind 范围必须跟 `kSceneCount` 与当前枚举同步；不要沿用旧的双场景或低 8 位假设。
 

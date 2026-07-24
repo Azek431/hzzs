@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | `tools/quality/` | 当前仓库源码 | 静态门禁结果 | 否 |
 | `tools/vision/` | C++ 源、可选代表帧数据集 | host 库、sanitizer/识别报告 | 否；数据集本地提供 |
+| `tools/vision_v2/` | FastContourV2 实验 Python + **独立** C++ host smoke | 基准报告、`build/vision-v2-host/` smoke 可执行文件 | 否；**不**进 APK / `libhzzs_vision` |
 | `tools/algorithm/` | 算法源树、签名密钥 | 校验结果、确定性 `.hzzsalg`、目录；`--execute` 可发布 | dry-run 不联网但仍需私钥；execute 需双源 token |
 | `tools/release/` | APK、版本与签名材料 | 更新索引、差分、发布辅助产物 | 发布时联网并需 Secrets |
 | `tools/dev/` | 本机 Gradle/Kotlin 缓存 | 停 daemon、修复本地缓存 | 否 |
@@ -36,6 +37,7 @@ python tools/quality/check_project.py
 | 截图/自动操作 | 解析和仲裁单测 + 对应 API 真机矩阵 |
 | Compose UI | JVM 纯逻辑；有条件补/跑 instrumentation |
 | JNI/C++ | Native sanitizer + host tests + 相关 JVM 测试 |
+| FastContourV2（`vision_v2`，未接线） | `python tools/vision_v2/run_host_smoke.py`（可选 `--sanitize address|undefined`）；**不要**为过门禁改 CMake 接入 APK |
 | 算法包源或工具 | 源树校验 + `tools/algorithm/tests` |
 | 完整 Android 交付 | `testDebugUnitTest`、`lintDebug`、`assembleDebug` |
 | Release | Release 签名配置、验签与发布专项门禁 |

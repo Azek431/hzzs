@@ -51,6 +51,18 @@ python tools/vision_v2/benchmark.py /path/to/测试图片 \
 
 正式迁移 C++ 前应补人工多边形标注，并分别报告每类检出指标、轮廓 IoU、边界 F-score 和 P50/P95 延迟。
 
+## C++ host smoke（与 Python 实验并列）
+
+独立于 `tools/vision/build_host.*` / `libhzzs_vision`：
+
+```powershell
+python tools/vision_v2/run_host_smoke.py
+python tools/vision_v2/run_host_smoke.py --sanitize address
+python tools/vision_v2/run_host_smoke.py --sanitize undefined
+```
+
+详见 `app/src/main/cpp/vision_v2/README.md`。APK 与 Legacy host ABI **不**链接 `vision_v2`。
+
 ## 集成原则
 
 1. 先在独立 host 测试目标中实现，不立即接入 APK；
