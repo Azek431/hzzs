@@ -1100,7 +1100,11 @@ class VisionRuntimeController @Inject constructor(
         force: Boolean,
     ): OverlayPublishState {
         val signature = overlaySignature(overlayConfig, result, showCoordinateGrid)
-        if (!force && signature == lastOverlaySignature) {
+        val blockedNeedsRetry = mutableStatus.value.overlayBlockReason.let { reason ->
+            reason == OverlayBlockReason.PERMISSION || reason == OverlayBlockReason.ADD_VIEW_FAILED
+        }
+        // 权限刚授予或 add 瞬时失败时签名可能不变，必须强制重试 show，否则悬浮窗永久不出现。
+        if (!force && !blockedNeedsRetry && signature == lastOverlaySignature) {
             val current = mutableStatus.value
             return OverlayPublishState(current.overlayVisible, current.overlayBlockReason)
         }

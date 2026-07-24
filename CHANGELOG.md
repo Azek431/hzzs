@@ -46,10 +46,13 @@
 
 ### 修复
 
+- **算法签名 Secret 双重 Base64 自愈**：`load_private_key` / CI `check_signing_secret` 识别并对「对 B64.txt 再 ToBase64 一次」的误配自动解一层；亦接受误贴的原文 PEM。日志只报 `form`/`autoheal` 不打印密钥。推荐仍只粘贴单次编码的 txt。
 - **CI 解析 KSP 插件**：`settings.gradle.kts` 的 `pluginManagement` 改为官方源优先（Google / Maven Central / Plugin Portal），阿里云镜像后置回退；`com.google.*` 内容过滤 **exclude** `com.google.devtools.ksp`（KSP 不在 Google Maven）。修复 Actions 上 `com.google.devtools.ksp:2.3.10` 找不到插件。
 - **外部摄入允许开自动操作时免责版本可随用户确认抬升**：`allowEnableAutomation` 时 `disclaimerAcceptedVersion` 取 baseline/candidate 较大值，避免 harden 后 `validated()` 因免责版本被压回 baseline 再次关掉 `enabled`（修复 `SettingsSessionTest.externalIngestCanEnableAutomationWithElevation`）。
-- **Shell 手势/截图命令鲁棒性**：Shizuku 子进程 PATH 常空，优先绝对路径 `/system/bin/input` / `screencap`，失败再试裸命令与 `cmd input`；失败 detail 带 exit/stderr；跳点避开障碍框覆盖的默认 0.82 落点。
-
+- **Shell 手势/截图命令鲁棒性**：Shizuku 子进程 PATH 常空，优先绝对路径 `/system/bin/input` 与 screencap，失败再试裸命令与 `cmd input`；失败 detail 带 exit/stderr；跳点避开障碍框覆盖的默认 0.82 落点。
+- **悬浮窗权限恢复重试**：`overlayBlockReason` 为 PERMISSION/ADD_VIEW_FAILED 时强制重新 show，避免授权后签名不变永久不显示。
+- **录屏授权粘住态/竞态**：MediaProjection `RequestingPermission` 超时可重入；Service 上已有 projection 时清理后再挂新 token，禁止静默丢授权。
+- **无障碍截图运行中断连**：`nextFrame` 检测服务断开即 Failed，与 Shizuku 权限失效对称。
 - **自动操作账本 track 冷却**：`ActionCommitLedger` 成功后对同 track 仅短冷却（约 0.9s）而非永久封禁，避免一次 `dispatch_ok` 后整段 `dispatch_skip:ledger`、观感像「不再自动」。规划期同步预检 ledger，帧决策直接 `skip:ledger`。
 - **自动操作贴身/重叠仍可触发**：候选筛选改为障碍右缘仍越过玩家左缘即可（不再要求左缘 ≥ 玩家右缘−margin）；触发带内按 `|gap|` 选最近目标，避免海盐 FIXED 玩家下断崖略伸入时系统性 `no_candidate`（`nearGap` 为负）。决策串补 `behindOk=`。
 - **宿主机 host_tests 对齐 FIXED_RATIO**：`detect_player=false` 时引擎仍输出固定玩家参考框（与 App `PlayerReferenceMode.FIXED_RATIO` 一致）；mask=0 只断言「至多 1 个 PLAYER、无障碍」，不再误要求 `count==0`。

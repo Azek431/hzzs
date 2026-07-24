@@ -125,9 +125,24 @@ class MediaProjectionFrameSource @Inject constructor(
     private val pool = IntFramePool(3)
     private val sequencer = FrameSequencer()
 
+    @Volatile
+    private var requestingPermissionSinceElapsedMs: Long = 0L
+
     override suspend fun start() {
-        if (state.value == CaptureState.Ready || state.value == CaptureState.RequestingPermission) return
+        val current = state.value
+        if (current == CaptureState.Ready) return
+        if (current == CaptureState.RequestingPermission) {
+            // 授权对话框卡住/后台限制未回调时允许超时重入，避免永久 RequestingPermission。
+            val elapsed = SystemClock.elapsedRealtime() - requestingPermissionSinceElapsedMs
+            if (requestingPermissionSinceElapsedMs > 0L &&
+                elapsed in 1 until REQUEST_PERMISSION_STUCK_MS
+            ) {
+                return
+            }
+            fail("屏幕捕获授权超时或未完成，请重试", recoverable = true)
+        }
         mutableState.value = CaptureState.RequestingPermission
+        requestingPermissionSinceElapsedMs = SystemClock.elapsedRealtime()
         context.startActivity(
             Intent(context, CapturePermissionActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -160,16 +175,19 @@ class MediaProjectionFrameSource @Inject constructor(
     }
 
     internal fun ready() {
+        requestingPermissionSinceElapsedMs = 0L
         mutableState.value = CaptureState.Ready
     }
 
     internal fun fail(message: String, recoverable: Boolean) {
         // 失败态与缓冲生命周期对齐，避免下一轮 nextFrame 仍吐出陈旧帧。
+        requestingPermissionSinceElapsedMs = 0L
         drainFrames()
         mutableState.value = CaptureState.Failed(message, recoverable)
     }
 
     internal fun idle() {
+        requestingPermissionSinceElapsedMs = 0L
         drainFrames()
         mutableState.value = CaptureState.Idle
     }
@@ -197,6 +215,11 @@ class MediaProjectionFrameSource @Inject constructor(
 
     private fun drainFrames() {
         while (true) frames.tryReceive().getOrNull()?.close() ?: break
+    }
+
+    private companion object {
+        /** 授权对话框卡住超过此时长后允许 start 重入。 */
+        const val REQUEST_PERMISSION_STUCK_MS = 45_000L
     }
 }
 
@@ -280,7 +303,11 @@ class MediaProjectionCaptureService : Service() {
 
     private fun startCapture(intent: Intent) {
         // 允许 stop 后在同一 Service 实例上再次 START；旧 stopping 闩若残留会永久空转。
-        if (projection != null) return
+        // 若上一轮 projection 尚未释放（STOP 竞态），先清理再挂新 token，禁止静默 return。
+        if (projection != null) {
+            cleanup(updateStateToIdle = false, stopProjection = true, stopService = false)
+            stopping = false
+        }
         stopping = false
         createChannel()
         startForegroundCapture()
@@ -500,6 +527,10 @@ class AccessibilityFrameSource @Inject constructor() : FrameSource {
 
     override suspend fun nextFrame(afterSequence: Long): CapturedFrame? {
         if (state.value != CaptureState.Ready || Build.VERSION.SDK_INT < 30) return null
+        if (!HzzsAccessibilityService.isConnected()) {
+            mutableState.value = CaptureState.Failed("请先启用火崽崽无障碍服务", true)
+            return null
+        }
         throttle(MIN_ACCESSIBILITY_CAPTURE_INTERVAL_MS, lastCaptureAtNanos)
         lastCaptureAtNanos = SystemClock.elapsedRealtimeNanos()
         val bitmap = withTimeoutOrNull(ACCESSIBILITY_CALLBACK_TIMEOUT_MS) {

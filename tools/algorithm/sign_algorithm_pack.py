@@ -34,6 +34,80 @@ def load_private_key_from_pem(pem: bytes) -> Ed25519PrivateKey:
     return key
 
 
+def _looks_like_private_pem(blob: bytes) -> bool:
+    text = blob.decode("utf-8", errors="replace")
+    return (
+        "BEGIN PRIVATE KEY" in text
+        or "BEGIN ED25519 PRIVATE KEY" in text
+        or "BEGIN OPENSSH PRIVATE KEY" in text
+    )
+
+
+def decode_private_key_pem_from_secret(raw: str) -> tuple[bytes, dict[str, object]]:
+    """Decode ALGORITHM_SIGNING_PRIVATE_KEY_B64 (or equivalent) to PEM bytes.
+
+    Accepts, in order:
+    1. Raw PEM text (paste error)
+    2. base64(PEM bytes) — correct GitHub Secret form
+    3. base64(base64(PEM)) — common double-encode when ToBase64String is applied
+       to an already-base64 txt file; **auto-healed** once
+
+    Returns (pem_bytes, diagnostics). Diagnostics never include key material.
+    """
+    compact = "".join((raw or "").split())
+    diag: dict[str, object] = {
+        "input_chars": len(raw or ""),
+        "compact_chars": len(compact),
+        "form": "unknown",
+        "autoheal_double_base64": False,
+    }
+    if not compact:
+        raise AlgorithmPackError(
+            "missing private key; set ALGORITHM_SIGNING_PRIVATE_KEY_B64 or pass --private-key"
+        )
+
+    # 1) Raw PEM pasted into the secret
+    if compact.startswith("-----BEGIN") or "BEGIN PRIVATE KEY" in compact:
+        pem = compact.encode("utf-8")
+        if not _looks_like_private_pem(pem):
+            raise AlgorithmPackError("secret looks like PEM but is not a private key")
+        diag["form"] = "raw_pem"
+        diag["decoded_pem_bytes"] = len(pem)
+        return pem, diag
+
+    # 2) Standard: base64(PEM)
+    try:
+        decoded = base64.b64decode(compact, validate=True)
+    except Exception as error:  # noqa: BLE001
+        raise AlgorithmPackError(f"invalid ALGORITHM_SIGNING_PRIVATE_KEY_B64: {error}") from error
+
+    if _looks_like_private_pem(decoded):
+        diag["form"] = "base64_pem"
+        diag["decoded_pem_bytes"] = len(decoded)
+        return decoded, diag
+
+    # 3) Double base64: first decode yields ASCII base64 of the PEM
+    inner_text = decoded.decode("utf-8", errors="replace")
+    inner_compact = "".join(inner_text.split())
+    if inner_compact and all(ch.isalnum() or ch in "+/=" for ch in inner_compact):
+        try:
+            pem2 = base64.b64decode(inner_compact, validate=True)
+        except Exception:
+            pem2 = b""
+        if _looks_like_private_pem(pem2):
+            diag["form"] = "double_base64_pem"
+            diag["autoheal_double_base64"] = True
+            diag["decoded_pem_bytes"] = len(pem2)
+            diag["inner_b64_chars"] = len(inner_compact)
+            return pem2, diag
+
+    raise AlgorithmPackError(
+        "decoded secret is not a PEM private key (missing BEGIN PRIVATE KEY); "
+        "if you base64'd ALGORITHM_SIGNING_PRIVATE_KEY_B64.txt again, paste that "
+        "file's text as-is instead"
+    )
+
+
 def load_private_key(
     *,
     private_key_path: Path | None,
@@ -48,10 +122,7 @@ def load_private_key(
         raise AlgorithmPackError(
             "missing private key; set ALGORITHM_SIGNING_PRIVATE_KEY_B64 or pass --private-key"
         )
-    try:
-        pem = base64.b64decode(raw_b64, validate=True)
-    except Exception as error:  # noqa: BLE001 - surface base64 issues clearly
-        raise AlgorithmPackError(f"invalid ALGORITHM_SIGNING_PRIVATE_KEY_B64: {error}") from error
+    pem, _diag = decode_private_key_pem_from_secret(raw_b64)
     return load_private_key_from_pem(pem)
 
 
