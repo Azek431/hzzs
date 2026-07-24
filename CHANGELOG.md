@@ -19,6 +19,8 @@
 
 ### 新增
 
+- **FastContourV2 编译期 profile 表**：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`；host smoke 增加 `profiles` 目标；仍不进 APK/CMake。
+
 - **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。binder 在未授权时可点「授权 Shizuku」；已授权优先 `ShellProcessSupport` 写 system/secure + `cmd settings`；否则 `WRITE_SETTINGS` / Root。写入后**回读校验**（system/secure 任一为 1）。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
 - **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**；外部摄入不得放宽策略。
 

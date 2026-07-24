@@ -4,11 +4,11 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/vision_v2/build_host_smoke.ps1
 #   ... -Sanitize address
 #   ... -Sanitize undefined
-#   ... -Test all|core|boundary|pipeline
+#   ... -Test all|core|boundary|pipeline|profiles
 param(
     [ValidateSet("", "address", "undefined")]
     [string]$Sanitize = "",
-    [ValidateSet("all", "core", "boundary", "pipeline")]
+    [ValidateSet("all", "core", "boundary", "pipeline", "profiles")]
     [string]$Test = "all",
     [switch]$SkipRun
 )
@@ -36,6 +36,7 @@ $pipelineCpp = Join-Path $CppDir "fast_contour_pipeline.cpp"
 $coreTest = Join-Path $CppDir "fast_contour_core_test.cpp"
 $boundaryTest = Join-Path $CppDir "fast_contour_core_boundary_test.cpp"
 $pipelineTest = Join-Path $CppDir "fast_contour_pipeline_test.cpp"
+$profilesTest = Join-Path $CppDir "fast_contour_profiles_test.cpp"
 
 $suffix = if ($Sanitize) { "_$Sanitize" } else { "" }
 $common = @(
@@ -86,6 +87,10 @@ if ($Test -eq "all" -or $Test -eq "boundary") {
 }
 if ($Test -eq "all" -or $Test -eq "pipeline") {
     Invoke-OneSmoke -Name "pipeline_test" -Sources @($coreCpp, $pipelineCpp, $pipelineTest)
+    $ran++
+}
+if ($Test -eq "all" -or $Test -eq "profiles") {
+    Invoke-OneSmoke -Name "profiles_test" -Sources @($coreCpp, $pipelineCpp, $profilesTest)
     $ran++
 }
 if ($ran -eq 0) {
