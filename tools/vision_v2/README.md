@@ -57,6 +57,7 @@ python tools/vision_v2/benchmark.py /path/to/测试图片 \
 
 ```powershell
 python tools/vision_v2/run_host_smoke.py
+python tools/vision_v2/run_host_smoke.py --test pipeline
 python tools/vision_v2/run_host_smoke.py --sanitize address
 python tools/vision_v2/run_host_smoke.py --sanitize undefined
 ```

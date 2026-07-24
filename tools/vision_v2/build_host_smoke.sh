@@ -3,7 +3,7 @@
 # Prefer: bash tools/vision_v2/build_host_smoke.sh
 # Options:
 #   --sanitize=address|undefined
-#   --test=all|core|boundary
+#   --test=all|core|boundary|pipeline
 #   --skip-run
 set -euo pipefail
 
@@ -19,10 +19,10 @@ for arg in "$@"; do
   case "$arg" in
     --sanitize=address) SANITIZE="address" ;;
     --sanitize=undefined) SANITIZE="undefined" ;;
-    --test=all|--test=core|--test=boundary) TEST="${arg#--test=}" ;;
+    --test=all|--test=core|--test=boundary|--test=pipeline) TEST="${arg#--test=}" ;;
     --skip-run) SKIP_RUN=1 ;;
     -h|--help)
-      echo "Usage: bash tools/vision_v2/build_host_smoke.sh [--sanitize=address|undefined] [--test=all|core|boundary] [--skip-run]"
+      echo "Usage: bash tools/vision_v2/build_host_smoke.sh [--sanitize=address|undefined] [--test=all|core|boundary|pipeline] [--skip-run]"
       exit 0
       ;;
     *)
@@ -58,10 +58,10 @@ fi
 
 run_one() {
   local name=$1
-  local src=$2
+  shift
   local exe="$OUT_DIR/fast_contour_${name}${SUFFIX}"
-  echo "+ $CXX ${COMMON[*]} $CPP_DIR/fast_contour_core.cpp $src -o $exe"
-  "$CXX" "${COMMON[@]}" "$CPP_DIR/fast_contour_core.cpp" "$src" -o "$exe"
+  echo "+ $CXX ${COMMON[*]} $* -o $exe"
+  "$CXX" "${COMMON[@]}" "$@" -o "$exe"
   if [[ "$SKIP_RUN" -eq 0 ]]; then
     echo "+ $exe"
     "$exe"
@@ -71,11 +71,18 @@ run_one() {
 
 ran=0
 if [[ "$TEST" == "all" || "$TEST" == "core" ]]; then
-  run_one core_test "$CPP_DIR/fast_contour_core_test.cpp"
+  run_one core_test "$CPP_DIR/fast_contour_core.cpp" "$CPP_DIR/fast_contour_core_test.cpp"
   ran=1
 fi
 if [[ "$TEST" == "all" || "$TEST" == "boundary" ]]; then
-  run_one boundary_test "$CPP_DIR/fast_contour_core_boundary_test.cpp"
+  run_one boundary_test "$CPP_DIR/fast_contour_core.cpp" "$CPP_DIR/fast_contour_core_boundary_test.cpp"
+  ran=1
+fi
+if [[ "$TEST" == "all" || "$TEST" == "pipeline" ]]; then
+  run_one pipeline_test \
+    "$CPP_DIR/fast_contour_core.cpp" \
+    "$CPP_DIR/fast_contour_pipeline.cpp" \
+    "$CPP_DIR/fast_contour_pipeline_test.cpp"
   ran=1
 fi
 if [[ "$ran" -eq 0 ]]; then

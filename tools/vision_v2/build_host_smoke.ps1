@@ -4,11 +4,11 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/vision_v2/build_host_smoke.ps1
 #   ... -Sanitize address
 #   ... -Sanitize undefined
-#   ... -Test all|core|boundary
+#   ... -Test all|core|boundary|pipeline
 param(
     [ValidateSet("", "address", "undefined")]
     [string]$Sanitize = "",
-    [ValidateSet("all", "core", "boundary")]
+    [ValidateSet("all", "core", "boundary", "pipeline")]
     [string]$Test = "all",
     [switch]$SkipRun
 )
@@ -32,8 +32,10 @@ if (-not $compilerCmd) {
 }
 
 $coreCpp = Join-Path $CppDir "fast_contour_core.cpp"
+$pipelineCpp = Join-Path $CppDir "fast_contour_pipeline.cpp"
 $coreTest = Join-Path $CppDir "fast_contour_core_test.cpp"
 $boundaryTest = Join-Path $CppDir "fast_contour_core_boundary_test.cpp"
+$pipelineTest = Join-Path $CppDir "fast_contour_pipeline_test.cpp"
 
 $suffix = if ($Sanitize) { "_$Sanitize" } else { "" }
 $common = @(
@@ -54,10 +56,10 @@ if ($Sanitize -eq "address") {
 function Invoke-OneSmoke {
     param(
         [string]$Name,
-        [string]$TestSource
+        [string[]]$Sources
     )
     $exe = Join-Path $OutDir ("fast_contour_${Name}${suffix}.exe")
-    $args = $common + @($coreCpp, $TestSource, "-o", $exe)
+    $args = $common + $Sources + @("-o", $exe)
     Write-Host "+ $compilerCmd $($args -join ' ')"
     & $compilerCmd @args
     if ($LASTEXITCODE -ne 0) {
@@ -75,11 +77,15 @@ function Invoke-OneSmoke {
 
 $ran = 0
 if ($Test -eq "all" -or $Test -eq "core") {
-    Invoke-OneSmoke -Name "core_test" -TestSource $coreTest
+    Invoke-OneSmoke -Name "core_test" -Sources @($coreCpp, $coreTest)
     $ran++
 }
 if ($Test -eq "all" -or $Test -eq "boundary") {
-    Invoke-OneSmoke -Name "boundary_test" -TestSource $boundaryTest
+    Invoke-OneSmoke -Name "boundary_test" -Sources @($coreCpp, $boundaryTest)
+    $ran++
+}
+if ($Test -eq "all" -or $Test -eq "pipeline") {
+    Invoke-OneSmoke -Name "pipeline_test" -Sources @($coreCpp, $pipelineCpp, $pipelineTest)
     $ran++
 }
 if ($ran -eq 0) {

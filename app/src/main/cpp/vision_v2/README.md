@@ -29,6 +29,10 @@ bash tools/vision_v2/build_host_smoke.sh --sanitize=address
 
 - `fast_contour_core_test`：LUT / 稀疏验证 / arena / 贴边 happy path
 - `fast_contour_core_boundary_test`：非法输入、容量边界
+- `fast_contour_pipeline_test`：固定容量条带扫描 + 稀疏验证 + 轮廓放置/贴边（合成帧）
+
+管线源：`fast_contour_pipeline.h/.cpp`（`detect_fixed_strips` / `place_and_refine_contour`）。
+Profile 由调用方以结构体数组注入，**不在帧路径读 JSON**。海盐专用 scan-point 与竹影缺口尚未迁入。
 
 **不要**把本目录源文件加入 `app/src/main/cpp/CMakeLists.txt` 或 `tools/vision/build_host.*`，除非单独授权 APK/Shadow 接线阶段。
 
