@@ -31,9 +31,9 @@ bash tools/vision_v2/build_host_smoke.sh --sanitize=address
 - `fast_contour_core_boundary_test`：非法输入、容量边界
 - `fast_contour_pipeline_test`：固定容量条带扫描 + 稀疏验证 + 轮廓放置/贴边（合成帧）
 - `fast_contour_profiles_test`：编译期表 `generated/fixed_profiles_v2.h` + 合成命中
-- `fast_contour_sea_gap_test`：海盐 `generated/sea_profiles_v2.h` 缩放检测 + 竹影 `detect_bamboo_gaps`
+- `fast_contour_sea_gap_test`：海盐 `generated/sea_profiles_v2.h` 缩放检测 + 竹影 `detect_bamboo_gaps` / `refine_bamboo_gap_contour`
 
-管线源：`fast_contour_pipeline.h/.cpp`（`detect_fixed_strips` / `scale_strip_profile` / `detect_bamboo_gaps` / `place_and_refine_contour`）。
+管线源：`fast_contour_pipeline.h/.cpp`（`detect_fixed_strips` / `scale_strip_profile` / `detect_bamboo_gaps` / `refine_bamboo_gap_contour` / `place_and_refine_contour`）。
 Profile **不在帧路径读 JSON**：改源后重新生成
 
 ```powershell

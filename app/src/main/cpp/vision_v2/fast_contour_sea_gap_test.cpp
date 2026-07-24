@@ -180,6 +180,80 @@ void test_bamboo_gap_no_gap_on_uniform_green() {
     assert(count == 0);
 }
 
+void test_bamboo_gap_contour_refine_shrinks_to_dark() {
+    constexpr int width = 200;
+    constexpr int height = 200;
+    std::vector<std::uint8_t> pixels;
+    // Bright floor everywhere, then a smaller dark hole inside a wider hit box.
+    fill_rgba(pixels, width, height, Rgb{40, 120, 50});
+    const int ground = static_cast<int>(std::lround(0.609F * height));
+    // Wide gap columns so detect_bamboo_gaps fires.
+    const int gap_x0 = 70;
+    const int gap_x1 = 140;
+    for (int y = 0; y < height; ++y) {
+        for (int x = gap_x0; x < gap_x1; ++x) {
+            Rgb c{30, 30, 30};
+            if (y < ground) {
+                c = Rgb{180, 160, 140};
+            }
+            set_rgb(pixels, width, x, y, c);
+        }
+    }
+    // Bright inset band so dark core is narrower than full hit width.
+    const int core_x0 = 90;
+    const int core_x1 = 120;
+    for (int y = ground; y < height; ++y) {
+        for (int x = gap_x0; x < gap_x1; ++x) {
+            if (x < core_x0 || x >= core_x1) {
+                set_rgb(pixels, width, x, y, Rgb{200, 200, 200});
+            }
+        }
+    }
+
+    const RgbaView image{pixels.data(), width, height, width * 4};
+    BambooGapParams params{};
+    std::array<BambooGapHit, 4> hits{};
+    const std::size_t count = detect_bamboo_gaps(image, params, hits);
+    assert(count >= 1);
+
+    std::array<PointF, 4> rect{};
+    assert(place_bamboo_gap_rect(hits[0], rect) == 4);
+    const BoundsF rect_bounds = bounds_from_points(rect);
+    assert(rect_bounds.valid());
+
+    std::array<PointF, 64> contour{};
+    const std::size_t n = refine_bamboo_gap_contour(image, hits[0], contour, 5, 315);
+    assert(n >= 4);
+    const BoundsF refined = bounds_from_points(std::span<const PointF>(contour.data(), n));
+    assert(refined.valid());
+    // Refined dark core should be strictly narrower than the coarse rectangle.
+    assert(refined.right - refined.left < rect_bounds.right - rect_bounds.left - 1.0F);
+    // And should still sit near the synthetic dark core.
+    assert(refined.left >= static_cast<float>(core_x0 - 8));
+    assert(refined.right <= static_cast<float>(core_x1 + 8));
+}
+
+void test_bamboo_gap_contour_fallback_on_empty_dark() {
+    BambooGapHit hit{};
+    hit.found = true;
+    hit.x0 = 10;
+    hit.x1 = 40;
+    hit.top = 50;
+    hit.bottom = 100;
+    hit.score = 0.8F;
+    // Bright image: refine should fall back to rectangle.
+    constexpr int width = 80;
+    constexpr int height = 120;
+    std::vector<std::uint8_t> pixels;
+    fill_rgba(pixels, width, height, Rgb{220, 220, 220});
+    const RgbaView image{pixels.data(), width, height, width * 4};
+    std::array<PointF, 16> out{};
+    const std::size_t n = refine_bamboo_gap_contour(image, hit, out, 2, 100);
+    assert(n == 4);
+    assert(out[0].x == 10.0F);
+    assert(out[2].x == 40.0F);
+}
+
 }  // namespace
 
 int main() {
@@ -188,5 +262,7 @@ int main() {
     test_scale_and_detect_sea_cliff_small();
     test_bamboo_gap_synthetic();
     test_bamboo_gap_no_gap_on_uniform_green();
+    test_bamboo_gap_contour_refine_shrinks_to_dark();
+    test_bamboo_gap_contour_fallback_on_empty_dark();
     return 0;
 }

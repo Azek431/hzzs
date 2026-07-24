@@ -25,6 +25,7 @@
 
 ### 新增
 
+- **FastContourV2 竹影缺口轮廓精修（仍隔离）**：`refine_bamboo_gap_contour` 对 hit 局部暗区做固定容量 Moore 边界跟踪，失败回退矩形；host `sea_gap` 覆盖。不进 APK/CMake。
 - **FastContourV2 海盐 profile + 竹影缺口（仍隔离）**：`generate_sea_profiles_inc.py` → `generated/sea_profiles_v2.h`；`scale_strip_profile` / `detect_bamboo_gaps`；host smoke `sea_gap`。不进 APK/CMake。
 - **检测框一直绘制**：`OverlayConfig.persistBoxes` 默认开；丢检后约 700ms 淡出保留上一帧框（仅 HUD，不参与规划）。设置 → 悬浮窗可关；配置 schema **10**；MCP `set_overlay` / `patch_settings` 支持 `persistBoxes`。
 

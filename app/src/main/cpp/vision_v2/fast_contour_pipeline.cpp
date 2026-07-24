@@ -582,4 +582,198 @@ std::size_t place_bamboo_gap_rect(
     return 4;
 }
 
+namespace {
+
+// Fixed-capacity local crop for gap contour refinement (work-image pixels).
+constexpr int kGapCropMaxW = 256;
+constexpr int kGapCropMaxH = 256;
+constexpr int kGapMaskCap = kGapCropMaxW * kGapCropMaxH;
+constexpr int kGapBoundaryCap = 1024;
+
+[[nodiscard]] int luma_sum(Rgb c) noexcept {
+    return static_cast<int>(c.r) + static_cast<int>(c.g) + static_cast<int>(c.b);
+}
+
+// 8-connected Moore neighborhood, clockwise from east.
+constexpr int kMooreDx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
+constexpr int kMooreDy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+
+[[nodiscard]] int moore_backtrack_dir(int entered_from) noexcept {
+    // entered_from is the direction index used to step INTO current from previous.
+    // Start search from (entered_from + 6) % 8 = reverse-of-entry then +1 CW.
+    return (entered_from + 6) & 7;
+}
+
+}  // namespace
+
+std::size_t refine_bamboo_gap_contour(
+    const RgbaView& image,
+    const BambooGapHit& hit,
+    std::span<PointF> out,
+    int pad,
+    int dark_luma_max) noexcept {
+    if (!image.valid() || !hit.found || out.size() < 4 || pad < 0 || dark_luma_max < 0) {
+        return 0;
+    }
+    if (hit.x1 <= hit.x0 || hit.bottom < hit.top) {
+        return 0;
+    }
+
+    const int xx0 = std::max(0, hit.x0 - pad);
+    const int yy0 = std::max(0, hit.top - pad);
+    const int xx1 = std::min(image.width, hit.x1 + pad);
+    const int yy1 = std::min(image.height, hit.bottom + pad + 1);
+    const int cw = xx1 - xx0;
+    const int ch = yy1 - yy0;
+    if (cw < 4 || ch < 4 || cw > kGapCropMaxW || ch > kGapCropMaxH) {
+        return place_bamboo_gap_rect(hit, out);
+    }
+
+    std::array<std::uint8_t, kGapMaskCap> mask{};
+    // Build dark mask + 3x3 majority close (approx morphology).
+    for (int y = 0; y < ch; ++y) {
+        for (int x = 0; x < cw; ++x) {
+            const Rgb c = image.rgb_at_clamped(xx0 + x, yy0 + y);
+            mask[static_cast<std::size_t>(y * cw + x)] =
+                luma_sum(c) <= dark_luma_max ? 1u : 0u;
+        }
+    }
+    std::array<std::uint8_t, kGapMaskCap> closed{};
+    for (int y = 0; y < ch; ++y) {
+        for (int x = 0; x < cw; ++x) {
+            int dark_n = 0;
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int nx = x + dx;
+                    const int ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= cw || ny >= ch) {
+                        continue;
+                    }
+                    if (mask[static_cast<std::size_t>(ny * cw + nx)]) {
+                        ++dark_n;
+                    }
+                }
+            }
+            // Majority + seed: keep if center dark or neighborhood strong.
+            const bool center = mask[static_cast<std::size_t>(y * cw + x)] != 0;
+            closed[static_cast<std::size_t>(y * cw + x)] =
+                (center || dark_n >= 5) ? 1u : 0u;
+        }
+    }
+
+    // Seed: darkest/most-filled row near top of seed band (inside original hit).
+    const int seed_x0 = std::clamp(hit.x0 - xx0 + 2, 0, cw - 1);
+    const int seed_x1 = std::clamp(hit.x1 - xx0 - 2, seed_x0 + 1, cw);
+    const int seed_y1 = std::clamp(std::min(12, ch), 1, ch);
+    int seed_x = -1;
+    int seed_y = -1;
+    for (int y = 0; y < seed_y1 && seed_x < 0; ++y) {
+        for (int x = seed_x0; x < seed_x1; ++x) {
+            if (closed[static_cast<std::size_t>(y * cw + x)]) {
+                seed_x = x;
+                seed_y = y;
+                break;
+            }
+        }
+    }
+    if (seed_x < 0) {
+        // Fallback: any dark pixel in crop center band.
+        for (int y = 0; y < ch && seed_x < 0; ++y) {
+            for (int x = cw / 4; x < (cw * 3) / 4; ++x) {
+                if (closed[static_cast<std::size_t>(y * cw + x)]) {
+                    seed_x = x;
+                    seed_y = y;
+                    break;
+                }
+            }
+        }
+    }
+    if (seed_x < 0) {
+        return place_bamboo_gap_rect(hit, out);
+    }
+
+    // Climb to top-most dark pixel in this column (outer boundary start).
+    while (seed_y > 0 && closed[static_cast<std::size_t>((seed_y - 1) * cw + seed_x)]) {
+        --seed_y;
+    }
+    // Move left along top edge to a left-most start (stable).
+    while (seed_x > 0 && closed[static_cast<std::size_t>(seed_y * cw + seed_x - 1)]) {
+        --seed_x;
+    }
+
+    auto is_dark = [&](int x, int y) noexcept -> bool {
+        if (x < 0 || y < 0 || x >= cw || y >= ch) {
+            return false;
+        }
+        return closed[static_cast<std::size_t>(y * cw + x)] != 0;
+    };
+
+    // Moore-neighbor boundary trace (Jacob's stopping criterion).
+    std::array<PointF, kGapBoundaryCap> boundary{};
+    std::size_t boundary_n = 0;
+    int cx = seed_x;
+    int cy = seed_y;
+    // Entered as if coming from west → start looking from SE-ish; use dir 0 (E) backtrack.
+    int back_dir = 4;  // came from west (dir 4 is W? wait: 0=E,4=W → entered moving east from W)
+    // Actually seed is left-top; previous fictional point is left of seed → entered with dir 0 (E).
+    back_dir = 0;
+
+    const int start_x = seed_x;
+    const int start_y = seed_y;
+    bool first = true;
+    for (int step = 0; step < kGapBoundaryCap; ++step) {
+        boundary[boundary_n++] = PointF{
+            static_cast<float>(xx0 + cx),
+            static_cast<float>(yy0 + cy)};
+        const int start_search = moore_backtrack_dir(back_dir);
+        bool moved = false;
+        for (int k = 0; k < 8; ++k) {
+            const int dir = (start_search + k) & 7;
+            const int nx = cx + kMooreDx[dir];
+            const int ny = cy + kMooreDy[dir];
+            if (is_dark(nx, ny)) {
+                back_dir = dir;
+                cx = nx;
+                cy = ny;
+                moved = true;
+                break;
+            }
+        }
+        if (!moved) {
+            break;
+        }
+        if (!first && cx == start_x && cy == start_y) {
+            break;
+        }
+        first = false;
+    }
+
+    if (boundary_n < 4) {
+        return place_bamboo_gap_rect(hit, out);
+    }
+
+    // Decimate evenly into out capacity (keep closed feel; drop last if duplicates start).
+    std::size_t usable = boundary_n;
+    if (usable > 1) {
+        const PointF& a = boundary[0];
+        const PointF& b = boundary[usable - 1];
+        if (std::abs(a.x - b.x) < 0.5F && std::abs(a.y - b.y) < 0.5F) {
+            --usable;
+        }
+    }
+    if (usable < 4) {
+        return place_bamboo_gap_rect(hit, out);
+    }
+
+    const std::size_t target = std::min(out.size(), usable);
+    if (target < 4) {
+        return place_bamboo_gap_rect(hit, out);
+    }
+    for (std::size_t i = 0; i < target; ++i) {
+        const std::size_t src = (i * usable) / target;
+        out[i] = boundary[src];
+    }
+    return target;
+}
+
 }  // namespace hzzs::vision_v2

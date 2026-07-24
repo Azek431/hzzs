@@ -164,4 +164,16 @@ struct BambooGapHit {
     const BambooGapHit& hit,
     std::span<PointF> out) noexcept;
 
+// Local dark-region contour for a gap (no OpenCV / no heap).
+// Walks the outer boundary of a dark mask inside the hit box (+pad), then
+// decimates to <= out.size() points. On failure returns place_bamboo_gap_rect.
+// dark_luma_max: (r+g+b) max for "dark open" pixels (default ~315 ≈ 105*3).
+// pad: expand crop around hit in work pixels.
+[[nodiscard]] std::size_t refine_bamboo_gap_contour(
+    const RgbaView& image,
+    const BambooGapHit& hit,
+    std::span<PointF> out,
+    int pad = 5,
+    int dark_luma_max = 315) noexcept;
+
 }  // namespace hzzs::vision_v2
