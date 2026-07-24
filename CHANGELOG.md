@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **MCP 热路径优化**：`current()`/`snapshot()` 命中已解码配置缓存；`tools/list` 按 `toolPolicies` 指纹缓存 JSON；全量 tools/resources JSON 复用；LAN 空列表也 TTL 缓存；连接结束 `publishState` 400ms 节流；`/health` 增加 connections/accessLog/generation；访问日志时间格式 ThreadLocal。协议方法集合常量化。
+- **算法包改内容后可自动 PATCH 并发布**：`bump_algorithm_version.py` + `prepare_algorithm_release.py`；CI `algorithm-release.yml` 对比远端哈希，内容变则升 PATCH、签包写 `release-index`，并把源树 version commit 回 main。同 version 同哈希 skip。
+
+### 修复
+
+- **Shizuku 手势卡顿**：`input` 候选非首选短超时 fail-fast，并缓存本会话可用命令前缀；`GestureArbiter` 按双击按压次数放宽预算，减少 DOUBLE_JUMP 误报「手势回调超时」与 `action_in_flight` 长时间占锁。失败文案统一为 `input 命令失败或超时`。
+
+### 新增
+
+- **FastContourV2 海盐 profile + 竹影缺口（仍隔离）**：`generate_sea_profiles_inc.py` → `generated/sea_profiles_v2.h`；`scale_strip_profile` / `detect_bamboo_gaps`；host smoke `sea_gap`。不进 APK/CMake。
+- **检测框一直绘制**：`OverlayConfig.persistBoxes` 默认开；丢检后约 700ms 淡出保留上一帧框（仅 HUD，不参与规划）。设置 → 悬浮窗可关；配置 schema **10**；MCP `set_overlay` / `patch_settings` 支持 `persistBoxes`。
+
 ### 修复
 
 - **算法库「待启用」假阳性**：未分析时选包不再挂 `PendingActivation`；`bindSettings` 在钉选已与 `resolveActive` 一致且未分析时清除 pending。文档写明热更/激活语义（`KOTLIN.md` / `ALGORITHM_SYSTEM_V1` / `AGENTS`）。
@@ -23,10 +37,11 @@
 
 ### 新增
 
+- **自动复活（控件中心）**：`AutomationConfig.autoReviveEnabled` 默认开，与障碍自动操作独立。分析运行中经无障碍精确匹配「原地复活 / 重新冒险」，点可点祖先 `boundsInScreen` 中心（**不用**找色）；冷却 0.3s。当前布局 dump 按钮无稳定 viewId 时以文案为准。配置 schema **10**。设置「自动操作」页可关。
 - **MCP 访问日志**：进程内 ring（`McpAccessLog`，约 200 条）记录连接/请求摘要（method、工具名、HTTP 状态、耗时、远端、错误码）；**永不**记 Bearer / `authToken` / arguments。设置 → MCP「访问日志」可开关（`accessLogEnabled`，默认开）；工具 `get_mcp_access_log` / `clear_mcp_access_log`；诊断导出含摘要段。配置 schema **9**。
 - **FastContourV2 编译期 profile 表**：`fixed_profiles_v2.json` → `generate_fixed_profiles_inc.py` → `generated/fixed_profiles_v2.h`；host smoke 增加 `profiles` 目标；仍不进 APK/CMake。
 
-- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。binder 在未授权时可点「授权 Shizuku」；已授权优先 `ShellProcessSupport` 写 system/secure + `cmd settings`；否则 `WRITE_SETTINGS` / Root。写入后**回读校验**（system/secure 任一为 1）。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
+- **系统指针位置开关**：开发者选项可开/关系统「指针位置」（`pointer_location`）。可点「授权 Shizuku」；已授权优先 **`/system/bin/settings`**（与手势 `input` 同源，防 Shizuku 子进程 PATH 空）；并试 secure / `cmd settings`；否则 `WRITE_SETTINGS` / Root。写后延迟回读；失败 Snackbar 可附 shell 摘要。诊断含 `system.pointerLocation` / Shizuku 就绪。不进 AppConfig、不静默要权。
 - **MCP 工具级策略**：`McpToolPolicy`（`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED`）按工具覆盖全局权限级。设置页「管理工具策略」弹窗可搜索/筛选；`tools/list` 隐藏禁用工具；审批弹窗展示中文标题 + 准确工具名。自管工具：`get_mcp_status` / `list_mcp_tools` / `set_mcp_enabled` / `set_mcp_permission_level` / `set_mcp_auth` / `set_mcp_tool_policy`（后四者为 HIGH_RISK）。配置 schema **8**（后续访问日志升 **9**）；外部摄入不得放宽策略。
 
 - **手势注入后端可切换**：`GestureBackend`（AUTO / 无障碍 / Shizuku input / Root input）与截图后端正交。AUTO 优先无障碍，条件使用已授权 Shizuku，永不升 Root。设置「自动操作」可选后端；Shell 路径用 dumpsys 前台门控；`input` 完成语义弱于无障碍回执。配置 schema 7；外部摄入禁止升手势风险序。

@@ -368,6 +368,29 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         self.assertIn("secret_shape_ok=true", completed.stdout)
         self.assertIn("autoheal_double_base64=True", completed.stdout)
 
+    def test_bump_algorithm_version_patch(self) -> None:
+        from bump_algorithm_version import bump_pack, bump_semver
+
+        self.assertEqual(bump_semver("0.1.0", "patch"), "0.1.1")
+        self.assertEqual(bump_semver("0.1.9", "minor"), "0.2.0")
+        self.assertEqual(bump_semver("0.2.0-beta.1", "patch"), "0.2.1")
+        source = self.tmpdir / "bump-src"
+        shutil.copytree(OFFICIAL, source)
+        before = json.loads((source / "manifest.json").read_text(encoding="utf-8"))["version"]
+        result = bump_pack(
+            source,
+            level="patch",
+            note="unit test bump",
+            sync_assets=False,
+        )
+        after = json.loads((source / "manifest.json").read_text(encoding="utf-8"))["version"]
+        self.assertEqual(result["old_version"], before)
+        self.assertEqual(result["new_version"], after)
+        self.assertNotEqual(before, after)
+        log = (source / "CHANGELOG.txt").read_text(encoding="utf-8")
+        self.assertIn(after, log)
+        self.assertIn("unit test bump", log)
+
     def test_parse_mirrors_defaults_and_github_only(self) -> None:
         from publish_algorithm_release import _parse_mirrors
 
