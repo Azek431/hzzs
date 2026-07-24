@@ -19,7 +19,8 @@ object AlgorithmTrustAnchors {
      */
     val officialPublicKeyDerB64: List<String> = listOf(
         // hzzs-algorithm-official-1 — Ed25519 SPKI DER
-        "MCowBQYDK2VwAyEA5GCJRq1MTKvh7TJYLR1O/JhjoyXirlhAGwdryYSj17s=",
+        // 与 algorithm-packs/official-public-keys/hzzs-algorithm-official-1.* 同步
+        "MCowBQYDK2VwAyEA4m6ILZkzhIW4nkjlpbNh+ny/tXqJqakVgCty09RBWsA=",
     )
 
     fun hasOfficialAnchors(): Boolean = officialPublicKeyDerB64.isNotEmpty()

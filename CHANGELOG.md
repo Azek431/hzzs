@@ -15,6 +15,7 @@
 
 ### 变更
 
+- **算法官方钥轮换**：`hzzs-algorithm-official-1` 公钥与 `official-public-keys/` 对齐到新 Ed25519 钥；`AlgorithmTrustAnchors` 同步。须用配对私钥配置 GitHub Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64`；已装旧公钥 APK 无法验签新包，需装含新锚的版本。
 - **算法与绘制职责表述对齐**：明确算法（含多点找色）只算 `Detection` 数据，屏幕呈现由通用 Overlay/`displayContour` 完成（数据关联、职责分离）；文档与关键注释同步，避免「算法无绘制」被误解为「屏幕不该有框」。行为未改。
 - **算法 push 自动发布（GitHub）**：`algorithm-release.yml` 在 `main` 上变更 `algorithm-packs/**` 时自动签 `.hzzsalg` 并写入 `release-index`；默认仅 GitHub 镜像（可选 Gitee）。`publish_algorithm_release.py` 支持 `--mirrors github`。手机保持 `algorithm.autoCheck` 即可检查/下载（需配置算法签名 Secrets）。
 - **触发距离运行时自调**：`AutomationConfig.autoAdjustTriggerDistance` 默认开启。分析中若有可行动障碍却因距离略远 `no_candidate`，按 `nearGap` 缓升玩家宽度倍数（冷却与单步上限）；规划成功且间隙偏近时向滑条基线缓降；约 4s 节流写回配置。设置「自动操作」可关；**不**静默开自动操作。
