@@ -21,6 +21,8 @@
 
 ### 修复
 
+- **海盐触发距离默认与校验**：`seaSaltTriggerDistancePlayerWidths` 默认 **5.0**（FIXED 玩家宽约 0.05 时约 0.25 屏宽，对齐酱油较远点击）；`validated`/滑条上限 **0.5–8**，避免旧 1.4 被钳在 4 内仍偏近导致「框已稳、no_candidate」。诊断 skip 文案补 `pw` / `nearGap` / `sc`。
+- **算法库选包对齐赛季**：手动选用仅支持单一赛季的包（如酱油海盐）时自动切到该赛季；卡片标注「不含当前赛季」并 Snackbar 提示。
 - **VS Code 真机/JDWP 任务**：PowerShell `Continue=Stop` 下原生 `adb` 的 stderr 不再误杀任务；无设备/unauthorized/offline 打印排查提示；安装/logcat/转发统一走脚本闸门；JDWP 启动后轮询 PID；诊断导出默认 `local-diagnostics/device`；脚本 UTF-8 BOM 兼容 Windows PowerShell 5.1；避免 StrictMode 下盲读 `0`。
 - **海盐场景置信度与自动操作门闩**：FIXED_RATIO 不再按「玩家失败」压低 `sceneConfidence`；有障碍/找色命中时至少抬到 0.85/0.88，避免稳定检出 `SEA_PIT` 却因 `0.68<0.82` 永不派发手势。
 - **海盐触发距离默认放宽**：`seaSaltTriggerDistancePlayerWidths` 默认 1.4→5.0（对齐酱油较远点按；FIXED 玩家宽约 0.05 时 1.4 倍仅 ~0.07 屏宽会系统性 `no_candidate`）。`no_candidate` 决策串附带 pw/nearGap/sc 便于诊断。
