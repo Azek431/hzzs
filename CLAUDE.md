@@ -273,6 +273,21 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 - `algorithm.autoCheck`：启动时可刷新目录；`autoDownload`：仅在有信任锚时尝试下最新兼容包。
 - **「待启用」**：仅表示引擎尚未切到新钉选（分析中改包或 Catalog pending），**不是**自动操作关。诊断看 `pinned` / activation `id` / `pendingCatalogId`。导航全文：`docs/navigation/KOTLIN.md`、`docs/ALGORITHM_SYSTEM_V1.md`。
 
+### 改包内容后自动升版本并发布（CI / 本机）
+
+顺序仍遵守：**先验证再 bump**（L0 校验在 prepare 内；单测在 workflow 前置）。
+
+| 方式 | 命令 / 触发 |
+| --- | --- |
+| **CI（推荐）** | push `main` 且改动 `algorithm-packs/**` 或 `tools/algorithm/**` → `algorithm-release.yml` 跑 `prepare_algorithm_release.py --auto-bump --execute`：内容与远端同 `(id,version)` 哈希不同则 **PATCH+1** 并发布，再 **commit 源树 version** 回 main |
+| **本机** | `python tools/algorithm/bump_algorithm_version.py --source algorithm-packs/<id>` 只升版本；或 `prepare_algorithm_release.py --auto-bump --execute` 对比远端后升版并上传 |
+| **仅升版本** | `bump_algorithm_version.py --level patch\|minor\|major`；默认同步 `assets/algorithms/<id>/` |
+
+- 默认 **PATCH**；大改需人工 `--level minor/major` 或先手改 manifest。  
+- 同 version 同 sha → **skip**（不重复发）。  
+- 同 version 不同 sha 且未开 auto-bump → fail（保护不可变目录）。  
+- 私钥仍只走 Secret / 本机路径；**禁止**把私钥贴进聊天或入库。
+
 ### 版本号与通道（算法包语义化版本）
 
 算法包版本写在 **`algorithm-packs/<id>/manifest.json` 的 `version`**，与 **App 的 `0.1.0` / versionCode 相互独立**。  
