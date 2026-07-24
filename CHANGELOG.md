@@ -11,6 +11,7 @@
 
 ### 变更
 
+- **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 `false`（同机 RikkaHub 免填 Header）；开启鉴权时使用配置中持久化的 `authToken`，**不**在每次服务启动轮换，仅设置页「轮换 Token」主动更换。外部摄入不得静默关鉴权或改写令牌；Bearer 前缀比较大小写不敏感。
 - **算法运行轨迹日志**：新增 `AlgorithmRuntimeTrace`（最近 32 帧 ring，无像素）。帧循环写入识别摘要 / 检测明细 / Tracker 稳定帧 / 自动操作决策与 dispatch 结果；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`，仅在开发者开启且 `logLevel≤DEBUG` 时输出，并按「状态变化或每 12 帧」节流。诊断导出附带算法 pipeline 快照与最近帧轨迹。
 - **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 幂等预装到 `InstalledAlgorithmStore`（不经外装 Ed25519；不覆盖已装用户包）。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。
 - **官方算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 写入 `hzzs-algorithm-official-1` 公钥（DER base64）；公钥副本在 `algorithm-packs/official-public-keys/`。私钥仍仅 CI/本机。
@@ -32,7 +33,7 @@
 
 ### 变更
 
-- **MCP 对接 RikkaHub / 免填请求头**：对照 [RikkaHub](https://github.com/rikkahub/rikkahub)（Streamable HTTP + 可选 `headers` / 导入 JSON）与 [MCP 2025-06-18 传输](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)——`initialize` 后会话立即就绪；可选关闭 `requireAuth`（默认仍开 Bearer）；设置页一键「复制 URL / 复制 RikkaHub 导入 JSON / 复制 Token」；同机推荐 Streamable HTTP 而非 SSE。
+- **MCP 对接 RikkaHub / 免填请求头**：对照 [RikkaHub](https://github.com/rikkahub/rikkahub)（Streamable HTTP + 可选 `headers` / 导入 JSON）与 [MCP 2025-06-18 传输](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)——`initialize` 后会话立即就绪；`requireAuth` 默认可关（现默认 false）；设置页一键「复制 URL / 复制 RikkaHub 导入 JSON / 复制 Token」；同机推荐 Streamable HTTP 而非 SSE。
 - **MCP 同机连通性**：强制绑定 IPv4 `127.0.0.1`（避免 `getLoopbackAddress()` 的 `::1` 与客户端 `127.0.0.1` 不通）；HTTP keep-alive 多请求；路径 `/mcp/` 归一；Origin 接受字面量 `null`；OPTIONS 预检；GET `/mcp` 仍 405 表示无 SSE。
 - **MCP Streamable HTTP 重构与安全加固**：拆分 `mcp` 包为传输 / 协议 / 会话 / 工具目录 / 动作仲裁 / UI 桥；`Mcp-Session-Id`、通知 HTTP 202、连接并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批。JVM 契约测试 `McpProtocolTest`；门禁扫描整个 `mcp/` 包。
 
@@ -99,7 +100,7 @@
 - **悬浮窗默认样式**：首装 / 缺字段回退由「极简」改为 **调试 HUD**（`OverlayStyle.DEBUG_HUD`）；已保存配置与主题包内显式 `style` 不变。
 - 协作文档：`CLAUDE.md` / `AGENTS.md` 增加代理记忆与经验流程；改完须同步 `README.md`（**保留 Star History**）与 `CLAUDE.md`；新增 `docs/AGENT_EXPERIENCE.md` 短条摘录。
 - 开发者页面对 `frameRateLimit` 明确标注「保留字段、完成驱动下暂不消费」；诊断摘要与设置/关于页共用完整导出。
-- **构建性能**：Hilt 从 legacy-kapt 迁至 **KSP**（去掉 stub 双编译）；`gradle.properties` 按 low-memory / 4 线程再收紧 Daemon/Kotlin 堆与 `workers.max=2`；`tools/dev/repair_gradle_kotlin_cache.ps1` 修复 IC 损坏；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
+- **构建性能**：Hilt 从 legacy-kapt 迁至 **KSP**（去掉 stub 双编译）；`gradle.properties` 按低内存开发机 + IDE 共存再收紧 Daemon/Kotlin 堆与 `workers.max=2`；`tools/dev/repair_gradle_kotlin_cache.ps1` 修复 IC 损坏；`gradle.local.properties` 支持本机缩 ABI；CMake 增加 `-fno-rtti` / 段回收与 Release `-O3`；关闭 Jetifier/无用 buildFeatures。
 - 默认赛季集中到 `AppConfig.DEFAULT_SELECTED_SCENE`；代理/产品文档改为引用该常量，不再写死赛季名。
 - 运行时不再按 `developer.frameRateLimit` / 默认 60 FPS 主动丢帧；吞吐由完成驱动 + 源端 CONFLATED 决定（开发者配置字段仍保留，暂不消费）。
 - 默认赛季改为 **海盐客厅**（`AppConfig.DEFAULT_SELECTED_SCENE`，产品默认永远指向当前最新赛季）。

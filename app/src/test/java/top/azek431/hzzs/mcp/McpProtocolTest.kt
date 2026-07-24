@@ -38,10 +38,21 @@ class McpProtocolTest {
     fun bearerConstantTimeMatch() {
         val token = "aabbccddeeff00112233445566778899"
         assertTrue(constantTimeBearerMatches("Bearer $token", token))
+        assertTrue(constantTimeBearerMatches("bearer $token", token)) // RFC 7235 scheme 大小写不敏感
         assertFalse(constantTimeBearerMatches("Bearer wrong", token))
         assertFalse(constantTimeBearerMatches(token, token)) // 缺少 Bearer 前缀
         assertFalse(constantTimeBearerMatches(null, token))
         assertFalse(constantTimeBearerMatches("Bearer $token", token + "x"))
+        assertFalse(constantTimeBearerMatches("Bearer $token", ""))
+    }
+
+    @Test
+    fun generateMcpAuthTokenIsStableHex() {
+        val a = generateMcpAuthToken()
+        val b = generateMcpAuthToken()
+        assertEquals(48, a.length)
+        assertTrue(a.all { it in '0'..'9' || it in 'a'..'f' })
+        assertTrue(a != b)
     }
 
     @Test

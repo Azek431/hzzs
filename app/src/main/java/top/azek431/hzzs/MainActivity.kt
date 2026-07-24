@@ -264,11 +264,14 @@ private fun HzzsRoot(
         config.mcp.port,
         config.mcp.permissionLevel,
         config.mcp.requireAuth,
+        config.mcp.authToken,
     ) {
         syncMcpService(
             context = context,
             enabled = config.mcp.enabled,
-            fingerprint = "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}:${config.mcp.requireAuth}",
+            fingerprint =
+                "${config.mcp.enabled}:${config.mcp.port}:${config.mcp.permissionLevel}:" +
+                    "${config.mcp.requireAuth}:${config.mcp.authToken}",
         )
     }
     LaunchedEffect(Unit) {

@@ -387,7 +387,12 @@ fun AppConfig.validated(): AppConfig {
             port = mcp.port.coerceIn(1024, 65535),
             // 安全不变量：禁止绑定非 loopback。
             bindLocalhostOnly = true,
-            // requireAuth 可由用户关闭以便同机客户端免填 Header。
+            // requireAuth 默认 false；authToken 只保留安全 hex，长度上限防止异常配置。
+            authToken = mcp.authToken
+                .trim()
+                .filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+                .lowercase()
+                .take(128),
         ),
         developer = developer.copy(
             frameRateLimit = developer.frameRateLimit.coerceIn(1, 120),
@@ -438,8 +443,9 @@ fun AppConfig.hardenedForExternalIngest(baseline: AppConfig): AppConfig {
         // 权限级只允许降级或持平，禁止外部自提。
         permissionLevel = minPermission(base.mcp.permissionLevel, candidate.mcp.permissionLevel),
         allowDebugFrames = candidate.mcp.allowDebugFrames && base.mcp.allowDebugFrames,
-        // 外部不得静默关闭鉴权。
+        // 外部不得静默关闭鉴权；也不得改写/清空配对令牌。
         requireAuth = candidate.mcp.requireAuth || base.mcp.requireAuth,
+        authToken = base.mcp.authToken,
         bindLocalhostOnly = true,
     )
 
@@ -566,6 +572,8 @@ object ConfigJson {
                 put("bindLocalhostOnly", safe.mcp.bindLocalhostOnly)
                 put("allowDebugFrames", safe.mcp.allowDebugFrames)
                 put("requireAuth", safe.mcp.requireAuth)
+                // 配对令牌仅存 DataStore；导出 JSON 同样写入（用户备份），日志路径须脱敏。
+                put("authToken", safe.mcp.authToken)
             })
             put("developer", JSONObject().apply {
                 put("enabled", safe.developer.enabled)
@@ -699,8 +707,10 @@ object ConfigJson {
                 port = mcp?.optInt("port", defaults.mcp.port) ?: defaults.mcp.port,
                 bindLocalhostOnly = mcp?.optBoolean("bindLocalhostOnly", true) ?: true,
                 allowDebugFrames = mcp?.optBoolean("allowDebugFrames", false) ?: false,
-                // 缺字段时保持默认 true（旧配置安全默认）；仅显式 false 才关闭。
-                requireAuth = mcp?.optBoolean("requireAuth", true) ?: true,
+                // 缺字段跟随产品默认 false（同机免鉴权）；已落盘的 true/false 原样读取。
+                requireAuth = mcp?.optBoolean("requireAuth", defaults.mcp.requireAuth)
+                    ?: defaults.mcp.requireAuth,
+                authToken = mcp?.optString("authToken")?.takeIf { it.isNotBlank() }.orEmpty(),
             ),
             developer = defaults.developer.copy(
                 enabled = developer?.optBoolean("enabled", false) ?: false,

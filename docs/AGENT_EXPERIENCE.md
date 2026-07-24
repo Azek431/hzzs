@@ -3,13 +3,17 @@
 跨会话可复用的**工程经验**（短条）。硬约束仍以根目录 `CLAUDE.md` 与源码为准。  
 会话级偏好写入 Claude 项目记忆；此处只记对仓库协作者也有用的条目。
 
+## 2026-07-24
+
+- **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
+
 ## 2026-07-23
 
-- **MCP 同机连 RikkaHub**：服务必须绑 IPv4 `127.0.0.1`（`getLoopbackAddress()` 常为 `::1`，与 URL 中的 `127.0.0.1` 在部分 ROM 不通）；传输选 Streamable HTTP 不要 SSE；可关 `requireAuth` 免 Header；`initialize` 后会话即就绪；HTTP keep-alive 多请求 + `/mcp/` 路径归一；GET `/mcp`→405 合法。
+- **MCP 同机连 RikkaHub**：服务必须绑 IPv4 `127.0.0.1`（`getLoopbackAddress()` 常为 `::1`，与 URL 中的 `127.0.0.1` 在部分 ROM 不通）；传输选 Streamable HTTP 不要 SSE；默认免鉴权（可开 `requireAuth` + 持久 Token）；`initialize` 后会话即就绪；HTTP keep-alive 多请求 + `/mcp/` 路径归一；GET `/mcp`→405 合法。
 - **算法调参看 DEBUG 帧轨迹**：`AlgorithmRuntimeTrace` 保留最近 32 帧（无像素）；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`。须开发者开启且 `logLevel=DEBUG`；状态变化或约每 12 帧写一条。诊断导出含 pipeline + 最近帧。INFO 下仍只有会话 start/stop。
 - **编程版八荣八耻已装入 CLAUDE**：根 `CLAUDE.md` 与用户级 `~/.claude/CLAUDE.md` 的 `Core Philosophy`；第 7 条原文「为菜」= 诚实无知、不装懂。硬约束全文仍以 `CLAUDE.md` 为准。
 - **host 构建脚本无 +x**：Windows 检出常使 `tools/vision/*.sh` 为 `100644`；CI 上 `python subprocess([str(build_host.sh)])` 会 `PermissionError`。应 `bash script.sh` / `powershell -File script.ps1`，统一走 `tools/vision/host_build.py`。
-- **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认 `-Xmx2G`；low-memory profile 上多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。救急：`tools/dev/repair_serena.ps1 -ClearCache`（可选 `-AlsoStopFwcd`）。工具仍不可用时回退 Read/Grep，勿阻塞交付。
+- **Serena / 多 KLS 内存（已固化）**：Kotlin LS 默认大堆；多 Claude/Serena + VS Code fwcd + JetBrains 会叠堆 → `initialize` 超时 / 工具不进会话 / Gradle daemon 被 stop。永久配置：`.serena/project.yml` 与 `~/.serena/serena_config.yml` 的 `ls_specific_settings.kotlin.jvm_options=-Xmx768m`；项目默认仅 `languages: [kotlin]`；`.vscode` 关 `kotlin.languageServer.enabled`（fwcd）。救急：`tools/dev/repair_serena.ps1 -ClearCache`（可选 `-AlsoStopFwcd`）。工具仍不可用时回退 Read/Grep，勿阻塞交付。
 
 ## 2026-07-22
 
@@ -28,8 +32,8 @@
 - **日常开发分支**：默认在 `main` 直接迭代（用户偏好）；除非明确要求再开 feature 分支。
 - **文档同步**：硬约束/对外能力变更时同一任务更新 `CLAUDE.md` 与 `README.md`；**禁止改动 Star History**；也不得无故删除徽章、免责、版本表、构建/签名、MCP 边界、仓库链与许可证等关键信息。
 - **本机测试**：全量 unit test 可能 OOM；优先相关单测 + compile，再视情况 assemble。
-- **构建慢/IC 损坏**：本机 low-memory 且 VS Code+Claude+Serena+Kotlin LS 常驻时可用内存常 <1GiB；症状为 `shrunk-classpath-snapshot.bin` FileNotFound、IC 回退全量、daemon stop command。先 `gradlew --stop` + `tools/dev/repair_gradle_kotlin_cache.ps1`；Hilt 已迁 KSP（勿回 legacy-kapt）；日常 `hzzs.native.abis=arm64-v8a` + `CMAKE_BUILD_PARALLEL_LEVEL=2`。
-- **配置缓存被用户级关掉**：`GRADLE_USER_HOME`（如 `%GRADLE_USER_HOME%\gradle.properties`）里的 `org.gradle.configuration-cache=false` 会覆盖项目 true，导致「几乎全 UP-TO-DATE 的 installDebug」仍要数分钟（冷配置+装机）。应删该行；仓库 wrapper 默认 `-D` 强制开回。
+- **构建慢/IC 损坏**：VS Code+Claude+Serena+Kotlin LS 常驻且空闲内存不足时易换页；症状为 `shrunk-classpath-snapshot.bin` FileNotFound、IC 回退全量、daemon stop command。先 `gradlew --stop` + `tools/dev/repair_gradle_kotlin_cache.ps1`；Hilt 已迁 KSP（勿回 legacy-kapt）；日常 `hzzs.native.abis=arm64-v8a` + `CMAKE_BUILD_PARALLEL_LEVEL=2`。
+- **配置缓存被用户级关掉**：`%GRADLE_USER_HOME%\gradle.properties` 里的 `org.gradle.configuration-cache=false` 会覆盖项目 true，导致「几乎全 UP-TO-DATE 的 installDebug」仍要数分钟（冷配置+装机）。应删该行；仓库 wrapper 默认 `-D` 强制开回。
 - **Motion**：`animationScale`/`reduceMotion`/系统 animator 经 `HzzsMotionPolicy` 统一消费；禁止用动画倍率当业务超时。
 - **几何**：动作与 Tracker 只读 `Detection.bounds`；`displayContour` 仅 HUD。
 - **截图后端 API 门闩**：`ACCESSIBILITY` 仅 API 30+；Android 10 上强制/选择无障碍须经 `resolveEffectiveCaptureBackend` fail-soft 回退 MediaProjection/用户主配置，避免启动即 Failed。诊断字段 `capture.requested/effective/fallbackReason` 可对账。

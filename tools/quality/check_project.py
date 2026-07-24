@@ -146,6 +146,8 @@ for token in (
     "MAX_CONCURRENT_CONNECTIONS",
     "additionalProperties",
     "requireAuth",
+    "authToken",
+    "generateMcpAuthToken",
 ):
     check(token in mcp, f"mcp:{token}", "MCP control/safety invariant missing")
 check("0.0.0.0" not in mcp, "mcp:no-lan-listener", "MCP must remain loopback-only")

@@ -271,7 +271,10 @@
     <string name="mcp_enable_switch">启用 MCP</string>
     <string name="mcp_enable_subtitle">仅监听本机 127.0.0.1，不开放局域网。</string>
     <string name="mcp_require_auth_switch">要求 Bearer 鉴权</string>
-    <string name="mcp_require_auth_subtitle">关闭后同机客户端可不填请求头（仍仅 loopback）；开启则需 Authorization 头。</string>
+    <string name="mcp_require_auth_subtitle">默认关闭，同机客户端可不填请求头（仍仅 loopback）。开启后使用持久化 Token，不会在每次启动时自动更换。</string>
+    <string name="mcp_rotate_token">轮换 Token</string>
+    <string name="mcp_rotated_token">已轮换配对令牌；请重新复制并更新客户端配置</string>
+    <string name="mcp_token_stable_hint">Token 已持久化，重启服务不会自动更换；仅点「轮换 Token」才会作废旧令牌。</string>
     <string name="mcp_section_permission_title">权限级别</string>
     <string name="mcp_section_permission_desc">决定 AI 可以在多大程度上修改你的应用设置。</string>
     <string name="mcp_current">当前</string>
@@ -283,9 +286,9 @@
     <string name="mcp_how_to_connect_desc">推荐同机使用（HZZS 与 RikkaHub 都装在手机上）：</string>
     <string name="mcp_step_1">1. 传输类型选「Streamable HTTP」，不要选 SSE。</string>
     <string name="mcp_step_2">2. 点「复制 RikkaHub 导入 JSON」→ RikkaHub 设置 → MCP → 导入粘贴；或只复制 URL 手填。</string>
-    <string name="mcp_step_3">3. 若开启了 Bearer 鉴权，在自定义 Header 加 Authorization（导入 JSON 已含）；免鉴权则不用填任何请求头。</string>
+    <string name="mcp_step_3">3. 默认免鉴权，直接导入即可；若开启了 Bearer 鉴权，导入 JSON 已含 Authorization，或自行加自定义 Header。轮换 Token 后须重新导入/复制。</string>
     <string name="mcp_security_title">安全提示</string>
-    <string name="mcp_security_body">MCP 仅保存后生效，且只绑定本机回环。免鉴权方便同机 App，但切勿用 adb reverse/forward 暴露到不可信电脑。Token 与导入 JSON 勿写入日志或公开渠道。</string>
+    <string name="mcp_security_body">MCP 即时生效，且只绑定本机回环。默认免鉴权方便同机 App，但切勿用 adb reverse/forward 暴露到不可信电脑。开启鉴权后 Token 持久保存，仅主动轮换才会更换；Token 与导入 JSON 勿写入日志或公开渠道。</string>
 
     <!-- 开发者设置页 -->
     <string name="dev_section_enable_title">开发者选项</string>

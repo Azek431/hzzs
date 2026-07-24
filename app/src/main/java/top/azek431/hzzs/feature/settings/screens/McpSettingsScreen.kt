@@ -49,6 +49,7 @@ import top.azek431.hzzs.feature.settings.components.SettingsStatusChip
 import top.azek431.hzzs.feature.settings.components.SettingsSwitchRow
 import top.azek431.hzzs.feature.settings.components.SettingsWarningCard
 import top.azek431.hzzs.mcp.McpServerState
+import top.azek431.hzzs.mcp.generateMcpAuthToken
 
 /**
  * MCP 本地服务设置页。
@@ -72,10 +73,23 @@ fun McpSettingsScreen(
     val copiedJson = stringResource(R.string.mcp_copied_rikkahub_json)
     val copiedToken = stringResource(R.string.mcp_copied_token)
     val copiedAll = stringResource(R.string.mcp_copied_connection_info)
+    val rotatedTokenMsg = stringResource(R.string.mcp_rotated_token)
 
     fun copy(label: String, text: String, okMsg: String) {
         val ok = ClipboardHelper.copyText(context, label, text)
         onMessage(if (ok) okMsg else copyFailedMsg)
+    }
+
+    fun ensureAuthToken(current: top.azek431.hzzs.core.model.AppConfig): String {
+        val existing = current.mcp.authToken
+        if (existing.isNotBlank()) return existing
+        return generateMcpAuthToken()
+    }
+
+    fun rotateAuthToken() {
+        val next = generateMcpAuthToken()
+        update { it.copy(mcp = it.mcp.copy(requireAuth = true, authToken = next)) }
+        onMessage(rotatedTokenMsg)
     }
 
     LazyColumn(
@@ -245,9 +259,36 @@ fun McpSettingsScreen(
                     subtitle = stringResource(R.string.mcp_require_auth_subtitle),
                     checked = config.mcp.requireAuth,
                     onCheckedChange = { value ->
-                        update { it.copy(mcp = it.mcp.copy(requireAuth = value)) }
+                        if (value) {
+                            val token = ensureAuthToken(config)
+                            update {
+                                it.copy(
+                                    mcp = it.mcp.copy(
+                                        requireAuth = true,
+                                        authToken = it.mcp.authToken.ifBlank { token },
+                                    ),
+                                )
+                            }
+                        } else {
+                            update { it.copy(mcp = it.mcp.copy(requireAuth = false)) }
+                        }
                     },
                 )
+                if (config.mcp.requireAuth) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.mcp_token_stable_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { rotateAuthToken() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.mcp_rotate_token))
+                    }
+                }
             }
         }
 

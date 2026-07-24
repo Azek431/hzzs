@@ -5,6 +5,7 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.net.URI
 import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * 最小 HTTP/1.1 读写与鉴权辅助。
@@ -129,11 +130,16 @@ fun isAllowedLoopbackOrigin(origin: String?): Boolean {
 /**
  * 校验 HTTP Authorization 头中的 Bearer 与服务端令牌。
  * 使用恒时比较，避免通过时序泄漏首个不匹配字符。
+ * 前缀按 RFC 7235 做大小写不敏感匹配（`Bearer` / `bearer`）。
  */
 fun constantTimeBearerMatches(authorization: String?, token: String): Boolean {
-    val provided = authorization?.removePrefix("Bearer ")
-        ?.takeIf { authorization.startsWith("Bearer ") }
-        ?: return false
+    if (authorization.isNullOrBlank() || token.isBlank()) return false
+    val scheme = "bearer "
+    if (authorization.length < scheme.length) return false
+    val prefix = authorization.substring(0, scheme.length)
+    if (!prefix.equals(scheme, ignoreCase = true)) return false
+    val provided = authorization.substring(scheme.length).trim()
+    if (provided.isEmpty()) return false
     val a = provided.toByteArray(Charsets.UTF_8)
     val b = token.toByteArray(Charsets.UTF_8)
     if (a.size != b.size) {
@@ -142,6 +148,16 @@ fun constantTimeBearerMatches(authorization: String?, token: String): Boolean {
         return false
     }
     return MessageDigest.isEqual(a, b)
+}
+
+/**
+ * 生成 MCP 配对令牌（48 hex 字符 / 24 字节）。
+ * 仅在首次启用鉴权或用户主动轮换时调用；**不得**在每次服务启动时调用。
+ */
+fun generateMcpAuthToken(): String {
+    val bytes = ByteArray(24)
+    SecureRandom().nextBytes(bytes)
+    return bytes.joinToString("") { "%02x".format(it) }
 }
 
 fun writeHttp(

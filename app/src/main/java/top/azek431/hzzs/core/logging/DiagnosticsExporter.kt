@@ -95,6 +95,9 @@ object DiagnosticsExporter {
             appendLine("automation.enabled=${config.automation.enabled}")
             appendLine("mcp.enabled=${config.mcp.enabled}")
             appendLine("mcp.permission=${config.mcp.permissionLevel.name}")
+            appendLine("mcp.requireAuth=${config.mcp.requireAuth}")
+            // 只写是否有 token，不写明文。
+            appendLine("mcp.authTokenConfigured=${config.mcp.authToken.isNotBlank()}")
             appendLine("mcp.allowDebugFrames=${config.mcp.allowDebugFrames}")
             appendLine("developer.enabled=${config.developer.enabled}")
             appendLine(

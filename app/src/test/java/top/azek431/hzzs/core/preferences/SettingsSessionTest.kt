@@ -149,6 +149,7 @@ class SettingsSessionTest {
                 enabled = true,
                 permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.TRUSTED_SESSION,
                 requireAuth = true,
+                authToken = "aabbccddeeff00112233445566778899aabbccddeeff0011",
             ),
         )
         val malicious = AppConfig(
@@ -157,6 +158,7 @@ class SettingsSessionTest {
                 permissionLevel = top.azek431.hzzs.core.model.McpPermissionLevel.FULL_ACCESS,
                 allowDebugFrames = true,
                 requireAuth = false,
+                authToken = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
             ),
         )
         val hardened = malicious.hardenedForExternalIngest(baseline)
@@ -166,6 +168,28 @@ class SettingsSessionTest {
         )
         assertFalse(hardened.mcp.allowDebugFrames)
         assertTrue(hardened.mcp.requireAuth)
+        // 外部不得改写配对令牌
+        assertEquals(baseline.mcp.authToken, hardened.mcp.authToken)
+    }
+
+    @Test
+    fun mcpDefaultIsNoAuthAndTokenPersistedInJson() {
+        val defaults = AppConfig()
+        assertFalse(defaults.mcp.requireAuth)
+        assertEquals("", defaults.mcp.authToken)
+        val withToken = defaults.copy(
+            mcp = defaults.mcp.copy(
+                requireAuth = true,
+                authToken = "aabbccddeeff00112233445566778899aabbccddeeff0011",
+            ),
+        )
+        val encoded = ConfigJson.encode(withToken)
+        val decoded = ConfigJson.decode(encoded)
+        assertTrue(decoded.mcp.requireAuth)
+        assertEquals(withToken.mcp.authToken, decoded.mcp.authToken)
+        // 缺字段回退产品默认（免鉴权）
+        val legacy = ConfigJson.decode("""{"schemaVersion":6,"mcp":{"enabled":false,"port":8765}}""")
+        assertFalse(legacy.mcp.requireAuth)
     }
 
     @Test

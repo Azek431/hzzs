@@ -100,13 +100,13 @@ SettingsHome + 分类子页（appearance / algorithm / capture / overlay / autom
 AlgorithmCatalogController（即时检查/下载）→ 算法页 UI
 ```
 
-设置**即时落盘**（无模块级「保存并应用」草稿）。手动开自动操作等危险项先确认再写；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开自动操作或自提 MCP 权限 / 关闭 `requireAuth`。
+设置**即时落盘**（无模块级「保存并应用」草稿）。手动开自动操作等危险项先确认再写；导入 / MCP 外部摄入经 `hardenedForExternalIngest`，不得静默开自动操作或自提 MCP 权限 / 关闭 `requireAuth` / 改写 `authToken`。
 
 ## 安全不变量（修改时必须保持）
 
 1. `CaptureBackend.AUTO` **只**走 MediaProjection，不探测 Root/Shizuku/无障碍。
 2. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
-3. MCP 仅 loopback + 随机 Bearer；默认写操作需确认。
+3. MCP 仅 loopback；默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认。
 4. 主题包声明式 JSON，无脚本/远程资源。
 5. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
 6. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。

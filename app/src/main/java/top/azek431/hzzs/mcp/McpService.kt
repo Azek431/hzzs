@@ -24,7 +24,6 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -35,7 +34,7 @@ import javax.inject.Inject
  * 安全边界：
  * - 只绑定 `127.0.0.1`（不用 [InetAddress.getLoopbackAddress] 的 ::1，避免 RikkaHub 填 127.0.0.1 连不上）。
  * - 不监听局域网；本机可通过 ADB `forward` 暴露给电脑上的 Claude Code / RikkaHub / OperitAI。
- * - 可选 Bearer（默认开）；Origin 仅允许空 / "null" / loopback。
+ * - 可选 Bearer（默认关；开启时用配置中持久化 authToken，不在每次启动轮换）；Origin 仅允许空 / "null" / loopback。
  * - 会话内存化 + generation；TRUSTED_SESSION 不跨服务生命周期持久化。
  * - 工具调用仍受 [McpActionRegistry] 四级权限约束，不能绕过 Android 系统权限对话框。
  *
@@ -111,7 +110,23 @@ class McpForegroundService : Service() {
         @Suppress("UNUSED_VARIABLE")
         val loopbackGate = InetAddress.getLoopbackAddress()
         val requireAuth = config.requireAuth
-        val token = if (requireAuth) randomToken() else ""
+        // 配对令牌持久化：不在每次启动轮换；缺省时生成一次并写回配置。
+        val token = when {
+            !requireAuth -> ""
+            config.authToken.isNotBlank() -> config.authToken
+            else -> {
+                val generated = generateMcpAuthToken()
+                runCatching {
+                    val snap = settings.snapshot()
+                    settings.save(
+                        snap.copy(mcp = snap.mcp.copy(authToken = generated)),
+                    )
+                }.onFailure {
+                    AppLog.e("mcp", "persist auth token failed: ${it.message}", it)
+                }
+                generated
+            }
+        }
         try {
             // 强制 IPv4 127.0.0.1：Android 上 getLoopbackAddress() 常为 ::1，
             // 而 RikkaHub / 文档 URL 使用 127.0.0.1，二者在部分 ROM 上不互通。
@@ -445,12 +460,6 @@ class McpForegroundService : Service() {
         .setContentText(message)
         .setOngoing(true)
         .build()
-
-    private fun randomToken(): String {
-        val bytes = ByteArray(24)
-        SecureRandom().nextBytes(bytes)
-        return bytes.joinToString("") { "%02x".format(it) }
-    }
 
     companion object {
         const val ACTION_START = "top.azek431.hzzs.mcp.START"

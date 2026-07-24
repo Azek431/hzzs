@@ -11,8 +11,8 @@ data class McpServerState(
     val running: Boolean = false,
     val port: Int = 0,
     val token: String = "",
-    /** 当前服务是否强制 Bearer；与配置一致，便于 UI 生成可粘贴片段。 */
-    val requireAuth: Boolean = true,
+    /** 当前服务是否强制 Bearer；与配置一致，便于 UI 生成可粘贴片段。默认与产品一致为关。 */
+    val requireAuth: Boolean = false,
     val lastError: String? = null,
     val activeSessions: Int = 0,
 ) {

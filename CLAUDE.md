@@ -26,7 +26,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 - 自动操作默认关闭；配置导入与迁移**不得**静默开启。
 - 自动操作需要当前免责声明版本；不再要求会话级 arm，启用后运行中直接规划手势。
-- MCP 默认「每次确认」、只监听 loopback、随机 Bearer Token；完整访问也不能绕过系统权限对话框。
+- MCP 默认「每次确认」、只监听 loopback；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
 - Root、Shizuku、无障碍能力只能由用户**明确选择**。
 - 配置、主题包、更新清单、截图尺寸与 native 输入必须有边界校验。
 - 不得提交密钥、签名库、`local.properties`、真实环境变量、本地备份或生成二进制。
@@ -87,7 +87,8 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 - Hilt 使用 **KSP**（`com.google.devtools.ksp` + `ksp(libs.hilt.compiler)`），**不要**再引入 `legacy-kapt` / `kapt`。
 - 日常真机 Debug：`gradle.local.properties` 的 `hzzs.native.abis=arm64-v8a`；`gradlew`/`gradlew.bat` 默认 `CMAKE_BUILD_PARALLEL_LEVEL=2`；CI/发布保持默认完整 ABI。
 - **勿**在 `%GRADLE_USER_HOME%\gradle.properties` 写 `org.gradle.configuration-cache=false`（会覆盖项目 true）。wrapper 默认 `-D` 强制开回；调试关闭设 `HZZS_ALLOW_USER_CC_OVERRIDE=1`。
-- Kotlin IC 损坏（`*classpath-snapshot*.bin`）或 daemon 被 stop：`tools/dev/repair_gradle_kotlin_cache.ps1`；全量 unit test 在 low-memory profile + IDE 下可能 OOM，优先缩范围。
+- Kotlin IC 损坏（`*classpath-snapshot*.bin`）或 daemon 被 stop：`tools/dev/repair_gradle_kotlin_cache.ps1`；全量 unit test 在 IDE + 语言服务常驻时可能 OOM，优先缩范围。
+- 文档 / 提交 / 对话**勿**写入具体本机硬件、绝对盘符路径、IP、设备序列号等隐私画像；构建说明用「低内存开发机」「与 IDE 共存」等通用表述。已推送 Git 历史默认不改写；危险操作须先备份（见用户级 CLAUDE 隐私与危险 Git 条）。
 
 ## Git 提交规范
 
