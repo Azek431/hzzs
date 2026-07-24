@@ -27,11 +27,44 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 - 自动操作默认关闭；配置导入与迁移**不得**静默开启。
 - 自动操作需要当前免责声明版本；不再要求会话级 arm，启用后运行中直接规划手势。
-- MCP 默认「每次确认」、只监听 loopback；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
+- MCP 默认「每次确认」、默认只监听 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）；默认免 Bearer，开启鉴权时使用持久化 Token（仅主动轮换，不在每次启动更换）；完整访问也不能绕过系统权限对话框。
 - MCP 工具级策略 `mcp.toolPolicies`：`DEFAULT` / `ALWAYS_ASK` / `ALLOW_WHEN_TRUSTED` / `DISABLED` 覆盖全局权限；禁用工具不进 `tools/list`；外部摄入不得放宽策略；自管工具（`set_mcp_*`）为 HIGH_RISK。
 - Root、Shizuku、无障碍能力只能由用户**明确选择**。
 - 配置、主题包、更新清单、截图尺寸与 native 输入必须有边界校验。
 - 不得提交密钥、签名库、`local.properties`、真实环境变量、本地备份或生成二进制。
+
+## 代理用 MCP 自测 / 排障（推荐）
+
+真机已装 debug、MCP 已启用时，**应用 MCP 做运行时自检与调参验证**，不要只改代码不连设备。
+
+### 连接（优先 ADB，最稳）
+
+```powershell
+adb devices
+adb forward tcp:18765 tcp:8765
+# Claude Code / 本机 HTTP 客户端：
+# url = http://127.0.0.1:18765/mcp   type = http（Claude Code）或 streamable_http（RikkaHub）
+```
+
+- 手机设置 → MCP：**启用**；默认免鉴权即可。
+- **Wi‑Fi 直连** `http://<lan-ip>:8765/mcp` 仅当已开「允许局域网」且路由**无 AP 隔离**时可用；很多环境（含华为/荣耀 + 有线 PC）会超时——**失败时改 ADB，不要当协议坏了**。
+- 可选主机常含 `127.0.0.1`（同机/ADB）以及蜂窝 `10.x`、Tailscale `100.x`、Wi‑Fi `192.168.x`；**同网电脑优先 `192.168.x`**，勿误用蜂窝 IP。
+- 进程若在后台 **D（disk sleep）** 导致超时：先 `am start` / 用户点亮 HZZS 再测。
+
+### 自测顺序（只读优先）
+
+1. `initialize` → 记下 `Mcp-Session-Id`（若有）→ `notifications/initialized`
+2. `tools/list` / `resources/list`
+3. **排障只读**：`get_status`、`get_runtime_snapshot`、`get_automation_gates`、`get_settings`（脱敏 Token）
+4. 调参：`patch_settings` / `set_scene` / `set_threshold` 等；写操作受权限级与 `toolPolicies`，**ASK** 时须用户在手机确认
+5. 运行时：`start_analysis` / `stop_analysis` / `restart_analysis` / `cancel_actions`（HIGH_RISK 或需确认时勿连点）
+
+### 硬规则
+
+- **不得**把 Bearer / 完整 `authToken` 写入仓库、提交说明或对话日志。
+- 外部导入 / `save_settings` 仍经 `hardenedForExternalIngest`；不得静默开自动操作或局域网。
+- 改 MCP 绑定/端口会重启服务、清空会话；旧 Session 下读工具应可降级，勿只报会话错误就停。
+- 门禁：`python tools/quality/check_project.py` 校验 MCP 安全字面量（含 LAN 门控）。
 
 ## 坐标、线程与所有权
 
