@@ -3,6 +3,7 @@ package top.azek431.hzzs
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import top.azek431.hzzs.core.logging.AppLog
+import top.azek431.hzzs.service.vision.createVisionAnalysisChannel
 
 /**
  * 进程级 Application 入口：启用 Hilt，并安装诊断用未捕获异常钩子。
@@ -17,6 +18,7 @@ class HzzsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         installUncaughtHandler()
+        createVisionAnalysisChannel(this)
         AppLog.i("app", "HzzsApplication onCreate")
     }
 

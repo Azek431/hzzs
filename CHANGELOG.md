@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **切后台「不识别」根因**：诊断显示分析仍在跑，但手势被 `package_gate` 拦、海盐 `scene_conf=0.58` 假阴性、OEM 后台杀进程。本次：① HUD DEBUG 直接展示 `lastAutomationDecision` 中文（`humanizeAutomationDecision` 抽到 `core/model` 复用）；② 海盐 `player_ok` 系数 `0.55→0.72`，`minimumSceneConfidence` 默认 `0.82→0.55`；③ 新增 `VisionAnalysisForegroundService`（`dataSync`）分析启停绑定前台通知，降低后台被杀概率。
+
 ### 变更
 
 - **算法排查日志加深**：`AlgorithmRuntimeTrace` 增加决策 ring（64 条）与 `calc` 行；诊断导出「Algorithm decisions」节；`dispatch_begin/ok/fail` 带坐标/前台包/shell tries；`package_gate` 打印白名单；`no_candidate`/plan 写触发距离与 gap。便于对照「有框无操作 / 超时 / 钉选 builtin」。

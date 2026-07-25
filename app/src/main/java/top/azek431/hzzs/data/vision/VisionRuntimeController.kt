@@ -1,6 +1,8 @@
 package top.azek431.hzzs.data.vision
 
+import android.content.Context
 import android.os.SystemClock
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +65,7 @@ import top.azek431.hzzs.service.capture.CaptureState
 import top.azek431.hzzs.service.capture.FrameSource
 import top.azek431.hzzs.service.capture.FrameSourceFactory
 import top.azek431.hzzs.service.overlay.OverlayController
+import top.azek431.hzzs.service.vision.VisionAnalysisForegroundService
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -92,6 +95,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class VisionRuntimeController @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
     private val settingsRepository: SettingsRepository,
     private val sources: FrameSourceFactory,
     private val engine: VisionEngine,
@@ -275,6 +279,8 @@ class VisionRuntimeController @Inject constructor(
                         startedBackend = backend,
                     )
                 }
+                // 分析启停绑定前台服务，降低 OEM 后台杀进程概率；仅 alive 期间提优先级。
+                VisionAnalysisForegroundService.start(appContext)
             } catch (error: Throwable) {
                 activeSource = null
                 runCatching { source.stop() }
@@ -312,6 +318,7 @@ class VisionRuntimeController @Inject constructor(
         overlay.hide()
         resetPipeline()
         algorithmCatalog.setAnalysisRunning(false)
+        VisionAnalysisForegroundService.stop(appContext)
         mutableStatus.value = mutableStatus.value.copy(
             running = false,
             captureReady = false,
@@ -507,7 +514,10 @@ class VisionRuntimeController @Inject constructor(
                         failureCount++
                         cancelActions()
                         val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
-                        val overlayState = publishOverlay(config.overlay, result, showGrid, force = true)
+                        val overlayState = publishOverlay(
+                            config.overlay, result, showGrid, force = true,
+                            runtimeStatus = mutableStatus.value,
+                        )
                         mutableStatus.update {
                             it.copy(
                                 overlayVisible = overlayState.visible,
@@ -538,7 +548,10 @@ class VisionRuntimeController @Inject constructor(
                     )
                     mutableLatestResult.value = trackedResult
                     val showGrid = config.developer.enabled && config.developer.showCoordinateGrid
-                    val overlayState = publishOverlay(config.overlay, trackedResult, showGrid, force = false)
+                    val overlayState = publishOverlay(
+                        config.overlay, trackedResult, showGrid, force = false,
+                        runtimeStatus = mutableStatus.value,
+                    )
                     mutableStatus.update {
                         it.copy(
                             overlayVisible = overlayState.visible,
@@ -1161,12 +1174,16 @@ class VisionRuntimeController @Inject constructor(
     /**
      * 发布悬浮窗；非 force 时用签名跳过无变化刷新。
      * 悬浮窗绘制侧负责将归一化坐标转为像素。
+     *
+     * @param runtimeStatus 当前运行时状态；透传给 HUD 用于展示「前台包 / 自动操作门控原因」，
+     *   null 时 HUD 不绘制该附加行。
      */
     private suspend fun publishOverlay(
         overlayConfig: top.azek431.hzzs.core.model.OverlayConfig,
         result: VisionResult?,
         showCoordinateGrid: Boolean,
         force: Boolean,
+        runtimeStatus: RuntimeStatus? = null,
     ): OverlayPublishState {
         val signature = overlaySignature(overlayConfig, result, showCoordinateGrid)
         val blockedNeedsRetry = mutableStatus.value.overlayBlockReason.let { reason ->
@@ -1181,6 +1198,7 @@ class VisionRuntimeController @Inject constructor(
             config = overlayConfig,
             result = result,
             showCoordinateGrid = showCoordinateGrid,
+            runtimeStatus = runtimeStatus,
         )
         lastOverlaySignature = signature
         return OverlayPublishState(showResult.visible, showResult.blockReason)

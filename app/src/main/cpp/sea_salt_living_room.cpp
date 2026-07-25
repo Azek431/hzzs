@@ -310,10 +310,12 @@ Result analyze_sea_salt(
 
     const int player_right = player_component.right;
     // FIXED_RATIO 时 detect_player=false，固定框即合法玩家参考，不得按「玩家失败」压 conf。
-    // 否则场景置信度常停在 ~0.68，被自动操作 minimumSceneConfidence(0.82) 系统性挡住。
+    // 否则场景置信度常停在 ~0.58，被自动操作 minimumSceneConfidence(0.55~0.82) 系统性挡住。
+    // 把 player_ok 系数从 0.55 抬到 0.72：弱地面 + FIXED_RATIO 时
+    // 0.35*0.1 + 0.72 + 0 ≈ 0.755，配合下方 obstacle_n>0 的 0.85 兜底可稳过门控。
     const bool player_ok = player_found || !detect_player;
     out.scene_confidence = clamp01(
-        .35f * best_score + (player_ok ? .55f : .25f) + (weak_ground ? 0.0f : .10f));
+        .35f * best_score + (player_ok ? .72f : .25f) + (weak_ground ? 0.0f : .10f));
 
     const int x_stride = adaptive_stride(f, work_width);
     int hint = 300;

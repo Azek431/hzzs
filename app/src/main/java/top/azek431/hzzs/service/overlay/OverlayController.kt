@@ -24,8 +24,10 @@ import top.azek431.hzzs.core.model.OverlayConfig
 import top.azek431.hzzs.core.model.OverlayOrientation
 import top.azek431.hzzs.core.model.OverlayStyle
 import top.azek431.hzzs.core.model.OverlayTheme
+import top.azek431.hzzs.core.model.RuntimeStatus
 import top.azek431.hzzs.core.model.detectionKindDisplayName
 import top.azek431.hzzs.core.model.displayName
+import top.azek431.hzzs.core.model.humanizeAutomationDecision
 import top.azek431.hzzs.domain.vision.Detection
 import top.azek431.hzzs.domain.vision.VisionResult
 import javax.inject.Inject
@@ -65,12 +67,15 @@ class OverlayController @Inject constructor(
     /**
      * 显示或更新双层悬浮窗。
      *
+     * @param runtimeStatus 当前运行时状态；仅用于 HUD 展示「前台包 / 自动操作门控原因」，
+     *   null 时不绘制该附加行（不影响检测框层）。
      * @return [OverlayShowResult]：是否至少一层挂载成功，以及失败原因（若有）。
      */
     suspend fun show(
         config: OverlayConfig,
         result: VisionResult?,
         showCoordinateGrid: Boolean = false,
+        runtimeStatus: RuntimeStatus? = null,
     ): OverlayShowResult =
         withContext(Dispatchers.Main.immediate) {
             if (!config.enabled) {
@@ -121,7 +126,7 @@ class OverlayController @Inject constructor(
             }
 
             passThroughView?.update(config, result, showCoordinateGrid, OverlayLayerRole.PASS_THROUGH_BOXES)
-            hudView?.update(config, result, showCoordinateGrid, OverlayLayerRole.INTERACTIVE_HUD)
+            hudView?.update(config, result, showCoordinateGrid, OverlayLayerRole.INTERACTIVE_HUD, runtimeStatus)
             OverlayShowResult(visible = true, blockReason = null)
         }
 
@@ -323,6 +328,7 @@ private class VisionOverlayView(
     private var config = OverlayConfig()
     private var result: VisionResult? = null
     private var showCoordinateGrid = false
+    private var runtimeStatus: RuntimeStatus? = null
     private var lastContentSignature = Int.MIN_VALUE
     private var lastRawX = 0f
     private var lastRawY = 0f
@@ -335,6 +341,7 @@ private class VisionOverlayView(
         result: VisionResult?,
         showCoordinateGrid: Boolean,
         role: OverlayLayerRole,
+        runtimeStatus: RuntimeStatus? = null,
     ) {
         check(role == this.role)
         val sizeMayChange = this.config.style != config.style ||
@@ -352,6 +359,7 @@ private class VisionOverlayView(
         this.config = config
         this.result = result
         this.showCoordinateGrid = showCoordinateGrid
+        this.runtimeStatus = runtimeStatus
         if (sizeMayChange) requestLayout()
         if (!unchanged) {
             lastContentSignature = contentSignature
@@ -652,6 +660,13 @@ private class VisionOverlayView(
             "耗时 ${"%.2f".format(result.processingNanos / 1_000_000.0)} ms",
         )
         result.error?.takeIf(String::isNotBlank)?.let { parts += "错误 ${it.take(48)}" }
+        val status = runtimeStatus
+        if (status != null && status.running) {
+            val decision = status.lastAutomationDecision
+            if (!decision.isNullOrBlank()) {
+                parts += humanizeAutomationDecision(decision)
+            }
+        }
         drawHudPanel(canvas, oriented(parts), accent, scale)
     }
 

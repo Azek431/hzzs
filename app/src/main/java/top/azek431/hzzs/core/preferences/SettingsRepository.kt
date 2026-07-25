@@ -470,7 +470,7 @@ fun AppConfig.validated(): AppConfig {
             restrictPackages = automation.restrictPackages,
             allowedPackages = packages,
             maxActionsPerSecond = automation.maxActionsPerSecond.coerceIn(1, 8),
-            minimumSceneConfidence = automation.minimumSceneConfidence.finiteOr(0.82f).coerceIn(0.5f, 1f),
+            minimumSceneConfidence = automation.minimumSceneConfidence.finiteOr(0.55f).coerceIn(0.5f, 1f),
             retryLimit = automation.retryLimit.coerceIn(0, 2),
             disclaimerAcceptedVersion = automation.disclaimerAcceptedVersion.coerceAtLeast(0),
             bambooExperimentalAutoAction = automation.bambooExperimentalAutoAction,
@@ -944,7 +944,7 @@ object ConfigJson {
                 allowedPackages = automation?.optJSONArray("allowedPackages").toStringSet()
                     .ifEmpty { defaults.automation.allowedPackages },
                 maxActionsPerSecond = automation?.optInt("maxActionsPerSecond", 4) ?: 4,
-                minimumSceneConfidence = automation?.optDouble("minimumSceneConfidence", 0.82)?.toFloat() ?: 0.82f,
+                minimumSceneConfidence = automation?.optDouble("minimumSceneConfidence", 0.55)?.toFloat() ?: 0.55f,
                 retryLimit = automation?.optInt("retryLimit", 1) ?: 1,
                 sweetTriggerDistancePlayerWidths =
                     automation?.optDouble("sweetTriggerDistancePlayerWidths", 1.50)?.toFloat() ?: 1.50f,

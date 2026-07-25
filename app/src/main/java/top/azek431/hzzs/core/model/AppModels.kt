@@ -315,7 +315,14 @@ data class AutomationConfig(
      */
     val allowedPackages: Set<String> = SUGGESTED_PACKAGES,
     val maxActionsPerSecond: Int = 4,
-    val minimumSceneConfidence: Float = 0.82f,
+    /**
+     * 最低场景置信度门控。
+     *
+     * 默认 0.55：海盐客厅在弱地面 + FIXED_RATIO 玩家框时 scene_conf 常在 ~0.58，
+     * 若设 0.82 会系统性挡住（「看得见框却从不点」）；其它场景 conf 本就 ≥0.85，
+     * 0.55 不会造成空点（无候选时本就进不了 plan）。设置页滑条 0.5…1.0 可收紧。
+     */
+    val minimumSceneConfidence: Float = 0.55f,
     val retryLimit: Int = 1,
     /** 相对玩家宽度的触发距离（甜甜圈，对齐历史 main 规划器）。 */
     val sweetTriggerDistancePlayerWidths: Float = 1.50f,
