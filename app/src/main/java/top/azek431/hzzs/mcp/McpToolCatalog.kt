@@ -448,7 +448,7 @@ object McpToolCatalog {
         ),
         McpToolDescriptor(
             name = "set_developer_options",
-            description = "调整开发者项 logLevel/saveDebugFrames/forceCaptureBackend（需已解锁）",
+            description = "调整开发者项日志/诊断/调试帧等（需已解锁）",
             risk = McpToolRisk.WRITE,
             inputSchema = objSchema(
                 properties = JSONObject()
@@ -462,6 +462,10 @@ object McpToolCatalog {
                     .put("saveDebugFrames", boolProp("保存调试帧"))
                     .put("showCoordinateGrid", boolProp("坐标网格"))
                     .put("frameRateLimit", intProp("保留字段"))
+                    .put("logRingCapacity", intProp("AppLog ring 容量 [500,3000]"))
+                    .put("enableStageTiming", boolProp("阶段耗时细分"))
+                    .put("enableMulticolorDiagnostic", boolProp("多点找色诊断"))
+                    .put("enableFilterTrace", boolProp("过滤原因追踪"))
                     .put("forceCaptureBackend", stringProp("强制截图后端；空字符串清除"))
                     .put("persist", boolProp("是否永久保存（默认 true）")),
             ),

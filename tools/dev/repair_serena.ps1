@@ -179,6 +179,16 @@ if (Test-Path $projectYml) {
     else {
         Write-Host "  WARN project.yml missing -Xmx768m in ls_specific_settings.kotlin" -ForegroundColor Yellow
     }
+    # jvm_options 必须是字符串；YAML 列表会炸 env（TypeError: environment can only contain strings）。
+    if ($text -match '(?m)^\s*jvm_options:\s*$') {
+        $next = ($text -split "`n" | Select-Object -Skip ($text.Substring(0, $text.IndexOf('`njvm_options:')).Split('`n').Count) | Select-Object -First 3) -join '`n'
+        if ($next -match '^\s*-') {
+            Write-Host "  FAIL project.yml jvm_options is a YAML list -- must be a single string" -ForegroundColor Red
+        }
+    }
+    elseif ($text -match '(?m)^\s*jvm_options:\s*.+') {
+        Write-Host "  OK project.yml jvm_options is a string"
+    }
     if ($text -match '(?m)^\s*-\s*cpp\s*$') {
         Write-Host "  NOTE languages still includes cpp (extra LS memory)" -ForegroundColor Yellow
     }

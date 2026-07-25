@@ -36,14 +36,23 @@ Result analyze_sea_salt(const FrameView& frame, int work_width, int enabled_kind
 /**
  * 使用当前 AlgorithmRuntime 快照分析。
  * @param scene 0=甜品，1=竹影，2=海盐（与 Kotlin SceneId 序一致）
+ * @param enable_stage_timing 开发者阶段耗时；关则 timing 全 0
+ * @param enable_multicolor_diag 开发者多点找色明细；关则不采样
+ * @param enable_filter_trace 开发者过滤原因；关则 filtered_out 为空
  */
 Result analyze(int scene, const FrameView& frame, int work_width, int enabled_kind_mask,
-               bool detect_player, float fixed_player_x_ratio);
+               bool detect_player, float fixed_player_x_ratio,
+               bool enable_stage_timing = false,
+               bool enable_multicolor_diag = false,
+               bool enable_filter_trace = false);
 
 /** 显式传入 profile（宿主机 / 单测，不依赖进程内 runtime 单例）。 */
 Result analyze_with_profile(int scene, const FrameView& frame, int work_width, int enabled_kind_mask,
                             bool detect_player, float fixed_player_x_ratio,
-                            const AlgorithmRuntimeProfileNative& profile);
+                            const AlgorithmRuntimeProfileNative& profile,
+                            bool enable_stage_timing = false,
+                            bool enable_multicolor_diag = false,
+                            bool enable_filter_trace = false);
 
 /** 清空引擎瞬时状态（不含算法 profile）。 */
 void reset();

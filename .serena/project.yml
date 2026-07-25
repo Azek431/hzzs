@@ -59,14 +59,10 @@ ignore_all_files_in_gitignore: true
 # Maps the language key to the options.
 # Have a look at the docstring of the constructors of the LS implementations within solidlsp (e.g., for C# or PHP) to see which options are available.
 # No documentation on options means no options are available.
-# Kotlin LS 默认堆过大时会与 Gradle/IDE 抢内存；收紧到 768m。
+# Kotlin LS 默认堆过大时会与 Gradle/IDE 抢内存；jvm_options 必须是**字符串**（YAML 列表会炸 env）。
 ls_specific_settings:
   kotlin:
-    jvm_options:
-    - -Xmx768m
-    - -XX:MaxMetaspaceSize=256m
-    - -XX:+UseG1GC
-    - -XX:+UseStringDeduplication
+    jvm_options: "-Xmx768m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:+UseStringDeduplication"
 
 # list of additional workspace folder paths for cross-package reference support (e.g. in monorepos).
 # Paths can be absolute or relative to the project root.

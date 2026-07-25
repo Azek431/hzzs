@@ -510,6 +510,12 @@ class VisionRuntimeController @Inject constructor(
                     if (frame.sequence <= lastSequence || generation.get() != token) return@use
                     lastSequence = frame.sequence
                     debugFrameRecorder.offer(frame, config.developer)
+                    val diagnostics = top.azek431.hzzs.domain.vision.VisionDiagnostics(
+                        enableStageTiming = config.developer.enabled && config.developer.enableStageTiming,
+                        enableMulticolorDiagnostic =
+                            config.developer.enabled && config.developer.enableMulticolorDiagnostic,
+                        enableFilterTrace = config.developer.enabled && config.developer.enableFilterTrace,
+                    )
                     val result = engine.analyze(
                         VisionFrame(
                             FrameMeta(
@@ -522,6 +528,7 @@ class VisionRuntimeController @Inject constructor(
                         ),
                         sceneConfig,
                         config.viewport,
+                        diagnostics,
                     )
                     // 分析可能耗时；返回后若会话已停，丢弃结果避免污染新会话。
                     if (generation.get() != token) return@use

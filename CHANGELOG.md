@@ -17,6 +17,7 @@
 - **过滤原因追踪开关 `developer.enableFilterTrace`**：被剔除检测写入 `VisionResult.filteredOut`，供算法包作者定位误过滤；日志 `algo.filter` tag。
 - **AppLog 缓冲容量可调**：`developer.logRingCapacity` [500, 3000]，默认 800，在开发者选项「日志级别」分组用滑块调节（重启丢失）。
 - **诊断导出新增算法诊断开关字段与 tag 说明**。
+- **诊断开关完整接线**：`ConfigJson` 持久化 `logRingCapacity` 与三诊断开关；`VisionDiagnostics` 经帧循环 → `NativeVision.analyze` → JNI → C++ 门控采样；MCP `set_developer_options` / `patch_settings` 可改。
 
 ### 变更
 

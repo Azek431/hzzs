@@ -24,6 +24,7 @@ import top.azek431.hzzs.domain.vision.MulticolorDiag
 import top.azek431.hzzs.domain.vision.NormalizedRect
 import top.azek431.hzzs.domain.vision.ObjectKind
 import top.azek431.hzzs.domain.vision.StageTiming
+import top.azek431.hzzs.domain.vision.VisionDiagnostics
 import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
@@ -64,6 +65,7 @@ class NativeVisionEngine @Inject constructor(
         frame: VisionFrame,
         config: SceneConfig,
         viewport: ViewportConfig,
+        diagnostics: VisionDiagnostics,
     ): VisionResult = withContext(Dispatchers.Default) {
         val activation = algorithmProvider.current().also(lastActivation::set)
         if (!NativeVision.isAvailable) {
@@ -94,6 +96,9 @@ class NativeVisionEngine @Inject constructor(
                     viewportTop = viewport.top,
                     viewportRight = viewport.right,
                     viewportBottom = viewport.bottom,
+                    enableStageTiming = diagnostics.enableStageTiming,
+                    enableMulticolorDiagnostic = diagnostics.enableMulticolorDiagnostic,
+                    enableFilterTrace = diagnostics.enableFilterTrace,
                 )
             }
         }

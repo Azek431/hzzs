@@ -116,6 +116,9 @@ object NativeVision {
         viewportTop: Float,
         viewportRight: Float,
         viewportBottom: Float,
+        enableStageTiming: Boolean = false,
+        enableMulticolorDiagnostic: Boolean = false,
+        enableFilterTrace: Boolean = false,
     ): Result
 
     /**

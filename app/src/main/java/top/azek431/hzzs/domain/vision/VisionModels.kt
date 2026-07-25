@@ -271,6 +271,22 @@ data class VisionResult(
 }
 
 /**
+ * 单帧算法诊断开关（默认全关）。
+ *
+ * 由开发者选项驱动；关闭时 Native 不采样 timing / 多点找色明细 / filtered_out，
+ * 避免热路径常开开销。
+ */
+data class VisionDiagnostics(
+    val enableStageTiming: Boolean = false,
+    val enableMulticolorDiagnostic: Boolean = false,
+    val enableFilterTrace: Boolean = false,
+) {
+    companion object {
+        val OFF = VisionDiagnostics()
+    }
+}
+
+/**
  * 视觉引擎契约。
  *
  * 实现通常为 JNI 适配器。算法切换必须在帧循环外的安全点完成，
@@ -281,11 +297,13 @@ interface VisionEngine {
      * 分析一帧。
      *
      * 线程：由运行时在后台调度；实现应自行串行化 JNI 调用。
+     * @param diagnostics 开发者诊断开关；默认 [VisionDiagnostics.OFF]
      */
     suspend fun analyze(
         frame: VisionFrame,
         config: SceneConfig,
         viewport: ViewportConfig,
+        diagnostics: VisionDiagnostics = VisionDiagnostics.OFF,
     ): VisionResult
 
     /**

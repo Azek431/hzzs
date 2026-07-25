@@ -545,7 +545,10 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
     jfloat viewport_left,
     jfloat viewport_top,
     jfloat viewport_right,
-    jfloat viewport_bottom) {
+    jfloat viewport_bottom,
+    jboolean enable_stage_timing,
+    jboolean enable_multicolor_diag,
+    jboolean enable_filter_trace) {
     std::lock_guard<std::mutex> analysis_lock(g_analysis_mutex);
     // 与 Kotlin SceneId.ordinal / hzzs::kSceneCount 对齐：0 甜品 / 1 竹影 / 2 海盐。
     // 历史双赛季闸门 `scene > 1` 会把海盐永久打成 invalid scene。
@@ -578,9 +581,13 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
         return error_result(env, "viewport size overflow");
     }
 
+    const bool stage_on = enable_stage_timing == JNI_TRUE;
+    const bool mc_on = enable_multicolor_diag == JNI_TRUE;
+    const bool filter_on = enable_filter_trace == JNI_TRUE;
+
     try {
         hzzs::Result result;
-        int64_t t_prep_start = now_ns();
+        int64_t t_prep_start = stage_on ? now_ns() : 0;
         {
             CriticalIntArray pinned(env, pixels);
             if (!pinned.valid() || clear_if_exception(env)) {
@@ -589,7 +596,7 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
 
             const bool full_viewport = crop_left == 0 && crop_top == 0 &&
                                        crop_width == width && crop_height == height;
-            int64_t t_prep_mid = now_ns();
+            int64_t t_prep_mid = stage_on ? now_ns() : 0;
             if (full_viewport) {
                 result = hzzs::analyze(
                     scene,
@@ -597,7 +604,10 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
                     work_width,
                     enabled_kind_mask,
                     detect_player == JNI_TRUE,
-                    fixed_player_x_ratio);
+                    fixed_player_x_ratio,
+                    stage_on,
+                    mc_on,
+                    filter_on);
             } else {
                 std::vector<uint32_t> buffer(static_cast<std::size_t>(crop_size));
                 for (int row = 0; row < crop_height; ++row) {
@@ -615,10 +625,15 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
                     work_width,
                     enabled_kind_mask,
                     detect_player == JNI_TRUE,
-                    fixed_player_x_ratio);
+                    fixed_player_x_ratio,
+                    stage_on,
+                    mc_on,
+                    filter_on);
             }
-            int64_t t_prep_end = now_ns();
-            result.timing.jni_prep_ns = (t_prep_mid - t_prep_start) + (t_prep_end - t_prep_mid);
+            if (stage_on) {
+                int64_t t_prep_end = now_ns();
+                result.timing.jni_prep_ns = (t_prep_mid - t_prep_start) + (t_prep_end - t_prep_mid);
+            }
         }
         return make_result(env, result);
     } catch (const std::bad_alloc&) {

@@ -519,6 +519,9 @@ fun AppConfig.validated(): AppConfig {
             nativeBenchmarkIterations = developer.nativeBenchmarkIterations.coerceIn(10, 10_000),
             logLevel = developer.logLevel,
             logRingCapacity = developer.logRingCapacity.coerceIn(500, 3000),
+            enableStageTiming = developer.enableStageTiming,
+            enableMulticolorDiagnostic = developer.enableMulticolorDiagnostic,
+            enableFilterTrace = developer.enableFilterTrace,
         ),
         onboarding = onboarding.copy(
             acceptedDisclaimerVersion = onboarding.acceptedDisclaimerVersion.coerceAtLeast(0),
@@ -830,6 +833,10 @@ object ConfigJson {
                 put("frameRateLimit", safe.developer.frameRateLimit)
                 put("nativeBenchmarkIterations", safe.developer.nativeBenchmarkIterations)
                 put("logLevel", safe.developer.logLevel.name)
+                put("logRingCapacity", safe.developer.logRingCapacity)
+                put("enableStageTiming", safe.developer.enableStageTiming)
+                put("enableMulticolorDiagnostic", safe.developer.enableMulticolorDiagnostic)
+                put("enableFilterTrace", safe.developer.enableFilterTrace)
             })
             put("onboarding", JSONObject().apply {
                 put("completed", safe.onboarding.completed)
@@ -987,6 +994,16 @@ object ConfigJson {
                     ?.takeIf(String::isNotBlank)
                     ?.let { raw -> AppLogLevel.entries.firstOrNull { it.name == raw } }
                     ?: AppLogLevel.INFO,
+                logRingCapacity = developer?.optInt(
+                    "logRingCapacity",
+                    defaults.developer.logRingCapacity,
+                ) ?: defaults.developer.logRingCapacity,
+                enableStageTiming = developer?.optBoolean("enableStageTiming", false) ?: false,
+                enableMulticolorDiagnostic = developer?.optBoolean(
+                    "enableMulticolorDiagnostic",
+                    false,
+                ) ?: false,
+                enableFilterTrace = developer?.optBoolean("enableFilterTrace", false) ?: false,
             ),
             onboarding = defaults.onboarding.copy(
                 completed = onboarding?.optBoolean("completed", false) ?: false,

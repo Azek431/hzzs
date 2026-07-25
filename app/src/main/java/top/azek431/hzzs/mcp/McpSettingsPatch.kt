@@ -121,25 +121,13 @@ object McpSettingsPatch {
         )
         "developer.saveDebugFrames" -> cfg.copy(developer = cfg.developer.copy(saveDebugFrames = !cfg.developer.saveDebugFrames))
         "developer.showCoordinateGrid" -> cfg.copy(developer = cfg.developer.copy(showCoordinateGrid = !cfg.developer.showCoordinateGrid))
+        "developer.enableStageTiming" -> cfg.copy(developer = cfg.developer.copy(enableStageTiming = !cfg.developer.enableStageTiming))
+        "developer.enableMulticolorDiagnostic" -> cfg.copy(
+            developer = cfg.developer.copy(enableMulticolorDiagnostic = !cfg.developer.enableMulticolorDiagnostic),
+        )
+        "developer.enableFilterTrace" -> cfg.copy(developer = cfg.developer.copy(enableFilterTrace = !cfg.developer.enableFilterTrace))
         "mcp.accessLogEnabled" -> cfg.copy(mcp = cfg.mcp.copy(accessLogEnabled = !cfg.mcp.accessLogEnabled))
         else -> throw IllegalArgumentException("toggle 仅支持已知布尔路径：$path")
-    }
-
-    private fun rawToStringSet(cfg: AppConfig, path: String, raw: Any?): Set<ObstacleKind> = when (path) {
-        "automation.allowedPackages" -> when (raw) {
-            is org.json.JSONArray -> (0 until raw.length()).mapNotNull { raw.optString(it)?.trim()?.takeIf { it.isNotBlank() } }.toSet()
-            is String -> raw.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }.toSet()
-            else -> error("$path 须为字符串数组或逗号分隔字符串")
-        }.let { stringSet ->
-            // allowedPackages 是包名（字符串集合），直接返回
-            @Suppress("UNCHECKED_CAST")
-            stringSet as Set<ObstacleKind>
-        }
-        else -> obstacleSet(raw, path).let { obstacleSet ->
-            // disabledObstacles 是障碍枚举集合
-            @Suppress("UNCHECKED_CAST")
-            obstacleSet as Set<ObstacleKind>
-        }
     }
 
     private fun applyOne(cfg: AppConfig, path: String, raw: Any?): AppConfig {
@@ -252,6 +240,18 @@ object McpSettingsPatch {
                 }
                 cfg.copy(developer = cfg.developer.copy(forceCaptureBackend = backend))
             }
+            "developer.logRingCapacity" -> cfg.copy(
+                developer = cfg.developer.copy(logRingCapacity = int(raw, path)),
+            )
+            "developer.enableStageTiming" -> cfg.copy(
+                developer = cfg.developer.copy(enableStageTiming = bool(raw, path)),
+            )
+            "developer.enableMulticolorDiagnostic" -> cfg.copy(
+                developer = cfg.developer.copy(enableMulticolorDiagnostic = bool(raw, path)),
+            )
+            "developer.enableFilterTrace" -> cfg.copy(
+                developer = cfg.developer.copy(enableFilterTrace = bool(raw, path)),
+            )
             "mcp.allowDebugFrames" -> cfg.copy(
                 mcp = cfg.mcp.copy(allowDebugFrames = bool(raw, path)),
             )

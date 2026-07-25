@@ -371,7 +371,10 @@ Result analyze_with_profile(
     int enabled_kind_mask,
     bool detect_player,
     float fixed_player_x_ratio,
-    const AlgorithmRuntimeProfileNative& profile) {
+    const AlgorithmRuntimeProfileNative& profile,
+    bool enable_stage_timing,
+    bool enable_multicolor_diag,
+    bool enable_filter_trace) {
     if (!valid_frame(frame)) {
         Result invalid;
         invalid.error = "invalid frame";
@@ -396,12 +399,13 @@ Result analyze_with_profile(
 
     const SceneAlgorithmParamsNative& params = profile.scenes[scene];
     StageTiming timing;
-    int64_t t0 = now_ns();
+    int64_t t0 = enable_stage_timing ? now_ns() : 0;
     Result result;
     if (scene == 2) {
+        // 仅诊断开关开时采样多点找色明细；关则传 nullptr，避免每帧分配。
         result = analyze_sea_salt(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,
-            &result.multicolor_diag);
+            enable_multicolor_diag ? &result.multicolor_diag : nullptr);
     } else if (scene == 1) {
         result = analyze_bamboo_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
@@ -409,11 +413,11 @@ Result analyze_with_profile(
         result = analyze_sweet_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
     }
-    int64_t t1 = now_ns();
-    timing.detect_ns = t1 - t0;
+    int64_t t1 = enable_stage_timing ? now_ns() : 0;
+    if (enable_stage_timing) timing.detect_ns = t1 - t0;
 
     // 后过滤：用 profile 尺寸窗剔除明显越界障碍（viewport 归一化），不改核心扫描。
-    // 被剔除项写入 result.filtered_out，供开发者诊断（默认仅占位，不参与规划）。
+    // 被剔除项在 enable_filter_trace 时写入 result.filtered_out，供开发者诊断（不参与规划）。
     if (result.error.empty()) {
         std::vector<Detection> kept;
         for (const auto& d : result.detections) {
@@ -483,34 +487,45 @@ Result analyze_with_profile(
                     break;
             }
             if (drop) {
-                result.filtered_out.push_back(FilteredDetection{d, reason});
+                if (enable_filter_trace) {
+                    result.filtered_out.push_back(FilteredDetection{d, reason});
+                }
             } else {
                 kept.push_back(d);
             }
         }
         result.detections = std::move(kept);
     }
-    int64_t t2 = now_ns();
-    timing.postfilter_ns = t2 - t1;
+    int64_t t2 = enable_stage_timing ? now_ns() : 0;
+    if (enable_stage_timing) timing.postfilter_ns = t2 - t1;
 
     // 主路径过弱时回退启发式（海盐无独立回退路径）。
     if (scene != 2 && result.error.empty() &&
         static_cast<int>(result.detections.size()) <= params.fallback_max_detections &&
         result.scene_confidence < params.fallback_scene_confidence_max) {
-        int64_t t_fb0 = now_ns();
+        int64_t t_fb0 = enable_stage_timing ? now_ns() : 0;
         result = scene == 1
             ? analyze_bamboo(
                   frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params)
             : analyze_sweet(
                   frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
-        int64_t t_fb1 = now_ns();
-        timing.detect_ns += (t_fb1 - t_fb0);
+        if (enable_stage_timing) {
+            int64_t t_fb1 = now_ns();
+            timing.detect_ns += (t_fb1 - t_fb0);
+        }
     }
 
-    int64_t t3 = now_ns();
+    int64_t t3 = enable_stage_timing ? now_ns() : 0;
     result = finalize_result(std::move(result), detect_player);
-    timing.finalize_ns = t3 - t2;
-    result.timing = timing;
+    if (enable_stage_timing) {
+        timing.finalize_ns = t3 - t2;
+        result.timing = timing;
+    } else {
+        result.timing = StageTiming{};
+    }
+    // 诊断关时清空，避免上游误读占位数据。
+    if (!enable_multicolor_diag) result.multicolor_diag.clear();
+    if (!enable_filter_trace) result.filtered_out.clear();
     return result;
 }
 
@@ -520,7 +535,10 @@ Result analyze(
     int work_width,
     int enabled_kind_mask,
     bool detect_player,
-    float fixed_player_x_ratio) {
+    float fixed_player_x_ratio,
+    bool enable_stage_timing,
+    bool enable_multicolor_diag,
+    bool enable_filter_trace) {
     const auto profile = AlgorithmRuntime::instance().current();
     return analyze_with_profile(
         scene,
@@ -529,7 +547,10 @@ Result analyze(
         enabled_kind_mask,
         detect_player,
         fixed_player_x_ratio,
-        profile);
+        profile,
+        enable_stage_timing,
+        enable_multicolor_diag,
+        enable_filter_trace);
 }
 
 void reset() {

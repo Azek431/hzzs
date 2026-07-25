@@ -368,7 +368,7 @@ class McpActionRegistry @Inject constructor(
             val enabled = arguments.getBoolean("enabled")
             val base = settings.current()
             settings.save(base.copy(developer = base.developer.copy(enabled = enabled)))
-            AppLog.configure(enabled, base.developer.logLevel)
+            AppLog.configure(enabled, base.developer.logLevel, base.developer.logRingCapacity)
             ok(if (enabled) "开发者选项已开启" else "开发者选项已关闭")
         }
         "set_developer_options" -> {
@@ -388,6 +388,21 @@ class McpActionRegistry @Inject constructor(
             if (arguments.has("frameRateLimit")) {
                 patches.put("developer.frameRateLimit", arguments.getInt("frameRateLimit"))
             }
+            if (arguments.has("logRingCapacity")) {
+                patches.put("developer.logRingCapacity", arguments.getInt("logRingCapacity"))
+            }
+            if (arguments.has("enableStageTiming")) {
+                patches.put("developer.enableStageTiming", arguments.getBoolean("enableStageTiming"))
+            }
+            if (arguments.has("enableMulticolorDiagnostic")) {
+                patches.put(
+                    "developer.enableMulticolorDiagnostic",
+                    arguments.getBoolean("enableMulticolorDiagnostic"),
+                )
+            }
+            if (arguments.has("enableFilterTrace")) {
+                patches.put("developer.enableFilterTrace", arguments.getBoolean("enableFilterTrace"))
+            }
             if (arguments.has("forceCaptureBackend")) {
                 val raw = arguments.optString("forceCaptureBackend")
                 patches.put(
@@ -399,7 +414,11 @@ class McpActionRegistry @Inject constructor(
             val patched = McpSettingsPatch.applyFromJson(base, patches)
             if (persist) {
                 settings.save(patched)
-                AppLog.configure(patched.developer.enabled, patched.developer.logLevel)
+                AppLog.configure(
+                    patched.developer.enabled,
+                    patched.developer.logLevel,
+                    patched.developer.logRingCapacity,
+                )
             } else {
                 settings.preview(patched)
             }
