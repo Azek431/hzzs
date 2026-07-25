@@ -101,10 +101,15 @@ void push_multicolor_detection(
 void record_multicolor_diag(
     std::vector<MulticolorDiag>* detail_out,
     int32_t pattern_index,
-    const MultiColorPattern& pat,
+    [[maybe_unused]] const MultiColorPattern& pat,
     bool matched,
     int32_t base_x,
     int32_t base_y,
+    float threshold_used,
+    float search_left,
+    float search_top,
+    float search_right,
+    float search_bottom,
     MulticolorRejectReason reason) {
     if (!detail_out) return;
     MulticolorDiag diag{};
@@ -112,8 +117,12 @@ void record_multicolor_diag(
     diag.matched = matched;
     diag.base_x = base_x;
     diag.base_y = base_y;
-    diag.threshold_used = pat.threshold;
+    diag.threshold_used = threshold_used;
     diag.reason = reason;
+    diag.search_left = search_left;
+    diag.search_top = search_top;
+    diag.search_right = search_right;
+    diag.search_bottom = search_bottom;
     detail_out->push_back(diag);
 }
 
@@ -139,6 +148,9 @@ Result find_multi_color_patterns(
         if (pat.offsets.empty() || static_cast<int>(pat.offsets.size()) > 16) continue;
         if (!kind_enabled(enabled_kind_mask, pat.kind)) {
             record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   pat.threshold,
+                                   pat.search_left_ratio, pat.search_top_ratio,
+                                   pat.search_right_ratio, pat.search_bottom_ratio,
                                    MulticolorRejectReason::KIND_DISABLED);
             continue;
         }
@@ -149,6 +161,8 @@ Result find_multi_color_patterns(
         const float bottom_r = std::clamp(pat.search_bottom_ratio, 0.0f, 1.0f);
         if (left_r >= right_r || top_r >= bottom_r) {
             record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   pat.threshold,
+                                   left_r, top_r, right_r, bottom_r,
                                    MulticolorRejectReason::SEARCH_REGION_INVALID);
             continue;
         }
@@ -159,6 +173,8 @@ Result find_multi_color_patterns(
         const int search_y1 = clamp_coord(static_cast<int>(height * bottom_r), height);
         if (search_x0 >= search_x1 || search_y0 >= search_y1) {
             record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   pat.threshold,
+                                   left_r, top_r, right_r, bottom_r,
                                    MulticolorRejectReason::SEARCH_REGION_INVALID);
             continue;
         }
@@ -177,6 +193,7 @@ Result find_multi_color_patterns(
         bool found = false;
         int best_min_x = 0, best_min_y = 0, best_max_x = 0, best_max_y = 0;
         int best_base_x = width;
+        int best_base_y = search_y0;
 
         int base_hits = 0;
         int offset_rejects = 0;
@@ -233,6 +250,7 @@ Result find_multi_color_patterns(
                 if (!found || base_x < best_base_x) {
                     found = true;
                     best_base_x = base_x;
+                    best_base_y = base_y;
                     best_min_x = min_x;
                     best_min_y = min_y;
                     best_max_x = max_x;
@@ -254,14 +272,19 @@ Result find_multi_color_patterns(
                 height,
                 0.88f);
             record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, true,
-                                   best_base_x, search_y0, MulticolorRejectReason::NONE);
+                                   best_base_x, best_base_y, static_cast<float>(use_thresh),
+                                   pat.search_left_ratio, pat.search_top_ratio,
+                                   pat.search_right_ratio, pat.search_bottom_ratio,
+                                   MulticolorRejectReason::NONE);
         } else {
             // 全部未命中：优先报告"有基准命中但偏移不匹配"，否则基准不匹配。
             const MulticolorRejectReason r =
                 offset_rejects > 0 ? MulticolorRejectReason::OFFSET_MISMATCH
                                    : (base_hits > 0 ? MulticolorRejectReason::OFFSET_MISMATCH
                                                     : MulticolorRejectReason::BASE_MISMATCH);
-            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0, r);
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   static_cast<float>(use_thresh),
+                                   left_r, top_r, right_r, bottom_r, r);
         }
     }
 

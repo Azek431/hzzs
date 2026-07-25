@@ -192,6 +192,11 @@ data class MulticolorDiag(
     val baseY: Int = 0,
     val thresholdUsed: Float = 0f,
     val reason: Int = 0,
+    /** 搜索区（视口归一化），供 HUD 绘制搜索范围矩形。 */
+    val searchLeft: Float = 0f,
+    val searchTop: Float = 0f,
+    val searchRight: Float = 0f,
+    val searchBottom: Float = 0f,
 )
 
 /** 过滤剔除原因枚举（与 C++ FilterReason 对齐）。 */

@@ -107,7 +107,6 @@ class NativeVisionEngine @Inject constructor(
             activation = activation,
             message = "Native 视觉引擎未返回结果",
             elapsed = elapsed,
-            nativeTiming = nativeResult?.getOrNull()?.timing,
             frameWidth = frame.meta.sourceWidth,
             frameHeight = frame.meta.sourceHeight,
         )
@@ -117,7 +116,6 @@ class NativeVisionEngine @Inject constructor(
                 activation = activation,
                 message = "Native 视觉调用失败：${error.message?.take(200) ?: error.javaClass.simpleName}",
                 elapsed = elapsed,
-                nativeTiming = nativeResult?.getOrNull()?.timing,
                 frameWidth = frame.meta.sourceWidth,
                 frameHeight = frame.meta.sourceHeight,
             )
@@ -167,28 +165,59 @@ class NativeVisionEngine @Inject constructor(
             ),
             config,
         )
+        // 与 jni_bridge 视口裁剪一致：native 坐标相对 crop；诊断需映射回全屏。
+        val srcW = frame.meta.sourceWidth
+        val srcH = frame.meta.sourceHeight
+        val cropLeft = kotlin.math.floor(viewport.left * srcW).toInt().coerceIn(0, (srcW - 1).coerceAtLeast(0))
+        val cropTop = kotlin.math.floor(viewport.top * srcH).toInt().coerceIn(0, (srcH - 1).coerceAtLeast(0))
+        val cropRight = kotlin.math.ceil(viewport.right * srcW).toInt().coerceIn(cropLeft + 1, srcW)
+        val cropBottom = kotlin.math.ceil(viewport.bottom * srcH).toInt().coerceIn(cropTop + 1, srcH)
+        val cropW = (cropRight - cropLeft).coerceAtLeast(1)
+        val cropH = (cropBottom - cropTop).coerceAtLeast(1)
+
         // 多点找色中间数据：经 native 回传，默认空数组（仅开发者诊断开关开启时填充）。
+        // 搜索区为 crop 归一化 → 全屏归一化；命中点 base 为 crop 像素 → 全帧像素供 HUD。
         val mcDiag = native.multicolorDiag.asSequence().map { m ->
+            val searchFull = NormalizedRect.fromUnchecked(m.searchLeft, m.searchTop, m.searchRight, m.searchBottom)
+                ?.toFullScreen(viewport)
+            val fullBaseX = if (m.matched) {
+                (cropLeft + m.baseX.coerceIn(0, cropW - 1)).coerceIn(0, srcW - 1)
+            } else {
+                0
+            }
+            val fullBaseY = if (m.matched) {
+                (cropTop + m.baseY.coerceIn(0, cropH - 1)).coerceIn(0, srcH - 1)
+            } else {
+                0
+            }
             MulticolorDiag(
                 patternIndex = m.patternIndex,
                 matched = m.matched,
-                baseX = m.baseX,
-                baseY = m.baseY,
+                baseX = fullBaseX,
+                baseY = fullBaseY,
                 thresholdUsed = m.thresholdUsed,
                 reason = m.reason,
+                searchLeft = searchFull?.left ?: 0f,
+                searchTop = searchFull?.top ?: 0f,
+                searchRight = searchFull?.right ?: 0f,
+                searchBottom = searchFull?.bottom ?: 0f,
             )
         }.toList()
         val filteredOut = native.filteredOut.asSequence().mapNotNull { f ->
-            NormalizedRect.fromUnchecked(f.left, f.top, f.right, f.bottom)?.let { bounds ->
+            val conf = f.confidence.takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: return@mapNotNull null
+            val kind = ObjectKind.entries.getOrNull(f.kind) ?: return@mapNotNull null
+            NormalizedRect.fromUnchecked(f.left, f.top, f.right, f.bottom)?.let { cropBounds ->
+                val full = cropBounds.toFullScreen(viewport) ?: return@mapNotNull null
                 FilteredDetection(
                     detection = Detection(
                         id = f.trackHint.toLong().coerceAtLeast(0),
-                        kind = ObjectKind.entries.getOrNull(f.kind) ?: ObjectKind.PLAYER,
-                        bounds = bounds,
-                        confidence = f.confidence,
-                        actionable = f.actionable,
-                        diagnosticOnly = f.diagnosticOnly,
-                        avoidance = Avoidance.entries.getOrNull(f.avoidance) ?: Avoidance.NONE,
+                        kind = kind,
+                        bounds = full,
+                        confidence = conf,
+                        // 已剔除项仅供 HUD；强制 diagnosticOnly，避免误入规划。
+                        actionable = false,
+                        diagnosticOnly = true,
+                        avoidance = Avoidance.NONE,
                     ),
                     reason = FilterReason.fromOrdinal(f.reason) ?: FilterReason.SIZE_WIDTH_MIN,
                 )
@@ -222,17 +251,27 @@ class NativeVisionEngine @Inject constructor(
             ),
         )
         // 多点找色命中数写入帧轨迹，便于开发者对照「找色命中 vs 最终检测」。
-        val mcMatched = mcDiag.count { it.matched }
-        val mcTotal = mcDiag.size
-        AlgorithmRuntimeTrace.logCalc(
-            "multicolor matched=$mcMatched/$mcTotal " +
-                "diag=${mcDiag.joinToString(";") { "${it.patternIndex}:${if (it.matched) "Y" else "N"}" }}",
-        )
+        if (mcDiag.isNotEmpty()) {
+            val mcMatched = mcDiag.count { it.matched }
+            val mcTotal = mcDiag.size
+            AlgorithmRuntimeTrace.logCalc(
+                "multicolor matched=$mcMatched/$mcTotal " +
+                    "diag=${mcDiag.joinToString(";") { "${it.patternIndex}:${if (it.matched) "Y" else "N"}r=${it.reason}" }}",
+            )
+        }
+        if (filteredOut.isNotEmpty()) {
+            AlgorithmRuntimeTrace.logCalc(
+                "filtered_out n=${filteredOut.size} " +
+                    filteredOut.take(8).joinToString(";") {
+                        "${it.detection.kind.name}:${it.reason.name}"
+                    },
+            )
+        }
         sanitized.copy(
             multicolorDiag = mcDiag,
             filteredOut = filteredOut,
-            frameWidth = frame.meta.sourceWidth,
-            frameHeight = frame.meta.sourceHeight,
+            frameWidth = srcW,
+            frameHeight = srcH,
         )
     }
 

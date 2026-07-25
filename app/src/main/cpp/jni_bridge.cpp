@@ -123,11 +123,11 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
         }
     }
 
-    // MulticolorDiag 数组：(patternIndex, matched, baseX, baseY, thresholdUsed, reason)。
+    // MulticolorDiag 数组：(patternIndex, matched, baseX, baseY, thresholdUsed, reason, searchL, searchT, searchR, searchB)。
     jclass mc_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$MulticolorDiag");
     jobjectArray mc_array = nullptr;
     if (mc_class && !clear_if_exception(env)) {
-        jmethodID mc_ctor = env->GetMethodID(mc_class, "<init>", "(IZIIFI)V");
+        jmethodID mc_ctor = env->GetMethodID(mc_class, "<init>", "(IZIIFIFFFF)V");
         if (mc_ctor && !clear_if_exception(env)) {
             const auto mc_count = static_cast<jsize>(native_result.multicolor_diag.size());
             mc_array = env->NewObjectArray(mc_count, mc_class, nullptr);
@@ -142,7 +142,11 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
                         static_cast<jint>(m.base_x),
                         static_cast<jint>(m.base_y),
                         static_cast<jfloat>(m.threshold_used),
-                        static_cast<jint>(static_cast<int32_t>(m.reason)));
+                        static_cast<jint>(static_cast<int32_t>(m.reason)),
+                        static_cast<jfloat>(m.search_left),
+                        static_cast<jfloat>(m.search_top),
+                        static_cast<jfloat>(m.search_right),
+                        static_cast<jfloat>(m.search_bottom));
                     if (mo && !clear_if_exception(env)) {
                         env->SetObjectArrayElement(mc_array, i, mo);
                     }
@@ -596,8 +600,10 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
 
             const bool full_viewport = crop_left == 0 && crop_top == 0 &&
                                        crop_width == width && crop_height == height;
-            int64_t t_prep_mid = stage_on ? now_ns() : 0;
+            // jni_prep 只计 pin + 视口裁剪，不含 analyze 本体（detect 在 C++ 侧单独采样）。
+            int64_t t_prep_end = 0;
             if (full_viewport) {
+                if (stage_on) t_prep_end = now_ns();
                 result = hzzs::analyze(
                     scene,
                     {pinned.pixels(), width, height},
@@ -619,6 +625,7 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
                         crop_width,
                         buffer.data() + target_offset);
                 }
+                if (stage_on) t_prep_end = now_ns();
                 result = hzzs::analyze(
                     scene,
                     {buffer.data(), crop_width, crop_height},
@@ -631,8 +638,7 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
                     filter_on);
             }
             if (stage_on) {
-                int64_t t_prep_end = now_ns();
-                result.timing.jni_prep_ns = (t_prep_mid - t_prep_start) + (t_prep_end - t_prep_mid);
+                result.timing.jni_prep_ns = t_prep_end - t_prep_start;
             }
         }
         return make_result(env, result);

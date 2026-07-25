@@ -11,13 +11,10 @@
 
 ### 新增
 
-- **算法执行过程可观测性**：`VisionResult` 增加 `timing`（JNI / 主检测 / 后过滤 / 归一化 4 段耗时）、`multicolorDiag`（多点找色每模板命中/拒绝原因，不记录 RGB 资产）、`filteredOut`（尺寸窗剔除障碍 + 原因）。数据经 C++ `vision_engine.cpp` / `multicolor_detector.cpp` 采样，通过 JNI 回传；默认全部关闭，开发者手动开启后生效。
-- **阶段耗时细分开关 `developer.enableStageTiming`**：每帧多 ~5–10μs 单调时钟采样，HUD DEBUG_HUD 显示「阶段 jni/det/post/fin」行；日志 `algo.stage` tag。
-- **多点找色诊断开关 `developer.enableMulticolorDiagnostic`**：每模板命中/拒绝写入 ring，HUD DEBUG_HUD 显示「找色 m/n」并在穿透层叠加黄色命中点（帧内像素坐标换算）。日志 `algo.multicolor` tag。
-- **过滤原因追踪开关 `developer.enableFilterTrace`**：被剔除检测写入 `VisionResult.filteredOut`，供算法包作者定位误过滤；日志 `algo.filter` tag。
-- **AppLog 缓冲容量可调**：`developer.logRingCapacity` [500, 3000]，默认 800，在开发者选项「日志级别」分组用滑块调节（重启丢失）。
-- **诊断导出新增算法诊断开关字段与 tag 说明**。
-- **诊断开关完整接线**：`ConfigJson` 持久化 `logRingCapacity` 与三诊断开关；`VisionDiagnostics` 经帧循环 → `NativeVision.analyze` → JNI → C++ 门控采样；MCP `set_developer_options` / `patch_settings` 可改。
+- **算法执行过程可观测性**：`VisionResult` 增加 `timing`（JNI / 主检测 / 后过滤 / 归一化 4 段耗时）、`multicolorDiag`（每模板命中/拒绝原因 + 搜索区，不记录 RGB 资产）、`filteredOut`（尺寸窗剔除障碍 + 原因）。C++ 采样经 JNI 回传；默认全关。
+- **开发者诊断三开关**：`enableStageTiming` / `enableMulticolorDiagnostic` / `enableFilterTrace`；DEBUG_HUD 显示阶段耗时、找色 m/n、过滤数；穿透层叠加命中点 / 搜索区品红虚线 / 过滤黄虚线框。
+- **AppLog ring 可调**：`logRingCapacity` [500, 3000]，默认 800。
+- **诊断开关完整接线**：`ConfigJson` 持久化；`VisionDiagnostics` → 帧循环 → `NativeVision.analyze` → JNI → C++ 门控；搜索区/命中点映射全屏；`algo.frame` 含 `filt=N`；MCP `set_developer_options` / `patch_settings` 可改。
 
 ### 变更
 

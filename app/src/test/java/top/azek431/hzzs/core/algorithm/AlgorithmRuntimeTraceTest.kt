@@ -120,6 +120,15 @@ class AlgorithmRuntimeTraceTest {
         assertTrue(AlgorithmRuntimeTrace.recentDecisions().isEmpty())
     }
 
+    @Test
+    fun formatL1IncludesFilteredOutCountWhenPresent() {
+        val entry = sampleEntry(seq = 1, obstacleCount = 1, kindHistogram = "BOTTLE:1")
+            .copy(filteredOutCount = 3)
+        val line = entry.formatL1()
+        assertTrue(line.contains("filt=3"))
+        assertFalse(sampleEntry(seq = 2, obstacleCount = 0, kindHistogram = "").formatL1().contains("filt="))
+    }
+
     private fun sampleEntry(
         seq: Long,
         obstacleCount: Int,

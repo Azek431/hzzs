@@ -66,6 +66,10 @@ object NativeVision {
         val baseY: Int,
         val thresholdUsed: Float,
         val reason: Int,
+        val searchLeft: Float,
+        val searchTop: Float,
+        val searchRight: Float,
+        val searchBottom: Float,
     )
 
     /** 被尺寸窗剔除的检测 + 原因；默认空数组，仅过滤原因追踪开关开启时有效。 */

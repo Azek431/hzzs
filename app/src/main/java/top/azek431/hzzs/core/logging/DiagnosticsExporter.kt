@@ -326,15 +326,16 @@ object DiagnosticsExporter {
                     "Throttled on change or every ${AlgorithmRuntimeTrace.PERIODIC_FRAMES} frames.",
             )
             appendLine(
-                "- Stage timing tag: algo.stage (per-frame jni/detect/postfilter/finalize ms). " +
+                "- Stage timing appears inside algo.frame lines (jni/detect/post/finalize ms). " +
                     "Gated by developer.enableStageTiming (off by default; ~5-10us/frame).",
             )
             appendLine(
-                "- Multicolor diagnostic tag: algo.multicolor (per-template match/reject). " +
+                "- Multicolor per-template match/reject appears in algo.decision calc lines " +
+                    "and DEBUG_HUD 找色/搜索区/命中点. " +
                     "Gated by developer.enableMulticolorDiagnostic (off by default).",
             )
             appendLine(
-                "- Filter trace tag: algo.filter (size-window rejections with reason). " +
+                "- Filtered-out detections with reason appear in algo.frame (filt=N) and DEBUG_HUD 虚线框. " +
                     "Gated by developer.enableFilterTrace (off by default).",
             )
             appendLine(

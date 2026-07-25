@@ -515,10 +515,11 @@ Result analyze_with_profile(
         }
     }
 
-    int64_t t3 = enable_stage_timing ? now_ns() : 0;
+    int64_t t_fin0 = enable_stage_timing ? now_ns() : 0;
     result = finalize_result(std::move(result), detect_player);
     if (enable_stage_timing) {
-        timing.finalize_ns = t3 - t2;
+        int64_t t_fin1 = now_ns();
+        timing.finalize_ns = t_fin1 - t_fin0;
         result.timing = timing;
     } else {
         result.timing = StageTiming{};

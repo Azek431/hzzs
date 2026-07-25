@@ -3,6 +3,7 @@ package top.azek431.hzzs.service.overlay
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -29,8 +30,9 @@ import top.azek431.hzzs.core.model.detectionKindDisplayName
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.model.humanizeAutomationDecision
 import top.azek431.hzzs.domain.vision.Detection
-import top.azek431.hzzs.domain.vision.FilterReason
+import top.azek431.hzzs.domain.vision.FilteredDetection
 import top.azek431.hzzs.domain.vision.MulticolorDiag
+import top.azek431.hzzs.domain.vision.NormalizedRect
 import top.azek431.hzzs.domain.vision.StageTiming
 import top.azek431.hzzs.domain.vision.VisionResult
 import javax.inject.Inject
@@ -340,6 +342,10 @@ private class VisionOverlayView(
     private var lastPersistPruneAtMs = 0L
     /** 多点找色命中点（仅 DEBUG_HUD + 诊断开关开时绘制）。 */
     private var multicolorHitPoints: List<Pair<Float, Float>> = emptyList()
+    /** 被尺寸窗剔除的障碍框（仅 DEBUG_HUD + 诊断开关开时绘制）。 */
+    private var filteredOut: List<FilteredDetection> = emptyList()
+    /** 多点找色搜索区（仅 DEBUG_HUD + 诊断开关开时绘制搜索区矩形）。 */
+    private var multicolorSearchRegions: List<NormalizedRect> = emptyList()
     /** 当前分析帧宽高（用于命中点坐标换算；未设置时命中点不绘制）。 */
     private var frameWidth: Int = 0
     private var frameHeight: Int = 0
@@ -374,6 +380,21 @@ private class VisionOverlayView(
             r.multicolorDiag
                 .filter { it.matched && it.baseX >= 0 && it.baseY >= 0 }
                 .map { it.baseX.toFloat() to it.baseY.toFloat() }
+        } else {
+            emptyList()
+        }
+        // 过滤虚线框 + 搜索区：仅 DEBUG_HUD + 诊断开关开时绘制（默认空）。
+        this.filteredOut = if (config.style == OverlayStyle.DEBUG_HUD && r != null) {
+            r.filteredOut
+        } else {
+            emptyList()
+        }
+        this.multicolorSearchRegions = if (config.style == OverlayStyle.DEBUG_HUD && r != null) {
+            r.multicolorDiag
+                .asSequence()
+                .map { NormalizedRect.fromUnchecked(it.searchLeft, it.searchTop, it.searchRight, it.searchBottom) }
+                .filterNotNull()
+                .toList()
         } else {
             emptyList()
         }
@@ -469,6 +490,31 @@ private class VisionOverlayView(
                 hash = 31 * hash + (point.x * 2000f).toInt()
                 hash = 31 * hash + (point.y * 2000f).toInt()
             }
+        }
+        // 诊断叠加层：否则检测框签名不变时过滤虚线/找色点不会刷新。
+        if (config.style == OverlayStyle.DEBUG_HUD && result != null) {
+            hash = 31 * hash + result.filteredOut.size
+            result.filteredOut.forEach { fo ->
+                hash = 31 * hash + fo.reason.hashCode()
+                hash = 31 * hash + (fo.detection.bounds.left * 1000f).toInt()
+                hash = 31 * hash + (fo.detection.bounds.top * 1000f).toInt()
+                hash = 31 * hash + (fo.detection.bounds.right * 1000f).toInt()
+                hash = 31 * hash + (fo.detection.bounds.bottom * 1000f).toInt()
+            }
+            hash = 31 * hash + result.multicolorDiag.size
+            result.multicolorDiag.forEach { m ->
+                hash = 31 * hash + m.patternIndex
+                hash = 31 * hash + m.matched.hashCode()
+                hash = 31 * hash + m.baseX
+                hash = 31 * hash + m.baseY
+                hash = 31 * hash + m.reason
+                hash = 31 * hash + (m.searchLeft * 1000f).toInt()
+                hash = 31 * hash + (m.searchTop * 1000f).toInt()
+                hash = 31 * hash + (m.searchRight * 1000f).toInt()
+                hash = 31 * hash + (m.searchBottom * 1000f).toInt()
+            }
+            hash = 31 * hash + (result.timing.totalNs / 100_000L).toInt()
+            hash = 31 * hash + (runtimeStatus?.lastAutomationDecision?.hashCode() ?: 0)
         }
         if (config.persistBoxes && role == OverlayLayerRole.PASS_THROUGH_BOXES) {
             hash = 31 * hash + persistedBoxes.size
@@ -604,13 +650,43 @@ private class VisionOverlayView(
                         val hitRadius = (3f * density * scale).coerceAtLeast(2f)
                         fill.color = withAlpha(Color.YELLOW, 200)
                         for ((px, py) in multicolorHitPoints) {
-                            // px/py 为帧内像素坐标；绘制层换算到当前 View 像素。
                             canvas.drawCircle(
                                 px / frameWidth.coerceAtLeast(1) * width,
                                 py / frameHeight.coerceAtLeast(1) * height,
                                 hitRadius, fill,
                             )
                         }
+                    }
+                    // 过滤虚线框：仅 DEBUG_HUD + 诊断开关开时绘制（默认空）。
+                    if (config.style == OverlayStyle.DEBUG_HUD && filteredOut.isNotEmpty()) {
+                        val dash = DashPathEffect(floatArrayOf(6f * density, 4f * density), 0f)
+                        stroke.color = withAlpha(Color.YELLOW, 160)
+                        stroke.strokeWidth = strokeWidth
+                        stroke.pathEffect = dash
+                        filteredOut.forEach { fo ->
+                            val b = fo.detection.bounds
+                            canvas.drawRect(
+                                b.left * width, b.top * height,
+                                b.right * width, b.bottom * height,
+                                stroke,
+                            )
+                        }
+                        stroke.pathEffect = null
+                    }
+                    // 搜索区矩形（仅 DEBUG_HUD + 诊断开关开时绘制；默认空）。
+                    if (config.style == OverlayStyle.DEBUG_HUD && multicolorSearchRegions.isNotEmpty()) {
+                        val regionDash = DashPathEffect(floatArrayOf(4f * density, 3f * density), 0f)
+                        stroke.color = withAlpha(Color.MAGENTA, 140)
+                        stroke.strokeWidth = (1.5f * density * scale).coerceAtLeast(1f)
+                        stroke.pathEffect = regionDash
+                        multicolorSearchRegions.forEach { region ->
+                            canvas.drawRect(
+                                region.left * width, region.top * height,
+                                region.right * width, region.bottom * height,
+                                stroke,
+                            )
+                        }
+                        stroke.pathEffect = null
                     }
                 }
             }
@@ -709,6 +785,10 @@ private class VisionOverlayView(
         if (result.multicolorDiag.isNotEmpty()) {
             val mcMatched = result.multicolorDiag.count { it.matched }
             parts += "找色 $mcMatched/${result.multicolorDiag.size}"
+        }
+        // 过滤剔除数（仅 enableFilterTrace 开时非空）。
+        if (result.filteredOut.isNotEmpty()) {
+            parts += "过滤 ${result.filteredOut.size}"
         }
         drawHudPanel(canvas, oriented(parts), accent, scale)
     }

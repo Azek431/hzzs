@@ -93,6 +93,11 @@ struct MulticolorDiag {
     int32_t base_y{0};
     float threshold_used{0.0f};
     MulticolorRejectReason reason{MulticolorRejectReason::NONE};
+    /** 搜索区（帧归一化），供 HUD 绘制搜索范围矩形。 */
+    float search_left{0.0f};
+    float search_top{0.0f};
+    float search_right{0.0f};
+    float search_bottom{0.0f};
 };
 
 /**

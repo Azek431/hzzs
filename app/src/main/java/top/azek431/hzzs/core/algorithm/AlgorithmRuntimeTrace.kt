@@ -74,6 +74,8 @@ data class AlgorithmFrameTraceEntry(
     val kindHistogram: String,
     val processingMs: Float,
     val timing: StageTiming = StageTiming(),
+    /** 被尺寸窗剔除数；仅 enableFilterTrace 时 >0。 */
+    val filteredOutCount: Int = 0,
     val algorithmId: String,
     val algorithmVersion: String,
     val generation: Long,
@@ -99,6 +101,8 @@ data class AlgorithmFrameTraceEntry(
         append(decision?.substringBefore(' ') ?: "-")
         append('|')
         append(disabledObstaclesDropped)
+        append('|')
+        append(filteredOutCount)
     }
 
     fun formatL1(): String = buildString {
@@ -131,6 +135,10 @@ data class AlgorithmFrameTraceEntry(
             append(" fin=")
             append("%.1f".format(timing.finalizeNs / 1_000_000f))
             append("]")
+        }
+        if (filteredOutCount > 0) {
+            append(" filt=")
+            append(filteredOutCount)
         }
         if (kindHistogram.isNotBlank()) {
             append(" [")
