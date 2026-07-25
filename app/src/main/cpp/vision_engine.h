@@ -25,10 +25,13 @@ Result analyze_bamboo(const FrameView& frame, int work_width, int enabled_kind_m
                       bool detect_player, float fixed_player_x_ratio,
                       const SceneAlgorithmParamsNative& params);
 
-/** 海盐客厅赛季分析（参数驱动主路径）。 */
+/** 海盐客厅赛季分析（参数驱动主路径）。
+ * @param detail_out 非空时写入多点找色明细；仅开发者诊断开关开启时由调用方传入
+ */
 Result analyze_sea_salt(const FrameView& frame, int work_width, int enabled_kind_mask,
                         bool detect_player, float fixed_player_x_ratio,
-                        const SceneAlgorithmParamsNative& params);
+                        const SceneAlgorithmParamsNative& params,
+                        std::vector<MulticolorDiag>* detail_out = nullptr);
 
 /**
  * 使用当前 AlgorithmRuntime 快照分析。

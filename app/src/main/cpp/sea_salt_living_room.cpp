@@ -217,14 +217,16 @@ void append_multicolor_detections(
     Result& out,
     const FrameView& frame,
     int enabled_kind_mask,
-    const SceneAlgorithmParamsNative& params) {
+    const SceneAlgorithmParamsNative& params,
+    std::vector<MulticolorDiag>* detail_out) {
     const auto rules = sea_salt_multicolor_rules(params);
     if (rules.empty()) return;
     const auto found = find_multi_color_patterns(
         frame,
         rules,
         enabled_kind_mask,
-        params.multicolor_threshold);
+        params.multicolor_threshold,
+        detail_out);
     if (!found.error.empty()) return;
     for (const auto& det : found.detections) {
         if (det.kind == Kind::PLAYER) continue;
@@ -242,7 +244,8 @@ Result analyze_sea_salt(
     int enabled_kind_mask,
     bool detect_player,
     float fixed_player_x_ratio,
-    const SceneAlgorithmParamsNative& params) {
+    const SceneAlgorithmParamsNative& params,
+    std::vector<MulticolorDiag>* detail_out) {
     Result out;
     if (f.pixels == nullptr || f.width < 32 || f.height < 64) {
         out.error = "invalid frame";
@@ -567,7 +570,7 @@ Result analyze_sea_salt(
     }
 
     // 追加声明式多点找色（模板 + profile 阈值；不解析 JSON）
-    append_multicolor_detections(out, f, enabled_kind_mask, params);
+    append_multicolor_detections(out, f, enabled_kind_mask, params, detail_out);
 
     // 有非玩家障碍时抬升场景置信度。
     // 旧逻辑 floor*0.85=0.68 仍 < 默认自动化门闩 0.82，导致「看得见框却从不点」。

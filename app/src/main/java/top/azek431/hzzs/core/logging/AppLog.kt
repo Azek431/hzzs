@@ -57,11 +57,15 @@ data class AppLogEntry(
  * - [revision] 在写入/清空时递增，供 UI 轮询刷新
  */
 object AppLog {
-    private const val CAPACITY = 800
+    /** 默认 ring 容量；开发者可在 [top.azek431.hzzs.core.model.DeveloperConfig.logRingCapacity] 内调整。 */
+    private const val DEFAULT_CAPACITY = 800
+    private const val MIN_RING_CAPACITY = 500
+    private const val MAX_RING_CAPACITY = 3000
     private const val TAG_PREFIX = "HZZS"
 
     private val lock = Any()
-    private val buffer = ArrayDeque<AppLogEntry>(CAPACITY)
+    private var buffer: ArrayDeque<AppLogEntry> = ArrayDeque(DEFAULT_CAPACITY)
+    private var capacity = DEFAULT_CAPACITY
     private val minLevel = AtomicReference(AppLogLevel.INFO)
     private val developerEnabled = AtomicBoolean(false)
     private val revisionCounter = AtomicLong(0L)
@@ -69,10 +73,24 @@ object AppLog {
     /** 缓冲变更代数；UI 可用其轮询是否需要刷新。 */
     fun revision(): Long = revisionCounter.get()
 
-    /** 由配置保存路径同步：开发者开关与最低级别。 */
-    fun configure(enabled: Boolean, level: AppLogLevel) {
+    /** 当前缓冲区容量（动态可调）。 */
+    fun capacity(): Int = capacity
+
+    /** 由配置保存路径同步：开发者开关、最低级别与缓冲容量。 */
+    fun configure(enabled: Boolean, level: AppLogLevel, ringCapacity: Int = DEFAULT_CAPACITY) {
         developerEnabled.set(enabled)
         minLevel.set(level)
+        val clamped = ringCapacity.coerceIn(MIN_RING_CAPACITY, MAX_RING_CAPACITY)
+        synchronized(lock) {
+            if (clamped == capacity) return
+            // 迁移：保留最新的 clamped 条
+            val snapshot = buffer.toList()
+            val kept = if (snapshot.size <= clamped) snapshot else snapshot.takeLast(clamped)
+            val newBuffer = ArrayDeque<AppLogEntry>(clamped)
+            newBuffer.addAll(kept)
+            buffer = newBuffer
+            capacity = clamped
+        }
     }
 
     fun isDeveloperEnabled(): Boolean = developerEnabled.get()
@@ -95,7 +113,7 @@ object AppLog {
         log(AppLogLevel.ERROR, tag, message, throwable)
 
     /** 按时间从旧到新返回快照。 */
-    fun snapshot(limit: Int = CAPACITY): List<AppLogEntry> = synchronized(lock) {
+    fun snapshot(limit: Int = capacity): List<AppLogEntry> = synchronized(lock) {
         val n = limit.coerceAtMost(buffer.size).coerceAtLeast(0)
         if (n == 0) emptyList() else buffer.toList().takeLast(n)
     }
@@ -113,13 +131,13 @@ object AppLog {
         minLevel: AppLogLevel = AppLogLevel.VERBOSE,
         tagEquals: String? = null,
         query: String? = null,
-        limit: Int = CAPACITY,
+        limit: Int = DEFAULT_CAPACITY,
         newestFirst: Boolean = false,
     ): List<AppLogEntry> {
         val q = query?.trim()?.takeIf { it.isNotEmpty() }?.lowercase(Locale.US)
         val tag = tagEquals?.trim()?.takeIf { it.isNotEmpty() }
         // snapshot 为旧→新；先筛再按方向截断
-        val filtered = snapshot(CAPACITY).asSequence()
+        val filtered = snapshot(capacity).asSequence()
             .filter { it.level.ordinal >= minLevel.ordinal }
             .filter { tag == null || it.tag.equals(tag, ignoreCase = true) }
             .filter { entry ->
@@ -158,7 +176,7 @@ object AppLog {
         minLevel: AppLogLevel = AppLogLevel.VERBOSE,
         tagEquals: String? = null,
         query: String? = null,
-        limit: Int = CAPACITY,
+        limit: Int = capacity,
         newestFirst: Boolean = false,
     ): String {
         val entries = query(
@@ -191,7 +209,7 @@ object AppLog {
             throwableMessage = thrMsg?.take(500),
         )
         synchronized(lock) {
-            if (buffer.size >= CAPACITY) buffer.removeFirst()
+            if (buffer.size >= capacity) buffer.removeFirst()
             buffer.addLast(entry)
             revisionCounter.incrementAndGet()
         }

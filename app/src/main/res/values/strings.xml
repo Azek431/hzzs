@@ -405,6 +405,17 @@
     <string name="dev_force_capture_fallback_reason">实际将使用 %s</string>
     <string name="dev_log_level_title">日志级别</string>
     <string name="dev_log_level_desc">控制 Logcat 与内存 ring buffer 的最低级别；关闭开发者时 DEBUG 以下仍被压制。调算法时请开 DEBUG，可看到 algo.frame / algo.det / algo.track / algo.decision（状态变化或约每 12 帧一条，诊断导出含最近 32 帧）。</string>
+    <string name="dev_log_ring_capacity">日志缓冲区容量：%d 条（重启丢失）</string>
+    <string name="dev_algorithm_diagnostics_title">算法诊断</string>
+    <string name="dev_algorithm_diagnostics_desc">细粒度算法执行过程追踪。以下开关会增加运行时开销，仅供调试，日常请保持关闭。</string>
+    <string name="dev_algorithm_diagnostics_warning_title">性能警告</string>
+    <string name="dev_algorithm_diagnostics_warning">开启后会增加每帧耗时与内存占用，偶发帧率波动属正常；调试完成后请关闭。</string>
+    <string name="dev_enable_stage_timing">阶段耗时细分</string>
+    <string name="dev_enable_stage_timing_subtitle">拆分 JNI / 主检测 / 后过滤 / 归一化 4 段耗时（每帧多 ~5–10μs）。</string>
+    <string name="dev_enable_multicolor_diagnostic">多点找色诊断</string>
+    <string name="dev_enable_multicolor_diagnostic_subtitle">每模板命中/拒绝原因写入 ring，HUD 可叠加搜索区与命中点。</string>
+    <string name="dev_enable_filter_trace">过滤原因追踪</string>
+    <string name="dev_enable_filter_trace_subtitle">被尺寸窗剔除的检测写入 ring，HUD 叠加半透明虚线框。</string>
     <string name="dev_frame_rate_title">识别帧率上限</string>
     <string name="dev_frame_rate_desc">完成驱动取帧下运行时暂不消费。</string>
     <string name="dev_frame_rate_current">当前值：%d（未生效）</string>

@@ -91,13 +91,40 @@ void push_multicolor_detection(
     out.detections.push_back(det);
 }
 
+/**
+ * 单点诊断：记录每模板命中/拒绝原因，供开发者定位找色问题。
+ *
+ * @param detail_out   输出明细；非空时由调用方填充一条 [MulticolorDiag]
+ * @param pattern_index 模板序号（在 rules 数组中的下标）
+ * @param pat          当前模板（读取搜索区 / 阈值；不记录 RGB 资产）
+ */
+void record_multicolor_diag(
+    std::vector<MulticolorDiag>* detail_out,
+    int32_t pattern_index,
+    const MultiColorPattern& pat,
+    bool matched,
+    int32_t base_x,
+    int32_t base_y,
+    MulticolorRejectReason reason) {
+    if (!detail_out) return;
+    MulticolorDiag diag{};
+    diag.pattern_index = pattern_index;
+    diag.matched = matched;
+    diag.base_x = base_x;
+    diag.base_y = base_y;
+    diag.threshold_used = pat.threshold;
+    diag.reason = reason;
+    detail_out->push_back(diag);
+}
+
 }  // namespace
 
 Result find_multi_color_patterns(
     const FrameView& f,
     const std::vector<MultiColorPattern>& patterns,
     int enabled_kind_mask,
-    float global_threshold) {
+    float global_threshold,
+    std::vector<MulticolorDiag>* detail_out) {
     Result out;
     if (f.pixels == nullptr || f.width < 32 || f.height < 64) {
         out.error = "invalid frame for multicolor detection";
@@ -107,21 +134,34 @@ Result find_multi_color_patterns(
     const int height = f.height;
     const int width = f.width;
 
-    for (const auto& pat : patterns) {
+    for (std::size_t pi = 0; pi < patterns.size(); ++pi) {
+        const auto& pat = patterns[pi];
         if (pat.offsets.empty() || static_cast<int>(pat.offsets.size()) > 16) continue;
-        if (!kind_enabled(enabled_kind_mask, pat.kind)) continue;
+        if (!kind_enabled(enabled_kind_mask, pat.kind)) {
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   MulticolorRejectReason::KIND_DISABLED);
+            continue;
+        }
 
         const float left_r = std::clamp(pat.search_left_ratio, 0.0f, 1.0f);
         const float right_r = std::clamp(pat.search_right_ratio, 0.0f, 1.0f);
         const float top_r = std::clamp(pat.search_top_ratio, 0.0f, 1.0f);
         const float bottom_r = std::clamp(pat.search_bottom_ratio, 0.0f, 1.0f);
-        if (left_r >= right_r || top_r >= bottom_r) continue;
+        if (left_r >= right_r || top_r >= bottom_r) {
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   MulticolorRejectReason::SEARCH_REGION_INVALID);
+            continue;
+        }
 
         const int search_x0 = clamp_coord(static_cast<int>(width * left_r), width);
         const int search_x1 = clamp_coord(static_cast<int>(width * right_r), width);
         const int search_y0 = clamp_coord(static_cast<int>(height * top_r), height);
         const int search_y1 = clamp_coord(static_cast<int>(height * bottom_r), height);
-        if (search_x0 >= search_x1 || search_y0 >= search_y1) continue;
+        if (search_x0 >= search_x1 || search_y0 >= search_y1) {
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0,
+                                   MulticolorRejectReason::SEARCH_REGION_INVALID);
+            continue;
+        }
 
         // 容差：取 pattern 与全局中较大者（包参数可整体放宽；默认对齐酱油 10）。
         const int use_thresh = static_cast<int>(std::clamp(
@@ -138,6 +178,9 @@ Result find_multi_color_patterns(
         int best_min_x = 0, best_min_y = 0, best_max_x = 0, best_max_y = 0;
         int best_base_x = width;
 
+        int base_hits = 0;
+        int offset_rejects = 0;
+
         for (int base_y = search_y0; base_y < search_y1; base_y += y_step) {
             for (int base_x = search_x0; base_x < search_x1; base_x += x_step) {
                 const uint32_t base_pixel =
@@ -150,17 +193,20 @@ Result find_multi_color_patterns(
                                    use_thresh)) {
                     continue;
                 }
+                ++base_hits;
 
                 int min_x = base_x;
                 int min_y = base_y;
                 int max_x = base_x;
                 int max_y = base_y;
                 bool all_match = true;
+                MulticolorRejectReason first_fail = MulticolorRejectReason::NONE;
                 for (const auto& cp : pat.offsets) {
                     const int ox = base_x + static_cast<int>(std::lround(cp.rel_x * width));
                     const int oy = base_y + static_cast<int>(std::lround(cp.rel_y * height));
                     if (ox < 0 || ox >= width || oy < 0 || oy >= height) {
                         all_match = false;
+                        first_fail = MulticolorRejectReason::OFFSET_OUT_OF_BOUNDS;
                         break;
                     }
                     const uint32_t offset_pixel =
@@ -169,6 +215,7 @@ Result find_multi_color_patterns(
                     extract_rgb(offset_pixel, or_, og, ob);
                     if (!color_matches(or_, og, ob, cp.r, cp.g, cp.b, use_thresh)) {
                         all_match = false;
+                        first_fail = MulticolorRejectReason::OFFSET_MISMATCH;
                         break;
                     }
                     min_x = std::min(min_x, ox);
@@ -177,7 +224,10 @@ Result find_multi_color_patterns(
                     max_y = std::max(max_y, oy);
                 }
 
-                if (!all_match) continue;
+                if (!all_match) {
+                    if (first_fail != MulticolorRejectReason::OFFSET_OUT_OF_BOUNDS) ++offset_rejects;
+                    continue;
+                }
 
                 // 保留更靠左的命中（障碍更接近玩家一侧）。
                 if (!found || base_x < best_base_x) {
@@ -203,6 +253,15 @@ Result find_multi_color_patterns(
                 width,
                 height,
                 0.88f);
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, true,
+                                   best_base_x, search_y0, MulticolorRejectReason::NONE);
+        } else {
+            // 全部未命中：优先报告"有基准命中但偏移不匹配"，否则基准不匹配。
+            const MulticolorRejectReason r =
+                offset_rejects > 0 ? MulticolorRejectReason::OFFSET_MISMATCH
+                                   : (base_hits > 0 ? MulticolorRejectReason::OFFSET_MISMATCH
+                                                    : MulticolorRejectReason::BASE_MISMATCH);
+            record_multicolor_diag(detail_out, static_cast<int32_t>(pi), pat, false, 0, 0, r);
         }
     }
 

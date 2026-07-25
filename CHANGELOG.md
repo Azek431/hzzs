@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **算法执行过程可观测性**：`VisionResult` 增加 `timing`（JNI / 主检测 / 后过滤 / 归一化 4 段耗时）、`multicolorDiag`（多点找色每模板命中/拒绝原因，不记录 RGB 资产）、`filteredOut`（尺寸窗剔除障碍 + 原因）。数据经 C++ `vision_engine.cpp` / `multicolor_detector.cpp` 采样，通过 JNI 回传；默认全部关闭，开发者手动开启后生效。
+- **阶段耗时细分开关 `developer.enableStageTiming`**：每帧多 ~5–10μs 单调时钟采样，HUD DEBUG_HUD 显示「阶段 jni/det/post/fin」行；日志 `algo.stage` tag。
+- **多点找色诊断开关 `developer.enableMulticolorDiagnostic`**：每模板命中/拒绝写入 ring，HUD DEBUG_HUD 显示「找色 m/n」并在穿透层叠加黄色命中点（帧内像素坐标换算）。日志 `algo.multicolor` tag。
+- **过滤原因追踪开关 `developer.enableFilterTrace`**：被剔除检测写入 `VisionResult.filteredOut`，供算法包作者定位误过滤；日志 `algo.filter` tag。
+- **AppLog 缓冲容量可调**：`developer.logRingCapacity` [500, 3000]，默认 800，在开发者选项「日志级别」分组用滑块调节（重启丢失）。
+- **诊断导出新增算法诊断开关字段与 tag 说明**。
+
+### 变更
+
+- **`NativeVision.Result` / `StageTiming` / `MulticolorDiag` / `FilteredDetection` 数据类扩展**：JNI 边界 `make_result` 透传 timing 与诊断数组；旧版本未开启诊断时全部为空/零，向后兼容。
+- **`AlgorithmRuntimeTrace` / `AlgorithmPipelineTrace` 帧条目增加 `timing`**：`formatL1` 与 LastFrameCard 在 `timing.totalNs>0` 时打印各阶段毫秒。
+
 ### 修复
 
 - **切后台「不识别」根因**：诊断显示分析仍在跑，但手势被 `package_gate` 拦、海盐 `scene_conf=0.58` 假阴性、OEM 后台杀进程。本次：① HUD DEBUG 直接展示 `lastAutomationDecision` 中文（`humanizeAutomationDecision` 抽到 `core/model` 复用）；② 海盐 `player_ok` 系数 `0.55→0.72`，`minimumSceneConfidence` 默认 `0.82→0.55`；③ 新增 `VisionAnalysisForegroundService`（`dataSync`）分析启停绑定前台通知，降低后台被杀概率。

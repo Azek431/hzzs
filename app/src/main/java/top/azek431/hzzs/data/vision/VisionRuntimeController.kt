@@ -945,6 +945,7 @@ class VisionRuntimeController @Inject constructor(
                 actionableCount = result.actionableDetections.size,
                 kindHistogram = kindHistogram,
                 processingMs = result.processingNanos / 1_000_000f,
+                timing = result.timing,
                 algorithmId = result.activeAlgorithmId,
                 algorithmVersion = result.activeAlgorithmVersion,
                 generation = result.algorithmGeneration,

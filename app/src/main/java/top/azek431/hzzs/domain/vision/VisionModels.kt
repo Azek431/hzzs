@@ -184,6 +184,48 @@ data class VisionFrame(
     }
 }
 
+/** 多点找色单模板匹配诊断；默认空列表，仅开发者诊断开关开启时有效。 */
+data class MulticolorDiag(
+    val patternIndex: Int = -1,
+    val matched: Boolean = false,
+    val baseX: Int = 0,
+    val baseY: Int = 0,
+    val thresholdUsed: Float = 0f,
+    val reason: Int = 0,
+)
+
+/** 过滤剔除原因枚举（与 C++ FilterReason 对齐）。 */
+enum class FilterReason {
+    SIZE_WIDTH_MIN,
+    SIZE_WIDTH_MAX,
+    SIZE_HEIGHT_MIN,
+    SIZE_HEIGHT_MAX,
+    BEHIND_PLAYER,
+    KIND_DISABLED;
+
+    companion object {
+        fun fromOrdinal(ord: Int): FilterReason? = entries.getOrNull(ord)
+    }
+}
+
+/** 被尺寸窗剔除的检测 + 原因，供开发者诊断（默认空列表，不参与规划）。 */
+data class FilteredDetection(
+    val detection: Detection,
+    val reason: FilterReason,
+)
+
+/**
+ * 各阶段耗时（纳秒）。默认全 0，仅开发者诊断开关开启时填充。
+ * @property totalNs 由 C++ 侧累加的总耗时（与 frame 级 processingNanos 独立）。
+ */
+data class StageTiming(
+    val jniPrepNs: Long = 0L,
+    val detectNs: Long = 0L,
+    val postfilterNs: Long = 0L,
+    val finalizeNs: Long = 0L,
+    val totalNs: Long = 0L,
+)
+
 /**
  * 单帧视觉输出。
  *
@@ -192,6 +234,9 @@ data class VisionFrame(
  * @property player 玩家检测（可空）
  * @property detections 障碍列表（通常不含玩家；清洗后保证）
  * @property processingNanos 引擎耗时
+ * @property timing          各阶段耗时细分（默认全 0，开发者诊断开关开启时有效）
+ * @property multicolorDiag  多点找色各模板命中/拒绝明细（默认空）
+ * @property filteredOut     被尺寸窗剔除的障碍 + 原因（默认空）
  * @property error 非空表示本帧失败；调用方应 fail-closed
  * @property activeAlgorithmId 诊断：当前算法 ID
  * @property activeAlgorithmVersion 诊断：当前算法版本
@@ -205,6 +250,12 @@ data class VisionResult(
     val player: Detection?,
     val detections: List<Detection>,
     val processingNanos: Long,
+    val timing: StageTiming = StageTiming(),
+    val multicolorDiag: List<MulticolorDiag> = emptyList(),
+    val filteredOut: List<FilteredDetection> = emptyList(),
+    /** 分析帧宽高（命中点坐标换算用；默认 0 表示未设置）。 */
+    val frameWidth: Int = 0,
+    val frameHeight: Int = 0,
     val error: String? = null,
     val activeAlgorithmId: String = AlgorithmRuntimeProfile.BUILTIN_ID,
     val activeAlgorithmVersion: String = AlgorithmRuntimeProfile.BUILTIN_VERSION,
@@ -295,6 +346,11 @@ object VisionResultValidator {
             player = player,
             detections = clean,
             processingNanos = result.processingNanos.coerceAtLeast(0),
+            timing = result.timing,
+            multicolorDiag = result.multicolorDiag,
+            filteredOut = result.filteredOut,
+            frameWidth = result.frameWidth,
+            frameHeight = result.frameHeight,
         )
     }
 

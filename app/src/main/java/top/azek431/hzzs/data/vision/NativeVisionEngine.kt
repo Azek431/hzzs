@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
+import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.PlayerReferenceMode
 import top.azek431.hzzs.core.model.SceneConfig
@@ -17,9 +18,12 @@ import top.azek431.hzzs.domain.vision.AlgorithmProfileValidator
 import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
 import top.azek431.hzzs.domain.vision.Avoidance
 import top.azek431.hzzs.domain.vision.Detection
+import top.azek431.hzzs.domain.vision.FilterReason
+import top.azek431.hzzs.domain.vision.FilteredDetection
 import top.azek431.hzzs.domain.vision.MulticolorDiag
 import top.azek431.hzzs.domain.vision.NormalizedRect
 import top.azek431.hzzs.domain.vision.ObjectKind
+import top.azek431.hzzs.domain.vision.StageTiming
 import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
@@ -68,6 +72,8 @@ class NativeVisionEngine @Inject constructor(
                 activation = activation,
                 message = NativeVision.loadFailureMessage?.let { "Native 视觉库加载失败：$it" }
                     ?: "Native 视觉库不可用",
+                frameWidth = frame.meta.sourceWidth,
+                frameHeight = frame.meta.sourceHeight,
             )
         }
 
@@ -97,6 +103,8 @@ class NativeVisionEngine @Inject constructor(
             message = "Native 视觉引擎未返回结果",
             elapsed = elapsed,
             nativeTiming = nativeResult?.getOrNull()?.timing,
+            frameWidth = frame.meta.sourceWidth,
+            frameHeight = frame.meta.sourceHeight,
         )
         val native = nativeAttempt.getOrElse { error ->
             return@withContext errorResult(
@@ -105,6 +113,8 @@ class NativeVisionEngine @Inject constructor(
                 message = "Native 视觉调用失败：${error.message?.take(200) ?: error.javaClass.simpleName}",
                 elapsed = elapsed,
                 nativeTiming = nativeResult?.getOrNull()?.timing,
+                frameWidth = frame.meta.sourceWidth,
+                frameHeight = frame.meta.sourceHeight,
             )
         }
         val detections = native.detections.asSequence().take(MAX_NATIVE_DETECTIONS).mapNotNull { raw ->
@@ -372,6 +382,8 @@ class NativeVisionEngine @Inject constructor(
         message: String,
         elapsed: Long = 0L,
         nativeTiming: NativeVision.StageTiming? = null,
+        frameWidth: Int = 0,
+        frameHeight: Int = 0,
     ): VisionResult {
         val result = VisionResult(
             scene = config.sceneId,
@@ -380,14 +392,14 @@ class NativeVisionEngine @Inject constructor(
             detections = emptyList(),
             processingNanos = elapsed,
             timing = StageTiming(
-                jniPrepNs = nativeTiming.jniPrepNs,
-                detectNs = nativeTiming.detectNs,
-                postfilterNs = nativeTiming.postfilterNs,
-                finalizeNs = nativeTiming.finalizeNs,
-                totalNs = nativeTiming.totalNs,
+                jniPrepNs = nativeTiming?.jniPrepNs ?: 0L,
+                detectNs = nativeTiming?.detectNs ?: 0L,
+                postfilterNs = nativeTiming?.postfilterNs ?: 0L,
+                finalizeNs = nativeTiming?.finalizeNs ?: 0L,
+                totalNs = nativeTiming?.totalNs ?: 0L,
             ),
-            frameWidth = frame.meta.sourceWidth,
-            frameHeight = frame.meta.sourceHeight,
+            frameWidth = frameWidth,
+            frameHeight = frameHeight,
             error = message,
             activeAlgorithmId = activation.profile.algorithmId,
             activeAlgorithmVersion = activation.profile.version,

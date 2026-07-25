@@ -440,6 +440,17 @@ data class DeveloperConfig(
     val nativeBenchmarkIterations: Int = 200,
     /** 写入 ring buffer / Logcat 的最低级别；关闭开发者时 DEBUG 以下仍被压制。 */
     val logLevel: AppLogLevel = AppLogLevel.INFO,
+    /**
+     * AppLog ring 容量 [500, 3000]，默认 800；增大占用更多内存，重启丢失。
+     * 在开发者选项「调试」分组调节。
+     */
+    val logRingCapacity: Int = 800,
+    /** 阶段耗时细分（每帧多 ~5-10μs 计时开销）。 */
+    val enableStageTiming: Boolean = false,
+    /** 多点找色中间数据（每帧 ~几百字节诊断，HUD 可叠加搜索区/命中点）。 */
+    val enableMulticolorDiagnostic: Boolean = false,
+    /** 过滤原因追踪（被剔除检测写入 ring，HUD 叠加虚线框）。 */
+    val enableFilterTrace: Boolean = false,
 )
 
 /** 首次引导与免责声明接受状态。 */

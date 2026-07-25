@@ -206,6 +206,7 @@ class DataStoreSettingsRepository @Inject constructor(
         AppLog.configure(
             enabled = config.developer.enabled,
             level = config.developer.logLevel,
+            ringCapacity = config.developer.logRingCapacity,
         )
         // MCP 访问日志开关与配置同步（预览路径 current() 也会调用）。
         top.azek431.hzzs.mcp.McpAccessLog.setEnabled(config.mcp.accessLogEnabled)
@@ -517,6 +518,7 @@ fun AppConfig.validated(): AppConfig {
             frameRateLimit = developer.frameRateLimit.coerceIn(1, 120),
             nativeBenchmarkIterations = developer.nativeBenchmarkIterations.coerceIn(10, 10_000),
             logLevel = developer.logLevel,
+            logRingCapacity = developer.logRingCapacity.coerceIn(500, 3000),
         ),
         onboarding = onboarding.copy(
             acceptedDisclaimerVersion = onboarding.acceptedDisclaimerVersion.coerceAtLeast(0),

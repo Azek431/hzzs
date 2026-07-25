@@ -29,6 +29,9 @@ import top.azek431.hzzs.core.model.detectionKindDisplayName
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.model.humanizeAutomationDecision
 import top.azek431.hzzs.domain.vision.Detection
+import top.azek431.hzzs.domain.vision.FilterReason
+import top.azek431.hzzs.domain.vision.MulticolorDiag
+import top.azek431.hzzs.domain.vision.StageTiming
 import top.azek431.hzzs.domain.vision.VisionResult
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -335,6 +338,11 @@ private class VisionOverlayView(
     /** 仅 HUD 用的短时残留框；不参与规划。 */
     private val persistedBoxes = LinkedHashMap<Long, PersistedBox>()
     private var lastPersistPruneAtMs = 0L
+    /** 多点找色命中点（仅 DEBUG_HUD + 诊断开关开时绘制）。 */
+    private var multicolorHitPoints: List<Pair<Float, Float>> = emptyList()
+    /** 当前分析帧宽高（用于命中点坐标换算；未设置时命中点不绘制）。 */
+    private var frameWidth: Int = 0
+    private var frameHeight: Int = 0
 
     fun update(
         config: OverlayConfig,
@@ -360,6 +368,17 @@ private class VisionOverlayView(
         this.result = result
         this.showCoordinateGrid = showCoordinateGrid
         this.runtimeStatus = runtimeStatus
+        // 多点找色命中点：仅 DEBUG_HUD 且诊断开关开时绘制（默认空）。
+        val r = result
+        this.multicolorHitPoints = if (config.style == OverlayStyle.DEBUG_HUD && r != null) {
+            r.multicolorDiag
+                .filter { it.matched && it.baseX >= 0 && it.baseY >= 0 }
+                .map { it.baseX.toFloat() to it.baseY.toFloat() }
+        } else {
+            emptyList()
+        }
+        this.frameWidth = r?.frameWidth ?: 0
+        this.frameHeight = r?.frameHeight ?: 0
         if (sizeMayChange) requestLayout()
         if (!unchanged) {
             lastContentSignature = contentSignature
@@ -580,14 +599,25 @@ private class VisionOverlayView(
                                 detectionKindDisplayName(detection.kind.name),
                             )
                         }
+                    // 多点找色命中点：仅 DEBUG_HUD + 诊断开关开时绘制（默认空）。
+                    if (config.style == OverlayStyle.DEBUG_HUD && multicolorHitPoints.isNotEmpty()) {
+                        val hitRadius = (3f * density * scale).coerceAtLeast(2f)
+                        fill.color = withAlpha(Color.YELLOW, 200)
+                        for ((px, py) in multicolorHitPoints) {
+                            // px/py 为帧内像素坐标；绘制层换算到当前 View 像素。
+                            canvas.drawCircle(
+                                px / frameWidth.coerceAtLeast(1) * width,
+                                py / frameHeight.coerceAtLeast(1) * height,
+                                hitRadius, fill,
+                            )
+                        }
+                    }
                 }
             }
-            OverlayLayerRole.INTERACTIVE_HUD -> {
-                when (config.style) {
-                    OverlayStyle.MINIMAL -> drawMinimalHud(canvas, current, accent, scale)
-                    OverlayStyle.COMPACT -> drawCompactHud(canvas, current, accent, scale)
-                    OverlayStyle.DEBUG_HUD -> drawDebugHud(canvas, current, accent, scale)
-                }
+            OverlayLayerRole.INTERACTIVE_HUD -> when (config.style) {
+                OverlayStyle.MINIMAL -> drawMinimalHud(canvas, current, accent, scale)
+                OverlayStyle.COMPACT -> drawCompactHud(canvas, current, accent, scale)
+                OverlayStyle.DEBUG_HUD -> drawDebugHud(canvas, current, accent, scale)
             }
         }
     }
@@ -666,6 +696,19 @@ private class VisionOverlayView(
             if (!decision.isNullOrBlank()) {
                 parts += humanizeAutomationDecision(decision)
             }
+        }
+        // 阶段耗时细分（仅 enableStageTiming 开时 timing.totalNs>0）。
+        val timing = result.timing
+        if (timing.totalNs > 0) {
+            parts += "阶段 jni=${"%.1f".format(timing.jniPrepNs / 1_000_000f)}" +
+                " det=${"%.1f".format(timing.detectNs / 1_000_000f)}" +
+                " post=${"%.1f".format(timing.postfilterNs / 1_000_000f)}" +
+                " fin=${"%.1f".format(timing.finalizeNs / 1_000_000f)} ms"
+        }
+        // 多点找色命中数（仅 enableMulticolorDiagnostic 开时非空）。
+        if (result.multicolorDiag.isNotEmpty()) {
+            val mcMatched = result.multicolorDiag.count { it.matched }
+            parts += "找色 $mcMatched/${result.multicolorDiag.size}"
         }
         drawHudPanel(canvas, oriented(parts), accent, scale)
     }

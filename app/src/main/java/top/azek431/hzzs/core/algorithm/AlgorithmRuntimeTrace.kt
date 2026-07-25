@@ -8,6 +8,7 @@
 package top.azek431.hzzs.core.algorithm
 
 import top.azek431.hzzs.core.logging.AppLog
+import top.azek431.hzzs.domain.vision.StageTiming
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -72,6 +73,7 @@ data class AlgorithmFrameTraceEntry(
     val actionableCount: Int,
     val kindHistogram: String,
     val processingMs: Float,
+    val timing: StageTiming = StageTiming(),
     val algorithmId: String,
     val algorithmVersion: String,
     val generation: Long,
@@ -119,6 +121,17 @@ data class AlgorithmFrameTraceEntry(
         append(' ')
         append("%.1f".format(processingMs))
         append("ms")
+        if (timing.totalNs > 0) {
+            append(" [jni=")
+            append("%.1f".format(timing.jniPrepNs / 1_000_000f))
+            append(" det=")
+            append("%.1f".format(timing.detectNs / 1_000_000f))
+            append(" post=")
+            append("%.1f".format(timing.postfilterNs / 1_000_000f))
+            append(" fin=")
+            append("%.1f".format(timing.finalizeNs / 1_000_000f))
+            append("]")
+        }
         if (kindHistogram.isNotBlank()) {
             append(" [")
             append(kindHistogram)

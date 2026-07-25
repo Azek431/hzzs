@@ -32,6 +32,10 @@
 
 namespace hzzs {
 
+/** 多点找色单模板拒绝原因（供开发者诊断，不进日志时全 0 占位）。 */
+enum class MulticolorRejectReason : int32_t;
+struct MulticolorDiag;
+
 /** 单个查找点（相对于基准点的偏移 + 颜色）。 */
 struct ColorPoint {
     float rel_x{0};   // 相对基准点 x 的归一化偏移
@@ -77,13 +81,15 @@ struct MultiColorPattern {
  * @param patterns 找色模板列表
  * @param enabled_kind_mask 与 analyze 一致的 Kind 位掩码
  * @param global_threshold 全局颜色容差下限（取各 pattern 的 threshold 与本参数的最大值）
+ * @param detail_out 非空时写入每模板命中/拒绝明细；仅开发者诊断开关开启时由调用方传入
  * @return Result 包含所有匹配的检测（不设置 error）
  */
 Result find_multi_color_patterns(
     const FrameView& frame,
     const std::vector<MultiColorPattern>& patterns,
     int enabled_kind_mask,
-    float global_threshold);
+    float global_threshold,
+    std::vector<MulticolorDiag>* detail_out = nullptr);
 
 }  // namespace hzzs
 

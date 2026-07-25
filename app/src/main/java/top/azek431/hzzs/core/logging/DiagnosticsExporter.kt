@@ -205,6 +205,10 @@ object DiagnosticsExporter {
             )
             appendLine("developer.nativeBenchmarkIterations=${config.developer.nativeBenchmarkIterations}")
             appendLine("developer.logLevel=${config.developer.logLevel.name}")
+            appendLine("developer.logRingCapacity=${config.developer.logRingCapacity}")
+            appendLine("developer.enableStageTiming=${config.developer.enableStageTiming}")
+            appendLine("developer.enableMulticolorDiagnostic=${config.developer.enableMulticolorDiagnostic}")
+            appendLine("developer.enableFilterTrace=${config.developer.enableFilterTrace}")
             // 系统指针位置不进 AppConfig；只读当前系统/Shizuku 状态便于真机对照。
             if (appContext != null) {
                 appendLine(
@@ -320,6 +324,18 @@ object DiagnosticsExporter {
                 "- Algorithm frame AppLog tags: algo.frame / algo.det / algo.track / algo.decision " +
                     "(developer on + logLevel≤DEBUG for frames; decisions INFO on skip/plan/dispatch/calc). " +
                     "Throttled on change or every ${AlgorithmRuntimeTrace.PERIODIC_FRAMES} frames.",
+            )
+            appendLine(
+                "- Stage timing tag: algo.stage (per-frame jni/detect/postfilter/finalize ms). " +
+                    "Gated by developer.enableStageTiming (off by default; ~5-10us/frame).",
+            )
+            appendLine(
+                "- Multicolor diagnostic tag: algo.multicolor (per-template match/reject). " +
+                    "Gated by developer.enableMulticolorDiagnostic (off by default).",
+            )
+            appendLine(
+                "- Filter trace tag: algo.filter (size-window rejections with reason). " +
+                    "Gated by developer.enableFilterTrace (off by default).",
             )
             appendLine(
                 "- Decision ring retains last ${AlgorithmRuntimeTrace.DECISION_CAPACITY} " +

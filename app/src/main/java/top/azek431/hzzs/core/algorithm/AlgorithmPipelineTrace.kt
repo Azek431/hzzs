@@ -6,6 +6,7 @@
  */
 package top.azek431.hzzs.core.algorithm
 
+import top.azek431.hzzs.domain.vision.StageTiming
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
@@ -46,6 +47,7 @@ data class AlgorithmLastFrameSummary(
     val actionableCount: Int,
     val kindHistogram: String,
     val processingMs: Float,
+    val timing: StageTiming = StageTiming(),
     val algorithmId: String,
     val algorithmVersion: String,
     val generation: Long,
@@ -162,9 +164,20 @@ object AlgorithmPipelineTrace {
                 append(summary.obstacleCount)
                 append(" act=")
                 append(summary.actionableCount)
-                append(" ")
+                append(' ')
                 append("%.1f".format(summary.processingMs))
                 append("ms")
+                if (summary.timing.totalNs > 0) {
+                    append(" [jni=")
+                    append("%.1f".format(summary.timing.jniPrepNs / 1_000_000f))
+                    append(" det=")
+                    append("%.1f".format(summary.timing.detectNs / 1_000_000f))
+                    append(" post=")
+                    append("%.1f".format(summary.timing.postfilterNs / 1_000_000f))
+                    append(" fin=")
+                    append("%.1f".format(summary.timing.finalizeNs / 1_000_000f))
+                    append("]")
+                }
                 if (summary.kindHistogram.isNotBlank()) {
                     append(" [")
                     append(summary.kindHistogram)
@@ -227,6 +240,12 @@ object AlgorithmPipelineTrace {
                 appendLine("actionableCount=${frame.actionableCount}")
                 appendLine("kinds=${frame.kindHistogram.ifBlank { "-" }}")
                 appendLine("processingMs=${frame.processingMs}")
+        if (frame.timing.totalNs > 0) {
+            appendLine("timing.jniPrepMs=${frame.timing.jniPrepNs / 1_000_000.0}")
+            appendLine("timing.detectMs=${frame.timing.detectNs / 1_000_000.0}")
+            appendLine("timing.postfilterMs=${frame.timing.postfilterNs / 1_000_000.0}")
+            appendLine("timing.finalizeMs=${frame.timing.finalizeNs / 1_000_000.0}")
+        }
                 appendLine("algorithmId=${frame.algorithmId}")
                 appendLine("algorithmVersion=${frame.algorithmVersion}")
                 appendLine("generation=${frame.generation}")

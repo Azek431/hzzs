@@ -411,7 +411,7 @@ fun DeveloperSettingsScreen(
                 }
             }
 
-            // ── 5. 日志级别 ──
+            // ── 5. 日志级别 / 缓冲容量 ──
             item {
                 SettingsSectionCard(
                     title = stringResource(R.string.dev_log_level_title),
@@ -430,6 +430,67 @@ fun DeveloperSettingsScreen(
                             )
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.dev_log_ring_capacity, config.developer.logRingCapacity),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = config.developer.logRingCapacity.toFloat(),
+                        onValueChange = { value ->
+                            update {
+                                it.copy(
+                                    developer = it.developer.copy(logRingCapacity = value.toInt()),
+                                )
+                            }
+                        },
+                        valueRange = 500f..3000f,
+                        steps = 4,
+                    )
+                }
+            }
+
+            // ── 5b. 算法诊断（开销默认关闭，逐项标注影响） ──
+            item {
+                SettingsSectionCard(
+                    title = stringResource(R.string.dev_algorithm_diagnostics_title),
+                    description = stringResource(R.string.dev_algorithm_diagnostics_desc),
+                ) {
+                    SettingsWarningCard(
+                        title = stringResource(R.string.dev_algorithm_diagnostics_warning_title),
+                        body = stringResource(R.string.dev_algorithm_diagnostics_warning),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_enable_stage_timing),
+                        subtitle = stringResource(R.string.dev_enable_stage_timing_subtitle),
+                        checked = config.developer.enableStageTiming,
+                        onCheckedChange = { value ->
+                            update {
+                                it.copy(developer = it.developer.copy(enableStageTiming = value))
+                            }
+                        },
+                    )
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_enable_multicolor_diagnostic),
+                        subtitle = stringResource(R.string.dev_enable_multicolor_diagnostic_subtitle),
+                        checked = config.developer.enableMulticolorDiagnostic,
+                        onCheckedChange = { value ->
+                            update {
+                                it.copy(developer = it.developer.copy(enableMulticolorDiagnostic = value))
+                            }
+                        },
+                    )
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.dev_enable_filter_trace),
+                        subtitle = stringResource(R.string.dev_enable_filter_trace_subtitle),
+                        checked = config.developer.enableFilterTrace,
+                        onCheckedChange = { value ->
+                            update {
+                                it.copy(developer = it.developer.copy(enableFilterTrace = value))
+                            }
+                        },
+                    )
                 }
             }
 
