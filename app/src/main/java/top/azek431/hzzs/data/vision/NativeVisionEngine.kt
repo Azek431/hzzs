@@ -17,6 +17,7 @@ import top.azek431.hzzs.domain.vision.AlgorithmProfileValidator
 import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
 import top.azek431.hzzs.domain.vision.Avoidance
 import top.azek431.hzzs.domain.vision.Detection
+import top.azek431.hzzs.domain.vision.MulticolorDiag
 import top.azek431.hzzs.domain.vision.NormalizedRect
 import top.azek431.hzzs.domain.vision.ObjectKind
 import top.azek431.hzzs.domain.vision.VisionEngine
@@ -95,6 +96,7 @@ class NativeVisionEngine @Inject constructor(
             activation = activation,
             message = "Native 视觉引擎未返回结果",
             elapsed = elapsed,
+            nativeTiming = nativeResult?.getOrNull()?.timing,
         )
         val native = nativeAttempt.getOrElse { error ->
             return@withContext errorResult(
@@ -102,6 +104,7 @@ class NativeVisionEngine @Inject constructor(
                 activation = activation,
                 message = "Native 视觉调用失败：${error.message?.take(200) ?: error.javaClass.simpleName}",
                 elapsed = elapsed,
+                nativeTiming = nativeResult?.getOrNull()?.timing,
             )
         }
         val detections = native.detections.asSequence().take(MAX_NATIVE_DETECTIONS).mapNotNull { raw ->
@@ -123,6 +126,7 @@ class NativeVisionEngine @Inject constructor(
             )
         }.toList()
         val rawCount = detections.size
+        val timing = native.timing
         val sanitized = VisionResultValidator.sanitize(
             VisionResult(
                 scene = config.sceneId,
@@ -130,6 +134,15 @@ class NativeVisionEngine @Inject constructor(
                 player = detections.firstOrNull { it.kind == ObjectKind.PLAYER },
                 detections = detections.filterNot { it.kind == ObjectKind.PLAYER },
                 processingNanos = elapsed,
+                timing = StageTiming(
+                    jniPrepNs = timing.jniPrepNs,
+                    detectNs = timing.detectNs,
+                    postfilterNs = timing.postfilterNs,
+                    finalizeNs = timing.finalizeNs,
+                    totalNs = timing.totalNs,
+                ),
+                frameWidth = frame.meta.sourceWidth,
+                frameHeight = frame.meta.sourceHeight,
                 error = native.error.takeIf(String::isNotBlank),
                 activeAlgorithmId = activation.profile.algorithmId,
                 activeAlgorithmVersion = activation.profile.version,
@@ -139,6 +152,33 @@ class NativeVisionEngine @Inject constructor(
             ),
             config,
         )
+        // 多点找色中间数据：经 native 回传，默认空数组（仅开发者诊断开关开启时填充）。
+        val mcDiag = native.multicolorDiag.asSequence().map { m ->
+            MulticolorDiag(
+                patternIndex = m.patternIndex,
+                matched = m.matched,
+                baseX = m.baseX,
+                baseY = m.baseY,
+                thresholdUsed = m.thresholdUsed,
+                reason = m.reason,
+            )
+        }.toList()
+        val filteredOut = native.filteredOut.asSequence().mapNotNull { f ->
+            NormalizedRect.fromUnchecked(f.left, f.top, f.right, f.bottom)?.let { bounds ->
+                FilteredDetection(
+                    detection = Detection(
+                        id = f.trackHint.toLong().coerceAtLeast(0),
+                        kind = ObjectKind.entries.getOrNull(f.kind) ?: ObjectKind.PLAYER,
+                        bounds = bounds,
+                        confidence = f.confidence,
+                        actionable = f.actionable,
+                        diagnosticOnly = f.diagnosticOnly,
+                        avoidance = Avoidance.entries.getOrNull(f.avoidance) ?: Avoidance.NONE,
+                    ),
+                    reason = FilterReason.fromOrdinal(f.reason) ?: FilterReason.SIZE_WIDTH_MIN,
+                )
+            }
+        }.toList()
         // 最近一帧摘要供流程页展示；不默认写 AppLog，避免刷屏。
         val kindHistogram = sanitized.detections
             .groupingBy { it.kind.name }
@@ -166,7 +206,19 @@ class NativeVisionEngine @Inject constructor(
                     (if (sanitized.player != null) 1 else 0),
             ),
         )
-        sanitized
+        // 多点找色命中数写入帧轨迹，便于开发者对照「找色命中 vs 最终检测」。
+        val mcMatched = mcDiag.count { it.matched }
+        val mcTotal = mcDiag.size
+        AlgorithmRuntimeTrace.logCalc(
+            "multicolor matched=$mcMatched/$mcTotal " +
+                "diag=${mcDiag.joinToString(";") { "${it.patternIndex}:${if (it.matched) "Y" else "N"}" }}",
+        )
+        sanitized.copy(
+            multicolorDiag = mcDiag,
+            filteredOut = filteredOut,
+            frameWidth = frame.meta.sourceWidth,
+            frameHeight = frame.meta.sourceHeight,
+        )
     }
 
     /**
@@ -319,6 +371,7 @@ class NativeVisionEngine @Inject constructor(
         activation: AlgorithmActivation,
         message: String,
         elapsed: Long = 0L,
+        nativeTiming: NativeVision.StageTiming? = null,
     ): VisionResult {
         val result = VisionResult(
             scene = config.sceneId,
@@ -326,6 +379,15 @@ class NativeVisionEngine @Inject constructor(
             player = null,
             detections = emptyList(),
             processingNanos = elapsed,
+            timing = StageTiming(
+                jniPrepNs = nativeTiming.jniPrepNs,
+                detectNs = nativeTiming.detectNs,
+                postfilterNs = nativeTiming.postfilterNs,
+                finalizeNs = nativeTiming.finalizeNs,
+                totalNs = nativeTiming.totalNs,
+            ),
+            frameWidth = frame.meta.sourceWidth,
+            frameHeight = frame.meta.sourceHeight,
             error = message,
             activeAlgorithmId = activation.profile.algorithmId,
             activeAlgorithmVersion = activation.profile.version,

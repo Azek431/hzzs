@@ -48,9 +48,47 @@ object NativeVision {
         val avoidance: Int,
     )
 
+    /** 各阶段耗时（纳秒）；默认全 0，仅开发者诊断开关开启时有效。 */
+    data class StageTiming(
+        val jniPrepNs: Long,
+        val detectNs: Long,
+        val postfilterNs: Long,
+        val finalizeNs: Long,
+    ) {
+        val totalNs: Long get() = jniPrepNs + detectNs + postfilterNs + finalizeNs
+    }
+
+    /** 多点找色单模板匹配诊断；默认空数组，仅开发者诊断开关开启时有效。 */
+    data class MulticolorDiag(
+        val patternIndex: Int,
+        val matched: Boolean,
+        val baseX: Int,
+        val baseY: Int,
+        val thresholdUsed: Float,
+        val reason: Int,
+    )
+
+    /** 被尺寸窗剔除的检测 + 原因；默认空数组，仅过滤原因追踪开关开启时有效。 */
+    data class FilteredDetection(
+        val trackHint: Int,
+        val kind: Int,
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+        val confidence: Float,
+        val actionable: Boolean,
+        val diagnosticOnly: Boolean,
+        val avoidance: Int,
+        val reason: Int,
+    )
+
     data class Result(
         val sceneConfidence: Float,
         val detections: Array<Detection>,
+        val timing: StageTiming,
+        val multicolorDiag: Array<MulticolorDiag>,
+        val filteredOut: Array<FilteredDetection>,
         val error: String,
     )
 

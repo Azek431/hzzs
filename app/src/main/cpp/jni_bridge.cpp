@@ -11,6 +11,7 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -105,8 +106,92 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
         if (clear_if_exception(env)) break;
     }
 
+    // StageTiming: 4 个 long 字段 (jniPrepNs, detectNs, postfilterNs, finalizeNs)。
+    jclass timing_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$StageTiming");
+    jobject timing_obj = nullptr;
+    if (timing_class && !clear_if_exception(env)) {
+        jmethodID timing_ctor = env->GetMethodID(timing_class, "<init>", "(JJJJ)V");
+        if (timing_ctor && !clear_if_exception(env)) {
+            timing_obj = env->NewObject(
+                timing_class,
+                timing_ctor,
+                static_cast<jlong>(native_result.timing.jni_prep_ns),
+                static_cast<jlong>(native_result.timing.detect_ns),
+                static_cast<jlong>(native_result.timing.postfilter_ns),
+                static_cast<jlong>(native_result.timing.finalize_ns));
+            clear_if_exception(env);
+        }
+    }
+
+    // MulticolorDiag 数组：(patternIndex, matched, baseX, baseY, thresholdUsed, reason)。
+    jclass mc_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$MulticolorDiag");
+    jobjectArray mc_array = nullptr;
+    if (mc_class && !clear_if_exception(env)) {
+        jmethodID mc_ctor = env->GetMethodID(mc_class, "<init>", "(IZIIFI)V");
+        if (mc_ctor && !clear_if_exception(env)) {
+            const auto mc_count = static_cast<jsize>(native_result.multicolor_diag.size());
+            mc_array = env->NewObjectArray(mc_count, mc_class, nullptr);
+            if (mc_array && !clear_if_exception(env)) {
+                for (jsize i = 0; i < mc_count; ++i) {
+                    const auto& m = native_result.multicolor_diag[static_cast<std::size_t>(i)];
+                    jobject mo = env->NewObject(
+                        mc_class,
+                        mc_ctor,
+                        static_cast<jint>(m.pattern_index),
+                        static_cast<jboolean>(m.matched),
+                        static_cast<jint>(m.base_x),
+                        static_cast<jint>(m.base_y),
+                        static_cast<jfloat>(m.threshold_used),
+                        static_cast<jint>(static_cast<int32_t>(m.reason)));
+                    if (mo && !clear_if_exception(env)) {
+                        env->SetObjectArrayElement(mc_array, i, mo);
+                    }
+                    if (mo) env->DeleteLocalRef(mo);
+                    if (clear_if_exception(env)) break;
+                }
+            }
+        }
+    }
+
+    // FilteredDetection 数组：(trackHint, kind, left, top, right, bottom, confidence, actionable, diagnosticOnly, avoidance, reason)。
+    jclass fd_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$FilteredDetection");
+    jobjectArray fd_array = nullptr;
+    if (fd_class && !clear_if_exception(env)) {
+        jmethodID fd_ctor = env->GetMethodID(fd_class, "<init>", "(IIFFFFFZZII)V");
+        if (fd_ctor && !clear_if_exception(env)) {
+            const auto fd_count = static_cast<jsize>(native_result.filtered_out.size());
+            fd_array = env->NewObjectArray(fd_count, fd_class, nullptr);
+            if (fd_array && !clear_if_exception(env)) {
+                for (jsize i = 0; i < fd_count; ++i) {
+                    const auto& f = native_result.filtered_out[static_cast<std::size_t>(i)];
+                    jobject fo = env->NewObject(
+                        fd_class,
+                        fd_ctor,
+                        static_cast<jint>(f.detection.track_hint),
+                        static_cast<jint>(f.detection.kind),
+                        f.detection.bounds.left,
+                        f.detection.bounds.top,
+                        f.detection.bounds.right,
+                        f.detection.bounds.bottom,
+                        f.detection.confidence,
+                        static_cast<jboolean>(f.detection.actionable),
+                        static_cast<jboolean>(f.detection.diagnostic_only),
+                        static_cast<jint>(f.detection.avoidance),
+                        static_cast<jint>(static_cast<int32_t>(f.reason)));
+                    if (fo && !clear_if_exception(env)) {
+                        env->SetObjectArrayElement(fd_array, i, fo);
+                    }
+                    if (fo) env->DeleteLocalRef(fo);
+                    if (clear_if_exception(env)) break;
+                }
+            }
+        }
+    }
+
     jclass result_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$Result");
     if (!result_class || clear_if_exception(env)) {
+        if (timing_obj) env->DeleteLocalRef(timing_obj);
+        if (timing_class) env->DeleteLocalRef(timing_class);
         env->DeleteLocalRef(detections);
         env->DeleteLocalRef(detection_class);
         return nullptr;
@@ -114,8 +199,10 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
     jmethodID result_ctor = env->GetMethodID(
         result_class,
         "<init>",
-        "(F[Ltop/azek431/hzzs/nativevision/NativeVision$Detection;Ljava/lang/String;)V");
+        "(F[Ltop/azek431/hzzs/nativevision/NativeVision$Detection;Ltop/azek431/hzzs/nativevision/NativeVision$StageTiming;[Ltop/azek431/hzzs/nativevision/NativeVision$MulticolorDiag;[Ltop/azek431/hzzs/nativevision/NativeVision$FilteredDetection;Ljava/lang/String;)V");
     if (!result_ctor || clear_if_exception(env)) {
+        if (timing_obj) env->DeleteLocalRef(timing_obj);
+        if (timing_class) env->DeleteLocalRef(timing_class);
         env->DeleteLocalRef(result_class);
         env->DeleteLocalRef(detections);
         env->DeleteLocalRef(detection_class);
@@ -123,6 +210,8 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
     }
     jstring error = env->NewStringUTF(native_result.error.c_str());
     if (!error || clear_if_exception(env)) {
+        if (timing_obj) env->DeleteLocalRef(timing_obj);
+        if (timing_class) env->DeleteLocalRef(timing_class);
         env->DeleteLocalRef(result_class);
         env->DeleteLocalRef(detections);
         env->DeleteLocalRef(detection_class);
@@ -133,8 +222,17 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
         result_ctor,
         native_result.scene_confidence,
         detections,
+        timing_obj,
+        mc_array,
+        fd_array,
         error);
     clear_if_exception(env);
+    if (fd_array) env->DeleteLocalRef(fd_array);
+    if (fd_class) env->DeleteLocalRef(fd_class);
+    if (mc_array) env->DeleteLocalRef(mc_array);
+    if (mc_class) env->DeleteLocalRef(mc_class);
+    if (timing_obj) env->DeleteLocalRef(timing_obj);
+    if (timing_class) env->DeleteLocalRef(timing_class);
     env->DeleteLocalRef(error);
     env->DeleteLocalRef(result_class);
     env->DeleteLocalRef(detections);
@@ -152,6 +250,12 @@ bool finite_viewport(float left, float top, float right, float bottom) {
     return std::isfinite(left) && std::isfinite(top) && std::isfinite(right) &&
            std::isfinite(bottom) && left >= 0.0f && top >= 0.0f && right <= 1.0f &&
            bottom <= 1.0f && right - left >= 0.01f && bottom - top >= 0.01f;
+}
+
+/** 单调时钟（纳秒），用于 jni_prep 段计时。 */
+int64_t now_ns() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 jobject make_config_result(JNIEnv* env, const hzzs::AlgorithmConfigResult& config) {
@@ -476,6 +580,7 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
 
     try {
         hzzs::Result result;
+        int64_t t_prep_start = now_ns();
         {
             CriticalIntArray pinned(env, pixels);
             if (!pinned.valid() || clear_if_exception(env)) {
@@ -484,6 +589,7 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
 
             const bool full_viewport = crop_left == 0 && crop_top == 0 &&
                                        crop_width == width && crop_height == height;
+            int64_t t_prep_mid = now_ns();
             if (full_viewport) {
                 result = hzzs::analyze(
                     scene,
@@ -511,6 +617,8 @@ Java_top_azek431_hzzs_nativevision_NativeVision_analyze(
                     detect_player == JNI_TRUE,
                     fixed_player_x_ratio);
             }
+            int64_t t_prep_end = now_ns();
+            result.timing.jni_prep_ns = (t_prep_mid - t_prep_start) + (t_prep_end - t_prep_mid);
         }
         return make_result(env, result);
     } catch (const std::bad_alloc&) {

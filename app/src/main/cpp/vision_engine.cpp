@@ -10,11 +10,18 @@
 #include "BambooVisionCore.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 
 namespace hzzs {
 namespace {
+
+/** 单调时钟（纳秒），用于阶段计时；相比 wall-clock 不受 NTP 跳变影响。 */
+int64_t now_ns() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 /** 帧指针与尺寸边界，与 JNI / Kotlin FrameMeta 上限一致。 */
 bool valid_frame(const FrameView& frame) {
@@ -388,10 +395,13 @@ Result analyze_with_profile(
     }
 
     const SceneAlgorithmParamsNative& params = profile.scenes[scene];
+    StageTiming timing;
+    int64_t t0 = now_ns();
     Result result;
     if (scene == 2) {
         result = analyze_sea_salt(
-            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,
+            &result.multicolor_diag);
     } else if (scene == 1) {
         result = analyze_bamboo_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
@@ -399,63 +409,109 @@ Result analyze_with_profile(
         result = analyze_sweet_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
     }
+    int64_t t1 = now_ns();
+    timing.detect_ns = t1 - t0;
 
     // 后过滤：用 profile 尺寸窗剔除明显越界障碍（viewport 归一化），不改核心扫描。
+    // 被剔除项写入 result.filtered_out，供开发者诊断（默认仅占位，不参与规划）。
     if (result.error.empty()) {
-        result.detections.erase(
-            std::remove_if(
-                result.detections.begin(),
-                result.detections.end(),
-                [&](const Detection& d) {
-                    if (d.kind == Kind::PLAYER) return false;
-                    const float w = d.bounds.right - d.bounds.left;
-                    const float h = d.bounds.bottom - d.bounds.top;
-                    switch (d.kind) {
-                        case Kind::GREEN_BOTTLE:
-                            return w < params.bottle_width_min || w > params.bottle_width_max ||
-                                   h < params.bottle_height_min || h > params.bottle_height_max;
-                        case Kind::CAKE_STRUCTURE:
-                        case Kind::PIT:
-                            return w < params.cake_width_min || w > params.cake_width_max ||
-                                   h < params.cake_height_min;
-                        // 海盐专用窗：避免复用蛋糕/雕像/毛笔阈值误杀。
-                        case Kind::SEA_PIT:
-                            return w < 0.07f || w > 0.90f || h < 0.05f || h > 0.70f;
-                        case Kind::HANGING_SPIKE:
-                            return w < params.spike_width_min || w > params.spike_width_max ||
-                                   h < params.spike_height_min || h > params.spike_height_max;
-                        case Kind::PANDA_STATUE:
-                            return w < params.statue_width_min || w > params.statue_width_max ||
-                                   h < params.statue_height_min || h > params.statue_height_max;
-                        case Kind::SAND_CASTLE:
-                            return w < 0.035f || w > 0.48f || h < 0.04f || h > 0.50f;
-                        case Kind::BAMBOO_GAP:
-                            return w < params.gap_width_min || w > params.gap_width_max ||
-                                   h < params.gap_height_min;
-                        case Kind::HANGING_BRUSH:
-                            return w < params.brush_width_min || w > params.brush_width_max ||
-                                   h < params.brush_height_min || h > params.brush_height_max;
-                        case Kind::HANGING_ANCHOR:
-                            return w < 0.025f || w > 0.35f || h < 0.08f || h > 0.65f;
-                        default:
-                            return false;
-                    }
-                }),
-            result.detections.end());
+        std::vector<Detection> kept;
+        for (const auto& d : result.detections) {
+            if (d.kind == Kind::PLAYER) {
+                kept.push_back(d);
+                continue;
+            }
+            const float w = d.bounds.right - d.bounds.left;
+            const float h = d.bounds.bottom - d.bounds.top;
+            FilterReason reason = FilterReason::SIZE_WIDTH_MIN;
+            bool drop = false;
+            switch (d.kind) {
+                case Kind::GREEN_BOTTLE:
+                    if (w < params.bottle_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.bottle_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.bottle_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > params.bottle_height_max) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::CAKE_STRUCTURE:
+                case Kind::PIT:
+                    if (w < params.cake_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.cake_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.cake_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    break;
+                case Kind::SEA_PIT:
+                    if (w < 0.07f) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > 0.90f) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < 0.05f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > 0.70f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::HANGING_SPIKE:
+                    if (w < params.spike_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.spike_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.spike_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > params.spike_height_max) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::PANDA_STATUE:
+                    if (w < params.statue_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.statue_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.statue_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > params.statue_height_max) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::SAND_CASTLE:
+                    if (w < 0.035f) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > 0.48f) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < 0.04f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > 0.50f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::BAMBOO_GAP:
+                    if (w < params.gap_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.gap_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.gap_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    break;
+                case Kind::HANGING_BRUSH:
+                    if (w < params.brush_width_min) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > params.brush_width_max) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < params.brush_height_min) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > params.brush_height_max) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                case Kind::HANGING_ANCHOR:
+                    if (w < 0.025f) { drop = true; reason = FilterReason::SIZE_WIDTH_MIN; }
+                    else if (w > 0.35f) { drop = true; reason = FilterReason::SIZE_WIDTH_MAX; }
+                    else if (h < 0.08f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MIN; }
+                    else if (h > 0.65f) { drop = true; reason = FilterReason::SIZE_HEIGHT_MAX; }
+                    break;
+                default:
+                    break;
+            }
+            if (drop) {
+                result.filtered_out.push_back(FilteredDetection{d, reason});
+            } else {
+                kept.push_back(d);
+            }
+        }
+        result.detections = std::move(kept);
     }
+    int64_t t2 = now_ns();
+    timing.postfilter_ns = t2 - t1;
 
     // 主路径过弱时回退启发式（海盐无独立回退路径）。
     if (scene != 2 && result.error.empty() &&
         static_cast<int>(result.detections.size()) <= params.fallback_max_detections &&
         result.scene_confidence < params.fallback_scene_confidence_max) {
+        int64_t t_fb0 = now_ns();
         result = scene == 1
             ? analyze_bamboo(
                   frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params)
             : analyze_sweet(
                   frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+        int64_t t_fb1 = now_ns();
+        timing.detect_ns += (t_fb1 - t_fb0);
     }
 
-    return finalize_result(std::move(result), detect_player);
+    int64_t t3 = now_ns();
+    result = finalize_result(std::move(result), detect_player);
+    timing.finalize_ns = t3 - t2;
+    result.timing = timing;
+    return result;
 }
 
 Result analyze(
