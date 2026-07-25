@@ -29,6 +29,119 @@ object McpSettingsPatch {
         return apply(base, map)
     }
 
+    /** 批量操作类型：set=覆盖，add=向集合/列表追加，remove=从集合/列表移除，toggle=布尔取反。 */
+    enum class OpType { SET, ADD, REMOVE, TOGGLE }
+
+    /** 单条批量操作。`value` 在 [OpType.TOGGLE] 时省略。 */
+    data class Op(val path: String, val value: Any?, val operation: OpType)
+
+    /**
+     * 应用批量操作。
+     *
+     * - SET：同 [apply]（点分路径覆盖）。
+     * - ADD / REMOVE：仅支持已知集合/列表路径（如 `automation.allowedPackages` /
+     *   `scenes.<id>.disabledObstacles`）；其它路径拒绝。
+     * - TOGGLE：仅支持布尔路径；省略 [Op.value]。
+     */
+    fun applyOperations(base: AppConfig, operations: List<Op>): AppConfig {
+        var cfg = base
+        operations.forEach { op ->
+            cfg = when (op.operation) {
+                OpType.SET -> applyOne(cfg, op.path, op.value)
+                OpType.ADD -> applyAdd(cfg, op.path, op.value)
+                OpType.REMOVE -> applyRemove(cfg, op.path, op.value)
+                OpType.TOGGLE -> applyToggle(cfg, op.path)
+            }
+        }
+        return cfg
+    }
+
+    private fun applyAdd(cfg: AppConfig, path: String, raw: Any?): AppConfig {
+        require(raw != null) { "add 操作需要 value：$path" }
+        return when (path) {
+            "automation.allowedPackages" -> {
+                val adding = rawToStrings(raw, path)
+                cfg.copy(automation = cfg.automation.copy(allowedPackages = cfg.automation.allowedPackages + adding))
+            }
+            else -> {
+                val m = SCENE_PATH.matchEntire(path)
+                require(m != null && m.groupValues[2] == "disabledObstacles") {
+                    "add 仅支持 automation.allowedPackages 或 scenes.<id>.disabledObstacles：$path"
+                }
+                val sceneId = enumValueOf<SceneId>(m.groupValues[1])
+                val scene = cfg.scenes[sceneId] ?: error("未知场景：${m.groupValues[1]}")
+                val adding = rawToObstacleKinds(raw, path)
+                cfg.copy(scenes = cfg.scenes + (sceneId to scene.copy(disabledObstacles = scene.disabledObstacles + adding)))
+            }
+        }
+    }
+
+    private fun applyRemove(cfg: AppConfig, path: String, raw: Any?): AppConfig {
+        require(raw != null) { "remove 操作需要 value：$path" }
+        return when (path) {
+            "automation.allowedPackages" -> {
+                val removing = rawToStrings(raw, path)
+                cfg.copy(automation = cfg.automation.copy(allowedPackages = cfg.automation.allowedPackages - removing))
+            }
+            else -> {
+                val m = SCENE_PATH.matchEntire(path)
+                require(m != null && m.groupValues[2] == "disabledObstacles") {
+                    "remove 仅支持 automation.allowedPackages 或 scenes.<id>.disabledObstacles：$path"
+                }
+                val sceneId = enumValueOf<SceneId>(m.groupValues[1])
+                val scene = cfg.scenes[sceneId] ?: error("未知场景：${m.groupValues[1]}")
+                val removing = rawToObstacleKinds(raw, path)
+                cfg.copy(scenes = cfg.scenes + (sceneId to scene.copy(disabledObstacles = scene.disabledObstacles - removing)))
+            }
+        }
+    }
+
+    /** 解析包名列表（字符串集合）。 */
+    private fun rawToStrings(raw: Any?, path: String): Set<String> = when (raw) {
+        is org.json.JSONArray -> (0 until raw.length()).mapNotNull { raw.optString(it)?.trim()?.takeIf { it.isNotBlank() } }.toSet()
+        is String -> raw.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        else -> error("$path 须为字符串数组或逗号分隔字符串")
+    }
+
+    /** 解析障碍枚举集合。 */
+    private fun rawToObstacleKinds(raw: Any?, path: String): Set<ObstacleKind> = obstacleSet(raw, path)
+
+    private fun applyToggle(cfg: AppConfig, path: String): AppConfig = when (path) {
+        "overlay.enabled" -> cfg.copy(overlay = cfg.overlay.copy(enabled = !cfg.overlay.enabled))
+        "overlay.dynamicColorEnabled" -> cfg.copy(theme = cfg.theme.copy(dynamicColorEnabled = !cfg.theme.dynamicColorEnabled))
+        "overlay.reduceMotion" -> cfg.copy(theme = cfg.theme.copy(reduceMotion = !cfg.theme.reduceMotion))
+        "overlay.highContrast" -> cfg.copy(theme = cfg.theme.copy(highContrast = !cfg.theme.highContrast))
+        "automation.restrictPackages" -> cfg.copy(automation = cfg.automation.copy(restrictPackages = !cfg.automation.restrictPackages))
+        "automation.autoAdjustTriggerDistance" -> cfg.copy(
+            automation = cfg.automation.copy(autoAdjustTriggerDistance = !cfg.automation.autoAdjustTriggerDistance),
+        )
+        "automation.autoReviveEnabled" -> cfg.copy(automation = cfg.automation.copy(autoReviveEnabled = !cfg.automation.autoReviveEnabled))
+        "automation.bambooExperimentalAutoAction" -> cfg.copy(
+            automation = cfg.automation.copy(bambooExperimentalAutoAction = !cfg.automation.bambooExperimentalAutoAction),
+        )
+        "developer.saveDebugFrames" -> cfg.copy(developer = cfg.developer.copy(saveDebugFrames = !cfg.developer.saveDebugFrames))
+        "developer.showCoordinateGrid" -> cfg.copy(developer = cfg.developer.copy(showCoordinateGrid = !cfg.developer.showCoordinateGrid))
+        "mcp.accessLogEnabled" -> cfg.copy(mcp = cfg.mcp.copy(accessLogEnabled = !cfg.mcp.accessLogEnabled))
+        else -> throw IllegalArgumentException("toggle 仅支持已知布尔路径：$path")
+    }
+
+    private fun rawToStringSet(cfg: AppConfig, path: String, raw: Any?): Set<ObstacleKind> = when (path) {
+        "automation.allowedPackages" -> when (raw) {
+            is org.json.JSONArray -> (0 until raw.length()).mapNotNull { raw.optString(it)?.trim()?.takeIf { it.isNotBlank() } }.toSet()
+            is String -> raw.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }.toSet()
+            else -> error("$path 须为字符串数组或逗号分隔字符串")
+        }.let { stringSet ->
+            // allowedPackages 是包名（字符串集合），直接返回
+            @Suppress("UNCHECKED_CAST")
+            stringSet as Set<ObstacleKind>
+        }
+        else -> obstacleSet(raw, path).let { obstacleSet ->
+            // disabledObstacles 是障碍枚举集合
+            @Suppress("UNCHECKED_CAST")
+            obstacleSet as Set<ObstacleKind>
+        }
+    }
+
     private fun applyOne(cfg: AppConfig, path: String, raw: Any?): AppConfig {
         require(path.isNotBlank()) { "补丁路径不能为空" }
         return when (path) {
@@ -107,13 +220,7 @@ object McpSettingsPatch {
                 automation = cfg.automation.copy(restrictPackages = bool(raw, path)),
             )
             "automation.allowedPackages" -> {
-                val list = when (raw) {
-                    is org.json.JSONArray -> (0 until raw.length()).mapNotNull { i ->
-                        raw.optString(i)?.trim()?.takeIf { it.isNotBlank() }
-                    }
-                    is String -> raw.split(',', ';', '\n').map { it.trim() }.filter { it.isNotBlank() }
-                    else -> error("automation.allowedPackages 须为字符串数组或逗号分隔字符串")
-                }
+                val list = rawToStrings(raw, path)
                 cfg.copy(automation = cfg.automation.copy(allowedPackages = list.toSet()))
             }
             "automation.autoAdjustTriggerDistance" -> cfg.copy(
@@ -178,7 +285,7 @@ object McpSettingsPatch {
                 if (m != null) {
                     applyScenePath(cfg, m.groupValues[1], m.groupValues[2], raw)
                 } else {
-                    error("不支持的补丁路径：$path")
+                    throw IllegalArgumentException("不支持的补丁路径：$path")
                 }
             }
         }
@@ -194,7 +301,7 @@ object McpSettingsPatch {
         val scene = cfg.scenes[sceneId] ?: error("未知场景：$sceneName")
         val next = when (field) {
             "enabled" -> scene.copy(enabled = bool(raw, field))
-            "disabledObstacles" -> scene.copy(disabledObstacles = obstacleSet(raw, field))
+            "disabledObstacles" -> scene.copy(disabledObstacles = rawToObstacleKinds(raw, field))
             "thresholds.workWidth" -> scene.copy(
                 thresholds = scene.thresholds.copy(workWidth = int(raw, field)),
             )

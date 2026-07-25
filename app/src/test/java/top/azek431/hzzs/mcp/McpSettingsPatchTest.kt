@@ -52,7 +52,58 @@ class McpSettingsPatchTest {
     }
 
     @Test
-    fun rejectsUnknownPath() {
+    fun appliesBatchOperations() {
+        val base = AppConfig().copy(
+            automation = AppConfig().automation.copy(
+                allowedPackages = setOf("com.a"),
+                restrictPackages = false,
+            ),
+        )
+        val next = McpSettingsPatch.applyOperations(
+            base,
+            listOf(
+                McpSettingsPatch.Op(
+                    "automation.allowedPackages",
+                    "com.b",
+                    McpSettingsPatch.OpType.ADD,
+                ),
+                McpSettingsPatch.Op(
+                    "automation.allowedPackages",
+                    "com.a",
+                    McpSettingsPatch.OpType.REMOVE,
+                ),
+                McpSettingsPatch.Op(
+                    "automation.restrictPackages",
+                    null,
+                    McpSettingsPatch.OpType.TOGGLE,
+                ),
+            ),
+        )
+        assertTrue(next.automation.allowedPackages.contains("com.b"))
+        assertFalse(next.automation.allowedPackages.contains("com.a"))
+        assertTrue(next.automation.restrictPackages)
+    }
+
+    @Test
+    fun rejectsUnknownBatchOperation() {
+        try {
+            McpSettingsPatch.applyOperations(
+                AppConfig(),
+                listOf(
+                    McpSettingsPatch.Op(
+                        "automation.allowedPackages",
+                        "com.x",
+                        McpSettingsPatch.OpType.TOGGLE,
+                    ),
+                ),
+            )
+            assertTrue("should throw", false)
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("toggle 仅支持已知布尔路径"))
+        }
+    }
+    @Test
+    fun rejectsSensitivePatch() {
         try {
             McpSettingsPatch.apply(AppConfig(), mapOf("automation.enabled" to true))
             assertTrue("should throw", false)
@@ -121,6 +172,12 @@ class McpSettingsPatchTest {
         assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("download_algorithm")!!.risk)
         assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("set_mcp_tool_policy")!!.risk)
         assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("set_mcp_permission_level")!!.risk)
+        assertTrue(McpToolCatalog.tools.any { it.name == "inspect" })
+        assertTrue(
+            McpToolCatalog.tool("inspect")!!.inputSchema
+                .getJSONObject("properties")
+                .has("include"),
+        )
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://runtime/snapshot" })
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://algorithm/active" })
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://mcp/status" })

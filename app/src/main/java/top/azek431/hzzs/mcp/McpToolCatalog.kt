@@ -71,8 +71,23 @@ object McpToolCatalog {
             inputSchema = emptyObjectSchema(),
         ),
         McpToolDescriptor(
+            name = "inspect",
+            description = "一键诊断聚合：status + latest + algorithm + automationGates + permissions + mcp + version；" +
+                "include 可选子集（逗号分隔）裁剪输出，减少传输",
+            risk = McpToolRisk.READ,
+            inputSchema = objSchema(
+                properties = JSONObject().put(
+                    "include",
+                    stringProp(
+                        "逗号分隔子集：status,latest,algorithm,gates,permissions,mcp,version；" +
+                            "默认全部",
+                    ),
+                ),
+            ),
+        ),
+        McpToolDescriptor(
             name = "get_runtime_snapshot",
-            description = "聚合运行态 + 最近检测摘要 + 算法激活 + 自动化门闩（推荐排障首选）",
+            description = "读取视觉运行时聚合快照（状态、最近结果、算法与自动操作门控）",
             risk = McpToolRisk.READ,
             inputSchema = emptyObjectSchema(),
         ),
@@ -110,7 +125,8 @@ object McpToolCatalog {
         ),
         McpToolDescriptor(
             name = "patch_settings",
-            description = "白名单局部改设置（主题/悬浮窗/场景阈值/算法通道等）；比整包 JSON 更安全",
+            description = "白名单局部改设置（主题/悬浮窗/场景阈值/算法通道等）；比整包 JSON 更安全。" +
+                "支持 patches（点分路径→值）与 operations（[{path,value,op}]，op: set/add/remove/toggle）",
             risk = McpToolRisk.WRITE,
             inputSchema = objSchema(
                 properties = JSONObject()
@@ -124,10 +140,32 @@ object McpToolCatalog {
                             )
                             .put("additionalProperties", false),
                     )
+                    .put(
+                        "operations",
+                        JSONObject()
+                            .put("type", "array")
+                            .put("description", "批量操作：[{path,value?,op}]；op: set/add/remove/toggle")
+                            .put(
+                                "items",
+                                JSONObject()
+                                    .put("type", "object")
+                                    .put("additionalProperties", false)
+                                    .put(
+                                        "properties",
+                                        JSONObject()
+                                            .put("path", stringProp("点分路径"))
+                                            .put("value", JSONObject().put("description", "set/add/remove 必填；toggle 省略"))
+                                            .put(
+                                                "op",
+                                                stringProp("操作类型", listOf("set", "add", "remove", "toggle")),
+                                            ),
+                                    )
+                                    .put("required", JSONArray(listOf("path", "op"))),
+                            ),
+                    )
                     .put("persist", boolProp("true=永久保存，false=仅预览（默认 true）")),
-                required = listOf("patches"),
             ),
-            required = listOf("patches"),
+            required = emptyList(),
         ),
         McpToolDescriptor(
             name = "reset_preview",
@@ -240,6 +278,47 @@ object McpToolCatalog {
         McpToolDescriptor(
             name = "clear_debug_frames",
             description = "清除私有目录中的调试帧",
+            risk = McpToolRisk.WRITE,
+            inputSchema = emptyObjectSchema(),
+        ),
+        McpToolDescriptor(
+            name = "get_version",
+            description = "读取应用版本 / 配置 schema / 设备信息（versionName、versionCode、schema、buildType、manufacturer、sdkInt、abi）",
+            risk = McpToolRisk.READ,
+            inputSchema = emptyObjectSchema(),
+        ),
+        McpToolDescriptor(
+            name = "check_update",
+            description = "检查应用更新（包装 UpdateRepository.check）；失败返回 error 而非抛异常。受 update.wifiOnly 约束",
+            risk = McpToolRisk.READ,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("force", boolProp("强制检查（忽略 wifiOnly 门控，默认 false）")),
+            ),
+        ),
+        McpToolDescriptor(
+            name = "get_metrics",
+            description = "运行时指标：内存（Runtime）+ 帧（fps/processingMs 滑动窗口）+ 进程 uptime",
+            risk = McpToolRisk.READ,
+            inputSchema = emptyObjectSchema(),
+        ),
+        McpToolDescriptor(
+            name = "get_debug_frame",
+            description = "读取指定调试帧的 JPEG（按 maxWidth 等比降采样、quality 重编码），base64 内嵌返回。" +
+                "需开发者选项 + allowDebugFrames",
+            risk = McpToolRisk.HIGH_RISK,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("name", stringProp("调试帧文件名，如 frame_123_1080x2400.jpg"))
+                    .put("maxWidth", intProp("降采样后最大边长（默认 480，原图传 0）"))
+                    .put("quality", intProp("JPEG 质量 10-100（默认 70）")),
+                required = listOf("name"),
+            ),
+            required = listOf("name"),
+        ),
+        McpToolDescriptor(
+            name = "capture_debug_frame",
+            description = "强制存下一帧到调试帧目录（绕过保存间隔门控）",
             risk = McpToolRisk.WRITE,
             inputSchema = emptyObjectSchema(),
         ),
@@ -504,6 +583,68 @@ object McpToolCatalog {
             ),
             required = listOf("target"),
         ),
+        McpToolDescriptor(
+            name = "get_events",
+            description = "拉取运行时事件（启停 / 算法切换 / 配置变化 / 错误等），支持 since 增量",
+            risk = McpToolRisk.READ,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("since", intProp("只返回 seq > since 的事件，默认 0（全部）；溢出返回 dropped 标志"))
+                    .put("limit", intProp("条数，默认 50，最大 200")),
+            ),
+        ),
+        McpToolDescriptor(
+            name = "upgrade_algorithms",
+            description = "一键升级所有已装的外部算法包（builtin / bundled 跳过，同 version 跳过）。可选 dryRun 仅返回可升级列表",
+            risk = McpToolRisk.HIGH_RISK,
+            inputSchema = objSchema(
+                properties = JSONObject().put(
+                    "dryRun",
+                    boolProp("true=不执行下载，仅返回可升级/跳过/失败列表（默认 false）"),
+                ),
+            ),
+        ),
+        // —— 命名配置 Profile ——
+        McpToolDescriptor(
+            name = "save_profile",
+            description = "将当前生效配置保存为命名 profile（filesDir/mcp-profiles/）",
+            risk = McpToolRisk.WRITE,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("name", stringProp("profile 名，[A-Za-z0-9_-]{1,64}"))
+                    .put("description", stringProp("可选描述")),
+                required = listOf("name"),
+            ),
+            required = listOf("name"),
+        ),
+        McpToolDescriptor(
+            name = "load_profile",
+            description = "读取 profile → preview 或永久保存",
+            risk = McpToolRisk.WRITE,
+            inputSchema = objSchema(
+                properties = JSONObject()
+                    .put("name", stringProp("profile 名"))
+                    .put("persist", boolProp("true=永久保存，false=仅预览（默认 false）")),
+                required = listOf("name"),
+            ),
+            required = listOf("name"),
+        ),
+        McpToolDescriptor(
+            name = "list_profiles",
+            description = "列出已保存的 profile 元数据（名字/描述/时间/大小）",
+            risk = McpToolRisk.READ,
+            inputSchema = emptyObjectSchema(),
+        ),
+        McpToolDescriptor(
+            name = "delete_profile",
+            description = "删除指定 profile",
+            risk = McpToolRisk.WRITE,
+            inputSchema = objSchema(
+                properties = JSONObject().put("name", stringProp("profile 名")),
+                required = listOf("name"),
+            ),
+            required = listOf("name"),
+        ),
         // —— MCP 工具管理（自管）——
         McpToolDescriptor(
             name = "get_mcp_status",
@@ -612,6 +753,7 @@ object McpToolCatalog {
         McpResourceDescriptor("app://permissions", "permissions", "系统权限状态"),
         McpResourceDescriptor("app://logs/recent", "logs/recent", "最近日志（需开发者）"),
         McpResourceDescriptor("app://mcp/status", "mcp/status", "MCP 服务与工具策略状态"),
+        McpResourceDescriptor("app://events", "events", "运行时事件流（启停/算法/配置/错误）"),
     )
 
     private val byName = tools.associateBy { it.name }

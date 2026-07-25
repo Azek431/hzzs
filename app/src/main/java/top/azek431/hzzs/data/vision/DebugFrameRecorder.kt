@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import top.azek431.hzzs.core.model.DeveloperConfig
 import top.azek431.hzzs.service.capture.CapturedFrame
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,20 +48,28 @@ class DebugFrameRecorder @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lastAcceptedNanos = AtomicLong(Long.MIN_VALUE)
     private val ioMutex = Mutex()
+    /** MCP `capture_debug_frame` 触发：绕过间隔门控强制存下一帧。 */
+    private val requestedCapture = AtomicBoolean(false)
 
     /**
      * 尝试提交一帧调试样本。
      *
      * 快速返回：开发者开关关闭、间隔未到、或 CAS 失败时不复制像素。
      * 成功接受后复制像素并异步 [writeFrame]。
+     * 若 [requestedCapture] 置位，则绕过间隔门控（MCP 手动触发）。
      */
     fun offer(frame: CapturedFrame, config: DeveloperConfig) {
         if (!config.enabled || !config.saveDebugFrames) return
         val now = frame.elapsedRealtimeNanos
-        while (true) {
-            val previous = lastAcceptedNanos.get()
-            if (previous != Long.MIN_VALUE && now - previous < MIN_INTERVAL_NANOS) return
-            if (lastAcceptedNanos.compareAndSet(previous, now)) break
+        val bypass = requestedCapture.getAndSet(false)
+        if (!bypass) {
+            while (true) {
+                val previous = lastAcceptedNanos.get()
+                if (previous != Long.MIN_VALUE && now - previous < MIN_INTERVAL_NANOS) return
+                if (lastAcceptedNanos.compareAndSet(previous, now)) break
+            }
+        } else {
+            lastAcceptedNanos.set(now)
         }
 
         val width = frame.width
@@ -90,6 +99,43 @@ class DebugFrameRecorder @Inject constructor(
     suspend fun clear(): Int = ioMutex.withLock {
         directory.listFiles().orEmpty().count { it.isFile && it.delete() }
     }
+
+    /** 绕过间隔门控，强制存下一帧（MCP `capture_debug_frame`）。 */
+    fun requestCapture() {
+        requestedCapture.set(true)
+    }
+
+    /**
+     * 读取指定调试帧的 JPEG 字节并按 [maxWidth] 等比降采样、以 [quality] 重新编码。
+     * 文件不存在返回 null。
+     */
+    suspend fun getBytes(name: String, maxWidth: Int = 480, quality: Int = 70): ByteArray? =
+        ioMutex.withLock {
+            val file = File(directory, name)
+            if (!file.isFile) return null
+            val bytes = file.readBytes()
+            if (maxWidth <= 0) return bytes
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0) return bytes
+            if (bounds.outWidth <= maxWidth) return bytes
+            var sample = 1
+            while (bounds.outWidth / sample > maxWidth) sample *= 2
+            val opts = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+            }
+            val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                ?: return bytes
+            return try {
+                java.io.ByteArrayOutputStream().use { bos ->
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality.coerceIn(10, 100), bos)
+                    bos.toByteArray()
+                }
+            } finally {
+                bmp.recycle()
+            }
+        }
 
     /**
      * 将 ARGB 像素编码为 JPEG 并裁剪目录至 [MAX_FILES]。

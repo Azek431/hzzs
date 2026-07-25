@@ -3,6 +3,7 @@ package top.azek431.hzzs.mcp
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.json.JSONArray
@@ -66,6 +67,8 @@ class McpActionRegistry @Inject constructor(
     private val debugFrames: DebugFrameRecorder,
     private val algorithmCatalog: AlgorithmCatalogController,
     private val visionEngine: VisionEngine,
+    private val profileStore: McpProfileStore,
+    private val updateRepository: top.azek431.hzzs.core.update.UpdateRepository,
 ) : McpActionSurface {
     override suspend fun readResource(uri: String): JSONObject = when (uri) {
         "app://status" -> runtime.status.value.toJson()
@@ -82,6 +85,7 @@ class McpActionRegistry @Inject constructor(
         "app://permissions" -> permissionsJson()
         "app://logs/recent" -> logsJson(limit = 80, newestFirst = true)
         "app://mcp/status" -> mcpStatusJson()
+        "app://events" -> eventsJson()
         else -> throw IllegalArgumentException("未知资源：$uri")
     }
 
@@ -123,6 +127,7 @@ class McpActionRegistry @Inject constructor(
     private suspend fun execute(tool: String, arguments: JSONObject): JSONObject = when (tool) {
         "get_status" -> runtime.status.value.toJson()
         "get_runtime_snapshot" -> runtimeSnapshot()
+        "inspect" -> inspectJson(arguments.optString("include").takeIf { it.isNotBlank() })
         "get_settings" -> JSONObject(settings.exportJsonRedacted(settings.current()))
         "preview_settings" -> {
             settings.preview(ingestMcpConfig(arguments.requireString("config")))
@@ -130,15 +135,31 @@ class McpActionRegistry @Inject constructor(
         }
         "save_settings" -> {
             settings.save(ingestMcpConfig(arguments.requireString("config")))
+            runCatching { McpEventBus.append(McpEventBus.Type.CONFIG_CHANGE, JSONObject().put("source", "save_settings")) }
             ok("设置已保存（权限型字段已按安全策略收敛）")
         }
         "patch_settings" -> {
-            val patches = arguments.getJSONObject("patches")
             val persist = arguments.optBoolean("persist", true)
-            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
+            var patched = settings.current()
+            arguments.optJSONObject("patches")?.let { patches ->
+                patched = McpSettingsPatch.applyFromJson(patched, patches)
+            }
+            arguments.optJSONArray("operations")?.let { ops ->
+                val list = (0 until ops.length()).map { i ->
+                    val op = ops.getJSONObject(i)
+                    McpSettingsPatch.Op(
+                        path = op.requireString("path"),
+                        value = if (op.isNull("value")) null else op.opt("value"),
+                        operation = enumValueOf<McpSettingsPatch.OpType>(
+                            op.requireString("op"),
+                        ),
+                    )
+                }
+                patched = McpSettingsPatch.applyOperations(patched, list)
+            }
             if (persist) settings.save(patched) else settings.preview(patched)
+            runCatching { McpEventBus.append(McpEventBus.Type.CONFIG_CHANGE, JSONObject().put("source", "patch_settings")) }
             ok(if (persist) "局部设置已保存" else "局部设置已预览")
-                .put("paths", JSONArray(patches.keys().asSequence().toList()))
         }
         "reset_preview" -> {
             settings.clearPreview()
@@ -194,6 +215,12 @@ class McpActionRegistry @Inject constructor(
             val backend = enumValueOf<CaptureBackend>(arguments.requireString("backend"))
             val persist = arguments.optBoolean("persist", true)
             applyConfig({ it.copy(captureBackend = backend) }, persist)
+            runCatching {
+                McpEventBus.append(
+                    McpEventBus.Type.CAPTURE_BACKEND_CHANGE,
+                    JSONObject().put("backend", backend.name).put("persist", persist),
+                )
+            }
             ok("截图后端已设为 ${backend.name}（建议 restart_analysis 生效）")
         }
         "set_gesture_backend" -> {
@@ -214,6 +241,9 @@ class McpActionRegistry @Inject constructor(
             runtime.cancelPendingActions()
             ok("手势后端已保存为 ${backend.name}（运行时立即按 saved 解析）")
         }
+        "get_version" -> versionJson()
+        "check_update" -> checkUpdateJson(arguments.optBoolean("force", false))
+        "get_metrics" -> metricsJson()
         "run_diagnostics" -> JSONObject().apply {
             put("status", runtime.status.value.toJson())
             put("settingsValid", runCatching { settings.current() }.isSuccess)
@@ -224,6 +254,29 @@ class McpActionRegistry @Inject constructor(
         }
         "list_debug_frames" -> debugFrameMetadata()
         "clear_debug_frames" -> ok("已清除 ${debugFrames.clear()} 个调试帧")
+        "get_debug_frame" -> {
+            ensureDeveloper()
+            val mcp = settings.current().mcp
+            check(mcp.allowDebugFrames) { "请先开启 MCP 允许读取调试帧" }
+            val name = arguments.requireString("name")
+            val maxWidth = arguments.optInt("maxWidth", 480).coerceAtLeast(0)
+            val quality = arguments.optInt("quality", 70).coerceIn(10, 100)
+            val bytes = debugFrames.getBytes(name, maxWidth, quality)
+            check(bytes != null) { "调试帧不存在：$name" }
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            JSONObject()
+                .put("name", name)
+                .put("width", bounds.outWidth.takeIf { it > 0 } ?: JSONObject.NULL)
+                .put("height", bounds.outHeight.takeIf { it > 0 } ?: JSONObject.NULL)
+                .put("sizeBytes", bytes.size)
+                .put("base64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP))
+        }
+        "capture_debug_frame" -> {
+            ensureDeveloper()
+            debugFrames.requestCapture()
+            ok("已请求存下一帧（将写入调试帧目录，受 MAX_FILES 上限裁剪）")
+        }
 
         "set_scene" -> {
             val scene = enumValueOf<SceneId>(arguments.requireString("scene"))
@@ -477,6 +530,51 @@ class McpActionRegistry @Inject constructor(
         "list_mcp_tools" -> listMcpToolsJson(
             includeDisabled = arguments.optBoolean("includeDisabled", true),
         )
+        "save_profile" -> {
+            val name = arguments.requireString("name")
+            val description = arguments.optString("description")
+            val meta = profileStore.save(name, description, settings.current())
+            ok("profile 已保存：${meta.name}")
+                .put("profile", meta.toJson())
+        }
+        "load_profile" -> {
+            val name = arguments.requireString("name")
+            val persist = arguments.optBoolean("persist", false)
+            val config = profileStore.load(name)
+            if (persist) settings.save(config) else settings.preview(config)
+            ok(if (persist) "profile 已永久应用：$name" else "profile 已预览：$name")
+                .put("name", name)
+        }
+        "list_profiles" -> {
+            val metas = profileStore.list()
+            JSONObject()
+                .put("profiles", JSONArray(metas.map { it.toJson() }))
+                .put("count", metas.size)
+        }
+        "delete_profile" -> {
+            val name = arguments.requireString("name")
+            val deleted = profileStore.delete(name)
+            ok(if (deleted) "profile 已删除：$name" else "profile 不存在：$name")
+                .put("deleted", deleted)
+        }
+        "get_events" -> {
+            val since = arguments.optLong("since", 0L).coerceAtLeast(0L)
+            val limit = arguments.optInt("limit", 50).coerceIn(1, McpEventBus.CAPACITY)
+            eventsJson(since, limit)
+        }
+        "upgrade_algorithms" -> {
+            bindCatalog()
+            val dryRun = arguments.optBoolean("dryRun", false)
+            if (dryRun) {
+                val result = algorithmCatalog.upgradeAll()
+                ok("dryRun：可升级 ${result.upgraded.size} / 跳过 ${result.skipped.size} / 失败 ${result.failed.size}")
+                    .put("result", result.toJson())
+            } else {
+                val result = algorithmCatalog.upgradeAll()
+                ok("已触发升级 ${result.upgraded.size} 个算法包（异步下载/验签/安装，请用 list_algorithms 跟踪）")
+                    .put("result", result.toJson())
+            }
+        }
         "get_mcp_access_log" -> {
             val limit = arguments.optInt("limit", 50).coerceIn(1, McpAccessLog.CAPACITY)
             val newestFirst = arguments.optBoolean("newestFirst", true)
@@ -634,6 +732,7 @@ class McpActionRegistry @Inject constructor(
             put("allowDebugFrames", mcp.allowDebugFrames)
             put("accessLogEnabled", mcp.accessLogEnabled)
             put("accessLogCount", McpAccessLog.size())
+            put("eventCount", McpEventBus.size())
             put("activeSessions", state.activeSessions)
             put("lastError", state.lastError)
             put(
@@ -716,6 +815,154 @@ class McpActionRegistry @Inject constructor(
         put("overlayOrientations", JSONArray(OverlayOrientation.entries.map { it.name }))
         put("playerReferenceModes", JSONArray(PlayerReferenceMode.entries.map { it.name }))
         put("obstacleKinds", JSONArray(ObstacleKind.entries.map { it.name }))
+    }
+
+    /**
+     * 一键诊断聚合：默认返回 status/latest/algorithm/gates/permissions/mcp/version。
+     * [includeCsv] 为空时返回全部；否则按逗号分隔子集裁剪。
+     */
+    private suspend fun inspectJson(includeCsv: String?): JSONObject {
+        val include = includeCsv?.split(',', ' ', ';')
+            ?.map { it.trim().lowercase() }
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
+        fun want(name: String) = include.isEmpty() || name in include
+        val status = runtime.status.value
+        val latest = runtime.latestResult.value
+        val cfg = settings.current()
+        return JSONObject().apply {
+            if (want("status")) put("status", status.toJson())
+            if (want("latest")) {
+                put("latest", latest?.toJson() ?: JSONObject.NULL)
+                put(
+                    "latestSummary",
+                    latest?.let { r ->
+                        JSONObject().apply {
+                            put("scene", r.scene.name)
+                            put("sceneConfidence", r.sceneConfidence.toDouble())
+                            put("detectionCount", r.detections.size)
+                            put(
+                                "kindHistogram",
+                                JSONObject().apply {
+                                    r.detections.groupingBy { it.kind.name }.eachCount().forEach { (k, v) ->
+                                        put(k, v)
+                                    }
+                                },
+                            )
+                            put(
+                                "hasPlayer",
+                                r.detections.any {
+                                    it.kind == top.azek431.hzzs.domain.vision.ObjectKind.PLAYER
+                                },
+                            )
+                        }
+                    } ?: JSONObject.NULL,
+                )
+            }
+            if (want("algorithm")) put("algorithm", activeAlgorithmJson())
+            if (want("gates")) put("automationGates", automationGatesJson())
+            if (want("permissions")) put("permissions", permissionsJson())
+            if (want("mcp")) {
+                val mcp = cfg.mcp
+                put(
+                    "mcp",
+                    JSONObject().apply {
+                        put("enabled", mcp.enabled)
+                        put("running", uiBridge.serverState.value.running)
+                        put("port", mcp.port)
+                        put("permissionLevel", mcp.permissionLevel.name)
+                        put("requireAuth", mcp.requireAuth)
+                        put("tokenConfigured", mcp.authToken.isNotBlank())
+                        put("toolPolicyOverrides", mcp.toolPolicies.size)
+                    },
+                )
+            }
+            if (want("version")) {
+                val pkg = runCatching {
+                    appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+                }.getOrNull()
+                put("version", versionJson(cfg, pkg))
+            }
+        }
+    }
+
+    private suspend fun versionJson(): JSONObject {
+        val pkg = runCatching {
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        }.getOrNull()
+        return versionJson(settings.current(), pkg)
+    }
+
+    /** 构建 version 字段：应用版本 + 配置 schema + 设备信息。 */
+    private fun versionJson(
+        cfg: top.azek431.hzzs.core.model.AppConfig,
+        pkg: android.content.pm.PackageInfo?,
+    ): JSONObject = JSONObject().apply {
+        put("versionName", pkg?.versionName ?: BuildConfig.VERSION_NAME)
+        put(
+            "versionCode",
+            if (Build.VERSION.SDK_INT >= 28) {
+                pkg?.longVersionCode ?: BuildConfig.VERSION_CODE.toLong()
+            } else {
+                @Suppress("DEPRECATION")
+                (pkg?.versionCode?.toLong() ?: BuildConfig.VERSION_CODE.toLong())
+            },
+        )
+        put("schema", cfg.schemaVersion)
+        put("buildType", if (BuildConfig.DEBUG) "debug" else "release")
+        put("manufacturer", Build.MANUFACTURER ?: "")
+        put("sdkInt", Build.VERSION.SDK_INT)
+        put("abi", runCatching { Build.SUPPORTED_ABIS.joinToString() }.getOrDefault(""))
+    }
+
+    private suspend fun checkUpdateJson(force: Boolean): JSONObject {
+        val cfg = settings.current()
+        val update = cfg.update
+        if (!force && update.wifiOnly && !isOnUnmeteredNetwork()) {
+            return JSONObject().put("error", "当前设置要求仅在 Wi‑Fi 下检查更新").put("skipped", true)
+        }
+        val repo = updateRepository
+        return runCatching {
+            val result = repo.check(
+                beta = update.channel == top.azek431.hzzs.core.model.UpdateChannel.BETA,
+                sourcePreference = update.sourcePreference,
+            )
+            val installed = installedVersionCode()
+            JSONObject()
+                .put("hasUpdate", result.manifest.versionCode > installed)
+                .put("versionName", result.manifest.versionName)
+                .put("versionCode", result.manifest.versionCode)
+                .put("source", result.source.name)
+                .put("releaseNotes", result.manifest.releaseNotes)
+                .put("isIgnored", update.ignoredVersionCode == result.manifest.versionCode)
+                .put("installedVersionCode", installed)
+        }.getOrElse { error ->
+            JSONObject().put("error", error.message ?: error.javaClass.simpleName)
+        }
+    }
+
+    private fun metricsJson(): JSONObject {
+        val javaRuntime = Runtime.getRuntime()
+        val status = this.runtime.status.value
+        return JSONObject().apply {
+            put(
+                "memory",
+                JSONObject()
+                    .put("totalBytes", javaRuntime.totalMemory())
+                    .put("freeBytes", javaRuntime.freeMemory())
+                    .put("usedBytes", javaRuntime.totalMemory() - javaRuntime.freeMemory())
+                    .put("maxBytes", javaRuntime.maxMemory()),
+            )
+            put(
+                "frame",
+                JSONObject()
+                    .put("fps", status.fps.toDouble())
+                    .put("processingMs", status.processingMs.toDouble())
+                    .put("obstacleCount", status.obstacleCount),
+            )
+            put("uptimeMs", android.os.SystemClock.elapsedRealtime())
+        }
     }
 
     private suspend fun runtimeSnapshot(): JSONObject {
@@ -986,6 +1233,52 @@ class McpActionRegistry @Inject constructor(
         }
     }
 
+    private fun eventsJson(since: Long = 0L, limit: Int = 50): JSONObject {
+        val events = McpEventBus.snapshot(since, limit)
+        val nextSince = events.lastOrNull()?.seq ?: since
+        val dropped = McpEventBus.size() >= McpEventBus.CAPACITY && since > 0L &&
+            events.firstOrNull()?.seq?.let { it > since + 1 } == true
+        return JSONObject()
+            .put("events", JSONArray(events.map { it.toJson() }))
+            .put("nextSince", nextSince)
+            .put("dropped", dropped)
+    }
+
+    private fun installedVersionCode(): Long {
+        val packageInfo = if (Build.VERSION.SDK_INT >= 28) {
+            @Suppress("DEPRECATION")
+            appContext.packageManager.getPackageInfo(
+                appContext.packageName,
+                android.content.pm.PackageManager.GET_META_DATA,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+        }
+        return if (Build.VERSION.SDK_INT >= 28) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
+    }
+
+    private fun isOnUnmeteredNetwork(): Boolean {
+        val cm = appContext.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private fun McpProfileStore.Meta.toJson(): JSONObject = JSONObject()
+        .put("name", name)
+        .put("description", description)
+        .put("createdAtEpochMs", createdAtEpochMs)
+        .put("updatedAtEpochMs", updatedAtEpochMs)
+        .put("sizeBytes", sizeBytes)
+        .put("schemaVersion", schemaVersion)
+
     private fun phaseName(phase: AlgorithmCatalogPhase): String = when (phase) {
         is AlgorithmCatalogPhase.Idle -> "Idle"
         is AlgorithmCatalogPhase.Loading -> "Loading"
@@ -1069,6 +1362,17 @@ internal fun top.azek431.hzzs.domain.vision.VisionResult.toJson() = JSONObject()
     put("scene", scene.name)
     put("sceneConfidence", sceneConfidence.toDouble())
     put("processingNanos", processingNanos)
+    if (timing.totalNs > 0) {
+        put(
+            "timing",
+            JSONObject().apply {
+                put("jniPrepMs", (timing.jniPrepNs / 1_000_000.0))
+                put("detectMs", (timing.detectNs / 1_000_000.0))
+                put("postfilterMs", (timing.postfilterNs / 1_000_000.0))
+                put("finalizeMs", (timing.finalizeNs / 1_000_000.0))
+            },
+        )
+    }
     put(
         "detections",
         JSONArray().apply {

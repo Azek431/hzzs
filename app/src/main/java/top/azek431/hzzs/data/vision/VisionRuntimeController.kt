@@ -24,6 +24,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmDetectionTrace
@@ -238,6 +239,15 @@ class VisionRuntimeController @Inject constructor(
                     "gesture=${gestureResolution.effective.name}" +
                     (gestureResolution.fallbackReason?.let { " gestureNote=$it" } ?: ""),
             )
+            runCatching {
+                top.azek431.hzzs.mcp.McpEventBus.append(
+                    top.azek431.hzzs.mcp.McpEventBus.Type.ANALYSIS_START,
+                    JSONObject()
+                        .put("backend", backend.name)
+                        .put("scene", config.selectedScene.name)
+                        .put("automation", config.automation.enabled),
+                )
+            }
             resetPipeline()
             AlgorithmRuntimeTrace.resetSession()
             // 启动分析前按已保存 AlgorithmConfig 解析并激活（含 pending）；失败回退内置。
@@ -317,6 +327,12 @@ class VisionRuntimeController @Inject constructor(
         runCatching { source?.stop() }
         overlay.hide()
         resetPipeline()
+        runCatching {
+            top.azek431.hzzs.mcp.McpEventBus.append(
+                top.azek431.hzzs.mcp.McpEventBus.Type.ANALYSIS_STOP,
+                JSONObject().put("prevGen", prevGen),
+            )
+        }
         algorithmCatalog.setAnalysisRunning(false)
         VisionAnalysisForegroundService.stop(appContext)
         mutableStatus.value = mutableStatus.value.copy(

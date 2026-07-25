@@ -1,5 +1,7 @@
 package top.azek431.hzzs.core.algorithm
 
+import org.json.JSONObject
+
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AlgorithmConfig
 import top.azek431.hzzs.core.model.AlgorithmSelectionMode
@@ -183,6 +185,16 @@ class AlgorithmActivationCoordinator @Inject constructor(
                     "activate",
                     "gen=${activation.generation} fallback=${activation.usingBuiltinFallback}",
                 )
+                runCatching {
+                    top.azek431.hzzs.mcp.McpEventBus.append(
+                        top.azek431.hzzs.mcp.McpEventBus.Type.ALGORITHM_SWITCH,
+                        JSONObject()
+                            .put("id", activation.profile.algorithmId)
+                            .put("version", activation.profile.version)
+                            .put("generation", activation.generation)
+                            .put("source", profileSource),
+                    )
+                }
                 if (top.azek431.hzzs.nativevision.NativeVision.isAvailable) {
                     AlgorithmPipelineTrace.markSuccess(
                         "native",

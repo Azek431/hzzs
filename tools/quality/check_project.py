@@ -320,6 +320,13 @@ native_kt = read("app/src/main/java/top/azek431/hzzs/data/vision/NativeVisionEng
 for token in ("enabledKindMask", "detectPlayer", "fixedPlayerXRatio", "NativeVision.isAvailable"):
     check(token in native_kt, f"native-bridge:{token}", "native option not forwarded")
 
+# 算法诊断（StageTiming / MulticolorDiag / FilteredDetection）由 C++ 回传、默认关闭：
+# - C++ 侧必须完成各阶段采样（now_ns）
+# - jni_bridge 必须透传 timing 与诊断数组
+native_diag = read("app/src/main/cpp/jni_bridge.cpp")
+for token in ("StageTiming", "MulticolorDiag", "FilteredDetection", "now_ns"):
+    check(token in native_diag, f"native-diag:{token}", "algorithm diagnostic bridge invariant missing")
+
 jni = read("app/src/main/cpp/jni_bridge.cpp")
 engine = read("app/src/main/cpp/vision_engine.cpp")
 for token in (

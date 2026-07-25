@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.launch
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AlgorithmConfig
@@ -353,6 +355,58 @@ class AlgorithmCatalogController @Inject constructor(
                 message = "已取消下载",
             )
         }
+    }
+
+    /**
+     * 一键升级所有已装的外部算法包（builtin / bundled 跳过）。
+     *
+     * 返回三类结果：
+     * - [UpgradeResult.upgraded]：已触发下载的 id
+     * - [UpgradeResult.skipped]：已是最新或内置的 id
+     * - [UpgradeResult.failed]：不兼容 / 无信任锚 / 目录无该 id 的 {id, error}
+     *
+     * 注意：实际下载/验签/安装异步执行；调用方应以 [state] / `list_algorithms` 跟踪进度。
+     */
+    fun upgradeAll(): UpgradeResult {
+        val current = mutableState.value
+        val installed = current.installed.filter { !it.isBuiltin }
+        val remoteById = current.remote.associateBy { it.id }
+        val upgraded = mutableListOf<String>()
+        val skipped = mutableListOf<String>()
+        val failed = mutableListOf<Pair<String, String>>()
+        installed.forEach { pkg ->
+            val remote = remoteById[pkg.id]
+            when {
+                remote == null -> skipped.add(pkg.id)
+                !remote.isCompatible -> failed.add(pkg.id to "不兼容当前应用版本")
+                !AlgorithmTrustAnchors.hasOfficialAnchors() -> failed.add(pkg.id to "未配置信任锚")
+                remote.versionCode <= pkg.versionCode -> skipped.add(pkg.id)
+                else -> {
+                    download(pkg.id)
+                    upgraded.add(pkg.id)
+                }
+            }
+        }
+        return UpgradeResult(upgraded, skipped, failed)
+    }
+
+    /** 一键升级全部算法的结果。 */
+    data class UpgradeResult(
+        val upgraded: List<String>,
+        val skipped: List<String>,
+        val failed: List<Pair<String, String>>,
+    ) {
+        fun toJson(): JSONObject = JSONObject()
+            .put("upgraded", JSONArray(upgraded))
+            .put("skipped", JSONArray(skipped))
+            .put(
+                "failed",
+                JSONArray().apply {
+                    failed.forEach { (id, error) ->
+                        put(JSONObject().put("id", id).put("error", error))
+                    }
+                },
+            )
     }
 
     /**
