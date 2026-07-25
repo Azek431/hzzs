@@ -208,7 +208,11 @@ function Wait-HzzsPackagePid {
 function Invoke-HzzsGradle {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$GradleArgs
+        [string[]]$GradleArgs,
+
+        # 默认 true：单次 daemon，避免本机其它 gradlew --stop / IDE 误杀共享 daemon。
+        # 需要常驻 daemon 时显式 -UseDaemon。
+        [switch]$UseDaemon
     )
     $repo = Get-HzzsRepoRoot
     $wrapper = Join-Path $repo 'gradlew.bat'
@@ -218,21 +222,31 @@ function Invoke-HzzsGradle {
     if (-not $env:CMAKE_BUILD_PARALLEL_LEVEL) {
         $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
     }
+    $args = @($GradleArgs)
+    if (-not $UseDaemon) {
+        $hasNoDaemon = $false
+        foreach ($a in $args) {
+            if ($a -eq '--no-daemon') { $hasNoDaemon = $true; break }
+        }
+        if (-not $hasNoDaemon) {
+            $args = @('--no-daemon') + $args
+        }
+    }
     Push-Location $repo
     try {
-        Write-Host ("gradlew {0}" -f ($GradleArgs -join ' '))
+        Write-Host ("gradlew {0}" -f ($args -join ' '))
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
             $global:LASTEXITCODE = 0
-            & $wrapper @GradleArgs
+            & $wrapper @args
             $code = Get-HzzsNativeExitCode
         }
         finally {
             $ErrorActionPreference = $prevEap
         }
         if ($code -ne 0) {
-            throw ("Gradle failed (exit {0}): {1}" -f $code, ($GradleArgs -join ' '))
+            throw ("Gradle failed (exit {0}): {1}" -f $code, ($args -join ' '))
         }
     }
     finally {

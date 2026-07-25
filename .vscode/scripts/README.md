@@ -45,5 +45,7 @@
 - JDWP：清理旧端口忽略「listener not found」；启动后轮询 PID（默认 15s）；真正 forward 失败时打印 `adb forward --list`。
 - 诊断导出默认 `local-diagnostics/device/<时间戳>/`（仓库已 exclude）；可用环境变量 `HZZS_DIAGNOSTICS_ROOT` 覆盖。
 - 构建报 Kotlin IC / `classpath-snapshot` 损坏，或 daemon 被 stop：仓库根执行 `.\tools\dev\repair_gradle_kotlin_cache.ps1`（可加 `-Compile`）。
+- **`Invoke-HzzsGradle` 默认加 `--no-daemon`**：避免 VS Code 装包/JDWP 与其它终端 `gradlew --stop`、并行代理任务互杀共享 daemon。需要常驻 daemon 时在调用处传 `-UseDaemon`。
+- 低内存机装包：先 `gradlew --stop`、关掉并行 compile/test，空闲内存尽量 ≥2GB 再装；仍 OOM 见项目 `gradle.properties` 中 `kotlin.daemon.jvmargs` 说明。
 - 脚本使用 **UTF-8 BOM**，确保 Windows PowerShell 5.1 正确解析。
 - 嵌套脚本失败靠 throw/`try`，不要在 `Set-StrictMode` 下盲读未赋值的 `$LASTEXITCODE`。
