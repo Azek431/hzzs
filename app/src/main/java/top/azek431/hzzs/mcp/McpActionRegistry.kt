@@ -70,6 +70,9 @@ class McpActionRegistry @Inject constructor(
     private val profileStore: McpProfileStore,
     private val updateRepository: top.azek431.hzzs.core.update.UpdateRepository,
 ) : McpActionSurface {
+    /** 进程存活起点（elapsedRealtime），用于 get_metrics.uptimeMs。 */
+    private val processStartedElapsedRealtimeMs: Long = android.os.SystemClock.elapsedRealtime()
+
     override suspend fun readResource(uri: String): JSONObject = when (uri) {
         "app://status" -> runtime.status.value.toJson()
         "app://runtime/snapshot" -> runtimeSnapshot()
@@ -138,29 +141,7 @@ class McpActionRegistry @Inject constructor(
             runCatching { McpEventBus.append(McpEventBus.Type.CONFIG_CHANGE, JSONObject().put("source", "save_settings")) }
             ok("设置已保存（权限型字段已按安全策略收敛）")
         }
-        "patch_settings" -> {
-            val persist = arguments.optBoolean("persist", true)
-            var patched = settings.current()
-            arguments.optJSONObject("patches")?.let { patches ->
-                patched = McpSettingsPatch.applyFromJson(patched, patches)
-            }
-            arguments.optJSONArray("operations")?.let { ops ->
-                val list = (0 until ops.length()).map { i ->
-                    val op = ops.getJSONObject(i)
-                    McpSettingsPatch.Op(
-                        path = op.requireString("path"),
-                        value = if (op.isNull("value")) null else op.opt("value"),
-                        operation = enumValueOf<McpSettingsPatch.OpType>(
-                            op.requireString("op"),
-                        ),
-                    )
-                }
-                patched = McpSettingsPatch.applyOperations(patched, list)
-            }
-            if (persist) settings.save(patched) else settings.preview(patched)
-            runCatching { McpEventBus.append(McpEventBus.Type.CONFIG_CHANGE, JSONObject().put("source", "patch_settings")) }
-            ok(if (persist) "局部设置已保存" else "局部设置已预览")
-        }
+        "patch_settings" -> executePatchSettings(arguments)
         "reset_preview" -> {
             settings.clearPreview()
             ok("临时预览已恢复")
@@ -182,26 +163,7 @@ class McpActionRegistry @Inject constructor(
             runtime.cancelPendingActions()
             ok("已取消在飞自动操作")
         }
-        "navigate" -> {
-            val route = arguments.requireString("route")
-            val allowedTops = setOf("home", "runtime", "settings", "about")
-            val normalized = route.trim().trimStart('/').lowercase()
-            val top = when {
-                normalized in allowedTops -> normalized
-                normalized.startsWith("settings/") ||
-                    normalized in setOf(
-                        "appearance", "overlay", "capture", "algorithm", "detection",
-                        "automation", "network", "mcp", "developer",
-                        "settings_home", "log_viewer", "algorithm_pipeline",
-                        "logs", "pipeline",
-                    ) -> "settings"
-                else -> error(
-                    "未知页面：$route（可用 home/runtime/settings/about 或 settings/mcp、developer、log_viewer）",
-                )
-            }
-            uiBridge.requestNavigation(route)
-            ok("已请求打开 $route（一级=$top）")
-        }
+        "navigate" -> executeNavigate(arguments)
         "set_overlay_visible" -> {
             val current = settings.current()
             settings.preview(
@@ -211,38 +173,10 @@ class McpActionRegistry @Inject constructor(
             )
             ok("悬浮窗显示状态已临时更新")
         }
-        "set_capture_backend" -> {
-            val backend = enumValueOf<CaptureBackend>(arguments.requireString("backend"))
-            val persist = arguments.optBoolean("persist", true)
-            applyConfig({ it.copy(captureBackend = backend) }, persist)
-            runCatching {
-                McpEventBus.append(
-                    McpEventBus.Type.CAPTURE_BACKEND_CHANGE,
-                    JSONObject().put("backend", backend.name).put("persist", persist),
-                )
-            }
-            ok("截图后端已设为 ${backend.name}（建议 restart_analysis 生效）")
-        }
-        "set_gesture_backend" -> {
-            val backend = enumValueOf<top.azek431.hzzs.core.model.GestureBackend>(
-                arguments.requireString("backend"),
-            )
-            val persist = arguments.optBoolean("persist", true)
-            if (!persist) {
-                // 运行时 automation 只消费 saved（withSavedSafetyGates）；预览改手势后端不会派发。
-                error(
-                    "手势后端仅随已保存配置生效：请 set_gesture_backend(persist=true) 或设置页「保存并应用」",
-                )
-            }
-            applyConfig(
-                { it.copy(automation = it.automation.copy(gestureBackend = backend)) },
-                persist = true,
-            )
-            runtime.cancelPendingActions()
-            ok("手势后端已保存为 ${backend.name}（运行时立即按 saved 解析）")
-        }
+        "set_capture_backend" -> executeSetCaptureBackend(arguments)
+        "set_gesture_backend" -> executeSetGestureBackend(arguments)
         "get_version" -> versionJson()
-        "check_update" -> checkUpdateJson(arguments.optBoolean("force", false))
+        "check_update" -> checkUpdateJson()
         "get_metrics" -> metricsJson()
         "run_diagnostics" -> JSONObject().apply {
             put("status", runtime.status.value.toJson())
@@ -254,220 +188,26 @@ class McpActionRegistry @Inject constructor(
         }
         "list_debug_frames" -> debugFrameMetadata()
         "clear_debug_frames" -> ok("已清除 ${debugFrames.clear()} 个调试帧")
-        "get_debug_frame" -> {
-            ensureDeveloper()
-            val mcp = settings.current().mcp
-            check(mcp.allowDebugFrames) { "请先开启 MCP 允许读取调试帧" }
-            val name = arguments.requireString("name")
-            val maxWidth = arguments.optInt("maxWidth", 480).coerceAtLeast(0)
-            val quality = arguments.optInt("quality", 70).coerceIn(10, 100)
-            val bytes = debugFrames.getBytes(name, maxWidth, quality)
-            check(bytes != null) { "调试帧不存在：$name" }
-            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            JSONObject()
-                .put("name", name)
-                .put("width", bounds.outWidth.takeIf { it > 0 } ?: JSONObject.NULL)
-                .put("height", bounds.outHeight.takeIf { it > 0 } ?: JSONObject.NULL)
-                .put("sizeBytes", bytes.size)
-                .put("base64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP))
-        }
+        "get_debug_frame" -> executeGetDebugFrame(arguments)
         "capture_debug_frame" -> {
             ensureDeveloper()
             debugFrames.requestCapture()
             ok("已请求存下一帧（将写入调试帧目录，受 MAX_FILES 上限裁剪）")
         }
 
-        "set_scene" -> {
-            val scene = enumValueOf<SceneId>(arguments.requireString("scene"))
-            val persist = arguments.optBoolean("persist", true)
-            applyConfig({ it.copy(selectedScene = scene) }, persist)
-            ok("赛季已切换为 ${scene.name}")
-        }
-        "set_obstacle_enabled" -> {
-            val cfg = settings.current()
-            val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
-                enumValueOf<SceneId>(it)
-            } ?: cfg.selectedScene
-            val kind = enumValueOf<ObstacleKind>(arguments.requireString("kind"))
-            val enabled = arguments.getBoolean("enabled")
-            val persist = arguments.optBoolean("persist", true)
-            val sceneCfg = cfg.scenes[scene] ?: error("未知场景")
-            val disabled = sceneCfg.disabledObstacles.toMutableSet()
-            if (enabled) disabled.remove(kind) else disabled.add(kind)
-            applyConfig(
-                { it.copy(scenes = it.scenes + (scene to sceneCfg.copy(disabledObstacles = disabled))) },
-                persist,
-            )
-            ok("${kind.name} 已${if (enabled) "启用" else "禁用"} @ ${scene.name}")
-        }
-        "set_threshold" -> {
-            val cfg = settings.current()
-            val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
-                enumValueOf<SceneId>(it)
-            } ?: cfg.selectedScene
-            val key = arguments.requireString("key")
-            val persist = arguments.optBoolean("persist", true)
-            val path = "scenes.${scene.name}.thresholds.$key"
-            val patched = McpSettingsPatch.apply(cfg, mapOf(path to arguments.get("value")))
-            if (persist) settings.save(patched) else settings.preview(patched)
-            ok("已更新 $path")
-        }
-        "set_theme" -> {
-            val persist = arguments.optBoolean("persist", true)
-            val patches = JSONObject()
-            arguments.optString("mode").takeIf { it.isNotBlank() }?.let { patches.put("theme.mode", it) }
-            arguments.optString("preset").takeIf { it.isNotBlank() }?.let { patches.put("theme.preset", it) }
-            if (arguments.has("dynamicColorEnabled")) {
-                patches.put("theme.dynamicColorEnabled", arguments.getBoolean("dynamicColorEnabled"))
-            }
-            if (arguments.has("reduceMotion")) {
-                patches.put("theme.reduceMotion", arguments.getBoolean("reduceMotion"))
-            }
-            if (arguments.has("highContrast")) {
-                patches.put("theme.highContrast", arguments.getBoolean("highContrast"))
-            }
-            if (arguments.has("fontScale")) patches.put("theme.fontScale", arguments.getDouble("fontScale"))
-            if (arguments.has("animationScale")) {
-                patches.put("theme.animationScale", arguments.getDouble("animationScale"))
-            }
-            arguments.optString("customSeed").takeIf { it.isNotBlank() }?.let {
-                patches.put("theme.customSeed", it)
-            }
-            require(patches.length() > 0) { "未提供任何主题字段" }
-            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
-            if (persist) settings.save(patched) else settings.preview(patched)
-            ok("主题已更新")
-        }
-        "set_overlay" -> {
-            val persist = arguments.optBoolean("persist", true)
-            val patches = JSONObject()
-            if (arguments.has("enabled")) patches.put("overlay.enabled", arguments.getBoolean("enabled"))
-            arguments.optString("style").takeIf { it.isNotBlank() }?.let { patches.put("overlay.style", it) }
-            arguments.optString("theme").takeIf { it.isNotBlank() }?.let { patches.put("overlay.theme", it) }
-            listOf(
-                "showBoxes",
-                "persistBoxes",
-                "showText",
-                "showFps",
-                "showConfidence",
-                "showDiagnostics",
-            ).forEach { key ->
-                if (arguments.has(key)) patches.put("overlay.$key", arguments.getBoolean(key))
-            }
-            if (arguments.has("backgroundAlpha")) {
-                patches.put("overlay.backgroundAlpha", arguments.getDouble("backgroundAlpha"))
-            }
-            if (arguments.has("scale")) patches.put("overlay.scale", arguments.getDouble("scale"))
-            require(patches.length() > 0) { "未提供任何悬浮窗字段" }
-            val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
-            if (persist) settings.save(patched) else settings.preview(patched)
-            ok("悬浮窗已更新")
-        }
-        "set_developer_enabled" -> {
-            val enabled = arguments.getBoolean("enabled")
-            val base = settings.current()
-            settings.save(base.copy(developer = base.developer.copy(enabled = enabled)))
-            AppLog.configure(enabled, base.developer.logLevel, base.developer.logRingCapacity)
-            ok(if (enabled) "开发者选项已开启" else "开发者选项已关闭")
-        }
-        "set_developer_options" -> {
-            val base = settings.current()
-            check(base.developer.enabled) { "请先开启开发者选项" }
-            val persist = arguments.optBoolean("persist", true)
-            val patches = JSONObject()
-            arguments.optString("logLevel").takeIf { it.isNotBlank() }?.let {
-                patches.put("developer.logLevel", it)
-            }
-            if (arguments.has("saveDebugFrames")) {
-                patches.put("developer.saveDebugFrames", arguments.getBoolean("saveDebugFrames"))
-            }
-            if (arguments.has("showCoordinateGrid")) {
-                patches.put("developer.showCoordinateGrid", arguments.getBoolean("showCoordinateGrid"))
-            }
-            if (arguments.has("frameRateLimit")) {
-                patches.put("developer.frameRateLimit", arguments.getInt("frameRateLimit"))
-            }
-            if (arguments.has("logRingCapacity")) {
-                patches.put("developer.logRingCapacity", arguments.getInt("logRingCapacity"))
-            }
-            if (arguments.has("enableStageTiming")) {
-                patches.put("developer.enableStageTiming", arguments.getBoolean("enableStageTiming"))
-            }
-            if (arguments.has("enableMulticolorDiagnostic")) {
-                patches.put(
-                    "developer.enableMulticolorDiagnostic",
-                    arguments.getBoolean("enableMulticolorDiagnostic"),
-                )
-            }
-            if (arguments.has("enableFilterTrace")) {
-                patches.put("developer.enableFilterTrace", arguments.getBoolean("enableFilterTrace"))
-            }
-            if (arguments.has("forceCaptureBackend")) {
-                val raw = arguments.optString("forceCaptureBackend")
-                patches.put(
-                    "developer.forceCaptureBackend",
-                    if (raw.isBlank()) JSONObject.NULL else raw,
-                )
-            }
-            require(patches.length() > 0) { "未提供任何开发者字段" }
-            val patched = McpSettingsPatch.applyFromJson(base, patches)
-            if (persist) {
-                settings.save(patched)
-                AppLog.configure(
-                    patched.developer.enabled,
-                    patched.developer.logLevel,
-                    patched.developer.logRingCapacity,
-                )
-            } else {
-                settings.preview(patched)
-            }
-            ok("开发者选项已更新")
-        }
+        "set_scene" -> executeSetScene(arguments)
+        "set_obstacle_enabled" -> executeSetObstacleEnabled(arguments)
+        "set_threshold" -> executeSetThreshold(arguments)
+        "set_theme" -> executeSetTheme(arguments)
+        "set_overlay" -> executeSetOverlay(arguments)
+        "set_developer_enabled" -> executeSetDeveloperEnabled(arguments)
+        "set_developer_options" -> executeSetDeveloperOptions(arguments)
         "get_automation_gates" -> automationGatesJson()
-        "set_automation_enabled" -> {
-            val enabled = arguments.getBoolean("enabled")
-            val accept = arguments.optBoolean("acceptDisclaimer", false)
-            val base = settings.current()
-            var auto = base.automation.copy(enabled = enabled)
-            if (enabled && auto.disclaimerAcceptedVersion < AppConfig.DISCLAIMER_VERSION) {
-                check(accept) {
-                    "开启自动操作须 acceptDisclaimer=true（当前免责版本 ${auto.disclaimerAcceptedVersion} < ${AppConfig.DISCLAIMER_VERSION}）"
-                }
-                auto = auto.copy(disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION)
-            }
-            settings.save(base.copy(automation = auto))
-            ok(if (enabled) "自动操作已开启" else "自动操作已关闭")
-        }
+        "set_automation_enabled" -> executeSetAutomationEnabled(arguments)
         "list_algorithms" -> algorithmCatalogJson()
         "get_active_algorithm" -> activeAlgorithmJson()
         "get_algorithm_pipeline" -> algorithmPipelineJson()
-        "set_active_algorithm" -> {
-            val id = arguments.requireString("algorithmId")
-            val mode = enumValueOf<AlgorithmSelectionMode>(
-                arguments.optString("mode").ifBlank { "MANUAL" },
-            )
-            val persist = arguments.optBoolean("persist", true)
-            bindCatalog()
-            if (mode == AlgorithmSelectionMode.MANUAL) {
-                val selected = algorithmCatalog.selectInstalled(id)
-                check(selected != null || id.startsWith("builtin")) {
-                    "无法选择算法 $id（未安装或不兼容）"
-                }
-            }
-            applyConfig(
-                {
-                    it.copy(
-                        algorithm = it.algorithm.copy(
-                            selectionMode = mode,
-                            pinnedAlgorithmId = if (mode == AlgorithmSelectionMode.MANUAL) id else null,
-                        ),
-                    )
-                },
-                persist,
-            )
-            ok("算法选择已更新：$mode / $id")
-        }
+        "set_active_algorithm" -> executeSetActiveAlgorithm(arguments)
         "refresh_algorithm_catalog" -> {
             bindCatalog()
             algorithmCatalog.refreshCatalog(force = true)
@@ -496,104 +236,23 @@ class McpActionRegistry @Inject constructor(
             AppLog.clear()
             ok("日志 ring 已清空")
         }
-        "export_diagnostics" -> {
-            val logLimit = arguments.optInt("logLimit", 200).coerceIn(0, 800)
-            val snap = settings.current()
-            val mcpState = uiBridge.serverState.value
-            val activation = visionEngine.currentActivation()
-            val text = DiagnosticsExporter.buildReport(
-                versionName = BuildConfig.VERSION_NAME,
-                versionCode = BuildConfig.VERSION_CODE.toLong(),
-                config = snap,
-                mcp = McpDiagnosticsSnapshot(
-                    running = mcpState.running,
-                    port = mcpState.port.takeIf { it > 0 },
-                    lastError = mcpState.lastError,
-                ),
-                debugFrameCount = runCatching { debugFrames.list().size }.getOrDefault(0),
-                algorithm = top.azek431.hzzs.core.logging.AlgorithmDiagnosticsSnapshot(
-                    algorithmId = activation.profile.algorithmId,
-                    version = activation.profile.version,
-                    generation = activation.generation,
-                    usingBuiltinFallback = activation.usingBuiltinFallback,
-                    loadError = activation.loadError,
-                    nativeAvailable = top.azek431.hzzs.nativevision.NativeVision.isAvailable,
-                    pendingCatalogId = null,
-                    analysisRunning = runtime.status.value.running,
-                ),
-                runtime = runtime.status.value,
-                appContext = appContext,
-                logLimit = logLimit,
-            )
-            JSONObject().put("text", text)
-        }
+        "export_diagnostics" -> executeExportDiagnostics(arguments)
         "get_permissions" -> permissionsJson()
-        "open_system_settings" -> {
-            when (arguments.requireString("target")) {
-                "overlay" -> SystemCapabilityAccess.openOverlayPermissionSettings(appContext)
-                "accessibility" -> SystemCapabilityAccess.openAccessibilitySettings(appContext)
-                "app_details" -> {
-                    appContext.startActivity(
-                        Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:${appContext.packageName}"),
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-                else -> error("未知 target")
-            }
-            ok("已请求打开系统设置")
-        }
-
+        "open_system_settings" -> executeOpenSystemSettings(arguments)
         "get_mcp_status" -> mcpStatusJson()
         "list_mcp_tools" -> listMcpToolsJson(
             includeDisabled = arguments.optBoolean("includeDisabled", true),
         )
-        "save_profile" -> {
-            val name = arguments.requireString("name")
-            val description = arguments.optString("description")
-            val meta = profileStore.save(name, description, settings.current())
-            ok("profile 已保存：${meta.name}")
-                .put("profile", meta.toJson())
-        }
-        "load_profile" -> {
-            val name = arguments.requireString("name")
-            val persist = arguments.optBoolean("persist", false)
-            val config = profileStore.load(name)
-            if (persist) settings.save(config) else settings.preview(config)
-            ok(if (persist) "profile 已永久应用：$name" else "profile 已预览：$name")
-                .put("name", name)
-        }
-        "list_profiles" -> {
-            val metas = profileStore.list()
-            JSONObject()
-                .put("profiles", JSONArray(metas.map { it.toJson() }))
-                .put("count", metas.size)
-        }
-        "delete_profile" -> {
-            val name = arguments.requireString("name")
-            val deleted = profileStore.delete(name)
-            ok(if (deleted) "profile 已删除：$name" else "profile 不存在：$name")
-                .put("deleted", deleted)
-        }
+        "save_profile" -> executeSaveProfile(arguments)
+        "load_profile" -> executeLoadProfile(arguments)
+        "list_profiles" -> executeListProfiles()
+        "delete_profile" -> executeDeleteProfile(arguments)
         "get_events" -> {
             val since = arguments.optLong("since", 0L).coerceAtLeast(0L)
             val limit = arguments.optInt("limit", 50).coerceIn(1, McpEventBus.CAPACITY)
             eventsJson(since, limit)
         }
-        "upgrade_algorithms" -> {
-            bindCatalog()
-            val dryRun = arguments.optBoolean("dryRun", false)
-            if (dryRun) {
-                val result = algorithmCatalog.upgradeAll()
-                ok("dryRun：可升级 ${result.upgraded.size} / 跳过 ${result.skipped.size} / 失败 ${result.failed.size}")
-                    .put("result", result.toJson())
-            } else {
-                val result = algorithmCatalog.upgradeAll()
-                ok("已触发升级 ${result.upgraded.size} 个算法包（异步下载/验签/安装，请用 list_algorithms 跟踪）")
-                    .put("result", result.toJson())
-            }
-        }
+        "upgrade_algorithms" -> executeUpgradeAlgorithms(arguments)
         "get_mcp_access_log" -> {
             val limit = arguments.optInt("limit", 50).coerceIn(1, McpAccessLog.CAPACITY)
             val newestFirst = arguments.optBoolean("newestFirst", true)
@@ -607,75 +266,502 @@ class McpActionRegistry @Inject constructor(
             McpAccessLog.clear()
             ok("MCP 访问日志已清空")
         }
-        "set_mcp_enabled" -> {
-            val enabled = arguments.getBoolean("enabled")
-            applyConfig({ it.copy(mcp = it.mcp.copy(enabled = enabled)) }, persist = true)
-            ok(
-                if (enabled) {
-                    "MCP 已请求启用（保存后前台服务将启动）"
-                } else {
-                    "MCP 已请求关闭（当前连接可能即将断开）"
-                },
-            ).put("enabled", enabled)
+        "set_mcp_enabled" -> executeSetMcpEnabled(arguments)
+        "set_mcp_permission_level" -> executeSetMcpPermissionLevel(arguments)
+        "set_mcp_auth" -> executeSetMcpAuth(arguments)
+        "set_mcp_tool_policy" -> executeSetMcpToolPolicy(arguments)
+        else -> throw IllegalArgumentException("未知工具：$tool")
+    }
+
+    private suspend fun executePatchSettings(arguments: JSONObject): JSONObject {
+        val persist = arguments.optBoolean("persist", true)
+        val patchesObj = arguments.optJSONObject("patches")
+        val opsArr = arguments.optJSONArray("operations")
+        val hasPatches = patchesObj != null && patchesObj.length() > 0
+        val hasOps = opsArr != null && opsArr.length() > 0
+        require(hasPatches || hasOps) { "patch_settings 需要非空 patches 或 operations" }
+        var patched = settings.current()
+        if (hasPatches) {
+            patched = McpSettingsPatch.applyFromJson(patched, patchesObj!!)
         }
-        "set_mcp_permission_level" -> {
-            val level = enumValueOf<McpPermissionLevel>(arguments.requireString("permissionLevel"))
-            applyConfig({ it.copy(mcp = it.mcp.copy(permissionLevel = level)) }, persist = true)
-            ok("MCP 权限级已设为 ${level.name}").put("permissionLevel", level.name)
-        }
-        "set_mcp_auth" -> {
-            val requireAuth = arguments.getBoolean("requireAuth")
-            val rotate = arguments.optBoolean("rotateToken", false)
-            val snap = settings.current()
-            var token = snap.mcp.authToken
-            if (requireAuth && (token.isBlank() || rotate)) {
-                token = generateMcpAuthToken()
+        if (hasOps) {
+            val list = ArrayList<McpSettingsPatch.Op>(opsArr!!.length())
+            for (i in 0 until opsArr.length()) {
+                val op = opsArr.getJSONObject(i)
+                val path = op.requireString("path")
+                val opRaw = op.requireString("op").trim().uppercase(java.util.Locale.ROOT)
+                val opType = try {
+                    McpSettingsPatch.OpType.valueOf(opRaw)
+                } catch (_: IllegalArgumentException) {
+                    error("未知 op：$opRaw（支持 set/add/remove/toggle）")
+                }
+                list.add(
+                    McpSettingsPatch.Op(
+                        path = path,
+                        value = if (op.isNull("value")) null else op.opt("value"),
+                        operation = opType,
+                    ),
+                )
             }
-            applyConfig(
-                {
-                    it.copy(
-                        mcp = it.mcp.copy(
-                            requireAuth = requireAuth,
-                            authToken = if (requireAuth) token else it.mcp.authToken,
-                        ),
-                    )
-                },
-                persist = true,
+            patched = McpSettingsPatch.applyOperations(patched, list)
+        }
+        if (persist) settings.save(patched) else settings.preview(patched)
+        runCatching {
+            McpEventBus.append(
+                McpEventBus.Type.CONFIG_CHANGE,
+                JSONObject().put("source", "patch_settings").put("persist", persist),
             )
+        }
+        return ok(if (persist) "局部设置已保存" else "局部设置已预览")
+    }
+
+    private fun executeNavigate(arguments: JSONObject): JSONObject {
+        val route = arguments.requireString("route")
+        val allowedTops = setOf("home", "runtime", "settings", "about")
+        val normalized = route.trim().trimStart('/').lowercase()
+        val top = when {
+            normalized in allowedTops -> normalized
+            normalized.startsWith("settings/") ||
+                normalized in setOf(
+                    "appearance", "overlay", "capture", "algorithm", "detection",
+                    "automation", "network", "mcp", "developer",
+                    "settings_home", "log_viewer", "algorithm_pipeline",
+                    "logs", "pipeline",
+                ) -> "settings"
+            else -> error(
+                "未知页面：$route（可用 home/runtime/settings/about 或 settings/mcp、developer、log_viewer）",
+            )
+        }
+        uiBridge.requestNavigation(route)
+        return ok("已请求打开 $route（一级=$top）")
+    }
+
+    private suspend fun executeSetCaptureBackend(arguments: JSONObject): JSONObject {
+        val backend = enumValueOf<CaptureBackend>(arguments.requireString("backend"))
+        val persist = arguments.optBoolean("persist", true)
+        applyConfig({ it.copy(captureBackend = backend) }, persist)
+        runCatching {
+            McpEventBus.append(
+                McpEventBus.Type.CAPTURE_BACKEND_CHANGE,
+                JSONObject().put("backend", backend.name).put("persist", persist),
+            )
+        }
+        return ok("截图后端已设为 ${backend.name}（建议 restart_analysis 生效）")
+    }
+
+    private suspend fun executeSetGestureBackend(arguments: JSONObject): JSONObject {
+        val backend = enumValueOf<GestureBackend>(arguments.requireString("backend"))
+        val persist = arguments.optBoolean("persist", true)
+        if (!persist) {
+            error(
+                "手势后端仅随已保存配置生效：请 set_gesture_backend(persist=true) 或设置页「保存并应用」",
+            )
+        }
+        applyConfig(
+            { it.copy(automation = it.automation.copy(gestureBackend = backend)) },
+            persist = true,
+        )
+        runtime.cancelPendingActions()
+        return ok("手势后端已保存为 ${backend.name}（运行时立即按 saved 解析）")
+    }
+
+    private suspend fun executeGetDebugFrame(arguments: JSONObject): JSONObject {
+        ensureDeveloper()
+        val mcp = settings.current().mcp
+        check(mcp.allowDebugFrames) { "请先开启 MCP 允许读取调试帧（mcp.allowDebugFrames）" }
+        val name = arguments.requireString("name")
+        val maxWidth = arguments.optInt("maxWidth", 480).coerceIn(64, 1080)
+        val quality = arguments.optInt("quality", 70).coerceIn(10, 100)
+        val bytes = debugFrames.getBytes(name, maxWidth, quality)
+        check(bytes != null) { "调试帧不存在或文件名非法：$name" }
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        return JSONObject()
+            .put("name", name)
+            .put("width", bounds.outWidth.takeIf { it > 0 } ?: JSONObject.NULL)
+            .put("height", bounds.outHeight.takeIf { it > 0 } ?: JSONObject.NULL)
+            .put("sizeBytes", bytes.size)
+            .put("maxWidth", maxWidth)
+            .put("quality", quality)
+            .put("base64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP))
+    }
+
+    private suspend fun executeSetScene(arguments: JSONObject): JSONObject {
+        val scene = enumValueOf<SceneId>(arguments.requireString("scene"))
+        val persist = arguments.optBoolean("persist", true)
+        applyConfig({ it.copy(selectedScene = scene) }, persist)
+        return ok("赛季已切换为 ${scene.name}")
+    }
+
+    private suspend fun executeSetObstacleEnabled(arguments: JSONObject): JSONObject {
+        val cfg = settings.current()
+        val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
+            enumValueOf<SceneId>(it)
+        } ?: cfg.selectedScene
+        val kind = enumValueOf<ObstacleKind>(arguments.requireString("kind"))
+        val enabled = arguments.getBoolean("enabled")
+        val persist = arguments.optBoolean("persist", true)
+        val sceneCfg = cfg.scenes[scene] ?: error("未知场景")
+        val disabled = sceneCfg.disabledObstacles.toMutableSet()
+        if (enabled) disabled.remove(kind) else disabled.add(kind)
+        applyConfig(
+            { it.copy(scenes = it.scenes + (scene to sceneCfg.copy(disabledObstacles = disabled))) },
+            persist,
+        )
+        return ok("${kind.name} 已${if (enabled) "启用" else "禁用"} @ ${scene.name}")
+    }
+
+    private suspend fun executeSetThreshold(arguments: JSONObject): JSONObject {
+        val cfg = settings.current()
+        val scene = arguments.optString("scene").takeIf { it.isNotBlank() }?.let {
+            enumValueOf<SceneId>(it)
+        } ?: cfg.selectedScene
+        val key = arguments.requireString("key")
+        val persist = arguments.optBoolean("persist", true)
+        val path = "scenes.${scene.name}.thresholds.$key"
+        val patched = McpSettingsPatch.apply(cfg, mapOf(path to arguments.get("value")))
+        if (persist) settings.save(patched) else settings.preview(patched)
+        return ok("已更新 $path")
+    }
+
+    private suspend fun executeSetTheme(arguments: JSONObject): JSONObject {
+        val persist = arguments.optBoolean("persist", true)
+        val patches = JSONObject()
+        arguments.optString("mode").takeIf { it.isNotBlank() }?.let { patches.put("theme.mode", it) }
+        arguments.optString("preset").takeIf { it.isNotBlank() }?.let { patches.put("theme.preset", it) }
+        if (arguments.has("dynamicColorEnabled")) {
+            patches.put("theme.dynamicColorEnabled", arguments.getBoolean("dynamicColorEnabled"))
+        }
+        if (arguments.has("reduceMotion")) {
+            patches.put("theme.reduceMotion", arguments.getBoolean("reduceMotion"))
+        }
+        if (arguments.has("highContrast")) {
+            patches.put("theme.highContrast", arguments.getBoolean("highContrast"))
+        }
+        if (arguments.has("fontScale")) patches.put("theme.fontScale", arguments.getDouble("fontScale"))
+        if (arguments.has("animationScale")) {
+            patches.put("theme.animationScale", arguments.getDouble("animationScale"))
+        }
+        arguments.optString("customSeed").takeIf { it.isNotBlank() }?.let {
+            patches.put("theme.customSeed", it)
+        }
+        require(patches.length() > 0) { "未提供任何主题字段" }
+        val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
+        if (persist) settings.save(patched) else settings.preview(patched)
+        return ok("主题已更新")
+    }
+
+    private suspend fun executeSetOverlay(arguments: JSONObject): JSONObject {
+        val persist = arguments.optBoolean("persist", true)
+        val patches = JSONObject()
+        if (arguments.has("enabled")) patches.put("overlay.enabled", arguments.getBoolean("enabled"))
+        arguments.optString("style").takeIf { it.isNotBlank() }?.let { patches.put("overlay.style", it) }
+        arguments.optString("theme").takeIf { it.isNotBlank() }?.let { patches.put("overlay.theme", it) }
+        listOf(
+            "showBoxes",
+            "persistBoxes",
+            "showText",
+            "showFps",
+            "showConfidence",
+            "showDiagnostics",
+        ).forEach { key ->
+            if (arguments.has(key)) patches.put("overlay.$key", arguments.getBoolean(key))
+        }
+        if (arguments.has("backgroundAlpha")) {
+            patches.put("overlay.backgroundAlpha", arguments.getDouble("backgroundAlpha"))
+        }
+        if (arguments.has("scale")) patches.put("overlay.scale", arguments.getDouble("scale"))
+        require(patches.length() > 0) { "未提供任何悬浮窗字段" }
+        val patched = McpSettingsPatch.applyFromJson(settings.current(), patches)
+        if (persist) settings.save(patched) else settings.preview(patched)
+        return ok("悬浮窗已更新")
+    }
+
+    private suspend fun executeSetDeveloperEnabled(arguments: JSONObject): JSONObject {
+        val enabled = arguments.getBoolean("enabled")
+        val base = settings.current()
+        settings.save(base.copy(developer = base.developer.copy(enabled = enabled)))
+        AppLog.configure(enabled, base.developer.logLevel, base.developer.logRingCapacity)
+        return ok(if (enabled) "开发者选项已开启" else "开发者选项已关闭")
+    }
+
+    private suspend fun executeSetDeveloperOptions(arguments: JSONObject): JSONObject {
+        val base = settings.current()
+        check(base.developer.enabled) { "请先开启开发者选项" }
+        val persist = arguments.optBoolean("persist", true)
+        val patches = JSONObject()
+        arguments.optString("logLevel").takeIf { it.isNotBlank() }?.let {
+            patches.put("developer.logLevel", it)
+        }
+        if (arguments.has("saveDebugFrames")) {
+            patches.put("developer.saveDebugFrames", arguments.getBoolean("saveDebugFrames"))
+        }
+        if (arguments.has("showCoordinateGrid")) {
+            patches.put("developer.showCoordinateGrid", arguments.getBoolean("showCoordinateGrid"))
+        }
+        if (arguments.has("frameRateLimit")) {
+            patches.put("developer.frameRateLimit", arguments.getInt("frameRateLimit"))
+        }
+        if (arguments.has("logRingCapacity")) {
+            patches.put("developer.logRingCapacity", arguments.getInt("logRingCapacity"))
+        }
+        if (arguments.has("enableStageTiming")) {
+            patches.put("developer.enableStageTiming", arguments.getBoolean("enableStageTiming"))
+        }
+        if (arguments.has("enableMulticolorDiagnostic")) {
+            patches.put(
+                "developer.enableMulticolorDiagnostic",
+                arguments.getBoolean("enableMulticolorDiagnostic"),
+            )
+        }
+        if (arguments.has("enableFilterTrace")) {
+            patches.put("developer.enableFilterTrace", arguments.getBoolean("enableFilterTrace"))
+        }
+        if (arguments.has("forceCaptureBackend")) {
+            val raw = arguments.optString("forceCaptureBackend")
+            patches.put(
+                "developer.forceCaptureBackend",
+                if (raw.isBlank()) JSONObject.NULL else raw,
+            )
+        }
+        require(patches.length() > 0) { "未提供任何开发者字段" }
+        val patched = McpSettingsPatch.applyFromJson(base, patches)
+        if (persist) {
+            settings.save(patched)
+            AppLog.configure(
+                patched.developer.enabled,
+                patched.developer.logLevel,
+                patched.developer.logRingCapacity,
+            )
+        } else {
+            settings.preview(patched)
+        }
+        return ok("开发者选项已更新")
+    }
+
+    private suspend fun executeSetAutomationEnabled(arguments: JSONObject): JSONObject {
+        val enabled = arguments.getBoolean("enabled")
+        val accept = arguments.optBoolean("acceptDisclaimer", false)
+        val base = settings.current()
+        var auto = base.automation.copy(enabled = enabled)
+        if (enabled && auto.disclaimerAcceptedVersion < AppConfig.DISCLAIMER_VERSION) {
+            check(accept) {
+                "开启自动操作须 acceptDisclaimer=true（当前免责版本 ${auto.disclaimerAcceptedVersion} < ${AppConfig.DISCLAIMER_VERSION}）"
+            }
+            auto = auto.copy(disclaimerAcceptedVersion = AppConfig.DISCLAIMER_VERSION)
+        }
+        settings.save(base.copy(automation = auto))
+        return ok(if (enabled) "自动操作已开启" else "自动操作已关闭")
+    }
+
+    private suspend fun executeSetActiveAlgorithm(arguments: JSONObject): JSONObject {
+        val id = arguments.requireString("algorithmId")
+        val mode = enumValueOf<AlgorithmSelectionMode>(
+            arguments.optString("mode").ifBlank { "MANUAL" },
+        )
+        val persist = arguments.optBoolean("persist", true)
+        bindCatalog()
+        if (mode == AlgorithmSelectionMode.MANUAL) {
+            val selected = algorithmCatalog.selectInstalled(id)
+            check(selected != null || id.startsWith("builtin")) {
+                "无法选择算法 $id（未安装或不兼容）"
+            }
+        }
+        applyConfig(
+            {
+                it.copy(
+                    algorithm = it.algorithm.copy(
+                        selectionMode = mode,
+                        pinnedAlgorithmId = if (mode == AlgorithmSelectionMode.MANUAL) id else null,
+                    ),
+                )
+            },
+            persist,
+        )
+        return ok("算法选择已更新：$mode / $id")
+    }
+
+    private suspend fun executeExportDiagnostics(arguments: JSONObject): JSONObject {
+        val logLimit = arguments.optInt("logLimit", 200).coerceIn(0, 800)
+        val snap = settings.current()
+        val mcpState = uiBridge.serverState.value
+        val activation = visionEngine.currentActivation()
+        val text = DiagnosticsExporter.buildReport(
+            versionName = BuildConfig.VERSION_NAME,
+            versionCode = BuildConfig.VERSION_CODE.toLong(),
+            config = snap,
+            mcp = McpDiagnosticsSnapshot(
+                running = mcpState.running,
+                port = mcpState.port.takeIf { it > 0 },
+                lastError = mcpState.lastError,
+            ),
+            debugFrameCount = runCatching { debugFrames.list().size }.getOrDefault(0),
+            algorithm = top.azek431.hzzs.core.logging.AlgorithmDiagnosticsSnapshot(
+                algorithmId = activation.profile.algorithmId,
+                version = activation.profile.version,
+                generation = activation.generation,
+                usingBuiltinFallback = activation.usingBuiltinFallback,
+                loadError = activation.loadError,
+                nativeAvailable = top.azek431.hzzs.nativevision.NativeVision.isAvailable,
+                pendingCatalogId = null,
+                analysisRunning = runtime.status.value.running,
+            ),
+            runtime = runtime.status.value,
+            appContext = appContext,
+            logLimit = logLimit,
+        )
+        return JSONObject().put("text", text)
+    }
+
+    private fun executeOpenSystemSettings(arguments: JSONObject): JSONObject {
+        when (arguments.requireString("target")) {
+            "overlay" -> SystemCapabilityAccess.openOverlayPermissionSettings(appContext)
+            "accessibility" -> SystemCapabilityAccess.openAccessibilitySettings(appContext)
+            "app_details" -> {
+                appContext.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:${appContext.packageName}"),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            else -> error("未知 target")
+        }
+        return ok("已请求打开系统设置")
+    }
+
+    private suspend fun executeSaveProfile(arguments: JSONObject): JSONObject {
+        val name = arguments.requireString("name")
+        val description = arguments.optString("description")
+        val meta = profileStore.save(name, description, settings.current())
+        return ok("profile 已保存：${meta.name}").put("profile", meta.toJson())
+    }
+
+    private suspend fun executeLoadProfile(arguments: JSONObject): JSONObject {
+        val name = arguments.requireString("name")
+        val persist = arguments.optBoolean("persist", false)
+        val loaded = profileStore.load(name)
+        val config = loaded.hardenedForExternalIngest(settings.current())
+        if (persist) settings.save(config) else settings.preview(config)
+        runCatching {
+            McpEventBus.append(
+                McpEventBus.Type.CONFIG_CHANGE,
+                JSONObject()
+                    .put("source", "load_profile")
+                    .put("name", name)
+                    .put("persist", persist),
+            )
+        }
+        return ok(if (persist) "profile 已永久应用：$name" else "profile 已预览：$name")
+            .put("name", name)
+    }
+
+    private suspend fun executeListProfiles(): JSONObject {
+        val metas = profileStore.list()
+        return JSONObject()
+            .put("profiles", JSONArray(metas.map { it.toJson() }))
+            .put("count", metas.size)
+    }
+
+    private suspend fun executeDeleteProfile(arguments: JSONObject): JSONObject {
+        val name = arguments.requireString("name")
+        val deleted = profileStore.delete(name)
+        return ok(if (deleted) "profile 已删除：$name" else "profile 不存在：$name")
+            .put("deleted", deleted)
+    }
+
+    private suspend fun executeUpgradeAlgorithms(arguments: JSONObject): JSONObject {
+        bindCatalog()
+        val dryRun = arguments.optBoolean("dryRun", false)
+        return if (dryRun) {
+            val plan = algorithmCatalog.planUpgrades()
+            ok(
+                "dryRun：可升级 ${plan.candidates.size} / 跳过 ${plan.skipped.size} / 失败 ${plan.failed.size}",
+            ).put("result", upgradePlanToJson(plan))
+        } else {
+            val result = algorithmCatalog.upgradeAll()
             ok(
                 buildString {
-                    append(if (requireAuth) "已开启 Bearer 鉴权" else "已关闭 Bearer 鉴权")
-                    if (requireAuth && rotate) append("；令牌已轮换，请重新复制导入 JSON")
-                },
-            )
-                .put("requireAuth", requireAuth)
-                .put("tokenConfigured", requireAuth && token.isNotBlank())
-                .put("tokenRotated", requireAuth && rotate)
-        }
-        "set_mcp_tool_policy" -> {
-            val toolName = arguments.requireString("tool")
-            val policy = enumValueOf<McpToolPolicy>(arguments.requireString("policy"))
-            check(McpToolCatalog.tool(toolName) != null) {
-                "未知工具：$toolName（可用 list_mcp_tools 查看准确名）"
-            }
-            applyConfig(
-                { cfg ->
-                    val nextPolicies = cfg.mcp.toolPolicies.toMutableMap()
-                    if (policy == McpToolPolicy.DEFAULT) {
-                        nextPolicies.remove(toolName)
-                    } else {
-                        nextPolicies[toolName] = policy
+                    append("已触发升级 ${result.upgraded.size} 个")
+                    if (result.queued.isNotEmpty()) {
+                        append("，队列 ${result.queued.size} 个（请 list_algorithms 跟踪后再次 upgrade）")
                     }
-                    cfg.copy(mcp = cfg.mcp.copy(toolPolicies = nextPolicies))
+                    append("（异步下载/验签/安装）")
                 },
-                persist = true,
-            )
-            ok("工具 $toolName 策略已设为 ${policy.name}")
-                .put("tool", toolName)
-                .put("policy", policy.name)
-                .put("titleZh", McpToolLabels.titleZh(toolName))
+            ).put("result", upgradeResultToJson(result))
         }
-        else -> throw IllegalArgumentException("未知工具：$tool")
+    }
+
+    private suspend fun executeSetMcpEnabled(arguments: JSONObject): JSONObject {
+        val enabled = arguments.getBoolean("enabled")
+        applyConfig({ it.copy(mcp = it.mcp.copy(enabled = enabled)) }, persist = true)
+        return ok(
+            if (enabled) {
+                "MCP 已请求启用（保存后前台服务将启动）"
+            } else {
+                "MCP 已请求关闭（当前连接可能即将断开）"
+            },
+        ).put("enabled", enabled)
+    }
+
+    private suspend fun executeSetMcpPermissionLevel(arguments: JSONObject): JSONObject {
+        val level = enumValueOf<McpPermissionLevel>(arguments.requireString("permissionLevel"))
+        applyConfig({ it.copy(mcp = it.mcp.copy(permissionLevel = level)) }, persist = true)
+        return ok("MCP 权限级已设为 ${level.name}").put("permissionLevel", level.name)
+    }
+
+    private suspend fun executeSetMcpAuth(arguments: JSONObject): JSONObject {
+        val requireAuth = arguments.getBoolean("requireAuth")
+        val rotate = arguments.optBoolean("rotateToken", false)
+        val snap = settings.current()
+        var token = snap.mcp.authToken
+        if (requireAuth && (token.isBlank() || rotate)) {
+            token = generateMcpAuthToken()
+        }
+        applyConfig(
+            {
+                it.copy(
+                    mcp = it.mcp.copy(
+                        requireAuth = requireAuth,
+                        authToken = if (requireAuth) token else it.mcp.authToken,
+                    ),
+                )
+            },
+            persist = true,
+        )
+        return ok(
+            buildString {
+                append(if (requireAuth) "已开启 Bearer 鉴权" else "已关闭 Bearer 鉴权")
+                if (requireAuth && rotate) append("；令牌已轮换，请重新复制导入 JSON")
+            },
+        )
+            .put("requireAuth", requireAuth)
+            .put("tokenConfigured", requireAuth && token.isNotBlank())
+            .put("tokenRotated", requireAuth && rotate)
+    }
+
+    private suspend fun executeSetMcpToolPolicy(arguments: JSONObject): JSONObject {
+        val toolName = arguments.requireString("tool")
+        val policy = enumValueOf<McpToolPolicy>(arguments.requireString("policy"))
+        check(McpToolCatalog.tool(toolName) != null) {
+            "未知工具：$toolName（可用 list_mcp_tools 查看准确名）"
+        }
+        applyConfig(
+            { cfg ->
+                val nextPolicies = cfg.mcp.toolPolicies.toMutableMap()
+                if (policy == McpToolPolicy.DEFAULT) {
+                    nextPolicies.remove(toolName)
+                } else {
+                    nextPolicies[toolName] = policy
+                }
+                cfg.copy(mcp = cfg.mcp.copy(toolPolicies = nextPolicies))
+            },
+            persist = true,
+        )
+        return ok("工具 $toolName 策略已设为 ${policy.name}")
+            .put("tool", toolName)
+            .put("policy", policy.name)
+            .put("titleZh", McpToolLabels.titleZh(toolName))
     }
 
     private suspend fun bindCatalog() {
@@ -884,16 +970,20 @@ class McpActionRegistry @Inject constructor(
             if (want("permissions")) put("permissions", permissionsJson())
             if (want("mcp")) {
                 val mcp = cfg.mcp
+                val server = uiBridge.serverState.value
                 put(
                     "mcp",
                     JSONObject().apply {
                         put("enabled", mcp.enabled)
-                        put("running", uiBridge.serverState.value.running)
-                        put("port", mcp.port)
+                        put("running", server.running)
+                        put("port", if (server.running && server.port > 0) server.port else mcp.port)
+                        put("configuredPort", mcp.port)
                         put("permissionLevel", mcp.permissionLevel.name)
                         put("requireAuth", mcp.requireAuth)
                         put("tokenConfigured", mcp.authToken.isNotBlank())
                         put("toolPolicyOverrides", mcp.toolPolicies.size)
+                        put("allowDebugFrames", mcp.allowDebugFrames)
+                        put("accessLogEnabled", mcp.accessLogEnabled)
                     },
                 )
             }
@@ -935,10 +1025,11 @@ class McpActionRegistry @Inject constructor(
         put("abi", runCatching { Build.SUPPORTED_ABIS.joinToString() }.getOrDefault(""))
     }
 
-    private suspend fun checkUpdateJson(force: Boolean): JSONObject {
+    private suspend fun checkUpdateJson(): JSONObject {
         val cfg = settings.current()
         val update = cfg.update
-        if (!force && update.wifiOnly && !isOnUnmeteredNetwork()) {
+        // 严格遵循用户 wifiOnly，不提供 force 绕过
+        if (update.wifiOnly && !isOnUnmeteredNetwork()) {
             return JSONObject().put("error", "当前设置要求仅在 Wi‑Fi 下检查更新").put("skipped", true)
         }
         val repo = updateRepository
@@ -962,25 +1053,30 @@ class McpActionRegistry @Inject constructor(
     }
 
     private fun metricsJson(): JSONObject {
-        val javaRuntime = Runtime.getRuntime()
+        val jvmRuntime = Runtime.getRuntime()
         val status = this.runtime.status.value
+        val uptime = android.os.SystemClock.elapsedRealtime() - processStartedElapsedRealtimeMs
         return JSONObject().apply {
             put(
                 "memory",
                 JSONObject()
-                    .put("totalBytes", javaRuntime.totalMemory())
-                    .put("freeBytes", javaRuntime.freeMemory())
-                    .put("usedBytes", javaRuntime.totalMemory() - javaRuntime.freeMemory())
-                    .put("maxBytes", javaRuntime.maxMemory()),
+                    .put("totalBytes", jvmRuntime.totalMemory())
+                    .put("freeBytes", jvmRuntime.freeMemory())
+                    .put("usedBytes", jvmRuntime.totalMemory() - jvmRuntime.freeMemory())
+                    .put("maxBytes", jvmRuntime.maxMemory()),
             )
             put(
                 "frame",
                 JSONObject()
                     .put("fps", status.fps.toDouble())
                     .put("processingMs", status.processingMs.toDouble())
-                    .put("obstacleCount", status.obstacleCount),
+                    .put("obstacleCount", status.obstacleCount)
+                    // 滑动窗口尚未独立记录器；先暴露即时值占位，避免客户端假定字段缺失
+                    .put("last30Fps", JSONArray().put(status.fps.toDouble()))
+                    .put("last30ProcessingMs", JSONArray().put(status.processingMs.toDouble())),
             )
-            put("uptimeMs", android.os.SystemClock.elapsedRealtime())
+            put("uptimeMs", uptime.coerceAtLeast(0L))
+            put("processStartedElapsedRealtimeMs", processStartedElapsedRealtimeMs)
         }
     }
 
@@ -1239,6 +1335,7 @@ class McpActionRegistry @Inject constructor(
                     entries.forEach { e ->
                         put(
                             JSONObject()
+                                .put("id", e.id)
                                 .put("epochMs", e.epochMs)
                                 .put("level", e.level.name)
                                 .put("tag", e.tag)
@@ -1253,15 +1350,44 @@ class McpActionRegistry @Inject constructor(
     }
 
     private fun eventsJson(since: Long = 0L, limit: Int = 50): JSONObject {
-        val events = McpEventBus.snapshot(since, limit)
-        val nextSince = events.lastOrNull()?.seq ?: since
-        val dropped = McpEventBus.size() >= McpEventBus.CAPACITY && since > 0L &&
-            events.firstOrNull()?.seq?.let { it > since + 1 } == true
+        val snap = McpEventBus.snapshot(since, limit)
         return JSONObject()
-            .put("events", JSONArray(events.map { it.toJson() }))
-            .put("nextSince", nextSince)
-            .put("dropped", dropped)
+            .put("events", JSONArray(snap.events.map { it.toJson() }))
+            .put("nextSince", snap.nextSince)
+            .put("dropped", snap.dropped)
+            .put("oldestSeq", snap.oldestSeq)
+            .put("latestSeq", snap.latestSeq)
+            .put("buffered", snap.buffered)
     }
+
+    private fun upgradePlanToJson(plan: AlgorithmCatalogController.UpgradePlan): JSONObject =
+        JSONObject()
+            .put("candidates", JSONArray(plan.candidates))
+            .put("upgraded", JSONArray()) // dryRun 兼容字段
+            .put("queued", JSONArray())
+            .put("skipped", JSONArray(plan.skipped))
+            .put(
+                "failed",
+                JSONArray().apply {
+                    plan.failed.forEach { (id, error) ->
+                        put(JSONObject().put("id", id).put("error", error))
+                    }
+                },
+            )
+
+    private fun upgradeResultToJson(result: AlgorithmCatalogController.UpgradeResult): JSONObject =
+        JSONObject()
+            .put("upgraded", JSONArray(result.upgraded))
+            .put("queued", JSONArray(result.queued))
+            .put("skipped", JSONArray(result.skipped))
+            .put(
+                "failed",
+                JSONArray().apply {
+                    result.failed.forEach { (id, error) ->
+                        put(JSONObject().put("id", id).put("error", error))
+                    }
+                },
+            )
 
     private fun installedVersionCode(): Long {
         val packageInfo = if (Build.VERSION.SDK_INT >= 28) {
@@ -1340,6 +1466,22 @@ class McpActionRegistry @Inject constructor(
         "set_capture_backend" -> "AI 请求切换截图后端：${arguments.optString("backend")}"
         "set_gesture_backend" -> "AI 请求切换手势后端：${arguments.optString("backend")}"
         "clear_debug_frames" -> "AI 请求清除本机调试帧"
+        "get_debug_frame" -> "AI 请求读取调试帧图像：${arguments.optString("name")}"
+        "capture_debug_frame" -> "AI 请求强制保存下一帧调试截图"
+        "save_profile" -> "AI 请求保存命名配置：${arguments.optString("name")}"
+        "load_profile" ->
+            "AI 请求${if (arguments.optBoolean("persist")) "永久应用" else "预览"}配置 profile：${arguments.optString("name")}"
+        "delete_profile" -> "AI 请求删除配置 profile：${arguments.optString("name")}"
+        "upgrade_algorithms" ->
+            "AI 请求${if (arguments.optBoolean("dryRun")) "预览" else "执行"}一键升级算法包"
+        "set_mcp_enabled" ->
+            "AI 请求${if (arguments.optBoolean("enabled")) "启用" else "关闭"} MCP 服务"
+        "set_mcp_permission_level" ->
+            "AI 请求修改 MCP 权限级：${arguments.optString("permissionLevel")}"
+        "set_mcp_auth" -> "AI 请求修改 MCP Bearer 鉴权"
+        "set_mcp_tool_policy" ->
+            "AI 请求设置工具策略：${arguments.optString("tool")}=${arguments.optString("policy")}"
+        "clear_mcp_access_log" -> "AI 请求清空 MCP 访问日志"
         "set_scene" -> "AI 请求切换赛季：${arguments.optString("scene")}"
         "set_obstacle_enabled" ->
             "AI 请求${if (arguments.optBoolean("enabled")) "启用" else "禁用"}障碍 ${arguments.optString("kind")}"

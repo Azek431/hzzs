@@ -57,9 +57,9 @@ adb forward tcp:18765 tcp:8765
 
 1. `initialize` → 记下 `Mcp-Session-Id`（若有）→ `notifications/initialized`
 2. `tools/list` / `resources/list`
-3. **排障只读**：`get_status`、`get_runtime_snapshot`、`get_automation_gates`、`get_settings`（脱敏 Token）、`get_mcp_status` / `get_mcp_access_log`
-4. 调参：`patch_settings` / `set_scene` / `set_threshold` 等；写操作受权限级与 `toolPolicies`，**ASK** 时须用户在手机确认
-5. 运行时：`start_analysis` / `stop_analysis` / `restart_analysis` / `cancel_actions`（HIGH_RISK 或需确认时勿连点）
+3. **排障只读**：优先 `inspect`（可 `include`）；或 `get_status`、`get_runtime_snapshot`、`get_automation_gates`、`get_settings`（脱敏 Token）、`get_events`、`get_version` / `get_metrics`、`get_mcp_status` / `get_mcp_access_log`
+4. 调参：`patch_settings`（`patches` 与/或 `operations`：set/add/remove/toggle）/ `set_scene` / `set_threshold` / profile CRUD；写操作受权限级与 `toolPolicies`，**ASK** 时须用户在手机确认
+5. 运行时：`start_analysis` / `stop_analysis` / `restart_analysis` / `cancel_actions`；调试帧 `capture_debug_frame` / `get_debug_frame`（HIGH_RISK + `allowDebugFrames`）；算法 `upgrade_algorithms(dryRun)`（HIGH_RISK 或需确认时勿连点）
 
 ### 硬规则
 

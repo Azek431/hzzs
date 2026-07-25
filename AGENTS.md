@@ -121,7 +121,7 @@ AlgorithmCatalogController（检查/下载/pending 徽章）→ 算法页 UI
 3. 自动操作默认关；导入/迁移不得静默开启；需免责声明版本。
 4. MCP 默认仅 loopback；用户可显式允许局域网（`bindLocalhostOnly=false` → `0.0.0.0`）。默认免 Bearer，开启鉴权时持久化 Token（仅主动轮换）；默认写操作需确认；`toolPolicies` 可按工具覆盖。导入不得静默开局域网/自动操作/放宽工具策略（除非用户确认 elevations）。
 5. MCP **访问日志**默认开（`accessLogEnabled`）；配置 schema **10**（叠加检测框 `persistBoxes`、自动复活等）。访问日志进程内 ring，无 Token/参数体；设置页 + `get_mcp_access_log`。绑定跟 `savedConfig`，策略/列表跟 `current()`；改权限级不重启服务。可选主机始终含 `127.0.0.1`。
-6. **代理可用 MCP 自测**：`adb forward tcp:18765 tcp:8765` → `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。优先 `get_status` / `get_runtime_snapshot` / `get_automation_gates` / `get_mcp_access_log`；Wi‑Fi 直连失败先怀疑 AP 隔离。详见根 `CLAUDE.md`「代理用 MCP 自测」。
+6. **代理可用 MCP 自测**：`adb forward tcp:18765 tcp:8765` → `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。优先 `inspect` / `get_status` / `get_runtime_snapshot` / `get_automation_gates` / `get_events` / `get_mcp_access_log`；Wi‑Fi 直连失败先怀疑 AP 隔离。详见根 `CLAUDE.md`「代理用 MCP 自测」。
 7. 主题包声明式 JSON，无脚本/远程资源。
 8. 帧缓冲有 `close()` 租约；Native 不持有 Java 数组地址。
 9. 视觉坐标归一化 `[0,1]`，仅绘制/手势层转像素。

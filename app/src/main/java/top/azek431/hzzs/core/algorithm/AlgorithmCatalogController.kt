@@ -13,8 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import org.json.JSONArray
-import org.json.JSONObject
 import kotlinx.coroutines.launch
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AlgorithmConfig
@@ -358,56 +356,80 @@ class AlgorithmCatalogController @Inject constructor(
     }
 
     /**
-     * 一键升级所有已装的外部算法包（builtin / bundled 跳过）。
+     * 计算可升级计划（纯只读，不触发下载）。
      *
-     * 返回三类结果：
-     * - [UpgradeResult.upgraded]：已触发下载的 id
-     * - [UpgradeResult.skipped]：已是最新或内置的 id
-     * - [UpgradeResult.failed]：不兼容 / 无信任锚 / 目录无该 id 的 {id, error}
-     *
-     * 注意：实际下载/验签/安装异步执行；调用方应以 [state] / `list_algorithms` 跟踪进度。
+     * 跳过 [AlgorithmOrigin.BUILTIN] / [AlgorithmOrigin.BUNDLED]；
+     * 仅对远端同 id 更高 versionCode 且兼容、有信任锚的包给出可升级 id。
      */
-    fun upgradeAll(): UpgradeResult {
+    fun planUpgrades(): UpgradePlan {
         val current = mutableState.value
-        val installed = current.installed.filter { !it.isBuiltin }
         val remoteById = current.remote.associateBy { it.id }
-        val upgraded = mutableListOf<String>()
+        val candidates = mutableListOf<String>()
         val skipped = mutableListOf<String>()
         val failed = mutableListOf<Pair<String, String>>()
-        installed.forEach { pkg ->
-            val remote = remoteById[pkg.id]
+        current.installed.forEach { pkg ->
             when {
-                remote == null -> skipped.add(pkg.id)
-                !remote.isCompatible -> failed.add(pkg.id to "不兼容当前应用版本")
-                !AlgorithmTrustAnchors.hasOfficialAnchors() -> failed.add(pkg.id to "未配置信任锚")
-                remote.versionCode <= pkg.versionCode -> skipped.add(pkg.id)
+                pkg.isBuiltin || pkg.origin == AlgorithmOrigin.BUILTIN || pkg.origin == AlgorithmOrigin.BUNDLED ->
+                    skipped.add(pkg.id)
                 else -> {
-                    download(pkg.id)
-                    upgraded.add(pkg.id)
+                    val remote = remoteById[pkg.id]
+                    when {
+                        remote == null -> skipped.add(pkg.id)
+                        !remote.isCompatible -> failed.add(pkg.id to "不兼容当前应用版本")
+                        !AlgorithmTrustAnchors.hasOfficialAnchors() -> failed.add(pkg.id to "未配置信任锚")
+                        remote.versionCode <= pkg.versionCode -> skipped.add(pkg.id)
+                        else -> candidates.add(pkg.id)
+                    }
                 }
             }
         }
-        return UpgradeResult(upgraded, skipped, failed)
+        return UpgradePlan(candidates = candidates, skipped = skipped, failed = failed)
     }
 
-    /** 一键升级全部算法的结果。 */
-    data class UpgradeResult(
-        val upgraded: List<String>,
+    /**
+     * 一键升级：按 [planUpgrades] 结果**顺序**触发下载。
+     *
+     * [download] 同时只允许一个任务；因此这里只启动队列中的**第一个**可升级包，
+     * 其余记入 [UpgradeResult.queued]，避免「报告已升级但实际未启动」。
+     * 实际下载/验签/安装异步；调用方以 [state] / `list_algorithms` 跟踪。
+     */
+    fun upgradeAll(): UpgradeResult {
+        val plan = planUpgrades()
+        if (plan.candidates.isEmpty()) {
+            return UpgradeResult(
+                upgraded = emptyList(),
+                queued = emptyList(),
+                skipped = plan.skipped,
+                failed = plan.failed,
+            )
+        }
+        val first = plan.candidates.first()
+        val rest = plan.candidates.drop(1)
+        download(first)
+        // download 若因已有任务进行中而未启动，仍如实报告：首个记 upgraded（请求已发出），
+        // 其余 queued；调用方用 list_algorithms 观察进度。
+        return UpgradeResult(
+            upgraded = listOf(first),
+            queued = rest,
+            skipped = plan.skipped,
+            failed = plan.failed,
+        )
+    }
+
+    /** 纯计划结果（dryRun）。 */
+    data class UpgradePlan(
+        val candidates: List<String>,
         val skipped: List<String>,
         val failed: List<Pair<String, String>>,
-    ) {
-        fun toJson(): JSONObject = JSONObject()
-            .put("upgraded", JSONArray(upgraded))
-            .put("skipped", JSONArray(skipped))
-            .put(
-                "failed",
-                JSONArray().apply {
-                    failed.forEach { (id, error) ->
-                        put(JSONObject().put("id", id).put("error", error))
-                    }
-                },
-            )
-    }
+    )
+
+    /** 一键升级执行结果。 */
+    data class UpgradeResult(
+        val upgraded: List<String>,
+        val queued: List<String> = emptyList(),
+        val skipped: List<String>,
+        val failed: List<Pair<String, String>>,
+    )
 
     /**
      * 手动模式选择已安装算法。

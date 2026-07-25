@@ -65,6 +65,7 @@ import top.azek431.hzzs.feature.settings.screens.CaptureSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.DetectionSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.DeveloperSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.LogViewerScreen
+import top.azek431.hzzs.feature.settings.screens.McpAccessLogViewerScreen
 import top.azek431.hzzs.feature.settings.screens.McpSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.NetworkUpdateSettingsScreen
 import top.azek431.hzzs.feature.settings.screens.OverlaySettingsScreen
@@ -122,6 +123,7 @@ fun SettingsScreen(
             SettingsRoutes.HOME, "home" -> SettingsRoutes.HOME
             SettingsRoutes.LOG_VIEWER, "logs", "log" -> SettingsRoutes.LOG_VIEWER
             SettingsRoutes.ALGORITHM_PIPELINE, "pipeline" -> SettingsRoutes.ALGORITHM_PIPELINE
+            SettingsRoutes.MCP_ACCESS_LOG, "mcp_log", "access_log" -> SettingsRoutes.MCP_ACCESS_LOG
             else -> SettingsCategory.entries.firstOrNull { it.route == target }?.route
         }
         if (dest != null && dest != route) {
@@ -169,8 +171,9 @@ fun SettingsScreen(
         SettingsCategory.NETWORK.route -> stringResource(SettingsCategory.NETWORK.titleRes)
         SettingsCategory.MCP.route -> stringResource(SettingsCategory.MCP.titleRes)
         SettingsCategory.DEVELOPER.route -> stringResource(SettingsCategory.DEVELOPER.titleRes)
-        SettingsRoutes.LOG_VIEWER -> "运行日志"
-        SettingsRoutes.ALGORITHM_PIPELINE -> "算法流程"
+        SettingsRoutes.LOG_VIEWER -> stringResource(R.string.log_viewer_title)
+        SettingsRoutes.ALGORITHM_PIPELINE -> stringResource(R.string.algorithm_pipeline_title)
+        SettingsRoutes.MCP_ACCESS_LOG -> stringResource(R.string.mcp_access_log_viewer_title)
         else -> settingsLabel
     }
 
@@ -412,6 +415,9 @@ private fun SettingsNavHost(
                 update = vm::update,
                 mcpState = mcpState,
                 onMessage = onMessage,
+                onOpenAccessLog = {
+                    nav.navigate(SettingsRoutes.MCP_ACCESS_LOG) { launchSingleTop = true }
+                },
             )
         }
         composable(SettingsCategory.DEVELOPER.route) {
@@ -446,7 +452,13 @@ private fun SettingsNavHost(
             AlgorithmPipelineScreen(
                 onBack = { nav.popBackStack() },
                 onMessage = onMessage,
+                onOpenLogs = {
+                    nav.navigate(SettingsRoutes.LOG_VIEWER) { launchSingleTop = true }
+                },
             )
+        }
+        composable(SettingsRoutes.MCP_ACCESS_LOG) {
+            McpAccessLogViewerScreen(onMessage = onMessage)
         }
     }
 }

@@ -577,6 +577,12 @@ fun DeveloperSettingsScreen(
                     title = stringResource(R.string.dev_diagnostics_title),
                     description = stringResource(R.string.dev_diagnostics_desc),
                 ) {
+                    Text(
+                        stringResource(R.string.dev_diagnostics_preview_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = {
                             runCatching {
@@ -632,6 +638,11 @@ fun DeveloperSettingsScreen(
                     ) {
                         Text(stringResource(R.string.dev_copy_to_clipboard))
                     }
+                    SettingsNavigationRow(
+                        title = stringResource(R.string.dev_open_log_viewer),
+                        subtitle = stringResource(R.string.dev_open_log_viewer_subtitle),
+                        onClick = onOpenLogViewer,
+                    )
                 }
             }
         }

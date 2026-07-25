@@ -108,9 +108,9 @@ object McpSettingsPatch {
 
     private fun applyToggle(cfg: AppConfig, path: String): AppConfig = when (path) {
         "overlay.enabled" -> cfg.copy(overlay = cfg.overlay.copy(enabled = !cfg.overlay.enabled))
-        "overlay.dynamicColorEnabled" -> cfg.copy(theme = cfg.theme.copy(dynamicColorEnabled = !cfg.theme.dynamicColorEnabled))
-        "overlay.reduceMotion" -> cfg.copy(theme = cfg.theme.copy(reduceMotion = !cfg.theme.reduceMotion))
-        "overlay.highContrast" -> cfg.copy(theme = cfg.theme.copy(highContrast = !cfg.theme.highContrast))
+        "theme.dynamicColorEnabled" -> cfg.copy(theme = cfg.theme.copy(dynamicColorEnabled = !cfg.theme.dynamicColorEnabled))
+        "theme.reduceMotion" -> cfg.copy(theme = cfg.theme.copy(reduceMotion = !cfg.theme.reduceMotion))
+        "theme.highContrast" -> cfg.copy(theme = cfg.theme.copy(highContrast = !cfg.theme.highContrast))
         "automation.restrictPackages" -> cfg.copy(automation = cfg.automation.copy(restrictPackages = !cfg.automation.restrictPackages))
         "automation.autoAdjustTriggerDistance" -> cfg.copy(
             automation = cfg.automation.copy(autoAdjustTriggerDistance = !cfg.automation.autoAdjustTriggerDistance),
@@ -127,6 +127,7 @@ object McpSettingsPatch {
         )
         "developer.enableFilterTrace" -> cfg.copy(developer = cfg.developer.copy(enableFilterTrace = !cfg.developer.enableFilterTrace))
         "mcp.accessLogEnabled" -> cfg.copy(mcp = cfg.mcp.copy(accessLogEnabled = !cfg.mcp.accessLogEnabled))
+        "mcp.allowDebugFrames" -> cfg.copy(mcp = cfg.mcp.copy(allowDebugFrames = !cfg.mcp.allowDebugFrames))
         else -> throw IllegalArgumentException("toggle 仅支持已知布尔路径：$path")
     }
 

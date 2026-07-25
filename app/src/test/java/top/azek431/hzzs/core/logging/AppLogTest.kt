@@ -2,6 +2,7 @@ package top.azek431.hzzs.core.logging
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -70,7 +71,11 @@ class AppLogTest {
         val search = AppLog.query(query = "capture")
         assertEquals(1, search.size)
         val newest = AppLog.query(newestFirst = true)
-        assertTrue(newest.first().message.contains("capture slow") || newest.first().message.contains("activate") || newest.first().message.contains("frame"))
+        assertTrue(
+            newest.first().message.contains("capture slow") ||
+                newest.first().message.contains("activate") ||
+                newest.first().message.contains("frame"),
+        )
         assertEquals(AppLog.size().toLong().coerceAtLeast(1L) > 0, AppLog.revision() > 0)
         assertTrue(AppLog.knownTags().contains("vision"))
         assertTrue(AppLog.formatText(tagEquals = "algorithm").contains("activate failed"))
@@ -83,6 +88,35 @@ class AppLogTest {
         AppLog.clear()
         assertEquals(0, AppLog.size())
         assertTrue(AppLog.revision() > before)
+    }
+
+    @Test
+    fun entriesHaveStableMonotonicIds() {
+        AppLog.i("a", "one")
+        AppLog.i("b", "two")
+        val snap = AppLog.snapshot()
+        assertEquals(2, snap.size)
+        assertTrue(snap[0].id > 0)
+        assertTrue(snap[1].id > snap[0].id)
+        assertNotEquals(snap[0].id, snap[1].id)
+    }
+
+    @Test
+    fun levelCountsAndTagCounts() {
+        AppLog.i("vision", "i1")
+        AppLog.i("vision", "i2")
+        AppLog.w("algo", "w1")
+        AppLog.e("algo", "e1")
+        val counts = AppLog.levelCounts()
+        assertEquals(2, counts.info)
+        assertEquals(1, counts.warn)
+        assertEquals(1, counts.error)
+        assertEquals(4, counts.total)
+        val tags = AppLog.tagCounts()
+        // 同计数按字典序；algo / vision 各 2 条，algo 在前。
+        assertEquals("algo", tags.first().first)
+        assertEquals(2, tags.first().second)
+        assertTrue(tags.any { it.first == "vision" && it.second == 2 })
     }
 }
 

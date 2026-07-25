@@ -54,14 +54,15 @@ class DebugFrameRecorder @Inject constructor(
     /**
      * 尝试提交一帧调试样本。
      *
-     * 快速返回：开发者开关关闭、间隔未到、或 CAS 失败时不复制像素。
+     * 快速返回：开发者总开关关闭、（未手动触发且未开 saveDebugFrames）、间隔未到、或 CAS 失败。
      * 成功接受后复制像素并异步 [writeFrame]。
-     * 若 [requestedCapture] 置位，则绕过间隔门控（MCP 手动触发）。
+     * [requestCapture] 可在 `saveDebugFrames=false` 时仍强制存下一帧（MCP 手动触发）。
      */
     fun offer(frame: CapturedFrame, config: DeveloperConfig) {
-        if (!config.enabled || !config.saveDebugFrames) return
-        val now = frame.elapsedRealtimeNanos
+        if (!config.enabled) return
         val bypass = requestedCapture.getAndSet(false)
+        if (!config.saveDebugFrames && !bypass) return
+        val now = frame.elapsedRealtimeNanos
         if (!bypass) {
             while (true) {
                 val previous = lastAcceptedNanos.get()
@@ -107,20 +108,29 @@ class DebugFrameRecorder @Inject constructor(
 
     /**
      * 读取指定调试帧的 JPEG 字节并按 [maxWidth] 等比降采样、以 [quality] 重新编码。
-     * 文件不存在返回 null。
+     *
+     * - [name] 仅允许 basename（无路径分隔符）且扩展名为 jpg，防穿越
+     * - [maxWidth] 钳制到 [MIN_MAX_WIDTH]..[MAX_MAX_WIDTH]；禁止 0 原图
+     * - 文件不存在 / 非法名返回 null
      */
     suspend fun getBytes(name: String, maxWidth: Int = 480, quality: Int = 70): ByteArray? =
         ioMutex.withLock {
-            val file = File(directory, name)
-            if (!file.isFile) return null
-            val bytes = file.readBytes()
-            if (maxWidth <= 0) return bytes
+            val safeName = sanitizeFrameName(name) ?: return null
+            val file = File(directory, safeName)
+            // 二次确认解析后仍落在私有目录内
+            val canonicalDir = directory.canonicalFile
+            val canonicalFile = runCatching { file.canonicalFile }.getOrNull() ?: return null
+            if (!canonicalFile.path.startsWith(canonicalDir.path + File.separator)) return null
+            if (!canonicalFile.isFile) return null
+            val bytes = canonicalFile.readBytes()
+            val widthCap = maxWidth.coerceIn(MIN_MAX_WIDTH, MAX_MAX_WIDTH)
+            val q = quality.coerceIn(10, 100)
             val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             if (bounds.outWidth <= 0) return bytes
-            if (bounds.outWidth <= maxWidth) return bytes
+            if (bounds.outWidth <= widthCap) return bytes
             var sample = 1
-            while (bounds.outWidth / sample > maxWidth) sample *= 2
+            while (bounds.outWidth / sample > widthCap) sample *= 2
             val opts = android.graphics.BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
@@ -129,13 +139,24 @@ class DebugFrameRecorder @Inject constructor(
                 ?: return bytes
             return try {
                 java.io.ByteArrayOutputStream().use { bos ->
-                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality.coerceIn(10, 100), bos)
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, q, bos)
                     bos.toByteArray()
                 }
             } finally {
                 bmp.recycle()
             }
         }
+
+    /** 仅允许 `*.jpg` basename，拒绝 `..` / 路径分隔符。 */
+    private fun sanitizeFrameName(name: String): String? {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed != File(trimmed).name) return null
+        if (trimmed.contains("..")) return null
+        if (!trimmed.endsWith(".jpg", ignoreCase = true)) return null
+        if (!SAFE_NAME.matches(trimmed)) return null
+        return trimmed
+    }
 
     /**
      * 将 ARGB 像素编码为 JPEG 并裁剪目录至 [MAX_FILES]。
@@ -168,5 +189,8 @@ class DebugFrameRecorder @Inject constructor(
         const val MAX_FILES = 20
         const val JPEG_QUALITY = 88
         const val MIN_INTERVAL_NANOS = 5_000_000_000L
+        const val MIN_MAX_WIDTH = 64
+        const val MAX_MAX_WIDTH = 1080
+        val SAFE_NAME = Regex("^[A-Za-z0-9._-]{1,128}\\.jpg$", RegexOption.IGNORE_CASE)
     }
 }

@@ -394,7 +394,7 @@
     <string name="dev_pointer_location_via_root">已通过 Root 写入指针位置</string>
     <string name="dev_pointer_location_busy">正在写入系统设置…</string>
     <string name="dev_open_log_viewer">查看运行日志</string>
-    <string name="dev_open_log_viewer_subtitle">级别 / 标签 / 关键字筛选，复制与分享</string>
+    <string name="dev_open_log_viewer_subtitle">折叠筛选、暂停实时、单条复制；级别 / 标签 / 关键字</string>
     <string name="dev_open_algorithm_pipeline">算法执行流程</string>
     <string name="dev_open_algorithm_pipeline_subtitle">激活阶段、Native 配置与最近一帧摘要</string>
     <string name="dev_force_capture_backend_title">强制截图后端</string>
@@ -437,5 +437,79 @@
     <string name="dev_copy_failed">复制失败：剪贴板不可用</string>
     <string name="dev_security_title">安全提示</string>
     <string name="dev_security_body">开发者选项与调试功能仅供技术排查使用，切勿向不可信渠道共享诊断输出或 Bearer Token。系统指针位置写入后以回读校验为准；Shizuku/Root 通道不静默要权。</string>
+
+    <!-- 运行日志查看器 -->
+    <string name="log_viewer_title">运行日志</string>
+    <string name="log_viewer_subtitle">缓冲 %1$d 条 · 显示 %2$d 条 · 容量 %3$d</string>
+    <string name="log_viewer_subtitle_paused">已暂停刷新 · 缓冲 %1$d 条 · 显示 %2$d 条</string>
+    <string name="log_viewer_filter_section">筛选</string>
+    <string name="log_viewer_filter_collapsed_hint">点开设置级别、标签与排序</string>
+    <string name="log_viewer_search_label">搜索消息 / 标签</string>
+    <string name="log_viewer_search_placeholder">例如 algorithm、failed、overlay</string>
+    <string name="log_viewer_min_level">最低级别</string>
+    <string name="log_viewer_level_all">全部</string>
+    <string name="log_viewer_tags">标签（Top）</string>
+    <string name="log_viewer_tag_all">全部标签</string>
+    <string name="log_viewer_tag_more">…共 %d 个标签，用搜索过滤</string>
+    <string name="log_viewer_newest_first">新在前</string>
+    <string name="log_viewer_auto_scroll">自动滚动</string>
+    <string name="log_viewer_live">实时刷新</string>
+    <string name="log_viewer_live_subtitle">关闭后冻结当前列表，便于阅读历史</string>
+    <string name="log_viewer_refresh">刷新</string>
+    <string name="log_viewer_refreshed">已刷新</string>
+    <string name="log_viewer_copy">复制筛选结果</string>
+    <string name="log_viewer_share">分享筛选结果</string>
+    <string name="log_viewer_clear">清空缓冲</string>
+    <string name="log_viewer_clear_confirm_title">清空运行日志？</string>
+    <string name="log_viewer_clear_confirm_body">将删除内存 ring 中的全部条目，不可恢复。不影响系统 logcat。</string>
+    <string name="log_viewer_cleared">日志已清空</string>
+    <string name="log_viewer_copied">已复制 %d 条日志</string>
+    <string name="log_viewer_copy_one">已复制本条</string>
+    <string name="log_viewer_share_chooser">分享日志</string>
+    <string name="log_viewer_share_failed">分享失败：%s</string>
+    <string name="log_viewer_empty_title">暂无匹配日志</string>
+    <string name="log_viewer_empty_body">启动分析、切换算法或保存设置后会写入运行日志。开发者关闭时 DEBUG 不入缓冲。可点筛选调整级别/标签。</string>
+    <string name="log_viewer_level_summary">E%1$d W%2$d I%3$d D%4$d</string>
+    <string name="log_viewer_expand">展开</string>
+    <string name="log_viewer_collapse">收起</string>
+    <string name="log_viewer_copy_line">复制本条</string>
+    <string name="log_viewer_filters_toggle">筛选与选项</string>
+    <string name="log_viewer_pending_new">有 %d 条新日志（点刷新）</string>
+
+    <!-- MCP 访问日志增强 -->
+    <string name="mcp_access_log_open_full">打开完整访问日志</string>
+    <string name="mcp_access_log_open_full_subtitle">搜索、复制、浏览全部 ring（最多 200）</string>
+    <string name="mcp_access_log_viewer_title">MCP 访问日志</string>
+    <string name="mcp_access_log_viewer_subtitle">缓冲 %1$d 条 · 显示 %2$d 条</string>
+    <string name="mcp_access_log_search_label">搜索工具 / 路径 / 远端</string>
+    <string name="mcp_access_log_copied">已复制 %d 条访问日志</string>
+    <string name="mcp_access_log_copy_one">已复制本条</string>
+    <string name="mcp_access_log_share_chooser">分享访问日志</string>
+    <string name="mcp_access_log_live">实时刷新</string>
+    <string name="mcp_access_log_empty_viewer">暂无访问记录。连接客户端并调用工具后会出现在此。</string>
+
+    <!-- 算法流程页 -->
+    <string name="algorithm_pipeline_title">算法执行流程</string>
+    <string name="algorithm_pipeline_subtitle">会话阶段 · 最近一帧</string>
+    <string name="algorithm_pipeline_refreshed">已刷新</string>
+    <string name="algorithm_pipeline_copied">算法流程摘要已复制</string>
+    <string name="algorithm_pipeline_share_chooser">分享算法流程</string>
+    <string name="algorithm_pipeline_share_failed">分享失败：%s</string>
+    <string name="algorithm_pipeline_open_logs">打开运行日志（algorithm）</string>
+    <string name="algorithm_pipeline_context">当前上下文</string>
+    <string name="algorithm_pipeline_stages">执行阶段</string>
+    <string name="algorithm_pipeline_last_frame">最近一帧分析</string>
+    <string name="algorithm_pipeline_no_frame">尚未产生分析帧。请启动视觉分析后回到本页。</string>
+    <string name="algorithm_pipeline_hint">阶段在「保存算法设置 / 启动分析」时更新；最近一帧在分析运行时刷新。不含检测框像素与密钥。更细日志见「运行日志」并筛选 algorithm。</string>
+    <string name="algorithm_pipeline_status_idle">待执行</string>
+    <string name="algorithm_pipeline_status_running">进行中</string>
+    <string name="algorithm_pipeline_status_success">成功</string>
+    <string name="algorithm_pipeline_status_warning">警告</string>
+    <string name="algorithm_pipeline_status_failed">失败</string>
+    <string name="algorithm_pipeline_status_skipped">跳过</string>
+    <string name="algorithm_pipeline_refresh">刷新</string>
+
+    <!-- 诊断导出增强 -->
+    <string name="dev_diagnostics_preview_hint">导出前可先复制；内容已脱敏，仍请勿发往不可信渠道。</string>
 
     </resources>

@@ -11,6 +11,7 @@
 
 ### 新增
 
+- **MCP 工具链增强（9 向能力）**：`inspect` 一键聚合诊断；`patch_settings` 支持 `operations`（set/add/remove/toggle）；命名 profile CRUD（`save/load/list/delete_profile`）；`get_debug_frame` / `capture_debug_frame`（HIGH_RISK，路径穿越防护 + maxWidth 64..1080）；`get_version` / `check_update`（严格 wifiOnly）/ `get_metrics`；进程内 `McpEventBus` + `get_events` / `app://events`；`upgrade_algorithms`（dryRun 无副作用，真升级顺序队列）。安全：profile load 走 `hardenedForExternalIngest`；事件不记 Token/参数。
 - **算法执行过程可观测性**：`VisionResult` 增加 `timing`（JNI / 主检测 / 后过滤 / 归一化 4 段耗时）、`multicolorDiag`（每模板命中/拒绝原因 + 搜索区，不记录 RGB 资产）、`filteredOut`（尺寸窗剔除障碍 + 原因）。C++ 采样经 JNI 回传；默认全关。
 - **开发者诊断三开关**：`enableStageTiming` / `enableMulticolorDiagnostic` / `enableFilterTrace`；DEBUG_HUD 显示阶段耗时、找色 m/n、过滤数；穿透层叠加命中点 / 搜索区品红虚线 / 过滤黄虚线框。
 - **AppLog ring 可调**：`logRingCapacity` [500, 3000]，默认 800。
@@ -18,6 +19,7 @@
 
 ### 变更
 
+- **日志界面子系统重构**：`LogViewerScreen` 去掉双层 Scaffold，筛选可折叠、支持暂停实时/单条复制展开/稳定 id key/Top-N 标签；新增 `McpAccessLogViewerScreen` 全屏访问日志；`AlgorithmPipelineScreen` 对齐内容页并链到运行日志；诊断导出区补提示与入口。后端 `AppLog`/`McpAccessLog` 增加单调 `id`、`levelCounts`/`tagCounts`/`query`。
 - **`NativeVision.Result` / `StageTiming` / `MulticolorDiag` / `FilteredDetection` 数据类扩展**：JNI 边界 `make_result` 透传 timing 与诊断数组；旧版本未开启诊断时全部为空/零，向后兼容。
 - **`AlgorithmRuntimeTrace` / `AlgorithmPipelineTrace` 帧条目增加 `timing`**：`formatL1` 与 LastFrameCard 在 `timing.totalNs>0` 时打印各阶段毫秒。
 

@@ -3,6 +3,7 @@
  *
  * 职责：展示 [AlgorithmPipelineTrace] 阶段状态与最近一帧摘要，直观看激活与分析路径。
  * 边界：只读进程内追踪器；不触发配置/激活；复制摘要经剪贴板 helper。
+ * 布局：内容页（不自建 Scaffold），由外层 Settings/About 提供顶栏。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -23,19 +24,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,29 +46,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineSnapshot
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineStage
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.algorithm.AlgorithmStageStatus
+import top.azek431.hzzs.core.designsystem.LocalHzzsDimensions
 import top.azek431.hzzs.core.platform.ClipboardHelper
 
 /**
  * 算法流程页：轮询 [AlgorithmPipelineTrace.revision] 刷新。
+ *
+ * @param onOpenLogs 跳转运行日志（可预筛 algorithm）
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlgorithmPipelineScreen(
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     onMessage: (String) -> Unit = {},
+    onOpenLogs: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val dimensions = LocalHzzsDimensions.current
     var revision by remember { mutableLongStateOf(AlgorithmPipelineTrace.revision()) }
     var snapshot by remember { mutableStateOf(AlgorithmPipelineTrace.snapshot()) }
+
+    val copiedMsg = stringResource(R.string.algorithm_pipeline_copied)
+    val copyFailed = stringResource(R.string.dev_copy_failed)
+    val refreshedMsg = stringResource(R.string.algorithm_pipeline_refreshed)
+    val shareChooser = stringResource(R.string.algorithm_pipeline_share_chooser)
+    val shareFailedTemplate = stringResource(R.string.algorithm_pipeline_share_failed)
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -85,13 +96,13 @@ fun AlgorithmPipelineScreen(
     fun refreshNow() {
         revision = AlgorithmPipelineTrace.revision()
         snapshot = AlgorithmPipelineTrace.snapshot()
-        onMessage("已刷新")
+        onMessage(refreshedMsg)
     }
 
     fun copySnapshot() {
         val text = AlgorithmPipelineTrace.formatText()
         val ok = ClipboardHelper.copyText(context, "HZZS algorithm pipeline", text)
-        onMessage(if (ok) "算法流程摘要已复制" else "复制失败：剪贴板不可用")
+        onMessage(if (ok) copiedMsg else copyFailed)
     }
 
     fun shareSnapshot() {
@@ -102,86 +113,101 @@ fun AlgorithmPipelineScreen(
                 putExtra(Intent.EXTRA_TEXT, text)
                 putExtra(Intent.EXTRA_SUBJECT, "HZZS algorithm pipeline")
             }
-            context.startActivity(Intent.createChooser(send, "分享算法流程"))
+            context.startActivity(Intent.createChooser(send, shareChooser))
         }.onFailure {
-            onMessage("分享失败：${it.message ?: it.javaClass.simpleName}")
+            onMessage(shareFailedTemplate.format(it.message ?: it.javaClass.simpleName))
         }
     }
 
-    Scaffold(
+    LazyColumn(
         modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("算法执行流程")
-                        Text(
-                            "会话阶段 · 最近一帧",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { copySnapshot() }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = "复制")
-                    }
-                    IconButton(onClick = { shareSnapshot() }) {
-                        Icon(Icons.Rounded.Share, contentDescription = "分享")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                ContextCard(snapshot)
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("执行阶段", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { refreshNow() }) { Text("刷新") }
+        contentPadding = PaddingValues(dimensions.screenPadding),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.algorithm_pipeline_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.algorithm_pipeline_subtitle),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { refreshNow() }) {
+                    Icon(
+                        Icons.Rounded.Refresh,
+                        contentDescription = stringResource(R.string.algorithm_pipeline_refresh),
+                    )
+                }
+                IconButton(onClick = { copySnapshot() }) {
+                    Icon(
+                        Icons.Rounded.ContentCopy,
+                        contentDescription = stringResource(R.string.dev_copy_to_clipboard),
+                    )
+                }
+                IconButton(onClick = { shareSnapshot() }) {
+                    Icon(Icons.Rounded.Share, contentDescription = null)
                 }
             }
-            itemsIndexed(snapshot.stages, key = { _, stage -> stage.id }) { index, stage ->
-                StageRow(
-                    index = index + 1,
-                    stage = stage,
-                    isLast = index == snapshot.stages.lastIndex,
-                )
-            }
-            item {
-                Spacer(Modifier.height(4.dp))
-                Text("最近一帧分析", style = MaterialTheme.typography.titleMedium)
-            }
-            item {
-                LastFrameCard(snapshot)
-            }
-            item {
-                Text(
-                    "说明：阶段在「保存算法设置 / 启动分析」时更新；最近一帧在分析运行时刷新。" +
-                        " 不含检测框像素与密钥。更细日志见「运行日志」并筛选 algorithm。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            item { Spacer(Modifier.height(24.dp)) }
         }
+        item {
+            ContextCard(snapshot)
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.algorithm_pipeline_stages),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                TextButton(onClick = { refreshNow() }) {
+                    Text(stringResource(R.string.algorithm_pipeline_refresh))
+                }
+            }
+        }
+        itemsIndexed(snapshot.stages, key = { _, stage -> stage.id }) { index, stage ->
+            StageRow(
+                index = index + 1,
+                stage = stage,
+                isLast = index == snapshot.stages.lastIndex,
+            )
+        }
+        item {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.algorithm_pipeline_last_frame),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        item {
+            LastFrameCard(snapshot)
+        }
+        if (onOpenLogs != null) {
+            item {
+                OutlinedButton(onClick = onOpenLogs, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.algorithm_pipeline_open_logs))
+                }
+            }
+        }
+        item {
+            Text(
+                stringResource(R.string.algorithm_pipeline_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
@@ -191,7 +217,11 @@ private fun ContextCard(snapshot: AlgorithmPipelineSnapshot) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("当前上下文", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.algorithm_pipeline_context),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             Text("catalog：${snapshot.catalogId ?: "—"}", style = MaterialTheme.typography.bodySmall)
             Text("选择模式：${snapshot.selectionMode ?: "—"}", style = MaterialTheme.typography.bodySmall)
             Text("场景：${snapshot.selectedScene ?: "—"}", style = MaterialTheme.typography.bodySmall)
@@ -270,7 +300,7 @@ private fun LastFrameCard(snapshot: AlgorithmPipelineSnapshot) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (frame == null) {
                 Text(
-                    "尚未产生分析帧。请启动视觉分析后回到本页。",
+                    stringResource(R.string.algorithm_pipeline_no_frame),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -299,11 +329,12 @@ private fun LastFrameCard(snapshot: AlgorithmPipelineSnapshot) {
     }
 }
 
+@Composable
 private fun stageStatusLabel(status: AlgorithmStageStatus): String = when (status) {
-    AlgorithmStageStatus.IDLE -> "待执行"
-    AlgorithmStageStatus.RUNNING -> "进行中"
-    AlgorithmStageStatus.SUCCESS -> "成功"
-    AlgorithmStageStatus.WARNING -> "警告"
-    AlgorithmStageStatus.FAILED -> "失败"
-    AlgorithmStageStatus.SKIPPED -> "跳过"
+    AlgorithmStageStatus.IDLE -> stringResource(R.string.algorithm_pipeline_status_idle)
+    AlgorithmStageStatus.RUNNING -> stringResource(R.string.algorithm_pipeline_status_running)
+    AlgorithmStageStatus.SUCCESS -> stringResource(R.string.algorithm_pipeline_status_success)
+    AlgorithmStageStatus.WARNING -> stringResource(R.string.algorithm_pipeline_status_warning)
+    AlgorithmStageStatus.FAILED -> stringResource(R.string.algorithm_pipeline_status_failed)
+    AlgorithmStageStatus.SKIPPED -> stringResource(R.string.algorithm_pipeline_status_skipped)
 }

@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** 单条缓冲日志（导出用纯文本，不含敏感密钥）。 */
 data class AppLogEntry(
+    /** 进程内单调 id，供 LazyColumn 稳定 key / 单条定位。 */
+    val id: Long,
     val epochMs: Long,
     val level: AppLogLevel,
     val tag: String,
@@ -49,12 +51,32 @@ data class AppLogEntry(
     }
 }
 
+/** 缓冲内各级别条数（供 UI 摘要）。 */
+data class AppLogLevelCounts(
+    val verbose: Int = 0,
+    val debug: Int = 0,
+    val info: Int = 0,
+    val warn: Int = 0,
+    val error: Int = 0,
+) {
+    val total: Int get() = verbose + debug + info + warn + error
+
+    fun of(level: AppLogLevel): Int = when (level) {
+        AppLogLevel.VERBOSE -> verbose
+        AppLogLevel.DEBUG -> debug
+        AppLogLevel.INFO -> info
+        AppLogLevel.WARN -> warn
+        AppLogLevel.ERROR -> error
+    }
+}
+
 /**
  * 进程级日志门面。
  *
  * - 始终写 Logcat（受 [minLevel] 过滤）
- * - ring buffer 容量 [CAPACITY]；关闭开发者时 DEBUG/VERBOSE 不入 buffer
+ * - ring buffer 容量可调；关闭开发者时 DEBUG/VERBOSE 不入 buffer
  * - [revision] 在写入/清空时递增，供 UI 轮询刷新
+ * - 每条带稳定 [AppLogEntry.id]
  */
 object AppLog {
     /** 默认 ring 容量；开发者可在 [top.azek431.hzzs.core.model.DeveloperConfig.logRingCapacity] 内调整。 */
@@ -69,6 +91,7 @@ object AppLog {
     private val minLevel = AtomicReference(AppLogLevel.INFO)
     private val developerEnabled = AtomicBoolean(false)
     private val revisionCounter = AtomicLong(0L)
+    private val nextId = AtomicLong(1L)
 
     /** 缓冲变更代数；UI 可用其轮询是否需要刷新。 */
     fun revision(): Long = revisionCounter.get()
@@ -90,6 +113,7 @@ object AppLog {
             newBuffer.addAll(kept)
             buffer = newBuffer
             capacity = clamped
+            revisionCounter.incrementAndGet()
         }
     }
 
@@ -136,7 +160,6 @@ object AppLog {
     ): List<AppLogEntry> {
         val q = query?.trim()?.takeIf { it.isNotEmpty() }?.lowercase(Locale.US)
         val tag = tagEquals?.trim()?.takeIf { it.isNotEmpty() }
-        // snapshot 为旧→新；先筛再按方向截断
         val filtered = snapshot(capacity).asSequence()
             .filter { it.level.ordinal >= minLevel.ordinal }
             .filter { tag == null || it.tag.equals(tag, ignoreCase = true) }
@@ -153,7 +176,6 @@ object AppLog {
         val capped = if (filtered.size <= limit) {
             filtered
         } else {
-            // 保留最近 limit 条（列表末尾）
             filtered.takeLast(limit)
         }
         return if (newestFirst) capped.asReversed() else capped
@@ -162,6 +184,36 @@ object AppLog {
     /** 当前缓冲中出现过的 tag（字典序）。 */
     fun knownTags(): List<String> = synchronized(lock) {
         buffer.map { it.tag }.toSet().sorted()
+    }
+
+    /**
+     * 标签出现次数（降序，同次数字典序）。
+     * UI 可用 count 限制展示 Top-N，避免 chip 爆炸。
+     */
+    fun tagCounts(): List<Pair<String, Int>> = synchronized(lock) {
+        buffer.groupingBy { it.tag }.eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key to it.value }
+    }
+
+    /** 缓冲内各级别计数（不受 UI 筛选影响）。 */
+    fun levelCounts(): AppLogLevelCounts = synchronized(lock) {
+        var verbose = 0
+        var debug = 0
+        var info = 0
+        var warn = 0
+        var error = 0
+        buffer.forEach { entry ->
+            when (entry.level) {
+                AppLogLevel.VERBOSE -> verbose++
+                AppLogLevel.DEBUG -> debug++
+                AppLogLevel.INFO -> info++
+                AppLogLevel.WARN -> warn++
+                AppLogLevel.ERROR -> error++
+            }
+        }
+        AppLogLevelCounts(verbose, debug, info, warn, error)
     }
 
     fun clear() = synchronized(lock) {
@@ -202,6 +254,7 @@ object AppLog {
         val thrMsg = throwable?.let { redact(it.message ?: it.javaClass.simpleName) }
         writeLogcat(level, safeTag, safeMessage, throwable)
         val entry = AppLogEntry(
+            id = nextId.getAndIncrement(),
             epochMs = System.currentTimeMillis(),
             level = level,
             tag = safeTag,

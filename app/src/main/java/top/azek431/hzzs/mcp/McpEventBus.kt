@@ -10,7 +10,10 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * 职责：记录运行时事件（启停 / 算法切换 / 配置变化 / 错误），供 [get_events] 拉取。
  * 不写文件、不上传；仅记事件类型 + 摘要 data，**永不**记 Token/参数体。
- * 线程：synchronized 写；[snapshot] 返回拷贝。
+ * 线程：synchronized 写；[snapshot] 返回深拷贝。
+ *
+ * 游标语义：`snapshot(since, limit)` 返回 **seq > since 的最早 limit 条**（增量游标不丢中间事件）。
+ * [clear] 只清缓冲，**不重置**序列号，保证客户端游标单调。
  */
 object McpEventBus {
     const val CAPACITY = 200
@@ -40,10 +43,22 @@ object McpEventBus {
             .put("seq", seq)
             .put("type", type)
             .put("epochMs", epochMs)
-            .put("data", data)
+            // 再拷贝一次，避免调用方 mutate 返回对象
+            .put("data", JSONObject(data.toString()))
     }
 
+    data class Snapshot(
+        val events: List<Entry>,
+        val nextSince: Long,
+        val oldestSeq: Long,
+        val latestSeq: Long,
+        val dropped: Boolean,
+        val buffered: Int,
+    )
+
     fun append(type: String, data: JSONObject) {
+        // 深拷贝：JSONObject 可变，禁止 ring 持有调用方引用
+        val copy = JSONObject(data.toString())
         synchronized(lock) {
             if (buffer.size >= CAPACITY) buffer.removeFirst()
             buffer.addLast(
@@ -51,18 +66,33 @@ object McpEventBus {
                     seq = sequenceCounter.incrementAndGet(),
                     type = type,
                     epochMs = System.currentTimeMillis(),
-                    data = data,
+                    data = copy,
                 ),
             )
         }
     }
 
-    /** 返回 seq > since 的事件（默认全部），最多 limit 条。 */
-    fun snapshot(since: Long = 0L, limit: Int = CAPACITY): List<Entry> = synchronized(lock) {
-        val seq = sequenceCounter.get()
+    /**
+     * 返回 seq > since 的最早 [limit] 条事件及游标元数据。
+     *
+     * [Snapshot.dropped]：客户端 since 已落后于 ring 中最旧 seq（中间事件被覆盖）。
+     */
+    fun snapshot(since: Long = 0L, limit: Int = CAPACITY): Snapshot = synchronized(lock) {
         val matched = buffer.filter { it.seq > since }
         val n = limit.coerceAtLeast(0).coerceAtMost(matched.size)
-        matched.takeLast(n)
+        val events = matched.take(n)
+        val oldest = buffer.firstOrNull()?.seq ?: 0L
+        val latest = sequenceCounter.get()
+        val dropped = oldest > 0L && oldest > since + 1
+        val nextSince = events.lastOrNull()?.seq ?: since.coerceAtLeast(0L)
+        Snapshot(
+            events = events,
+            nextSince = nextSince,
+            oldestSeq = oldest,
+            latestSeq = latest,
+            dropped = dropped,
+            buffered = buffer.size,
+        )
     }
 
     fun size(): Int = synchronized(lock) { buffer.size }
@@ -73,6 +103,6 @@ object McpEventBus {
 
     fun toJsonArray(since: Long = 0L, limit: Int = CAPACITY): JSONArray =
         JSONArray().apply {
-            snapshot(since, limit).forEach { put(it.toJson()) }
+            snapshot(since, limit).events.forEach { put(it.toJson()) }
         }
 }

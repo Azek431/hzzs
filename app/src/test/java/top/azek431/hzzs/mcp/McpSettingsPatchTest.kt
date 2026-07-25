@@ -58,6 +58,7 @@ class McpSettingsPatchTest {
                 allowedPackages = setOf("com.a"),
                 restrictPackages = false,
             ),
+            theme = AppConfig().theme.copy(reduceMotion = false),
         )
         val next = McpSettingsPatch.applyOperations(
             base,
@@ -77,11 +78,17 @@ class McpSettingsPatchTest {
                     null,
                     McpSettingsPatch.OpType.TOGGLE,
                 ),
+                McpSettingsPatch.Op(
+                    "theme.reduceMotion",
+                    null,
+                    McpSettingsPatch.OpType.TOGGLE,
+                ),
             ),
         )
         assertTrue(next.automation.allowedPackages.contains("com.b"))
         assertFalse(next.automation.allowedPackages.contains("com.a"))
         assertTrue(next.automation.restrictPackages)
+        assertTrue(next.theme.reduceMotion)
     }
 
     @Test
@@ -178,9 +185,32 @@ class McpSettingsPatchTest {
                 .getJSONObject("properties")
                 .has("include"),
         )
+        listOf(
+            "get_debug_frame",
+            "capture_debug_frame",
+            "save_profile",
+            "load_profile",
+            "list_profiles",
+            "delete_profile",
+            "get_events",
+            "upgrade_algorithms",
+            "get_version",
+            "check_update",
+            "get_metrics",
+        ).forEach { assertTrue("$it missing", names.contains(it)) }
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("get_debug_frame")!!.risk)
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("capture_debug_frame")!!.risk)
+        assertEquals(McpToolRisk.HIGH_RISK, McpToolCatalog.tool("upgrade_algorithms")!!.risk)
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://runtime/snapshot" })
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://algorithm/active" })
         assertTrue(McpToolCatalog.resources.any { it.uri == "app://mcp/status" })
+        assertTrue(McpToolCatalog.resources.any { it.uri == "app://events" })
+        // 每个工具都有中文标题（不得回退成纯工具名）
+        McpToolCatalog.tools.forEach { tool ->
+            val title = McpToolLabels.titleZh(tool.name)
+            assertTrue("missing zh label for ${tool.name}", title != tool.name)
+            assertTrue(title.isNotBlank())
+        }
         assertTrue(
             McpToolLabels.clientDescription(McpToolCatalog.tool("get_status")!!)
                 .contains("工具名: get_status"),

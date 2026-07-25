@@ -70,6 +70,7 @@ import top.azek431.hzzs.core.model.McpPermissionLevel
 import top.azek431.hzzs.core.model.McpToolPolicy
 import top.azek431.hzzs.core.model.displayName
 import top.azek431.hzzs.core.platform.ClipboardHelper
+import top.azek431.hzzs.feature.settings.components.SettingsNavigationRow
 import top.azek431.hzzs.feature.settings.components.SettingsRadioCard
 import top.azek431.hzzs.feature.settings.components.SettingsSectionCard
 import top.azek431.hzzs.feature.settings.components.SettingsStatusChip
@@ -98,6 +99,7 @@ fun McpSettingsScreen(
     update: ((top.azek431.hzzs.core.model.AppConfig) -> top.azek431.hzzs.core.model.AppConfig) -> Unit,
     mcpState: McpServerState,
     onMessage: (String) -> Unit = {},
+    onOpenAccessLog: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dimensions = LocalHzzsDimensions.current
@@ -702,6 +704,11 @@ fun McpSettingsScreen(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    title = stringResource(R.string.mcp_access_log_open_full),
+                    subtitle = stringResource(R.string.mcp_access_log_open_full_subtitle),
+                    onClick = onOpenAccessLog,
+                )
                 OutlinedButton(
                     onClick = {
                         McpAccessLog.clear()

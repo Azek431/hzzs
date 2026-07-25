@@ -247,6 +247,10 @@ fun AboutScreen(
             onMessage = { msg ->
                 Toast.makeText(toastContext, msg, Toast.LENGTH_SHORT).show()
             },
+            onOpenLogs = {
+                algorithmPipelinePage = false
+                logViewerPage = true
+            },
         )
         return
     }

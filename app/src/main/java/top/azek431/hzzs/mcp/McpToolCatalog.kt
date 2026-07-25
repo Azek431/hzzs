@@ -289,12 +289,9 @@ object McpToolCatalog {
         ),
         McpToolDescriptor(
             name = "check_update",
-            description = "检查应用更新（包装 UpdateRepository.check）；失败返回 error 而非抛异常。受 update.wifiOnly 约束",
+            description = "检查应用更新（包装 UpdateRepository.check）；失败返回 error 而非抛异常。严格遵循 update.wifiOnly，不可 force 绕过",
             risk = McpToolRisk.READ,
-            inputSchema = objSchema(
-                properties = JSONObject()
-                    .put("force", boolProp("强制检查（忽略 wifiOnly 门控，默认 false）")),
-            ),
+            inputSchema = emptyObjectSchema(),
         ),
         McpToolDescriptor(
             name = "get_metrics",
@@ -310,7 +307,7 @@ object McpToolCatalog {
             inputSchema = objSchema(
                 properties = JSONObject()
                     .put("name", stringProp("调试帧文件名，如 frame_123_1080x2400.jpg"))
-                    .put("maxWidth", intProp("降采样后最大边长（默认 480，原图传 0）"))
+                    .put("maxWidth", intProp("降采样最大边长（默认 480，范围 64..1080）"))
                     .put("quality", intProp("JPEG 质量 10-100（默认 70）")),
                 required = listOf("name"),
             ),
@@ -318,8 +315,8 @@ object McpToolCatalog {
         ),
         McpToolDescriptor(
             name = "capture_debug_frame",
-            description = "强制存下一帧到调试帧目录（绕过保存间隔门控）",
-            risk = McpToolRisk.WRITE,
+            description = "强制存下一帧到调试帧目录（绕过保存间隔与 saveDebugFrames；仍需开发者总开关）。含屏幕内容落盘，HIGH_RISK",
+            risk = McpToolRisk.HIGH_RISK,
             inputSchema = emptyObjectSchema(),
         ),
         McpToolDescriptor(

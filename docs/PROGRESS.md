@@ -9,6 +9,7 @@
 - Android 7+ 低权限 MediaProjection 默认路径；`AUTO` 不升权。
 - Material 3 首次引导（5 步：欢迎/赛季/截图/权限/完成；完成页折叠高级自动操作）、主题包、悬浮窗样式、设置草稿预览 + 显式保存和开发者入口。
 - MCP 四级权限 + 工具级策略覆盖、IPv4 默认 `127.0.0.1` 回环监听（可选局域网 `0.0.0.0`）、默认免鉴权（可选持久化 Bearer，`requireAuth` + `authToken`，仅主动轮换）和应用内语义操作；Streamable HTTP 握手与会话表、keep-alive、严格工具 schema、连接背压；同机 RikkaHub 导入 JSON；设置页可搜索管理工具策略；访问日志 ring（`accessLogEnabled`，无 Token/参数体）；可选主机始终含 `127.0.0.1`；服务绑定跟 `savedConfig`、策略跟 `current()`。配置 schema **10**（`persistBoxes`、自动复活等）。
+- MCP 增强工具面：`inspect`、批量 `patch_settings.operations`、命名 profile、调试帧读写、`get_events` / `app://events`、`get_version` / `check_update` / `get_metrics`、`upgrade_algorithms`（约 58 工具）。
 - 悬浮窗检测框默认短时持久绘制（`overlay.persistBoxes`）；Shizuku `input` 候选 fail-fast + 命令前缀缓存，降低 DOUBLE_JUMP 手势超时占锁。
 - 三赛季障碍类别过滤、比例坐标和三种玩家基准模式（甜品 / 竹影 / 海盐）。
 - 默认赛季见源码 `AppConfig.DEFAULT_SELECTED_SCENE`（进度文档不重复写死赛季名）。
@@ -49,7 +50,7 @@
 | P2 | FastContourV2 隔离 native（core/pipeline/profiles/海盐/缺口 host smoke） | 进行中：host 全绿；**未** CMake/APK/Shadow |
 | P2 | 系统权限引导 + 悬浮窗双层绘制 | 已落地：`SystemCapabilityAccess`；设置/引导/运行页权限入口；`overlayBlockReason`；双 Window（穿透框 + 可拖 HUD） |
 | P2 | UI/动效深化：Motion Policy、导航转场、令牌断点、文案起步 | 进行中（Motion/引导 5 步 DS2.0 重构/设置分类壳/引导文案/颜色对比工具/赞赏 Dialog 已落地；设置子页全文案、HUD 字号、Roborazzi 未做） |
-| P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地（会话阶段可视化 + 最近一帧摘要；无文件日志；无 C++ 热路径逐步日志） |
+| P2 | 开发者设置补齐 + AppLog + 诊断导出 + 日志查看器 + 算法流程页 | 已落地并增强：折叠筛选/暂停实时/单条复制/稳定 id；MCP 访问日志全屏；算法流程链到运行日志；无文件日志 |
 | P1 | 设置页拆分为独立分类：MCP 服务（普通用户可访问）与开发者选项分离；连接引导、状态卡片、一键复制信息；关于/设置共用开发者页，解锁后设置首页才显示入口 | 已落地 |
 | P1 | MCP 协议与安全加固：initialize/initialized、Mcp-Session-Id、TRUSTED_SESSION 内存会话、并发上限、严格 inputSchema、错误码分类、停止拒绝挂起审批 | 已落地 |
 | P2 | 设备矩阵与厂商 ROM 报告 | 未完成 |

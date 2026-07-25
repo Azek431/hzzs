@@ -3,6 +3,11 @@
 跨会话可复用的**工程经验**（短条）。硬约束仍以根目录 `CLAUDE.md` 与源码为准。  
 会话级偏好写入 Claude 项目记忆；此处只记对仓库协作者也有用的条目。
 
+## 2026-07-25
+
+- **MCP 增强排障顺序**：优先 `inspect`（可 `include` 裁剪）代替连调 4 个只读工具；调参用 `patch_settings` 的 `operations`（小写 op：set/add/remove/toggle）；事件用 `get_events(since)` 增量，ring 200 不重置 seq。调试帧：`capture_debug_frame` 可在 `saveDebugFrames=false` 时仍抓一帧，但读图须 `allowDebugFrames` + HIGH_RISK。`upgrade_algorithms(dryRun=true)` 只 plan 不下载。
+- **Serena jvm_options 必须是字符串**：`.serena/project.yml` 写成 YAML 列表会把 list 塞进 `JAVA_TOOL_OPTIONS` → Windows `environment can only contain strings`，Kotlin LS 起不来。正确：`jvm_options: "-Xmx768m ..."`。`repair_serena.ps1` 已检测 list 形态。
+
 ## 2026-07-24
 
 - **MCP 代理自测（ADB 优先）**：真机 MCP 启用后，`adb forward tcp:18765 tcp:8765`，客户端 URL `http://127.0.0.1:18765/mcp`（Claude Code `type: http`）。已验证 `initialize` / `tools/list` / `get_status` / `get_runtime_snapshot` / `get_settings` / `resources/list`。Wi‑Fi 直连 `192.168.x:8765` 常因 AP 隔离超时，**不等于** MCP 坏；`lanHosts` 里 `10.x` 可能是蜂窝、`100.x` 是 Tailscale，优先同网 `192.168.x`。进程 D 状态超时 → 拉前台再测。详见根 `CLAUDE.md`「代理用 MCP 自测」。
@@ -10,7 +15,7 @@
 - **VS Code 任务 + adb + PowerShell Stop**：原生 `adb` 写 stderr 时，在 `Continue=Stop` 下会变 NativeCommandError。统一 `Invoke-HzzsAdb`；`--remove` 无转发时用 `-IgnoreFailure`。嵌套脚本用 `return` 勿 `exit`。脚本用 **UTF-8 BOM** 兼容 Windows PowerShell 5.1；`Set-StrictMode` 下勿盲读未赋值 `0`。
 
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 false；开启时 `authToken` 落盘，**不**在每次启动 `randomToken()`。RikkaHub「配对令牌无效」常见因旧版每次启动轮换后客户端仍持旧 Token——现应稳定；用户要换令牌时点设置页「轮换 Token」并重新导入 JSON。
-- **MCP 工具面**：优先 `get_runtime_snapshot` / `get_automation_gates` 排障；调参用 `patch_settings` 或 `set_scene`/`set_threshold`/`set_theme`，勿整包乱写 `save_settings`。开开发者/自动操作/下算法是 HIGH_RISK。`navigate` 支持 `settings/mcp` 等深链；`cancel_actions` / `restart_analysis` 可直接控运行时。
+- **MCP 工具面**：优先 `inspect` / `get_runtime_snapshot` / `get_automation_gates` 排障；调参用 `patch_settings`（含 operations）或 `set_scene`/`set_threshold`/`set_theme`，勿整包乱写 `save_settings`。开开发者/自动操作/下算法/读调试帧/一键升级是 HIGH_RISK。`navigate` 支持 `settings/mcp` 等深链；`cancel_actions` / `restart_analysis` 可直接控运行时。
 - **MCP 工具策略 + 失效会话**：`mcp.toolPolicies` 可 DISABLED/ALWAYS_ASK；设置页用弹窗搜索，勿内联长列表。改端口/LAN 会重启服务清空 Session——旧 `Mcp-Session-Id` 下 `tools/call` 应降级无会话继续，勿硬挡 `-32003`（TRUSTED 仍需有效会话）。状态卡始终给 `http://127.0.0.1:<port>/mcp`。
 - **MCP 访问日志 + 主机列表**：`McpAccessLog` 默认开，只记摘要不记 Token/参数；`get_mcp_access_log` 排障。可选主机**始终**含 `127.0.0.1`（未开 LAN 也显示）。改 `permissionLevel` 不重启服务（指纹不含权限级）。
 - **MCP 热路径缓存**：`SettingsRepository.savedCache` 让 `current()` 不每 call 撞 DataStore；服务内 `toolsListCache` 按策略指纹；`McpToolCatalog.toolsJson()` 全量只建一次。改策略会清服务侧 list 缓存。`/health` 可看 sessions/connections。
