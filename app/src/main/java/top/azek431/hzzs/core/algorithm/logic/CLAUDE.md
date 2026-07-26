@@ -26,7 +26,7 @@
 | `mergeInstalled(current, extras)` | 两个列表 | `List<AlgorithmPackageInfo>` | 按 id 去重，bundled/已安装覆盖远端 |
 | `mergeDiskInstalled(records)` | `List<InstalledAlgorithmRecord>` | `List<AlgorithmPackageInfo>` | 磁盘记录 → UI 模型（纯映射） |
 | `planUpgrades(installed, remote, trustAnchorsConfigured)` | 已装 + 远端 + 锚 | `UpgradePlan` | 可升级包（纯计划，不触发下载） |
-| `computePending(pendingFromUi, activeId, pinnedId, mode, analysisRunning)` | pending 上下文 | `AlgorithmPackageInfo?` | 推导「待启用」包 |
+| `computePending(pendingFromUi, activeId, pinnedId, mode, analysisRunning)` | pending 上下文 | `AlgorithmPackageInfo?` | 推导「待启用」包（分析中保留，未分析且钉选已激活则清） |
 | `catalogPhaseAfter(current, remoteInfos, installed, catalog)` | 相位上下文 | `AlgorithmCatalogPhase` | 由远端/已装列表推导目录相位 |
 | `sortInstalled(installed, activeId, scene)` | 列表 + 当前 ID + 场景 | `Comparator<AlgorithmPackageInfo>` | 已安装排序 |
 | `sortRemote(remote, scene)` | 列表 + 场景 | `Comparator<AlgorithmPackageInfo>` | 远端排序 |

@@ -342,7 +342,11 @@ class AlgorithmCatalogController @Inject constructor(
                             }
                         },
                         active = active,
-                        pendingActivation = pending ?: current.pendingActivation,
+                        // 下载成功且未产生新 pending 时，必须显式清除旧 pending，
+                        // 否则「AUTO + 未分析」路径会继承历史 pending，与 selectInstalled
+                        // 的「未分析即清 null」语义不一致；真正生效仍在下次 start 的
+                        // AlgorithmActivationCoordinator.ensureConfigured。
+                        pendingActivation = pending,
                         downloads = current.downloads - algorithmId,
                         phase = if (pending != null) {
                             AlgorithmCatalogPhase.PendingActivation(
