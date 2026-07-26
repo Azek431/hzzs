@@ -389,7 +389,7 @@ def _validate_rules_scene_v1(scene: str, payload: Mapping[str, Any]) -> None:
 
 
 def _validate_rules_scene_v2(scene: str, payload: Mapping[str, Any]) -> None:
-    extras = set(payload) - {"userThresholds", "engineParams", "disabledObstacles", "notes", "thresholds"}
+    extras = set(payload) - {"userThresholds", "engineParams", "disabledObstacles", "notes", "thresholds", "recommendedTriggerDistance"}
     if extras:
         raise AlgorithmPackError(f"unknown rules fields for {scene}: {sorted(extras)}")
     # Compat: allow legacy "thresholds" key as alias of userThresholds.
@@ -411,6 +411,27 @@ def _validate_rules_scene_v2(scene: str, payload: Mapping[str, Any]) -> None:
         _validate_engine_params(engine)
     if "disabledObstacles" in payload:
         _validate_disabled_obstacles(payload["disabledObstacles"])
+    if "recommendedTriggerDistance" in payload:
+        _validate_recommended_trigger_distance(payload["recommendedTriggerDistance"])
+
+
+def _validate_recommended_trigger_distance(value: Any) -> None:
+    """推荐触发距离：ObstacleKind 名 → 玩家宽度倍数。
+
+    仅作为 TriggerDistanceAutoTuner 的建议初始值，故单位必须是玩家宽度倍数，
+    且限制在 [1.0, 10.0]（防恶意包发极端值）。未知 key 静默忽略（兼容其它赛季命名）。
+    """
+    if not isinstance(value, dict) or len(value) > 32:
+        raise AlgorithmPackError("recommendedTriggerDistance must be an object with ≤32 entries")
+    for kind, multiplier in value.items():
+        if not isinstance(kind, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{1,47}", kind):
+            raise AlgorithmPackError(f"invalid obstacle kind in recommendedTriggerDistance: {kind!r}")
+        if not isinstance(multiplier, (int, float)):
+            raise AlgorithmPackError(f"recommendedTriggerDistance[{kind}] must be a number")
+        if not (1.0 <= float(multiplier) <= 10.0):
+            raise AlgorithmPackError(
+                f"recommendedTriggerDistance[{kind}]={multiplier} out of [1.0,10.0]"
+            )
 
 
 def _validate_thresholds(thresholds: Mapping[str, Any]) -> None:
@@ -486,8 +507,10 @@ def _validate_engine_params(params: Mapping[str, Any]) -> None:
         "groundSearchTop",
         "groundSearchBottom",
         "groundConfidenceMin",
-        # 海盐：多点找色检测区域（归一化比例）
+        # 海盐：多点找色检测区域（归一化比例）—— 左/顶/右/底
+        "searchRegionLeftRatio",
         "searchRegionTopRatio",
+        "searchRegionRightRatio",
         "searchRegionBottomRatio",
     }
     float_ranges = {
