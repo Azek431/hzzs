@@ -7,7 +7,8 @@
 - `McpForegroundService`：loopback/可选 LAN 监听、generation 启停、并发连接上限、Bearer/Origin 门禁。
 - `McpProtocol`：initialize / initialized / 通知 202 / 错误码分类；失效会话对 tools/call 可降级。
 - `McpToolCatalog`：描述驱动工具与严格 JSON Schema；过滤 DISABLED。
-- `McpActionRegistry`：四级权限 + 工具策略仲裁与语义动作。
+- `McpActionRegistry`：四级权限 + 工具策略仲裁门面；构造时聚合并索引 [top.azek431.hzzs.mcp.executor.ToolExecutor]。
+- `executor/`：按 feature 分组的工具执行器（见 [`executor/CLAUDE.md`](executor/CLAUDE.md)）。
 - `McpAccessLog`：进程内访问日志 ring（method/工具/状态/耗时/远端；**无** Token/参数）。
 - `McpUiBridge`：审批对话框与导航；停止时拒绝挂起审批。
 - `McpSessionManager` / `McpEventBus` / `McpLanAddresses` / `McpProfileStore` / `McpSettingsPatch` 等支撑组件。
@@ -59,7 +60,8 @@
 ## 改这个包前必读
 
 - 改 `McpForegroundService`：同步 `MainActivity.syncMcpService`（savedConfig 指纹启停）与 `McpSettingsScreen`（设置页状态）。
-- 改工具清单：同步 `McpToolCatalog.tools`、`McpToolLabels`、`McpToolPolicySupport`；禁用工具须不进 `tools/list`。
+- 改工具清单：同步 `McpToolCatalog.tools`、`McpToolLabels`、`McpToolPolicySupport`、归属执行器；禁用工具须不进 `tools/list`。
+- 改执行器：同步 `executor/ToolExecutorBindings`、`McpActionRegistry.executorIndex` 与本包 `executor/CLAUDE.md`；工具名全局唯一。
 - 改权限仲裁：同步 `McpActionRegistry`（四级 + toolPolicies）、`McpSettingsPatch`（preview/save 收敛）。
 - 改协议：同步 `McpProtocol` 错误码、`McpSessionManager` 会话生命周期、`McpErrorCodes`。
 - 改访问日志：**不得**记 Bearer/`authToken`/请求参数体；设置页提供 `get_mcp_access_log` / `clear_mcp_access_log`。
