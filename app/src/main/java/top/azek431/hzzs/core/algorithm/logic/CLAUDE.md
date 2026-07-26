@@ -2,13 +2,19 @@
 
 `core/algorithm/logic/` 是算法模块的**纯函数层**。
 
-## 契约
+## 职责
 
-**本目录的所有方法均为纯函数**（输入 → 输出，无副作用、无 Android 框架依赖、无 StateFlow / 无单例状态）。
-违反此契约 = 必须迁出本目录。
+本目录的所有方法均为纯函数（输入 → 输出，无副作用、无 Android 框架依赖、无 StateFlow / 无单例状态）。违反此契约 = 必须迁出本目录。
+
+## 入口
 
 - 单一对象：[AlgorithmCatalogPure](AlgorithmCatalogPure.kt)
-- 测试：[AlgorithmCatalogPureTest.kt](../logic/AlgorithmCatalogPureTest.kt)（JVM 直测）
+- 测试：[AlgorithmCatalogPureTest.kt](../../../../../../../../test/java/top/azek431/hzzs/core/algorithm/logic/AlgorithmCatalogPureTest.kt)（JVM 直测）
+
+## 不变量
+
+- 纯函数：输入 → 输出，无 Android / StateFlow / 单例依赖，违反即须迁出。
+- 安全常量（`SAFE_ID` / `SAFE_NAME` / `SAFE_SHA256` / `SAFE_ASSET_PATH`）集中在此对象；下游 `AlgorithmNetworkClient` / `AlgorithmCatalogController` 不再各自维护正则。
 
 ## 纯函数清单
 

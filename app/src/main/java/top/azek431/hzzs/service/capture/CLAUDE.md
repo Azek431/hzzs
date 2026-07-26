@@ -12,8 +12,9 @@
 
 ## 入口
 
-1. `FrameCapture.kt` — 全部（文件较大，按类跳读）。
-2. `data/vision/VisionRuntimeController`（主消费者）、`platform/compat/CaptureCapabilities`（能力探测）、`service/automation/ShellProcessSupport`（Shizuku/Root 进程通道同源）。
+1. `FrameCapture.kt` — 帧租约、状态机、`FrameSource`、像素池与帧序号等基础契约。
+2. `CaptureSources.kt` — `FrameSourceFactory` 与五个截图后端（主要平台实现，改权限/旋转/资源释放必读）。
+3. `data/vision/VisionRuntimeController`（主消费者）、`platform/compat/CaptureCapabilities`（能力探测）、`service/automation/ShellProcessSupport`（Shizuku/Root 进程通道同源）。
 
 ## 数据流
 

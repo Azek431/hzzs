@@ -9,7 +9,7 @@
 | 子包 | 职责 | 入口 |
 | --- | --- | --- |
 | `feature/home` | 主页（入口分流、状态卡片） | `feature/home/CLAUDE.md` |
-| `feature/runtime` | 视觉运行时悬浮/预览/HUD | `feature/runtime/CLAUDE.md` |
+| `feature/runtime` | 运行控制页（分析启停、指标、阻塞与自动操作决策） | `feature/runtime/CLAUDE.md` |
 | `feature/settings` | 设置页（草稿+保存；算法/MCP/开发者分类） | `feature/settings/CLAUDE.md` |
 | `feature/about` | 关于页（连点解锁开发者） | `feature/about/CLAUDE.md` |
 | `feature/onboarding` | 首次引导 | `feature/onboarding/CLAUDE.md` |

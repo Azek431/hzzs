@@ -1,5 +1,19 @@
 # Kotlin 修改指南
 
+本文件是 `app/src/main/java/top/azek431/hzzs/` 顶层业务包的入口级指南，统一约束 Kotlin / Compose / JNI / Hilt 产品代码。每个业务包另有独立 `CLAUDE.md`，**改代码前先读该包文档**。
+
+## 职责
+
+- 顶层业务包归属（`MainActivity` / `HzzsApplication` / 根导航在 `feature/` 根包）与全局修改边界。
+- 跨包分层约定：`feature` → `data/service` → `domain/core`；`platform/compat` 只做能力探测。
+
+## 入口
+
+- 包级索引：[`feature/CLAUDE.md`](feature/CLAUDE.md)、[`core/CLAUDE.md`](core/CLAUDE.md)。
+- 各业务包入口见各自 `CLAUDE.md`（列表见根 `CLAUDE.md` 与 `app/CLAUDE.md`）。
+
+## 不变量
+
 - 公开类和函数注释应描述职责、输入输出、线程和所有权，不复述语法。
 - `core/model` 不依赖 Android 服务或 UI。
 - `domain` 尽量保持纯 Kotlin，可直接 JVM 测试。

@@ -10,7 +10,7 @@
 ## 入口
 
 1. `OnboardingScreen.kt` — 全部（单文件）。
-2. `MainActivity.HzzzsRoot`（分流：未完成的引导 vs 主导航）、`platform/compat/CaptureCapabilities`/`SystemCapabilityAccess`（能力/权限展示）。
+2. `MainActivity.HzzsRoot`（分流：未完成的引导 vs 主导航）、`platform/compat/CaptureCapabilities`/`SystemCapabilityAccess`（能力/权限展示）。
 
 ## 数据流
 

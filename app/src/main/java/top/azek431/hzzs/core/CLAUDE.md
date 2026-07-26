@@ -2,6 +2,10 @@
 
 `core/` 是稳定基础设施的容器。**不依赖 Android 服务或 UI**，被 domain/data/service/mcp/feature 各层消费。每个子包各有独立 `CLAUDE.md`。
 
+## 入口
+
+本包为顶索引，无独立实现文件；按子包导航进入各 `core/*/CLAUDE.md`。
+
 ## 子包导航
 
 | 子包 | 职责 | 详情 |
@@ -20,6 +24,8 @@
 - 修改 `core/model` 字段：同步 `validated()`、`ConfigJson`、设置 UI、MCP schema、单测（见 `app/CLAUDE.md`）。
 - 默认值必须安全：自动操作关、MCP 关、截图 AUTO 不升权。
 - 配置 schema **10**（含 `overlay.persistBoxes` 默认开、自动复活等；访问日志自 schema 9 起）。
+
+## 不变量
 
 ## 改这个包前必读
 

@@ -10,7 +10,7 @@
 ## 入口
 
 1. `RuntimeScreen.kt` — 全部（单文件）。
-2. `data/vision/VisionRuntimeController`（唯一 controller 调用者）、`platform/compat/SystemCapabilityAccess`（打开悬浮窗设置）。
+2. `data/vision/VisionRuntimeController`（本页经 ViewModel 调用）、`platform/compat/SystemCapabilityAccess`（打开悬浮窗设置）。
 
 ## 数据流
 

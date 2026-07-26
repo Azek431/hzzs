@@ -76,7 +76,7 @@ Remove-Item $tmp
 - 必须符合 `type(scope): 摘要` 或 `Merge/Revert/fixup!/squash!` 格式；
 - 不超过 72 字符。
 
-校验失败时 `git commit` 直接 abort 并给出原因，**不会**产生需要事后 amend 的脏提交。hook 脚本位于 [tools/git/hooks/commit-msg](tools/git/hooks/commit-msg)，纯 shell，可按需扩展。
+校验失败时 `git commit` 直接 abort 并给出原因，**不会**产生需要事后 amend 的脏提交。hook 脚本位于 [tools/git/hooks/commit-msg](../tools/git/hooks/commit-msg)，纯 shell，可按需扩展。
 
 ## 示例
 
