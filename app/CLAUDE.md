@@ -1,5 +1,20 @@
 # app/CLAUDE.md
 
+## 模块文档索引
+
+`app/` 每个业务包现都有独立 `CLAUDE.md`（职责/入口/不变量/测试），**改代码前先读该包文档**：
+
+| 包 | 文档 |
+| --- | --- |
+| `core/model`、`core/preferences`、`core/algorithm`、`core/theme`、`core/update`、`core/logging`、`core/designsystem`、`core/platform`、`core`（顶索引） | `core/*/CLAUDE.md` |
+| `data/vision` | `data/vision/CLAUDE.md` |
+| `domain/vision`、`domain/automation` | `domain/*/CLAUDE.md` |
+| `feature/home`、`feature/runtime`、`feature/settings`、`feature/onboarding`、`feature/about`、`feature`（根索引） | `feature/*/CLAUDE.md` |
+| `service/capture`、`service/overlay`、`service/automation`、`service/vision` | `service/*/CLAUDE.md` |
+| `mcp`、`nativevision`、`platform/compat` | 各包 `CLAUDE.md` |
+
+另见 `core/algorithm/logic/CLAUDE.md`、`core/algorithm/CLAUDE.md`（算法包系统真相源）。
+
 ## 修改边界
 
 此目录是唯一 Android 产品模块。新增产品代码时优先放入既有职责包，不新增根级 Gradle 模块。
