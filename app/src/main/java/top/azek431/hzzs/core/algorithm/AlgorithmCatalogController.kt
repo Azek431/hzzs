@@ -179,7 +179,10 @@ class AlgorithmCatalogController @Inject constructor(
                     )
                     current.copy(
                         phase = AlgorithmCatalogPure.catalogPhaseAfter(
-                            current = current.phase,
+                            // 注意：必须传旧 phase（进入本 update 前），不能传 current.phase，
+                            // 否则刚从 Loading 转出来的成功路径会被 catalogPhaseAfter 的
+                            // 「Loading 原样保留」规则吞掉，UI 永远卡在「正在检查算法目录…」。
+                            current = AlgorithmCatalogPhase.Idle,
                             remoteInfos = remoteInfos,
                             installed = mergedInstalled,
                             catalog = AlgorithmCatalogPure.RemoteCatalogMeta(

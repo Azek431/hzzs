@@ -9,7 +9,7 @@
 ## 入口
 
 - 单一对象：[AlgorithmCatalogPure](AlgorithmCatalogPure.kt)
-- 测试：[AlgorithmCatalogPureTest.kt](../../../../../../../../test/java/top/azek431/hzzs/core/algorithm/logic/AlgorithmCatalogPureTest.kt)（JVM 直测）
+- 测试：[AlgorithmCatalogPureTest.kt](../AlgorithmCatalogPureTest.kt)（JVM 直测）
 
 ## 不变量
 

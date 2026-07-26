@@ -345,7 +345,7 @@ object AlgorithmCatalogPure {
                 sizeBytes = 0,
                 origin = AlgorithmOrigin.BUILTIN,
                 signature = AlgorithmSignatureState.OFFICIAL,
-                downloadSource = AlgorithmDownloadSource.BUNDLED,
+                downloadSource = AlgorithmDownloadSource.BUILTIN,
                 isBuiltin = true,
                 isInstalled = true,
                 isCompatible = true,

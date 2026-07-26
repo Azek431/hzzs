@@ -12,8 +12,11 @@ import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
 import top.azek431.hzzs.core.algorithm.AlgorithmIds
 import top.azek431.hzzs.core.algorithm.AlgorithmOrigin
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSelectionMode
+import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.algorithm.InstalledAlgorithmStore
+import top.azek431.hzzs.core.algorithm.statusAgainst
+import top.azek431.hzzs.core.model.AlgorithmChannel
+import top.azek431.hzzs.core.model.AlgorithmSelectionMode
 import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.update.UpdateSourceId
 
@@ -38,15 +41,23 @@ class AlgorithmCatalogPureTest {
         versionCode: Long,
         scenes: Set<SceneId> = setOf(SceneId.SEA_SALT_LIVING_ROOM),
         compatible: Boolean = true,
+        isInstalled: Boolean = true,
     ): AlgorithmPackageInfo = AlgorithmPackageInfo(
         id = id,
         name = id,
         versionName = "v$versionCode",
         versionCode = versionCode,
+        channel = AlgorithmChannel.STABLE,
+        summary = "test",
         supportedScenes = scenes,
+        minAppVersionCode = 1L,
+        publishedAtEpochMs = 0L,
+        sizeBytes = 0L,
+        origin = if (isInstalled) AlgorithmOrigin.INSTALLED else AlgorithmOrigin.REMOTE,
+        signature = AlgorithmSignatureState.OFFICIAL,
+        downloadSource = if (isInstalled) AlgorithmDownloadSource.CACHE else AlgorithmDownloadSource.GITHUB,
+        isInstalled = isInstalled,
         isCompatible = compatible,
-        origin = AlgorithmOrigin.INSTALLED,
-        isInstalled = true,
     )
 
     // ---- resolveActive ----
@@ -277,6 +288,7 @@ class AlgorithmCatalogPureTest {
         assertEquals(AlgorithmIds.BUILTIN_VERSION, list.first().versionName)
         assertTrue(list.first().isBuiltin)
         assertEquals(100L, list.first().versionCode)
+        assertEquals(AlgorithmDownloadSource.BUILTIN, list.first().downloadSource)
     }
 
     // ---- catalogPhaseAfter ----
@@ -471,7 +483,8 @@ class AlgorithmCatalogPureTest {
             trustAnchorsConfigured = false,
         )
         assertEquals(1, out.size)
-        assertEquals(AlgorithmCardStatus.INSTALLED, AlgorithmCardStatus.INSTALLED) // placeholder
+        // 未配置信任锚时，远端包签名状态必须标记 UNKNOWN（fail-closed 由 Controller 决策）。
+        assertEquals(AlgorithmSignatureState.UNKNOWN, out.first().info.signature)
         assertNotNull(out.first().info)
     }
 
