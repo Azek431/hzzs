@@ -70,7 +70,7 @@ object AlgorithmCatalogPure {
         source: UpdateSourceId,
         appVersionCode: Long,
         trustAnchorsConfigured: Boolean,
-    ): List<CatalogRemoteEntry> {
+    ): List<top.azek431.hzzs.core.algorithm.CatalogRemoteEntry> {
         val root = JSONObject(raw)
         require(root.optInt("schemaVersion") == 1) { "不支持的算法目录 schema" }
         val algorithms = root.optJSONArray("algorithms") ?: return emptyList()
@@ -78,7 +78,7 @@ object AlgorithmCatalogPure {
             UpdateSourceId.GITEE -> AlgorithmDownloadSource.GITEE
             UpdateSourceId.GITHUB -> AlgorithmDownloadSource.GITHUB
         }
-        val out = ArrayList<CatalogRemoteEntry>(algorithms.length())
+        val out = ArrayList<top.azek431.hzzs.core.algorithm.CatalogRemoteEntry>(algorithms.length())
         for (i in 0 until algorithms.length()) {
             val item = algorithms.getJSONObject(i)
             if (item.optBoolean("revoked", false)) continue
@@ -113,7 +113,7 @@ object AlgorithmCatalogPure {
                 releaseNotes = item.optString("changelog"),
                 isCompatible = appVersionCode >= minApp,
             )
-            out += CatalogRemoteEntry(info = info, assetPath = assetPath, filename = filename, sha256 = sha256)
+            out += top.azek431.hzzs.core.algorithm.CatalogRemoteEntry(info = info, assetPath = assetPath, filename = filename, sha256 = sha256)
         }
         return out
     }
@@ -386,10 +386,6 @@ object AlgorithmCatalogPure {
     }
 
     // ---- 数据类 ----
-
-    /** 解析后的远端条目（通用模型在 `core/algorithm/AlgorithmModels.kt`）。 */
-    @Deprecated("Use top.azek431.hzzs.core.algorithm.CatalogRemoteEntry instead", ReplaceWith("top.azek431.hzzs.core.algorithm.CatalogRemoteEntry"))
-    typealias CatalogRemoteEntry = top.azek431.hzzs.core.algorithm.CatalogRemoteEntry
 
     /** 目录拉取后的元数据（用于相位推导）。 */
     data class RemoteCatalogMeta(
