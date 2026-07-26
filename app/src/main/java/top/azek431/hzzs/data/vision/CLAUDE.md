@@ -60,7 +60,18 @@ SettingsRepository.config / savedConfig
 - 改 `planGestures`：同步 `domain.vision.Avoidance` 枚举与 `DisplayNames.kt`。
 - 改 `NativeVisionEngine.analyze`：JNI 仅借用 `frame.argb`，返回后不得再访问该数组地址；视口裁剪坐标 → 全屏坐标映射与 `jni_bridge` 一致。
 - 改 `DebugFrameRecorder`：文件仅存私有目录、默认关、MCP `capture_debug_frame` 可绕过间隔门控；`getBytes` 做了路径穿越防护（basename + canonical 校验）。
-- 算法激活：`configureAlgorithm` 失败必须回退 `AlgorithmRuntimeProfile.builtin()`，保持引擎可用。
+
+## 为什么这些文件挂在 data/vision 下
+
+`data/vision` 是**运行时编排层**，不是纯数据层。下列文件挂在包下是「所有权 + Hilt 绑定」使然，**不是职责归属**：
+
+- `DefaultActiveAlgorithmProvider.kt`：算法激活的**领域契约实现**（概念属 `domain.vision.ActiveAlgorithmProvider`）。挂这里只因 Hilt `@Binds` 在 `VisionEngineBindings` 中一并注册，便于运行时独占引擎。**改激活逻辑优先看 `core/algorithm/AlgorithmActivationCoordinator`**。
+- `DebugFrameRecorder.kt`：调试帧采样器（仅存私有目录）。挂这里因帧循环是唯一调用者，需直接借用 `CapturedFrame`；**不涉及算法规划**，仅是呈现/诊断。
+- `NativeBenchmarkRunner.kt`：Native 基准测试。挂这里因需直接调用 `NativeVisionEngine`；**不改识别行为**，仅测耗时/稳定性。
+
+> 真实职责看调用链：帧循环、Tracker、JNI 适配三者强耦合组成运行时；上三者是运行时「借用」的协作者。详见 `docs/navigation/README.md`。
+
+## 算法激活：`configureAlgorithm` 失败必须回退 `AlgorithmRuntimeProfile.builtin()`，保持引擎可用。
 
 ## 测试
 
