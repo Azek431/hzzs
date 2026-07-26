@@ -120,6 +120,23 @@ data class AlgorithmDownloadTask(
 )
 
 /**
+ * 远端目录条目。
+ *
+ * release-index 分支上的清单项 + 资产路径；解析自 `algorithms/{channel}.json`。
+ * 信任锚未配置时 [AlgorithmPackageInfo.signature] 为 UNKNOWN（仅阻断下载，不阻断展示）。
+ *
+ * 解析由 [top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure.parseCatalog] 产出；
+ * 本数据类作为客户端通用模型保留在 `core.algorithm` 包。
+ */
+data class CatalogRemoteEntry(
+    val info: AlgorithmPackageInfo,
+    /** release-index 下相对路径，如 `algorithms/packages/foo-v1.0.0.hzzsalg` */
+    val assetPath: String,
+    val filename: String,
+    val sha256: String,
+)
+
+/**
  * 算法模块对外暴露的聚合状态。
  *
  * ViewModel / Compose **只读**；写操作走 [AlgorithmCatalogController]。

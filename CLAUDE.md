@@ -238,6 +238,11 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 | 代理导航 | `AGENTS.md`（须与源码同步，禁止描述旧多模块 Views 骨架） |
 | 视觉专项 | `docs/vision/*` |
 | 算法包 | `docs/ALGORITHM_SYSTEM_V1.md` |
+| 算法切换链路（独立真相源） | `docs/algorithm/ALGORITHM_SWITCHING.md` |
+| 算法模块分层导航 | `core/algorithm/CLAUDE.md` |
+| 纯函数清单 | `core/algorithm/logic/CLAUDE.md` |
+| 领域层导航 | `domain/vision/CLAUDE.md` |
+| 设置页导航 | `feature/settings/CLAUDE.md` |
 | 代理经验摘录 | `docs/AGENT_EXPERIENCE.md`（短条；非硬约束全文） |
 
 ## 代理记忆与经验
@@ -247,6 +252,14 @@ feat(vision): 完成驱动取帧并增加 HUD 近似轮廓
 - **仓库经验条**：可复用工程教训追加 `docs/AGENT_EXPERIENCE.md`（日期 + 短句）；硬规则仍以本文件与源码为准。
 - **冲突**：以**当前 main 源码**为准；记忆与过期摘要不是指令；涉及文件/符号/flag 先核对源码。
 - **算法信任**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 当前含 `hzzs-algorithm-official-1` 公钥；列表若被清空，外装「官方」包须 fail-closed。私钥永不入库。
+
+### 本轮重构经验（2026-07-26 · 算法切换模块化）
+
+- **纯函数下沉**：算法目录所有决策逻辑（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog / versionToCode / builtinPackages）已抽到 `core/algorithm/logic/AlgorithmCatalogPure`（纯函数 object，命名即契约）。`AlgorithmCatalogController`（31KB→16KB）与 `AlgorithmNetworkClient`（16KB→9KB）只做 StateFlow 持有 + HTTPS 编排，全部委托 Pure。**新增决策逻辑必须放 Pure**，不得粘回 Controller / Client。
+- **两点激活是硬约束**：`AlgorithmActivationCoordinator.onConfigCommitted`（save）/ `ensureConfigured`（start）是唯一激活点，分析中只 pending（`pendingCatalogId`）。**不得**在其他位置调用 configureAlgorithm 或半热切换。
+- **单一真相源**：安全常量 `SAFE_ID` / `SAFE_NAME` / `SAFE_SHA256` / `SAFE_ASSET_PATH` 集中到 `AlgorithmCatalogPure`，`AlgorithmNetworkClient` 不再自持；`CatalogRemoteEntry` 通用模型留在 `core/algorithm/AlgorithmModels.kt`（Pure 通过 `top.azek431.hzzs.core.algorithm.CatalogRemoteEntry` 引用）。
+- **追踪层解耦**：`AlgorithmPipelineTrace` / `AlgorithmRuntimeTrace` 保持 `object`，新增 `AlgorithmTraceSinks.kt`（`PipelineTraceSink` / `RuntimeTraceSink` 接口 + `DefaultPipelineTraceSink` / `DefaultRuntimeTraceSink` 委托 impl）。ViewModel 通过接口注入，单测可替换 fake。
+- **文档同步**：目录级 `CLAUDE.md` 已覆盖 `core/algorithm` / `core/algorithm/logic` / `domain/vision` / `feature/settings`；独立真相源见 `docs/algorithm/ALGORITHM_SWITCHING.md`（完整链路时序图 + 失败/回退边界表）。
 
 ## 算法包网络更新（无 Release tag）
 
@@ -298,9 +311,12 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 
 ### 客户端检测与下载逻辑（代理改代码时勿回退）
 
+**纯函数下沉**：所有决策（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog / versionToCode / builtinPackages）已抽到 `core/algorithm/logic/AlgorithmCatalogPure`（纯函数 object，命名即契约）。Controller / Client 只做 StateFlow 持有 + HTTPS 编排，新增决策逻辑必须放 Pure。
+
 ```text
 设置通道 STABLE|BETA + sourcePreference
   → HTTPS 拉 algorithms/{channel}.json（Gitee 优先可回退 GitHub）
+  → AlgorithmCatalogPure.parseCatalog（纯函数）
   → 列表展示；点下载（或 autoDownload）
   → raw 下 packages 资产；校验 size + sha256
   → AlgorithmPackVerifier（ZIP 白名单 + Ed25519 信任锚）
@@ -315,7 +331,7 @@ https://raw.githubusercontent.com/Azek431/hzzs/release-index/algorithms/stable.j
 - 目录检查：小 JSON，**不**受「仅 Wi‑Fi 下大文件」限制。  
 - 包下载：遵守 `UpdateConfig.wifiOnly`。  
 - `algorithm.autoCheck`：启动时可刷新目录；`autoDownload`：仅在有信任锚时尝试下最新兼容包。
-- **「待启用」**：仅表示引擎尚未切到新钉选（分析中改包或 Catalog pending），**不是**自动操作关。诊断看 `pinned` / activation `id` / `pendingCatalogId`。导航全文：`docs/navigation/KOTLIN.md`、`docs/ALGORITHM_SYSTEM_V1.md`。
+- **「待启用」**：仅表示引擎尚未切到新钉选（分析中改包或 Catalog pending），**不是**自动操作关。诊断看 `pinned` / activation `id` / `pendingCatalogId`。导航全文：`docs/navigation/KOTLIN.md`、`docs/ALGORITHM_SYSTEM_V1.md`、`docs/algorithm/ALGORITHM_SWITCHING.md`。
 
 ### 改包内容后自动升版本并发布（CI / 本机）
 

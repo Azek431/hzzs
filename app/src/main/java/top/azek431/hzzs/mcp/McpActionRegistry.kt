@@ -11,6 +11,7 @@ import org.json.JSONObject
 import top.azek431.hzzs.BuildConfig
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase
+import top.azek431.hzzs.core.algorithm.AlgorithmCatalogPure
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.logging.AppLog
@@ -1360,7 +1361,7 @@ class McpActionRegistry @Inject constructor(
             .put("buffered", snap.buffered)
     }
 
-    private fun upgradePlanToJson(plan: AlgorithmCatalogController.UpgradePlan): JSONObject =
+    private fun upgradePlanToJson(plan: AlgorithmCatalogPure.UpgradePlan): JSONObject =
         JSONObject()
             .put("candidates", JSONArray(plan.candidates))
             .put("upgraded", JSONArray()) // dryRun 兼容字段
@@ -1375,7 +1376,7 @@ class McpActionRegistry @Inject constructor(
                 },
             )
 
-    private fun upgradeResultToJson(result: AlgorithmCatalogController.UpgradeResult): JSONObject =
+    private fun upgradeResultToJson(result: AlgorithmCatalogPure.UpgradeResult): JSONObject =
         JSONObject()
             .put("upgraded", JSONArray(result.upgraded))
             .put("queued", JSONArray(result.queued))

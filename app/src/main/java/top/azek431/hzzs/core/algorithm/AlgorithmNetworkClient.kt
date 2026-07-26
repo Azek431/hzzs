@@ -8,9 +8,9 @@ import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import top.azek431.hzzs.core.algorithm.CatalogRemoteEntry
+import top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure
 import top.azek431.hzzs.core.model.AlgorithmChannel
-import top.azek431.hzzs.core.model.SceneId
 import top.azek431.hzzs.core.model.UpdateSourcePreference
 import top.azek431.hzzs.core.update.UpdateSourceId
 import java.io.File
@@ -23,10 +23,17 @@ import javax.inject.Singleton
 /**
  * 算法目录拉取 + `.hzzsalg` 下载。
  *
+ * 职责（限网络 IO）：
+ * - HTTPS 目录 JSON 拉取（多源回退）
+ * - `.hzzsalg` 资产下载 + size/sha256 校验
+ * - 调用 [AlgorithmPackVerifier] + [InstalledAlgorithmStore] 落盘
+ *
+ * 解析（纯函数）已委托 [AlgorithmCatalogPure.parseCatalog]；本类**不再**解析 JSON。
+ *
  * 安全：仅 HTTPS；目录 JSON 有大小上限；资产下载校验 size/sha256。
  * 资产与目录同在 `release-index` 分支（**不依赖** GitHub/Gitee Release tag）：
  * `algorithms/packages/<filename>`。
- * 目录签名（catalogSignature）在信任锚未配置时只做结构校验并标记 UNKNOWN。
+ * 信任锚未配置时远端签名状态标记 UNKNOWN（fail-closed 由 Controller 决策）。
  */
 @Singleton
 class AlgorithmNetworkClient @Inject constructor(
@@ -34,20 +41,13 @@ class AlgorithmNetworkClient @Inject constructor(
     private val verifier: AlgorithmPackVerifier,
     private val store: InstalledAlgorithmStore,
 ) {
+    /** 目录拉取结果（含解析后的条目与运行时元数据）。 */
     data class RemoteCatalog(
         val remote: List<CatalogRemoteEntry>,
         val activeSource: UpdateSourceId,
         val usedFallback: Boolean,
         val fallbackReason: String?,
         val message: String?,
-    )
-
-    data class CatalogRemoteEntry(
-        val info: AlgorithmPackageInfo,
-        /** release-index 下相对路径，如 algorithms/packages/foo-v1.0.0.hzzsalg */
-        val assetPath: String,
-        val filename: String,
-        val sha256: String,
     )
 
     suspend fun fetchCatalog(
@@ -86,7 +86,14 @@ class AlgorithmNetworkClient @Inject constructor(
                 ?: "Gitee 与 GitHub 的 algorithms/$path 均不可用；请继续使用内置算法，或稍后在 release-index 发布目录后再检查。",
         )
         val text = body ?: error("目录为空")
-        val remote = parseCatalog(text, channel, source)
+        val appVersionCode = currentAppVersionCode()
+        val remote = AlgorithmCatalogPure.parseCatalog(
+            raw = text,
+            channel = channel,
+            source = source,
+            appVersionCode = appVersionCode,
+            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
+        )
         RemoteCatalog(
             remote = remote,
             activeSource = source,
@@ -109,8 +116,8 @@ class AlgorithmNetworkClient @Inject constructor(
         if (wifiOnly && !isOnUnmeteredNetwork()) {
             error("当前设置要求仅在 Wi‑Fi 下下载算法包")
         }
-        require(SAFE_ID.matches(entry.info.id)) { "非法算法 id: ${entry.info.id}" }
-        require(SAFE_SHA256.matches(entry.sha256)) { "非法 sha256: ${entry.sha256}" }
+        require(AlgorithmCatalogPure.SAFE_ID.matches(entry.info.id)) { "非法算法 id: ${entry.info.id}" }
+        require(AlgorithmCatalogPure.SAFE_SHA256.matches(entry.sha256)) { "非法 sha256: ${entry.sha256}" }
         val safeId = entry.info.id
         val url = packageUrl(source, entry.assetPath)
         val stagingRoot = File(appContext.cacheDir, "algorithm-dl").also { it.mkdirs() }
@@ -147,65 +154,6 @@ class AlgorithmNetworkClient @Inject constructor(
         }
     }
 
-    private fun parseCatalog(
-        raw: String,
-        channel: AlgorithmChannel,
-        source: UpdateSourceId,
-    ): List<CatalogRemoteEntry> {
-        val root = JSONObject(raw)
-        require(root.optInt("schemaVersion") == 1) { "不支持的算法目录 schema" }
-        val algorithms = root.optJSONArray("algorithms") ?: return emptyList()
-        val downloadSource = when (source) {
-            UpdateSourceId.GITEE -> AlgorithmDownloadSource.GITEE
-            UpdateSourceId.GITHUB -> AlgorithmDownloadSource.GITHUB
-        }
-        val appCode = currentAppVersionCode()
-        val out = ArrayList<CatalogRemoteEntry>(algorithms.length())
-        for (i in 0 until algorithms.length()) {
-            val item = algorithms.getJSONObject(i)
-            if (item.optBoolean("revoked", false)) continue
-            val id = item.getString("id")
-            require(SAFE_ID.matches(id)) { "非法算法 id: $id" }
-            val version = item.getString("version")
-            val filename = item.getString("filename")
-            require(SAFE_NAME.matches(filename)) { "非法文件名: $filename" }
-            // 优先 assetPath；兼容旧目录里的 tag 字段（忽略，仅用于人工阅读）
-            val assetPath = item.optString("assetPath").ifBlank {
-                "algorithms/packages/$filename"
-            }
-            require(SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径: $assetPath" }
-            val size = item.getLong("size")
-            val sha256 = item.getString("sha256")
-            require(SAFE_SHA256.matches(sha256)) { "非法 sha256: $sha256" }
-            val scenes = item.optJSONArray("supportedScenes").toSceneSet()
-            val minApp = item.optLong("minimumAppVersionCode", 1L)
-            val versionCode = versionToCode(version)
-            val info = AlgorithmPackageInfo(
-                id = id,
-                name = item.optString("displayName", id),
-                versionName = version,
-                versionCode = versionCode,
-                channel = channel,
-                summary = item.optString("description").ifBlank { item.optString("changelog") },
-                supportedScenes = scenes,
-                minAppVersionCode = minApp,
-                publishedAtEpochMs = 0L,
-                sizeBytes = size,
-                origin = AlgorithmOrigin.REMOTE,
-                signature = if (AlgorithmTrustAnchors.hasOfficialAnchors()) {
-                    AlgorithmSignatureState.OFFICIAL
-                } else {
-                    AlgorithmSignatureState.UNKNOWN
-                },
-                downloadSource = downloadSource,
-                releaseNotes = item.optString("changelog"),
-                isCompatible = appCode >= minApp,
-            )
-            out += CatalogRemoteEntry(info, assetPath, filename, sha256)
-        }
-        return out
-    }
-
     /** 读取本应用 long versionCode，供目录兼容字段 isCompatible 使用。 */
     private fun currentAppVersionCode(): Long {
         val pm = appContext.packageManager
@@ -222,14 +170,6 @@ class AlgorithmNetworkClient @Inject constructor(
         }
     }
 
-    private fun versionToCode(version: String): Long {
-        val parts = version.split('.', '-', '+')
-        val major = parts.getOrNull(0)?.toLongOrNull() ?: 0L
-        val minor = parts.getOrNull(1)?.toLongOrNull() ?: 0L
-        val patch = parts.getOrNull(2)?.toLongOrNull() ?: 0L
-        return major * 1_000_000L + minor * 1_000L + patch
-    }
-
     private fun catalogUrl(source: UpdateSourceId, file: String): String = when (source) {
         UpdateSourceId.GITEE ->
             "https://gitee.com/Azek431/hzzs/raw/release-index/algorithms/$file"
@@ -242,7 +182,7 @@ class AlgorithmNetworkClient @Inject constructor(
      * 不使用 GitHub/Gitee Releases tag。
      */
     private fun packageUrl(source: UpdateSourceId, assetPath: String): String {
-        require(SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径" }
+        require(AlgorithmCatalogPure.SAFE_ASSET_PATH.matches(assetPath)) { "非法资产路径" }
         return when (source) {
             UpdateSourceId.GITEE ->
                 "https://gitee.com/Azek431/hzzs/raw/release-index/$assetPath"
@@ -356,25 +296,10 @@ class AlgorithmNetworkClient @Inject constructor(
         digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun org.json.JSONArray?.toSceneSet(): Set<SceneId> {
-        if (this == null) return emptySet()
-        val out = linkedSetOf<SceneId>()
-        for (i in 0 until length()) {
-            runCatching { SceneId.valueOf(getString(i)) }.getOrNull()?.let(out::add)
-        }
-        return out
-    }
-
     companion object {
         private const val MAX_CATALOG_BYTES = 512L * 1024L
         private const val MAX_PACKAGE_BYTES = 1024L * 1024L
         /** 网络安装来源标签；bundled 升级不得覆盖。 */
         const val ORIGIN_NETWORK = "network"
-        /** 与 tools/algorithm/common.py SAFE_ID 对齐。 */
-        private val SAFE_ID = Regex("^[a-z][a-z0-9-]{1,62}[a-z0-9]$")
-        private val SAFE_NAME = Regex("^[A-Za-z0-9._+-]{1,160}$")
-        private val SAFE_SHA256 = Regex("^[a-fA-F0-9]{64}$")
-        /** 仅允许 algorithms/packages/ 下单层安全文件名。 */
-        private val SAFE_ASSET_PATH = Regex("^algorithms/packages/[A-Za-z0-9._+-]{1,160}$")
     }
 }

@@ -299,7 +299,6 @@ CI 工作流：`.github/workflows/algorithm-release.yml`。
 
 ## Star History
 
-<!-- 官方嵌入（picture + sealed_token）结构保留。当前 api.star-history.com 对本仓库返回 timeout，GitHub 上主图会裂；下方仓库内 SVG 保证可见。 -->
 <a href="https://www.star-history.com/?repos=Azek431%2Fhzzs&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&theme=dark&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
@@ -307,12 +306,6 @@ CI 工作流：`.github/workflows/algorithm-release.yml`。
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Azek431/hzzs&type=date&legend=top-left&sealed_token=TrebmjTeykrZKyRKqO5hC3x3jK1uVMBiiIDoIC-qZgkEIRzdfy8q6EC0wIK331P9LvcEql19Oonj-x0-1kzxfmzdiucuyIF0nP2yedpNm0E5L17po7wYPw0Q7LQDOWmTjQ1GZVM5pCel6VlYP2iqUSh6L648xAIOBa2T37Icc1SdBF7ypZrtJ8DV9rnw" />
  </picture>
 </a>
-
-<p align="center">
-  <a href="https://www.star-history.com/#Azek431/hzzs&Date">
-    <img src="docs/assets/star-history.svg" alt="Star History" width="800" />
-  </a>
-</p>
 
 仓库地址：
 

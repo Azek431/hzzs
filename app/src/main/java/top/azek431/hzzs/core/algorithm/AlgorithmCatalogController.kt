@@ -1,9 +1,6 @@
 package top.azek431.hzzs.core.algorithm
 
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.SystemClock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import top.azek431.hzzs.core.model.AlgorithmChannel
+import top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure
 import top.azek431.hzzs.core.model.AlgorithmConfig
 import top.azek431.hzzs.core.model.AlgorithmSelectionMode
 import top.azek431.hzzs.core.model.AppConfig
@@ -33,6 +30,10 @@ import javax.inject.Singleton
  * - **「待启用」**：仅 [AlgorithmCatalogPhase.PendingActivation]——分析运行中改钉选时；
  *   真正 Native configure 在 [AlgorithmActivationCoordinator]（save / start 安全点），见
  *   `docs/navigation/KOTLIN.md` 与 `docs/ALGORITHM_SYSTEM_V1.md`
+ *
+ * 本类的决策逻辑（解析激活包、合并列表、排序、计算 pending、推导相位、升级计划）
+ * 全部委托给 [AlgorithmCatalogPure]（纯函数，可脱离 Android 单测）；
+ * 本类只做 StateFlow 持有、Android 框架调用与网络 IO 编排。
  *
  * 线程：状态更新在 Main；网络 IO 切 [Dispatchers.IO]。
  */
@@ -57,7 +58,7 @@ class AlgorithmCatalogController @Inject constructor(
     private var draftConfig: AlgorithmConfig = AlgorithmConfig()
     private var sourcePreference: UpdateSourcePreference = UpdateSourcePreference.AUTO
     private var selectedScene: SceneId = AppConfig.DEFAULT_SELECTED_SCENE
-    private var remoteEntries: List<AlgorithmNetworkClient.CatalogRemoteEntry> = emptyList()
+    private var remoteEntries: List<CatalogRemoteEntry> = emptyList()
     private var wifiOnly: Boolean = true
 
     /**
@@ -79,22 +80,31 @@ class AlgorithmCatalogController @Inject constructor(
         this.wifiOnly = wifiOnly
         mutableState.update { current ->
             val installed = mergeDiskInstalled(current.installed)
-            val active = resolveActive(installed, algorithm, selectedScene)
+            val active = AlgorithmCatalogPure.resolveActive(
+                installed = installed,
+                pinned = algorithm.pinnedAlgorithmId,
+                mode = algorithm.selectionMode,
+                scene = selectedScene,
+            )
             // pending 仅在「草稿/配置已钉选，但引擎尚未切到该包」时保留。
             // 未分析且 resolveActive 已与钉选一致 → 清 pending（保存后不再假「待启用」）。
             // 分析中钉选变更 → 保留 pending（须 stop 或下次 start 才 ensureConfigured）。
-            val pending = current.pendingActivation?.takeIf { pendingInfo ->
-                algorithm.selectionMode == AlgorithmSelectionMode.MANUAL &&
-                    algorithm.pinnedAlgorithmId == pendingInfo.id &&
-                    (analysisRunning || active?.id != pendingInfo.id)
-            }
+            val pending = AlgorithmCatalogPure.computePending(
+                pendingFromUi = current.pendingActivation,
+                activeId = active?.id,
+                pinnedId = algorithm.pinnedAlgorithmId,
+                mode = algorithm.selectionMode,
+                analysisRunning = analysisRunning,
+            )
             current.copy(
                 selectionMode = algorithm.selectionMode,
                 channel = algorithm.channel,
                 sourcePreference = sourcePreference,
                 analysisRunning = analysisRunning,
                 trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
-                installed = sortInstalled(installed, active?.id),
+                installed = installed.sortedWith(
+                    AlgorithmCatalogPure.sortInstalled(installed, active?.id, selectedScene),
+                ),
                 active = active,
                 pendingActivation = pending,
             ).recomputePhase()
@@ -114,9 +124,16 @@ class AlgorithmCatalogController @Inject constructor(
             }
         mutableState.update { current ->
             val installed = mergeDiskInstalled(current.installed)
-            val active = resolveActive(installed, draftConfig, selectedScene)
+            val active = AlgorithmCatalogPure.resolveActive(
+                installed = installed,
+                pinned = draftConfig.pinnedAlgorithmId,
+                mode = draftConfig.selectionMode,
+                scene = selectedScene,
+            )
             current.copy(
-                installed = sortInstalled(installed, active?.id),
+                installed = installed.sortedWith(
+                    AlgorithmCatalogPure.sortInstalled(installed, active?.id, selectedScene),
+                ),
                 active = active,
                 trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
             )
@@ -154,21 +171,32 @@ class AlgorithmCatalogController @Inject constructor(
                 val remoteInfos = catalog.remote.map { it.info }
                 mutableState.update { current ->
                     val mergedInstalled = mergeDiskInstalled(current.installed)
-                    val active = resolveActive(mergedInstalled, draftConfig, selectedScene)
+                    val active = AlgorithmCatalogPure.resolveActive(
+                        installed = mergedInstalled,
+                        pinned = draftConfig.pinnedAlgorithmId,
+                        mode = draftConfig.selectionMode,
+                        scene = selectedScene,
+                    )
                     current.copy(
-                        phase = when {
-                            remoteInfos.isEmpty() && mergedInstalled.isEmpty() ->
-                                AlgorithmCatalogPhase.Empty
-                            catalog.usedFallback -> AlgorithmCatalogPhase.MirrorFallback(
-                                reason = catalog.fallbackReason.orEmpty(),
+                        phase = AlgorithmCatalogPure.catalogPhaseAfter(
+                            current = current.phase,
+                            remoteInfos = remoteInfos,
+                            installed = mergedInstalled,
+                            catalog = AlgorithmCatalogPure.RemoteCatalogMeta(
                                 activeSource = catalog.activeSource,
-                            )
-                            else -> AlgorithmCatalogPhase.Idle
-                        },
-                        remote = sortRemote(remoteInfos, selectedScene),
-                        installed = sortInstalled(mergedInstalled, active?.id),
+                                usedFallback = catalog.usedFallback,
+                                fallbackReason = catalog.fallbackReason,
+                                message = catalog.message,
+                            ),
+                        ),
+                        remote = remoteInfos.sortedWith(
+                            AlgorithmCatalogPure.sortRemote(remoteInfos, selectedScene),
+                        ),
+                        installed = mergedInstalled.sortedWith(
+                            AlgorithmCatalogPure.sortInstalled(mergedInstalled, active?.id, selectedScene),
+                        ),
                         active = active,
-                        previousRollback = previousOf(mergedInstalled, active?.id),
+                        previousRollback = AlgorithmCatalogPure.previousOf(mergedInstalled, active?.id),
                         activeSource = catalog.activeSource,
                         lastMirrorReason = catalog.fallbackReason,
                         lastCheckedAtEpochMs = System.currentTimeMillis(),
@@ -277,9 +305,11 @@ class AlgorithmCatalogController @Inject constructor(
                     versionCode = record.versionCode,
                 )
                 mutableState.update { current ->
-                    val nextInstalled = sortInstalled(
-                        mergeDiskInstalled(listOf(installed)),
-                        current.active?.id,
+                    val nextInstalled = AlgorithmCatalogPure.mergeInstalled(
+                        current.installed,
+                        listOf(installed),
+                    ).sortedWith(
+                        AlgorithmCatalogPure.sortInstalled(current.installed, current.active?.id, selectedScene),
                     )
                     val pending = if (
                         draftConfig.selectionMode == AlgorithmSelectionMode.MANUAL ||
@@ -290,7 +320,12 @@ class AlgorithmCatalogController @Inject constructor(
                         null
                     }
                     val active = if (pending == null) {
-                        resolveActive(nextInstalled, draftConfig, selectedScene)
+                        AlgorithmCatalogPure.resolveActive(
+                            installed = nextInstalled,
+                            pinned = draftConfig.pinnedAlgorithmId,
+                            mode = draftConfig.selectionMode,
+                            scene = selectedScene,
+                        )
                     } else {
                         current.active
                     }
@@ -361,42 +396,26 @@ class AlgorithmCatalogController @Inject constructor(
      * 跳过 [AlgorithmOrigin.BUILTIN] / [AlgorithmOrigin.BUNDLED]；
      * 仅对远端同 id 更高 versionCode 且兼容、有信任锚的包给出可升级 id。
      */
-    fun planUpgrades(): UpgradePlan {
+    fun planUpgrades(): AlgorithmCatalogPure.UpgradePlan {
         val current = mutableState.value
-        val remoteById = current.remote.associateBy { it.id }
-        val candidates = mutableListOf<String>()
-        val skipped = mutableListOf<String>()
-        val failed = mutableListOf<Pair<String, String>>()
-        current.installed.forEach { pkg ->
-            when {
-                pkg.isBuiltin || pkg.origin == AlgorithmOrigin.BUILTIN || pkg.origin == AlgorithmOrigin.BUNDLED ->
-                    skipped.add(pkg.id)
-                else -> {
-                    val remote = remoteById[pkg.id]
-                    when {
-                        remote == null -> skipped.add(pkg.id)
-                        !remote.isCompatible -> failed.add(pkg.id to "不兼容当前应用版本")
-                        !AlgorithmTrustAnchors.hasOfficialAnchors() -> failed.add(pkg.id to "未配置信任锚")
-                        remote.versionCode <= pkg.versionCode -> skipped.add(pkg.id)
-                        else -> candidates.add(pkg.id)
-                    }
-                }
-            }
-        }
-        return UpgradePlan(candidates = candidates, skipped = skipped, failed = failed)
+        return AlgorithmCatalogPure.planUpgrades(
+            installed = current.installed,
+            remote = current.remote,
+            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
+        )
     }
 
     /**
      * 一键升级：按 [planUpgrades] 结果**顺序**触发下载。
      *
      * [download] 同时只允许一个任务；因此这里只启动队列中的**第一个**可升级包，
-     * 其余记入 [UpgradeResult.queued]，避免「报告已升级但实际未启动」。
+     * 其余记入 [AlgorithmCatalogPure.UpgradeResult.queued]，避免「报告已升级但实际未启动」。
      * 实际下载/验签/安装异步；调用方以 [state] / `list_algorithms` 跟踪。
      */
-    fun upgradeAll(): UpgradeResult {
+    fun upgradeAll(): AlgorithmCatalogPure.UpgradeResult {
         val plan = planUpgrades()
         if (plan.candidates.isEmpty()) {
-            return UpgradeResult(
+            return AlgorithmCatalogPure.UpgradeResult(
                 upgraded = emptyList(),
                 queued = emptyList(),
                 skipped = plan.skipped,
@@ -408,7 +427,7 @@ class AlgorithmCatalogController @Inject constructor(
         download(first)
         // download 若因已有任务进行中而未启动，仍如实报告：首个记 upgraded（请求已发出），
         // 其余 queued；调用方用 list_algorithms 观察进度。
-        return UpgradeResult(
+        return AlgorithmCatalogPure.UpgradeResult(
             upgraded = listOf(first),
             queued = rest,
             skipped = plan.skipped,
@@ -416,26 +435,11 @@ class AlgorithmCatalogController @Inject constructor(
         )
     }
 
-    /** 纯计划结果（dryRun）。 */
-    data class UpgradePlan(
-        val candidates: List<String>,
-        val skipped: List<String>,
-        val failed: List<Pair<String, String>>,
-    )
-
-    /** 一键升级执行结果。 */
-    data class UpgradeResult(
-        val upgraded: List<String>,
-        val queued: List<String> = emptyList(),
-        val skipped: List<String>,
-        val failed: List<Pair<String, String>>,
-    )
-
     /**
      * 手动模式选择已安装算法。
      *
      * - 分析运行中：写入 [AlgorithmCatalogState.pendingActivation]（引擎不半热切换）。
-     * - 未分析：不设 pending（草稿钉选经 [bindSettings]/[resolveActive] 即可反映；
+     * - 未分析：不设 pending（草稿钉选经 [bindSettings]/[AlgorithmCatalogPure.resolveActive] 即可反映；
      *   真正 [VisionEngine.configureAlgorithm] 仍在 [AlgorithmActivationCoordinator.onConfigCommitted]）。
      * 真正写入 [AlgorithmConfig.pinnedAlgorithmId] 由设置 ViewModel 负责。
      */
@@ -483,7 +487,7 @@ class AlgorithmCatalogController @Inject constructor(
 
     /** 种子状态：仅内置包，无远端列表。 */
     private fun seedState(): AlgorithmCatalogState {
-        val builtin = builtinPackages()
+        val builtin = AlgorithmCatalogPure.builtinPackages()
         val active = builtin.first()
         return AlgorithmCatalogState(
             phase = AlgorithmCatalogPhase.Idle,
@@ -496,119 +500,10 @@ class AlgorithmCatalogController @Inject constructor(
         )
     }
 
-    /**
-     * 按选择模式解析当前应展示的 active 包。
-     * MANUAL：钉选优先，否则内置/任意兼容；AUTO：场景兼容中 versionCode 最新。
-     */
-    private fun resolveActive(
-        installed: List<AlgorithmPackageInfo>,
-        config: AlgorithmConfig,
-        scene: SceneId,
-    ): AlgorithmPackageInfo? {
-        return when (config.selectionMode) {
-            AlgorithmSelectionMode.MANUAL -> {
-                val pinned = config.pinnedAlgorithmId
-                    ?.let { id -> installed.find { it.id == id && it.isCompatible } }
-                pinned
-                    ?: installed.firstOrNull { it.isBuiltin && scene in it.supportedScenes }
-                    ?: installed.firstOrNull { it.isCompatible }
-            }
-            AlgorithmSelectionMode.AUTO -> {
-                installed
-                    .filter { it.isCompatible && scene in it.supportedScenes }
-                    .sortedWith(
-                        compareByDescending<AlgorithmPackageInfo> { it.versionCode }
-                            .thenByDescending { it.publishedAtEpochMs },
-                    )
-                    .firstOrNull()
-                    ?: installed.firstOrNull { it.isBuiltin }
-            }
-        }
-    }
-
-    private fun previousOf(
-        installed: List<AlgorithmPackageInfo>,
-        activeId: String?,
-    ): AlgorithmPackageInfo? {
-        val ordered = installed
-            .filter { it.isCompatible && !it.isBuiltin }
-            .sortedByDescending { it.versionCode }
-        if (ordered.isEmpty()) {
-            return installed.firstOrNull { it.isBuiltin && it.id != activeId }
-        }
-        return ordered.firstOrNull { it.id != activeId }
-            ?: installed.firstOrNull { it.isBuiltin && it.id != activeId }
-    }
-
-    private fun mergeInstalled(
-        current: List<AlgorithmPackageInfo>,
-        extras: List<AlgorithmPackageInfo>,
-    ): List<AlgorithmPackageInfo> {
-        val map = linkedMapOf<String, AlgorithmPackageInfo>()
-        builtinPackages().forEach { map[it.id] = it }
-        current.forEach { map[it.id] = it }
-        extras.filter {
-            it.isInstalled ||
-                it.origin == AlgorithmOrigin.INSTALLED ||
-                it.origin == AlgorithmOrigin.BUNDLED
-        }.forEach {
-            map[it.id] = it.copy(
-                isInstalled = true,
-                origin = if (it.origin == AlgorithmOrigin.BUNDLED) {
-                    AlgorithmOrigin.BUNDLED
-                } else {
-                    AlgorithmOrigin.INSTALLED
-                },
-            )
-        }
-        return map.values.toList()
-    }
-
-    /** 合并磁盘已安装记录与当前列表。 */
+    /** 合并磁盘已安装记录与当前列表（委托 [AlgorithmCatalogPure]）。 */
     private fun mergeDiskInstalled(current: List<AlgorithmPackageInfo>): List<AlgorithmPackageInfo> {
-        val disk = store.listInstalled().map { record ->
-            val isBundled = record.originTag == BundledAlgorithmInstaller.ORIGIN_BUNDLED
-            val channel = BundledAlgorithmInstaller.channelOf(record.channelName)
-            val summary = buildString {
-                if (!record.author.isNullOrBlank()) {
-                    append(record.author)
-                    append(" · ")
-                }
-                append(
-                    record.summary?.take(120)
-                        ?: if (isBundled) "随应用分发的声明式算法包" else "已安装算法包",
-                )
-            }
-            AlgorithmPackageInfo(
-                id = record.catalogId,
-                name = record.displayName,
-                versionName = record.version,
-                versionCode = record.versionCode,
-                channel = channel,
-                summary = summary,
-                supportedScenes = record.supportedScenes,
-                minAppVersionCode = 1,
-                publishedAtEpochMs = record.installedAtEpochMs,
-                sizeBytes = 0,
-                origin = if (isBundled) AlgorithmOrigin.BUNDLED else AlgorithmOrigin.INSTALLED,
-                signature = if (isBundled) {
-                    AlgorithmSignatureState.BUNDLED
-                } else {
-                    AlgorithmSignatureState.OFFICIAL
-                },
-                downloadSource = if (isBundled) {
-                    AlgorithmDownloadSource.BUNDLED
-                } else {
-                    AlgorithmDownloadSource.CACHE
-                },
-                releaseNotes = record.summary.orEmpty(),
-                isBuiltin = false,
-                isInstalled = true,
-                isCompatible = true,
-                author = record.author,
-            )
-        }
-        return mergeInstalled(current, disk)
+        val disk = AlgorithmCatalogPure.mergeDiskInstalled(store.listInstalled())
+        return AlgorithmCatalogPure.mergeInstalled(current, disk)
     }
 
     private fun maybeAutoDownloadLatest() {
@@ -620,31 +515,6 @@ class AlgorithmCatalogController @Inject constructor(
             ?: return
         if (mutableState.value.installed.any { it.id == latest.id }) return
         download(latest.id)
-    }
-
-    private fun sortRemote(
-        remote: List<AlgorithmPackageInfo>,
-        scene: SceneId,
-    ): List<AlgorithmPackageInfo> {
-        return remote.sortedWith(
-            compareByDescending<AlgorithmPackageInfo> { it.isCompatible }
-                .thenByDescending { scene in it.supportedScenes }
-                .thenByDescending { it.versionCode }
-                .thenByDescending { it.publishedAtEpochMs },
-        )
-    }
-
-    private fun sortInstalled(
-        installed: List<AlgorithmPackageInfo>,
-        activeId: String?,
-    ): List<AlgorithmPackageInfo> {
-        return installed.sortedWith(
-            compareByDescending<AlgorithmPackageInfo> { it.id == activeId }
-                .thenByDescending { it.isBuiltin }
-                .thenByDescending { it.origin == AlgorithmOrigin.BUNDLED }
-                .thenByDescending { selectedScene in it.supportedScenes }
-                .thenByDescending { it.versionCode },
-        )
     }
 
     private fun AlgorithmCatalogState.recomputePhase(): AlgorithmCatalogState {
@@ -673,55 +543,5 @@ class AlgorithmCatalogController @Inject constructor(
             return this
         }
         return copy(phase = AlgorithmCatalogPhase.Idle)
-    }
-
-    private fun builtinPackages(): List<AlgorithmPackageInfo> {
-        // versionCode 与语义化 0.1.0 对齐：major*1e6 + minor*1e3 + patch
-        val versionCode = 100L
-        return listOf(
-            AlgorithmPackageInfo(
-                id = AlgorithmIds.BUILTIN_CATALOG_ID,
-                name = "内置算法",
-                versionName = AlgorithmIds.BUILTIN_VERSION,
-                versionCode = versionCode,
-                channel = AlgorithmChannel.STABLE,
-                summary = "随应用分发的三赛季默认识别引擎（runtime ${AlgorithmIds.BUILTIN_RUNTIME_ID} v${AlgorithmIds.BUILTIN_VERSION}）。",
-                supportedScenes = SceneId.entries.toSet(),
-                minAppVersionCode = 1,
-                publishedAtEpochMs = 0L,
-                sizeBytes = 0,
-                origin = AlgorithmOrigin.BUILTIN,
-                signature = AlgorithmSignatureState.OFFICIAL,
-                downloadSource = AlgorithmDownloadSource.BUILTIN,
-                isBuiltin = true,
-                isInstalled = true,
-                isCompatible = true,
-            ),
-        )
-    }
-
-    private fun installedVersionCode(): Long {
-        return runCatching {
-            val packageInfo = if (Build.VERSION.SDK_INT >= 28) {
-                appContext.packageManager.getPackageInfo(
-                    appContext.packageName,
-                    PackageManager.GET_META_DATA,
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                appContext.packageManager.getPackageInfo(appContext.packageName, 0)
-            }
-            if (Build.VERSION.SDK_INT >= 28) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
-        }.getOrDefault(1L)
-    }
-
-    companion object {
-        /** 供单测注入固定时钟差。 */
-        fun uptime(): Long = SystemClock.uptimeMillis()
     }
 }

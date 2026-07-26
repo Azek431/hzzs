@@ -135,6 +135,7 @@ Tracker 非线程安全，只由当前帧循环拥有；场景、算法 generati
 设置「检查更新」/ autoCheck
 → AlgorithmCatalogController.refreshCatalog
 → AlgorithmNetworkClient 拉 release-index：algorithms/{stable|beta}.json
+→ AlgorithmCatalogPure.parseCatalog（纯函数，JVM 单测覆盖）
 → 列表展示；点下载
 → packages 资产 raw 下载 + size/sha256
 → AlgorithmPackVerifier（ZIP 白名单 + Ed25519 + AlgorithmTrustAnchors）
@@ -182,7 +183,7 @@ UI 徽章 **「待启用」** = `AlgorithmCatalogPhase.PendingActivation` / 卡�
 
 常见误解：诊断里 `vision.running=false` 且 `usingBuiltinFallback=true`、钉选 `builtin-…` → 当前就是内置，**不应**再显示待启用；若仍显示，多半是 Catalog `pendingActivation` 未在 save/bind 后清除（见 `bindSettings` 清理条件）。
 
-修改前读：`AlgorithmCatalogController.kt`、`AlgorithmActivationCoordinator.kt`、`AlgorithmNetworkClient.kt`、设置页 `AlgorithmSettingsScreen.kt`。
+修改前读：`AlgorithmCatalogController.kt`、`AlgorithmActivationCoordinator.kt`、`AlgorithmNetworkClient.kt`、`core/algorithm/logic/AlgorithmCatalogPure.kt`、设置页 `AlgorithmSettingsScreen.kt`。
 
 ## 对应测试与明显缺口
 

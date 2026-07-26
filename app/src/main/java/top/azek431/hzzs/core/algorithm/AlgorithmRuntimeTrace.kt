@@ -214,7 +214,8 @@ object AlgorithmRuntimeTrace {
         analysisSequenceCounter
     }
 
-    fun resetSession() = synchronized(lock) {
+    /** 清空当前会话的 ring buffer，并把 revision 递增 1（用于让帧循环检测算法/会话切换）。 */
+    fun resetSession(): Long = synchronized(lock) {
         buffer.clear()
         decisionBuffer.clear()
         lastChangeSignature.set(null)

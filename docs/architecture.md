@@ -55,6 +55,8 @@ DataStore 存储 schema **v9**（含 `automation.gestureBackend`、`mcp.toolPoli
 - `SettingsExitCoordinator` 在离开设置（Bottom Bar / Navigation Rail / 返回 / MCP 路由）前交给设置侧：无草稿直接离开，有草稿弹窗（保存并离开 / 丢弃 / 取消）。
 - 首页分组（显示 / 采集与识别 / 安全与自动化 / 网络与扩展 / 高级）+ 搜索 + 紧凑分类行。
 - `AlgorithmCatalogController` 以 StateFlow 暴露算法目录、下载进度与镜像状态；网络刷新/下载为即时任务。
+  决策逻辑（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog）
+  委托给 `core/algorithm/logic/AlgorithmCatalogPure`（纯函数，JVM 单测直测）。
 - 开发者选项：关于页连点版本号 7 次开启后，设置首页出现「开发者选项」；页内开关可关闭并隐藏入口。关于与设置共用 `DeveloperSettingsScreen`；`DeveloperConfig.logLevel` 持久化。`frameRateLimit` 仍校验但完成驱动取帧下**不消费**。系统「指针位置」经 `SystemCapabilityAccess`：可点授权 Shizuku（主线程）→ **绝对路径** `/system/bin/settings` 首成功即停并缓存前缀（与 input 同源）→ `WRITE_SETTINGS` / Root；写后延迟回读 system/secure；不写入 AppConfig；诊断含指针/Shizuku/`shell.prefix`。
 - `core/logging`：`AppLog`（Logcat + 内存 ring buffer，`query`/`revision` 供查看器）与 `DiagnosticsExporter`（脱敏诊断文本）；开发者页提供 `LogViewerScreen` 浏览级别/标签/关键字筛选日志；`AlgorithmPipelineTrace` + `AlgorithmPipelineScreen` 展示算法激活阶段与最近一帧摘要；`AlgorithmRuntimeTrace` 保留最近分析帧 ring（无像素，标签 `algo.frame`/`algo.det`/`algo.track`/`algo.decision`）；落盘配置时同步日志策略。
 
@@ -124,6 +126,20 @@ DataStore 存储 schema **v9**（含 `automation.gestureBackend`、`mcp.toolPoli
 
 第一版算法包是**声明式视觉参数**，不是任意代码。不得动态加载 `.so` / Dex / Jar / APK / Python / JavaScript / Shell。
 
+分层（依赖方向向下）：
+
+```text
+feature/settings (UI)                  ← AlgorithmSettingsScreen / AlgorithmPipelineScreen
+    ↓ 注入
+core/algorithm (StateFlow + 激活)      ← AlgorithmCatalogController / AlgorithmActivationCoordinator
+    ↓ 委托
+core/algorithm/logic (纯函数)          ← AlgorithmCatalogPure（JVM 单测直测）
+core/algorithm (网络 + 验签 + 落盘)    ← AlgorithmNetworkClient / AlgorithmPackVerifier / InstalledAlgorithmStore
+domain/vision (领域模型)               ← AlgorithmRuntimeProfile / AlgorithmRulesParser / AlgorithmProfileValidator
+```
+
+**两点激活（不得改为热切换）**：
+
 ```text
 ActiveAlgorithmProvider.activate(profile)
   → AlgorithmProfileValidator（finite / 范围 / 白名单 / schema）
@@ -132,6 +148,11 @@ ActiveAlgorithmProvider.activate(profile)
   → 清空 MultiObjectTracker / 动作去重 / 稳定帧
 analyze(frame) 只读当前 generation 对应快照
 失败 → 保留旧配置或回退 builtin.hzzs.base（0.1.0），NativeVision 保持可用
+
+保存并应用 → AlgorithmActivationCoordinator.onConfigCommitted
+               · 未分析 → 立即 configure Native
+               · 正在分析 → pendingCatalogId + UI「待启用」
+启动分析前  → AlgorithmActivationCoordinator.ensureConfigured（消费 pending 或按 config 解析）
 ```
 
 网络算法配置**不能**控制手势、点击、Root、包名白名单或安全门禁。  
