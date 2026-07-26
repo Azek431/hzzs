@@ -40,6 +40,20 @@ import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
 import top.azek431.hzzs.service.automation.HzzsAccessibilityService
+import top.azek431.hzzs.mcp.executor.ToolExecutor
+import top.azek431.hzzs.mcp.McpEventBus
+import top.azek431.hzzs.mcp.McpToolCatalog
+import top.azek431.hzzs.mcp.McpToolLabels
+import top.azek431.hzzs.mcp.McpToolPolicySupport
+import top.azek431.hzzs.mcp.McpAccessLog
+import top.azek431.hzzs.mcp.McpSessionManager
+import top.azek431.hzzs.mcp.McpUiBridge
+import top.azek431.hzzs.mcp.McpProfileStore
+import top.azek431.hzzs.mcp.McpSettingsPatch
+import top.azek431.hzzs.mcp.McpToolRisk
+import top.azek431.hzzs.mcp.generateMcpAuthToken
+import top.azek431.hzzs.mcp.ok
+import top.azek431.hzzs.mcp.requireString
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -61,6 +75,7 @@ interface McpActionSurface {
  */
 @Singleton
 class McpActionRegistry @Inject constructor(
+
     @param:ApplicationContext private val appContext: Context,
     private val settings: SettingsRepository,
     private val runtime: VisionRuntimeController,
@@ -70,7 +85,18 @@ class McpActionRegistry @Inject constructor(
     private val visionEngine: VisionEngine,
     private val profileStore: McpProfileStore,
     private val updateRepository: top.azek431.hzzs.core.update.UpdateRepository,
+    private val executors: @JvmSuppressWildcards Set<ToolExecutor>,
 ) : McpActionSurface {
+    private val executorIndex: Map<String, ToolExecutor> = buildMap {
+        executors.forEach { executor ->
+            require(executor.toolNames.isNotEmpty()) {
+                "执行器 ${executor::class.simpleName} 未声明任何工具"
+            }
+            executor.toolNames.forEach { name ->
+                require(put(name, executor) == null) { "工具名重复注册：$name" }
+            }
+        }
+    }
     /** 进程存活起点（elapsedRealtime），用于 get_metrics.uptimeMs。 */
     private val processStartedElapsedRealtimeMs: Long = android.os.SystemClock.elapsedRealtime()
 
@@ -104,7 +130,9 @@ class McpActionRegistry @Inject constructor(
         // 必须读 current（含设置页 preview），否则草稿里改的权限/策略要等保存才生效
         val mcp = settings.current().mcp
         authorize(descriptor, arguments, mcp, session)
-        return execute(descriptor.name, arguments)
+        val executor = executorIndex[descriptor.name]
+            ?: throw IllegalStateException("工具 ${descriptor.name} 无对应执行器")
+        return executor.execute(descriptor.name, arguments)
     }
 
     private fun validateArguments(descriptor: McpToolDescriptor, arguments: JSONObject) {
@@ -113,165 +141,8 @@ class McpActionRegistry @Inject constructor(
                 throw IllegalArgumentException("缺少参数：$key")
             }
             val value = arguments.opt(key)
-            if (value is String && value.isBlank()) {
-                throw IllegalArgumentException("参数不能为空：$key")
-            }
+            if (value == JSONObject.NULL) throw IllegalArgumentException("参数 $key 不能为 null")
         }
-        val allowed = descriptor.inputSchema.optJSONObject("properties")
-            ?.keys()
-            ?.asSequence()
-            ?.toSet()
-            .orEmpty()
-        val unknown = arguments.keys().asSequence().toSet() - allowed
-        if (unknown.isNotEmpty()) {
-            throw IllegalArgumentException("未知参数：${unknown.joinToString()}")
-        }
-    }
-
-    private suspend fun execute(tool: String, arguments: JSONObject): JSONObject = when (tool) {
-        "get_status" -> runtime.status.value.toJson()
-        "get_runtime_snapshot" -> runtimeSnapshot()
-        "inspect" -> inspectJson(arguments.optString("include").takeIf { it.isNotBlank() })
-        "get_settings" -> JSONObject(settings.exportJsonRedacted(settings.current()))
-        "preview_settings" -> {
-            settings.preview(ingestMcpConfig(arguments.requireString("config")))
-            ok("已临时预览设置（权限型字段已按安全策略收敛）")
-        }
-        "save_settings" -> {
-            settings.save(ingestMcpConfig(arguments.requireString("config")))
-            runCatching { McpEventBus.append(McpEventBus.Type.CONFIG_CHANGE, JSONObject().put("source", "save_settings")) }
-            ok("设置已保存（权限型字段已按安全策略收敛）")
-        }
-        "patch_settings" -> executePatchSettings(arguments)
-        "reset_preview" -> {
-            settings.clearPreview()
-            ok("临时预览已恢复")
-        }
-        "start_analysis" -> {
-            runtime.start()
-            ok("已请求启动分析")
-        }
-        "stop_analysis" -> {
-            runtime.stop()
-            ok("分析已停止")
-        }
-        "restart_analysis" -> {
-            runtime.stop()
-            runtime.start()
-            ok("已请求重启分析")
-        }
-        "cancel_actions" -> {
-            runtime.cancelPendingActions()
-            ok("已取消在飞自动操作")
-        }
-        "navigate" -> executeNavigate(arguments)
-        "set_overlay_visible" -> {
-            val current = settings.current()
-            settings.preview(
-                current.copy(
-                    overlay = current.overlay.copy(enabled = arguments.optBoolean("enabled", true)),
-                ),
-            )
-            ok("悬浮窗显示状态已临时更新")
-        }
-        "set_capture_backend" -> executeSetCaptureBackend(arguments)
-        "set_gesture_backend" -> executeSetGestureBackend(arguments)
-        "get_version" -> versionJson()
-        "check_update" -> checkUpdateJson()
-        "get_metrics" -> metricsJson()
-        "run_diagnostics" -> JSONObject().apply {
-            put("status", runtime.status.value.toJson())
-            put("settingsValid", runCatching { settings.current() }.isSuccess)
-            put("nativeLoaded", top.azek431.hzzs.nativevision.NativeVision.isAvailable)
-            put("debugFrameCount", runCatching { debugFrames.list().size }.getOrDefault(0))
-            put("developerEnabled", settings.current().developer.enabled)
-            put("algorithm", activeAlgorithmJson())
-        }
-        "list_debug_frames" -> debugFrameMetadata()
-        "clear_debug_frames" -> ok("已清除 ${debugFrames.clear()} 个调试帧")
-        "get_debug_frame" -> executeGetDebugFrame(arguments)
-        "capture_debug_frame" -> {
-            ensureDeveloper()
-            debugFrames.requestCapture()
-            ok("已请求存下一帧（将写入调试帧目录，受 MAX_FILES 上限裁剪）")
-        }
-
-        "set_scene" -> executeSetScene(arguments)
-        "set_obstacle_enabled" -> executeSetObstacleEnabled(arguments)
-        "set_threshold" -> executeSetThreshold(arguments)
-        "set_theme" -> executeSetTheme(arguments)
-        "set_overlay" -> executeSetOverlay(arguments)
-        "set_developer_enabled" -> executeSetDeveloperEnabled(arguments)
-        "set_developer_options" -> executeSetDeveloperOptions(arguments)
-        "get_automation_gates" -> automationGatesJson()
-        "set_automation_enabled" -> executeSetAutomationEnabled(arguments)
-        "list_algorithms" -> algorithmCatalogJson()
-        "get_active_algorithm" -> activeAlgorithmJson()
-        "get_algorithm_pipeline" -> algorithmPipelineJson()
-        "set_active_algorithm" -> executeSetActiveAlgorithm(arguments)
-        "refresh_algorithm_catalog" -> {
-            bindCatalog()
-            algorithmCatalog.refreshCatalog(force = true)
-            ok("已请求刷新算法目录")
-        }
-        "download_algorithm" -> {
-            val id = arguments.requireString("algorithmId")
-            bindCatalog()
-            algorithmCatalog.download(id)
-            ok("已请求下载/安装算法 $id（异步）")
-        }
-        "get_logs" -> {
-            ensureDeveloper()
-            logsJson(
-                minLevel = arguments.optString("minLevel").takeIf { it.isNotBlank() }
-                    ?.let { enumValueOf<AppLogLevel>(it) }
-                    ?: AppLogLevel.INFO,
-                tag = arguments.optString("tag").takeIf { it.isNotBlank() },
-                query = arguments.optString("query").takeIf { it.isNotBlank() },
-                limit = arguments.optInt("limit", 100).coerceIn(1, 800),
-                newestFirst = arguments.optBoolean("newestFirst", true),
-            )
-        }
-        "clear_logs" -> {
-            ensureDeveloper()
-            AppLog.clear()
-            ok("日志 ring 已清空")
-        }
-        "export_diagnostics" -> executeExportDiagnostics(arguments)
-        "get_permissions" -> permissionsJson()
-        "open_system_settings" -> executeOpenSystemSettings(arguments)
-        "get_mcp_status" -> mcpStatusJson()
-        "list_mcp_tools" -> listMcpToolsJson(
-            includeDisabled = arguments.optBoolean("includeDisabled", true),
-        )
-        "save_profile" -> executeSaveProfile(arguments)
-        "load_profile" -> executeLoadProfile(arguments)
-        "list_profiles" -> executeListProfiles()
-        "delete_profile" -> executeDeleteProfile(arguments)
-        "get_events" -> {
-            val since = arguments.optLong("since", 0L).coerceAtLeast(0L)
-            val limit = arguments.optInt("limit", 50).coerceIn(1, McpEventBus.CAPACITY)
-            eventsJson(since, limit)
-        }
-        "upgrade_algorithms" -> executeUpgradeAlgorithms(arguments)
-        "get_mcp_access_log" -> {
-            val limit = arguments.optInt("limit", 50).coerceIn(1, McpAccessLog.CAPACITY)
-            val newestFirst = arguments.optBoolean("newestFirst", true)
-            JSONObject()
-                .put("enabled", McpAccessLog.isEnabled())
-                .put("count", McpAccessLog.size())
-                .put("capacity", McpAccessLog.CAPACITY)
-                .put("entries", McpAccessLog.toJsonArray(limit, newestFirst))
-        }
-        "clear_mcp_access_log" -> {
-            McpAccessLog.clear()
-            ok("MCP 访问日志已清空")
-        }
-        "set_mcp_enabled" -> executeSetMcpEnabled(arguments)
-        "set_mcp_permission_level" -> executeSetMcpPermissionLevel(arguments)
-        "set_mcp_auth" -> executeSetMcpAuth(arguments)
-        "set_mcp_tool_policy" -> executeSetMcpToolPolicy(arguments)
-        else -> throw IllegalArgumentException("未知工具：$tool")
     }
 
     private suspend fun executePatchSettings(arguments: JSONObject): JSONObject {
