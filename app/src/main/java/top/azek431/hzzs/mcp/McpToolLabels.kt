@@ -1,5 +1,7 @@
 package top.azek431.hzzs.mcp
 
+import org.json.JSONObject
+
 /**
  * MCP 工具中文短标题（设置页 / 审批弹窗 / tools/list 首行）。
  * 键必须与 [McpToolCatalog] 工具名完全一致。
@@ -75,4 +77,53 @@ object McpToolLabels {
 
     fun approvalLabel(toolName: String): String =
         "${titleZh(toolName)}\n工具名: $toolName"
+
+    /** 审批用一句话摘要，包含关键参数（不记 Token/完整参数体，符合访问日志约束）。 */
+    fun summaryZh(toolName: String, arguments: JSONObject): String = when (toolName) {
+        "save_settings" -> "AI 请求永久保存应用设置"
+        "preview_settings" -> "AI 请求临时预览应用设置"
+        "patch_settings" -> "AI 请求局部修改设置"
+        "start_analysis" -> "AI 请求启动屏幕分析"
+        "stop_analysis" -> "AI 请求停止屏幕分析"
+        "restart_analysis" -> "AI 请求重启屏幕分析"
+        "cancel_actions" -> "AI 请求取消在飞自动操作"
+        "navigate" -> "AI 请求打开应用页面：${arguments.optString("route")}"
+        "set_overlay_visible" -> "AI 请求更改悬浮窗显示状态"
+        "set_capture_backend" -> "AI 请求切换截图后端：${arguments.optString("backend")}"
+        "set_gesture_backend" -> "AI 请求切换手势后端：${arguments.optString("backend")}"
+        "clear_debug_frames" -> "AI 请求清除本机调试帧"
+        "get_debug_frame" -> "AI 请求读取调试帧图像：${arguments.optString("name")}"
+        "capture_debug_frame" -> "AI 请求强制保存下一帧调试截图"
+        "save_profile" -> "AI 请求保存命名配置：${arguments.optString("name")}"
+        "load_profile" ->
+            "AI 请求${if (arguments.optBoolean("persist")) "永久应用" else "预览"}配置 profile：${arguments.optString("name")}"
+        "delete_profile" -> "AI 请求删除配置 profile：${arguments.optString("name")}"
+        "upgrade_algorithms" ->
+            "AI 请求${if (arguments.optBoolean("dryRun")) "预览" else "执行"}一键升级算法包"
+        "set_mcp_enabled" ->
+            "AI 请求${if (arguments.optBoolean("enabled")) "启用" else "关闭"} MCP 服务"
+        "set_mcp_permission_level" ->
+            "AI 请求修改 MCP 权限级：${arguments.optString("permissionLevel")}"
+        "set_mcp_auth" -> "AI 请求修改 MCP Bearer 鉴权"
+        "set_mcp_tool_policy" ->
+            "AI 请求设置工具策略：${arguments.optString("tool")}=${arguments.optString("policy")}"
+        "clear_mcp_access_log" -> "AI 请求清空 MCP 访问日志"
+        "set_scene" -> "AI 请求切换赛季：${arguments.optString("scene")}"
+        "set_obstacle_enabled" ->
+            "AI 请求${if (arguments.optBoolean("enabled")) "启用" else "禁用"}障碍 ${arguments.optString("kind")}"
+        "set_threshold" -> "AI 请求修改阈值 ${arguments.optString("key")}"
+        "set_theme" -> "AI 请求修改主题"
+        "set_overlay" -> "AI 请求修改悬浮窗"
+        "set_developer_enabled" ->
+            "AI 请求${if (arguments.optBoolean("enabled")) "开启" else "关闭"}开发者选项"
+        "set_developer_options" -> "AI 请求修改开发者选项"
+        "set_automation_enabled" ->
+            "AI 请求${if (arguments.optBoolean("enabled")) "开启" else "关闭"}自动操作"
+        "set_active_algorithm" -> "AI 请求切换算法：${arguments.optString("algorithmId")}"
+        "refresh_algorithm_catalog" -> "AI 请求刷新算法目录"
+        "download_algorithm" -> "AI 请求下载算法：${arguments.optString("algorithmId")}"
+        "clear_logs" -> "AI 请求清空内存日志"
+        "open_system_settings" -> "AI 请求打开系统设置：${arguments.optString("target")}"
+        else -> "AI 请求执行：$toolName（${arguments.length()} 个参数）"
+    }
 }

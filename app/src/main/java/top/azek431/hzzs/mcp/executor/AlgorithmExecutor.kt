@@ -8,7 +8,6 @@ import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import top.azek431.hzzs.domain.vision.VisionEngine
 import javax.inject.Inject
-import top.azek431.hzzs.mcp.ok
 import top.azek431.hzzs.mcp.requireString
 
 /**
@@ -224,19 +223,20 @@ class AlgorithmExecutor @Inject constructor(
         }
     }
 
-    private fun phaseName(phase: top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase): String = when (phase) {
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Idle -> "Idle"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Loading -> "Loading"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Empty -> "Empty"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.OfflineWithCache -> "OfflineWithCache"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.MirrorFallback -> "MirrorFallback"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.SecurityWarning -> "SecurityWarning"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Downloading -> "Downloading"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Verifying -> "Verifying"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.PendingActivation -> "PendingActivation"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Error -> "Error"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Incompatible -> "Incompatible"
-    }
+    private fun phaseName(phase: top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase): String =
+        when (phase) {
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Idle -> "Idle"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Loading -> "Loading"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Empty -> "Empty"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.OfflineWithCache -> "OfflineWithCache"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.MirrorFallback -> "MirrorFallback"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.SecurityWarning -> "SecurityWarning"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Downloading -> "Downloading"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Verifying -> "Verifying"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.PendingActivation -> "PendingActivation"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Error -> "Error"
+            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Incompatible -> "Incompatible"
+        }
 
     private fun upgradePlanToJson(plan: top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure.UpgradePlan): JSONObject =
         JSONObject()
@@ -268,17 +268,18 @@ class AlgorithmExecutor @Inject constructor(
             )
 }
 
-private fun top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo.toJson(): JSONObject = JSONObject()
-    .put("id", id)
-    .put("name", name)
-    .put("versionName", versionName)
-    .put("versionCode", versionCode)
-    .put("channel", channel.name)
-    .put("origin", origin.name)
-    .put("signature", signature.name)
-    .put("isCompatible", isCompatible)
-    .put("isInstalled", isInstalled)
-    .put("isBuiltin", isBuiltin)
-    .put("summary", summary)
-    .put("author", author ?: JSONObject.NULL)
-    .put("supportedScenes", org.json.JSONArray(supportedScenes.map { it.name }))
+private fun top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo.toJson(): JSONObject =
+    JSONObject()
+        .put("id", id)
+        .put("name", name)
+        .put("versionName", versionName)
+        .put("versionCode", versionCode)
+        .put("channel", channel.name)
+        .put("origin", origin.name)
+        .put("signature", signature.name)
+        .put("isCompatible", isCompatible)
+        .put("isInstalled", isInstalled)
+        .put("isBuiltin", isBuiltin)
+        .put("summary", summary)
+        .put("author", author ?: JSONObject.NULL)
+        .put("supportedScenes", org.json.JSONArray(supportedScenes.map { it.name }))
