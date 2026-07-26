@@ -165,6 +165,39 @@ adb forward tcp:18765 tcp:8765
 - 日常开发默认在 **`main`** 直接提交（用户偏好）；开 feature 分支须用户明确要求。
 - 推送或合入远程 `main` 前，破坏性/未测改动须用户确认；门禁按任务约定执行。
 
+### PowerShell 提交多行正文的坑（永久约束）
+
+**禁止**用 `git commit -m @'…'@` 或 `git commit -m "…" -m "…"` 在 PowerShell 里提交多行正文。
+
+- heredoc 写法会把起始 `@` 后面的换行吃进标题，导致标题变成 `@ fix(...): …`；
+- 多个 `-m "…"` 在 PowerShell 里会被解析成 pathspec，报 `pathspec '+' did not match any file(s)`。
+
+**正确做法**：把完整消息写入临时 UTF‑8 文件，用 `git commit -F <file>` 提交，然后立即删除临时文件。
+
+```powershell
+$msg = @"
+fix(mcp): 中文摘要
+
+动机
+一句话。
+
+改动
+- 第一点
+- 第二点
+
+验证
+- 单测通过
+"@
+$tmp = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmp, $msg, [System.Text.Encoding]::UTF8)
+git commit -F $tmp
+Remove-Item $tmp
+```
+
+或调用 Python 走 stdin：`python -c "import subprocess; subprocess.run(['git','commit','--amend','-F','-'], input=msg.encode('utf-8'))"`。
+
+提交前用 `git log -1 --format=%s` 抽查标题，确认没有前导 `@` 或乱码。
+
 ### 示例
 
 ```markdown
