@@ -28,19 +28,21 @@ class McpEventBusTest {
     }
 
     @Test
-    fun sinceFiltersAndDoesNotResetOnClear() {
+    fun sinceFiltersAndResetsSeqOnClear() {
         McpEventBus.append(McpEventBus.Type.ANALYSIS_START, JSONObject())
         McpEventBus.append(McpEventBus.Type.ANALYSIS_STOP, JSONObject())
         val first = McpEventBus.snapshot(since = 0L, limit = 10)
         assertEquals(2, first.events.size)
-        val mid = first.events[0].seq
         McpEventBus.clear()
+        // clear 重置序列号：新事件从 seq=1 重新开始
         McpEventBus.append(McpEventBus.Type.ERROR, JSONObject().put("msg", "x"))
-        val after = McpEventBus.snapshot(since = mid, limit = 10)
-        // clear 不重置 seq：新事件 seq 继续递增
+        val after = McpEventBus.snapshot(since = 0L, limit = 10)
         assertEquals(1, after.events.size)
-        assertTrue(after.events[0].seq > mid)
+        assertEquals(1L, after.events[0].seq)
         assertEquals(McpEventBus.Type.ERROR, after.events[0].type)
+        assertEquals(1L, after.oldestSeq)
+        assertEquals(1L, after.latestSeq)
+        assertFalse(after.dropped)
     }
 
     @Test
@@ -49,16 +51,17 @@ class McpEventBusTest {
         repeat(McpEventBus.CAPACITY + 1) { i ->
             McpEventBus.append("t", JSONObject().put("i", i))
         }
-        val snap = McpEventBus.snapshot(since = 0L, limit = 5)
-        assertEquals(5, snap.events.size)
-        assertEquals(2L, snap.events[0].seq) // seq 1 被挤掉
-        assertEquals(McpEventBus.CAPACITY, snap.buffered)
-        // since 落后于 oldest：seq 1 已丢
+        val snap5 = McpEventBus.snapshot(since = 0L, limit = 5)
+        assertEquals(5, snap5.events.size)
+        // 第 1 条（seq=1）被挤掉；snapshot 返回最早 N 条，因此 events[0] 是 seq=2
+        assertEquals(2L, snap5.events[0].seq)
+        assertEquals(McpEventBus.CAPACITY, snap5.buffered)
+        // since=0 落后于 oldest=2 → dropped=true
         val lag = McpEventBus.snapshot(since = 0L, limit = 1)
         assertEquals(2L, lag.oldestSeq)
-        assertTrue(lag.dropped)
+        assertTrue("since=0 should report dropped when oldestSeq=2", lag.dropped)
+        // since=1 且 oldest=2 → 边界不丢
         val caughtUp = McpEventBus.snapshot(since = 1L, limit = 1)
-        // since=1 且 oldest=2 → 无缺口
         assertFalse(caughtUp.dropped)
     }
 

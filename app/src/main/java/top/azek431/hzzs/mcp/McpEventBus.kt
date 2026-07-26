@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicLong
  * 线程：synchronized 写；[snapshot] 返回深拷贝。
  *
  * 游标语义：`snapshot(since, limit)` 返回 **seq > since 的最早 limit 条**（增量游标不丢中间事件）。
- * [clear] 只清缓冲，**不重置**序列号，保证客户端游标单调。
+ * [clear] 清缓冲并把序列号重置为 0，使新事件从 seq=1 重新开始；重置后旧游标会落后于
+ * 新 oldest，客户端应以 [Snapshot.dropped]=true 作为「需丢弃旧游标、从 0 重新追赶」的信号。
  */
 object McpEventBus {
     const val CAPACITY = 200
@@ -99,6 +100,7 @@ object McpEventBus {
 
     fun clear() {
         synchronized(lock) { buffer.clear() }
+        sequenceCounter.set(0)
     }
 
     fun toJsonArray(since: Long = 0L, limit: Int = CAPACITY): JSONArray =
