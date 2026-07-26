@@ -66,9 +66,16 @@
           "brushDarkMax": 100,
           "statueChromaMax": 55
         },
+        "searchRegionLeftRatio": 0.228,
         "searchRegionTopRatio": 0.438,
+        "searchRegionRightRatio": 1.0,
         "searchRegionBottomRatio": 0.881,
         "multicolorThreshold": 10
+      },
+      "recommendedTriggerDistance": {
+        "SAND_CASTLE": 3.2,
+        "SEA_PIT": 2.8,
+        "HANGING_ANCHOR": 3.0
       }
     }
   }
