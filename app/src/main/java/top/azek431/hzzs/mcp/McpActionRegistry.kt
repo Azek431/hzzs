@@ -11,9 +11,9 @@ import org.json.JSONObject
 import top.azek431.hzzs.BuildConfig
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase
-import top.azek431.hzzs.core.algorithm.AlgorithmCatalogPure
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
+import top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.logging.DiagnosticsExporter
 import top.azek431.hzzs.core.logging.McpDiagnosticsSnapshot
