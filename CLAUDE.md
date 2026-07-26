@@ -198,6 +198,17 @@ Remove-Item $tmp
 
 提交前用 `git log -1 --format=%s` 抽查标题，确认没有前导 `@` 或乱码。
 
+### 提交标题门禁（永久约束）
+
+仓库已配置 `core.hooksPath = tools/git/hooks`，启用 `commit-msg` hook 校验标题第一行：
+
+- 不能为空；
+- 不能以空白或 `@` 开头（拦截 PowerShell heredoc 泄露）；
+- 必须符合 `type(scope): 摘要` 或 `Merge/Revert/fixup!/squash!` 格式；
+- 不超过 72 字符。
+
+校验失败时 `git commit` 直接 abort 并给出原因，**不会**产生需要事后 amend 的脏提交。hook 脚本位于 [tools/git/hooks/commit-msg](tools/git/hooks/commit-msg)，纯 shell，可按需扩展。
+
 ### 示例
 
 ```markdown

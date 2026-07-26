@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# commit-msg hook: 校验提交信息的标题（第一行）。
+# 启用: git config core.hooksPath tools/git/hooks
+#
+# 校验规则:
+#   1) 标题不能为空。
+#   2) 标题不得以空白字符或 '@' 开头。
+#   3) 标题必须匹配 type(scope): 摘要 或 Merge/Revert/fixup!/squash! 格式。
+#   4) 标题不得超过 72 字符。
+
+msg_file="$1"
+title="$(head -n 1 "$msg_file" | tr -d '\r')"
+
+if [ -z "$title" ]; then
+    echo "ERROR: 提交标题不能为空。" >&2
+    exit 1
+fi
+
+first_char="$(printf '%s' "$title" | cut -c1)"
+if [ "$first_char" = "@" ]; then
+    echo "ERROR: 提交标题不能以 '@' 开头（疑似 PowerShell heredoc 泄露）。" >&2
+    echo "       不要用 git commit -m @'...'@，请用 git commit -F 文件 提交。" >&2
+    exit 1
+fi
+
+case "$title" in
+    ' '*) echo "ERROR: 提交标题不能以空格开头。" >&2; exit 1 ;;
+esac
+
+if [ "${#title}" -gt 72 ]; then
+    echo "ERROR: 提交标题超过 72 字符（当前 ${#title} 字符）。" >&2
+    exit 1
+fi
+
+merge_re='^(Merge|Revert|fixup!|squash!) '
+typed_re='^(feat|fix|docs|refactor|test|chore|security|build|ci|perf|style)(\([^)]+\))?: .{1,}$'
+
+if ! echo "$title" | grep -Eq "$merge_re" && ! echo "$title" | grep -Eq "$typed_re"; then
+    echo "ERROR: 提交标题格式不符合 type(scope): 摘要 或 Merge/Revert" >&2
+    echo "       当前标题: $title" >&2
+    exit 1
+fi
+
+exit 0
