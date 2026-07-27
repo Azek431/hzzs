@@ -1,3 +1,6 @@
+## 0.1.2 (2026-07-27)
+- 内容变更自动 PATCH（远端同 version 哈希不同）。
+
 海盐客厅找色基线 v1 (0.1.1)
 
 - 搜索区左/右改为包参数（searchRegionLeftRatio / searchRegionRightRatio），四边全部可配
