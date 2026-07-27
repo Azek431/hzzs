@@ -147,7 +147,11 @@ class AlgorithmCatalogController @Inject constructor(
                 }
             }
         mutableState.update { current ->
-            val installed = mergeDiskInstalled(current.installed)
+            val diskRecords = store.listInstalled()
+            // installed: 每个 catalogId 的最新版本（去重）
+            val installed = AlgorithmCatalogPure.mergeInstalled(current.installed, AlgorithmCatalogPure.mergeDiskInstalled(diskRecords))
+            // allInstalledRecords: 所有版本
+            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
             val active = AlgorithmCatalogPure.resolveActive(
                 installed = installed,
                 pinned = draftConfig.pinnedAlgorithmId,
@@ -158,6 +162,7 @@ class AlgorithmCatalogController @Inject constructor(
                 installed = installed.sortedWith(
                     AlgorithmCatalogPure.sortInstalled(installed, active?.id, selectedScene),
                 ),
+                allInstalledRecords = allInstalled,
                 active = active,
             )
         }
@@ -346,8 +351,11 @@ class AlgorithmCatalogController @Inject constructor(
                     } else {
                         current.active
                     }
+                    val diskRecords = store.listInstalled()
+                    val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
                     current.copy(
                         installed = nextInstalled,
+                        allInstalledRecords = allInstalled,
                         remote = current.remote.map {
                             if (it.id == installed.id) {
                                 installed.copy(origin = AlgorithmOrigin.REMOTE)

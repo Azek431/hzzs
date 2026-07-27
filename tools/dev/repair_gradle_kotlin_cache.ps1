@@ -7,8 +7,9 @@
   典型症状：
   - kaptGenerateStubs* / compile*Kotlin 报 FileNotFoundException: *classpath-snapshot*.bin
   - Incremental compilation failed / Falling back to non-incremental
-  - Gradle build daemon has been stopped: stop command received（IDE 停 daemon / OOM）
-  - 本机可用内存极低时 Kotlin daemon 写半截快照
+  - multiple Kotlin daemon sessions / Unknown or invalid session
+  - Gradle client socket 超时或构建被并发 stop
+  - 本机可用内存极低时 Kotlin/KSP 写半截快照
 
   本脚本：
   1. gradlew --stop
@@ -104,9 +105,9 @@ if ($AlsoCxx) {
 
 Write-Step "Done cleaning"
 Write-Host "Next: keep CMAKE_BUILD_PARALLEL_LEVEL=2; prefer hzzs.native.abis=arm64-v8a in gradle.local.properties"
-Write-Host "      低内存时加 --no-daemon，避免 IDE 误 stop 常驻 daemon："
+Write-Host "      Kotlin 编译器默认 in-process；不要并行启动多个 Gradle client："
 Write-Host "      .\gradlew.bat --no-daemon --console=plain :app:compileDebugKotlin"
-Write-Host "      # or :app:installDebug when free RAM is healthier"
+Write-Host "      # or use the VS Code task (it has a cross-process mutex)"
 
 if ($Compile) {
     Write-Step "Compile :app:compileDebugKotlin"
@@ -115,7 +116,7 @@ if ($Compile) {
         exit 2
     }
     $env:CMAKE_BUILD_PARALLEL_LEVEL = if ($env:CMAKE_BUILD_PARALLEL_LEVEL) { $env:CMAKE_BUILD_PARALLEL_LEVEL } else { '2' }
-    # --no-daemon：避免 VS Code/其它终端对常驻 daemon 发 stop
+    # 单次 Gradle client；Kotlin 编译器由项目配置在同一 JVM 内执行。
     & (Join-Path $RepoRoot 'gradlew.bat') --no-daemon --console=plain :app:compileDebugKotlin
     exit $LASTEXITCODE
 }

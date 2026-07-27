@@ -24,18 +24,19 @@ $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 ### 本机 Kotlin IC / 低内存
 
 - 产品使用 **Hilt + KSP**（不再 kapt stub 双编译）。
-- 堆与 worker 按「低内存开发机 + IDE 共存」写在根 `gradle.properties`；可用 `gradle.local.properties` 覆盖。
-- 若出现 `classpath-snapshot` / `shrunk-classpath-snapshot.bin` 找不到、IC 回退全量、或 `Gradle build daemon has been stopped: stop command received`：
+- 堆与 worker 按「低内存开发机 + IDE 共存」写在根 `gradle.properties`；Kotlin 编译器使用 `in-process`，不启动独立 Kotlin daemon。
+- VS Code 的 Gradle 任务使用命名互斥锁；已有构建运行时不要重复触发。
+- 若出现 `classpath-snapshot` / `shrunk-classpath-snapshot.bin` 找不到、IC 回退全量、`multiple Kotlin daemon sessions`，或 `Gradle build daemon has been stopped: stop command received`：
 
 ```powershell
 # 停 daemon + 清 Kotlin/KSP IC；空闲内存尚可时再加 -Compile
 .\tools\dev\repair_gradle_kotlin_cache.ps1 -Compile
-# 或手动（IDE 常会 stop 常驻 daemon 时加 --no-daemon）
+# 或手动单次构建；Kotlin 编译仍在 Gradle 进程内执行
 .\gradlew.bat --no-daemon --console=plain :app:compileDebugKotlin
 ```
 
 - 可用物理内存 < ~1.5 GiB 时先关多余语言服务 / 浏览器，再构建；全量 `:app:testDebugUnitTest` 易 OOM，优先相关 `--tests`。
-- 项目默认 `ksp.incremental=false`（低内存写盘更稳）；充裕时可在用户级 `gradle.properties` 打开。
+- 项目默认 `ksp.incremental=true`；缓存损坏时不要永久关增量，运行上述修复脚本重建缓存。
 
 Release（需签名配置，见 README「Release 构建与签名」）：
 

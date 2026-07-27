@@ -228,11 +228,7 @@ function Wait-HzzsPackagePid {
 function Invoke-HzzsGradle {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$GradleArgs,
-
-        # 默认 --daemon：复用常驻 JVM + 增量缓存，大幅加速重复构建。
-        # 需要单次 daemon（避免与 IDE 冲突）时显式 -NoDaemon（$UseDaemon=$false）。
-        [switch]$UseDaemon
+        [string[]]$GradleArgs
     )
     $repo = Get-HzzsRepoRoot
     $wrapper = Join-Path $repo 'gradlew.bat'
@@ -242,35 +238,52 @@ function Invoke-HzzsGradle {
     if (-not $env:CMAKE_BUILD_PARALLEL_LEVEL) {
         $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
     }
-    $args = @($GradleArgs)
-    if (-not $UseDaemon) {
-        $hasNoDaemon = $false
-        foreach ($a in $args) {
-            if ($a -eq '--daemon') { $hasNoDaemon = $true; break }
+
+    # VS Code 任务可能被重复触发；同一用户会话只允许一个 HZZS Gradle client。
+    # Gradle 的 maxIdleDaemons 只约束空闲 daemon，不能阻止多个 BUSY 构建。
+    $mutex = [System.Threading.Mutex]::new($false, 'Local\HZZS-GradleBuild')
+    $mutexHeld = $false
+    try {
+        try {
+            $mutexHeld = $mutex.WaitOne(0)
         }
-        if (-not $hasNoDaemon) {
+        catch [System.Threading.AbandonedMutexException] {
+            $mutexHeld = $true
+        }
+        if (-not $mutexHeld) {
+            throw '已有 HZZS Gradle 构建正在运行；请等待当前任务结束，不要重复触发。'
+        }
+
+        $args = @($GradleArgs)
+        if ($args -notcontains '--daemon' -and $args -notcontains '--no-daemon') {
             $args = @('--daemon') + $args
         }
-    }
-    Push-Location $repo
-    try {
-        Write-Host ("gradlew {0}" -f ($args -join ' '))
-        $prevEap = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
+        Push-Location $repo
         try {
-            $global:LASTEXITCODE = 0
-            & $wrapper @args
-            $code = Get-HzzsNativeExitCode
+            Write-Host ("gradlew {0}" -f ($args -join ' '))
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $global:LASTEXITCODE = 0
+                & $wrapper @args
+                $code = Get-HzzsNativeExitCode
+            }
+            finally {
+                $ErrorActionPreference = $prevEap
+            }
+            if ($code -ne 0) {
+                throw ("Gradle failed (exit {0}): {1}" -f $code, ($args -join ' '))
+            }
         }
         finally {
-            $ErrorActionPreference = $prevEap
-        }
-        if ($code -ne 0) {
-            throw ("Gradle failed (exit {0}): {1}" -f $code, ($args -join ' '))
+            Pop-Location
         }
     }
     finally {
-        Pop-Location
+        if ($mutexHeld) {
+            $mutex.ReleaseMutex()
+        }
+        $mutex.Dispose()
     }
 }
 
