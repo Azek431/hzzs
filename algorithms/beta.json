@@ -39,14 +39,29 @@
         "SEA_SALT_LIVING_ROOM"
       ],
       "version": "0.1.1"
+    },
+    {
+      "assetPath": "algorithms/packages/sea-salt-living-room-v1-v0.1.2.hzzsalg",
+      "author": "酱油",
+      "changelog": "## 0.1.2 (2026-07-27)\n- 内容变更自动 PATCH（远端同 version 哈希不同）。\n\n海盐客厅找色基线 v1 (0.1.1)\n\n- 搜索区左/右改为包参数（searchRegionLeftRatio / searchRegionRightRatio），四边全部可配\n- 新增推荐触发距离段 recommendedTriggerDistance（玩家宽度倍数），作为 TriggerDistanceAutoTuner 建议初始值；运行时仍可自适应偏离\n- 首版：searchRegionTopRatio / searchRegionBottomRatio / multicolorThreshold 可配置参数\n- 不宣称准确率或机型覆盖",
+      "description": "基于 AutoJS Pro 多点找色适配的海盐客厅算法包，作者酱油。仅参数描述（含推荐触发距离作为 auto-tuner 建议初始值），不包含可执行代码，也不宣称准确率或机型覆盖。",
+      "displayName": "海盐客厅找色基线 v1",
+      "engineApiVersion": 1,
+      "engineId": "native-vision",
+      "filename": "sea-salt-living-room-v1-v0.1.2.hzzsalg",
+      "id": "sea-salt-living-room-v1",
+      "minimumAppVersionCode": 1,
+      "releaseDate": "2026-07-26",
+      "revoked": false,
+      "sha256": "e32e3300e302a77c79ff6045d2e3c9861258756d0d5bb5dda283f648e551ce9a",
+      "size": 2113,
+      "supportedScenes": [
+        "SEA_SALT_LIVING_ROOM"
+      ],
+      "version": "0.1.2"
     }
   ],
-  "catalogSignature": "WuaBlJXE309iQ2ISoGL/khQSK1weAezgJ3NVAYFIOsZFHzPRbJu6B1h/E1kkRBhTwN2OH79ol7np5zq8X2g4Dg==",
   "channel": "beta",
-  "generatedAt": "2026-07-26T10:48:47Z",
-  "keyId": "hzzs-algorithm-official-1",
-  "publicKeyDerB64": "MCowBQYDK2VwAyEA4m6ILZkzhIW4nkjlpbNh+ny/tXqJqakVgCty09RBWsA=",
-  "schemaVersion": 1,
-  "signatureAlgorithm": "Ed25519",
-  "signedPayload": "{\"algorithms\":[{\"assetPath\":\"algorithms/packages/sea-salt-living-room-v1-v0.1.0.hzzsalg\",\"author\":\"酱油\",\"changelog\":\"海盐客厅找色基线 v1 (0.1.0)\\n\\n- 从 AutoJS Pro 多点找色脚本移植的海盐客厅识别参数\\n- 新增 searchRegionTopRatio / searchRegionBottomRatio / multicolorThreshold 可配置参数\\n- 不宣称准确率或机型覆盖\",\"description\":\"基于 AutoJS Pro 多点找色适配的海盐客厅算法包，作者酱油。仅参数描述，不包含可执行代码，也不宣称准确率或机型覆盖。\",\"displayName\":\"海盐客厅找色基线 v1\",\"engineApiVersion\":1,\"engineId\":\"native-vision\",\"filename\":\"sea-salt-living-room-v1-v0.1.0.hzzsalg\",\"id\":\"sea-salt-living-room-v1\",\"minimumAppVersionCode\":1,\"releaseDate\":\"2026-07-23\",\"revoked\":false,\"sha256\":\"529e0f0fcc0f4bf5df8de42406f8359355658057fac9cc9aa792459012bfea1a\",\"size\":2405,\"supportedScenes\":[\"SEA_SALT_LIVING_ROOM\"],\"version\":\"0.1.0\"},{\"assetPath\":\"algorithms/packages/sea-salt-living-room-v1-v0.1.1.hzzsalg\",\"author\":\"酱油\",\"changelog\":\"海盐客厅找色基线 v1 (0.1.1)\\n\\n- 搜索区左/右改为包参数（searchRegionLeftRatio / searchRegionRightRatio），四边全部可配\\n- 新增推荐触发距离段 recommendedTriggerDistance（玩家宽度倍数），作为 TriggerDistanceAutoTuner 建议初始值；运行时仍可自适应偏离\\n- 首版：searchRegionTopRatio / searchRegionBottomRatio / multicolorThreshold 可配置参数\\n- 不宣称准确率或机型覆盖\",\"description\":\"基于 AutoJS Pro 多点找色适配的海盐客厅算法包，作者酱油。仅参数描述（含推荐触发距离作为 auto-tuner 建议初始值），不包含可执行代码，也不宣称准确率或机型覆盖。\",\"displayName\":\"海盐客厅找色基线 v1\",\"engineApiVersion\":1,\"engineId\":\"native-vision\",\"filename\":\"sea-salt-living-room-v1-v0.1.1.hzzsalg\",\"id\":\"sea-salt-living-room-v1\",\"minimumAppVersionCode\":1,\"releaseDate\":\"2026-07-26\",\"revoked\":false,\"sha256\":\"3d80e8af788084a48fb09278cde8e1830a30befb38b179cf634a07ab0e5d6b99\",\"size\":2676,\"supportedScenes\":[\"SEA_SALT_LIVING_ROOM\"],\"version\":\"0.1.1\"}],\"channel\":\"beta\",\"generatedAt\":\"2026-07-26T10:48:47Z\",\"keyId\":\"hzzs-algorithm-official-1\",\"schemaVersion\":1}"
+  "generatedAt": "2026-07-27T04:01:31Z",
+  "schemaVersion": 1
 }
