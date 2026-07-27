@@ -210,8 +210,8 @@ function Invoke-HzzsGradle {
         [Parameter(Mandatory = $true)]
         [string[]]$GradleArgs,
 
-        # 默认 true：单次 daemon，避免本机其它 gradlew --stop / IDE 误杀共享 daemon。
-        # 需要常驻 daemon 时显式 -UseDaemon。
+        # 默认 --daemon：复用常驻 JVM + 增量缓存，大幅加速重复构建。
+        # 需要单次 daemon（避免与 IDE 冲突）时显式 -NoDaemon（$UseDaemon=$false）。
         [switch]$UseDaemon
     )
     $repo = Get-HzzsRepoRoot
@@ -226,10 +226,10 @@ function Invoke-HzzsGradle {
     if (-not $UseDaemon) {
         $hasNoDaemon = $false
         foreach ($a in $args) {
-            if ($a -eq '--no-daemon') { $hasNoDaemon = $true; break }
+            if ($a -eq '--daemon') { $hasNoDaemon = $true; break }
         }
         if (-not $hasNoDaemon) {
-            $args = @('--no-daemon') + $args
+            $args = @('--daemon') + $args
         }
     }
     Push-Location $repo
