@@ -78,6 +78,22 @@ function Get-HzzsNativeExitCode {
     return 0
 }
 
+
+function Resolve-HzzsAdbSerial {
+    <#
+    .SYNOPSIS
+      Return the serial for adb -s, or $null if not needed.
+      ANDROID_SERIAL env var takes precedence; otherwise first online device.
+    #>
+    $serial = [Environment]::GetEnvironmentVariable('ANDROID_SERIAL')
+    if ($serial) { return $serial }
+    $raw = Invoke-HzzsAdb -AdbArgs @('devices') -IgnoreFailure
+    $online = @($raw | Where-Object { $_ -match '	device$' })
+    if ($online.Count -le 1) { return $null }
+    $first = $online[0]
+    if ($first -match '^(\S+)\t') { return $Matches[1] }
+    return $null
+}
 function Invoke-HzzsAdb {
     <#
     .SYNOPSIS
@@ -99,6 +115,10 @@ function Invoke-HzzsAdb {
     $ErrorActionPreference = 'Continue'
     try {
         $global:LASTEXITCODE = 0
+        $serial = Resolve-HzzsAdbSerial
+        if ($serial) {
+            $AdbArgs = @('-s', $serial) + $AdbArgs
+        }
         $raw = & adb @AdbArgs 2>&1
         $code = Get-HzzsNativeExitCode
         $lines = ConvertTo-HzzsTextLines -InputObject $raw

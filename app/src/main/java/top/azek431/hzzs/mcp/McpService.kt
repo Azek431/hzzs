@@ -3,10 +3,12 @@ package top.azek431.hzzs.mcp
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +56,7 @@ class McpForegroundService : Service() {
     private var server: ServerSocket? = null
     private val stopping = AtomicBoolean(false)
     private val runGeneration = AtomicLong(0)
+    private var wakeLock: PowerManager.WakeLock? = null
     private val sessions = McpSessionManager()
     private lateinit var protocol: McpProtocol
     /** tools/list 过滤用：跟 current/preview 刷新，避免每次 list 都 runBlocking。 */
@@ -114,6 +117,7 @@ class McpForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        requestBatteryOptimizationExemption()
         protocol = McpProtocol(
             sessions = sessions,
             actions = registry,
@@ -128,6 +132,51 @@ class McpForegroundService : Service() {
                 }
                 McpAccessLog.setEnabled(cfg.mcp.accessLogEnabled)
             }
+        }
+    }
+
+    /** 请求用户将应用排除在电池优化之外（防止 WIKO/华为等激进后台回收）。 */
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val isIgnoring = pm.isIgnoringBatteryOptimizations(packageName)
+            if (!isIgnoring) {
+                try {
+                    val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        .setData(android.net.Uri.parse("package:$packageName"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    AppLog.i("mcp", "requested battery optimization exemption")
+                } catch (e: Exception) {
+                    AppLog.w("mcp", "cannot request battery optimization exemption: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** 运行时持有 PARTIAL_WAKE_LOCK，确保 CPU 在 accept 期间不休眠。 */
+    private fun acquireWakeLock() {
+        if (wakeLock != null) return
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HZZS:MCP").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            AppLog.i("mcp", "partial wake lock acquired")
+        } catch (e: Exception) {
+            AppLog.w("mcp", "wake lock acquire failed: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let {
+                if (it.isHeld) it.release()
+            }
+            wakeLock = null
+        } catch (e: Exception) {
+            AppLog.w("mcp", "wake lock release failed: ${e.message}")
         }
     }
 
@@ -221,6 +270,8 @@ class McpForegroundService : Service() {
             server = socket
             // 新绑定周期清空 LAN 缓存，避免沿用旧网卡列表。
             lanCache.set(LanCache())
+            // 服务启动后持有 PARTIAL_WAKE_LOCK：防止 OEM 电池优化在后台休眠 CPU 导致 accept 超时。
+            acquireWakeLock()
             val lanIps = cachedLanAddresses(bindLocalhostOnly)
             val bindLabel = if (bindLocalhostOnly) {
                 "127.0.0.1:${config.port}"
@@ -634,6 +685,7 @@ class McpForegroundService : Service() {
             return
         }
         runGeneration.incrementAndGet()
+        releaseWakeLock()
         uiBridge.rejectPendingApproval()
         sessions.clear()
         runCatching { server?.close() }
