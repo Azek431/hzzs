@@ -60,6 +60,26 @@ class AlgorithmCatalogController @Inject constructor(
     private var remoteEntries: List<CatalogRemoteEntry> = emptyList()
     private var wifiOnly: Boolean = true
 
+    /** 检查可升级包，有候选则写入 state 触发 UI 弹窗。 */
+    private fun maybeUpdateUpgradePrompt() {
+        val current = mutableState.value
+        val plan = AlgorithmCatalogPure.planUpgrades(
+            installed = current.installed,
+            remote = current.remote,
+        )
+        if (plan.candidates.isNotEmpty()) {
+            mutableState.update {
+                it.copy(
+                    pendingUpgradePrompt = AlgorithmCatalogState.UpgradePromptData(
+                        candidates = plan.candidates,
+                        skipped = plan.skipped,
+                        failed = plan.failed,
+                    ),
+                )
+            }
+        }
+    }
+
     /**
      * 绑定设置页草稿上下文，重算 active / pending。
      * 下载与检查不写入 [AlgorithmConfig]；钉选 ID 仍由 ViewModel 写回草稿。
@@ -107,6 +127,7 @@ class AlgorithmCatalogController @Inject constructor(
                 pendingActivation = pending,
             ).recomputePhase()
         }
+        maybeUpdateUpgradePrompt()
     }
 
     /** 预装 APK assets 中的声明式算法（幂等）；供 Application / 首次 bind 调用。 */
@@ -205,6 +226,7 @@ class AlgorithmCatalogController @Inject constructor(
                 if (force && draftConfig.autoDownload && draftConfig.selectionMode == AlgorithmSelectionMode.AUTO) {
                     maybeAutoDownloadLatest()
                 }
+                maybeUpdateUpgradePrompt()
             }.onFailure { error ->
                 mutableState.update { current ->
                     val hasCache = current.installed.isNotEmpty() || current.remote.isNotEmpty()
@@ -229,7 +251,7 @@ class AlgorithmCatalogController @Inject constructor(
     /**
      * 下载并校验安装算法包。
      *
-     * fail-closed：不兼容 / 无信任锚 / 验签失败直接进入对应相位。
+     * fail-closed：不兼容直接进入对应相位。
      */
     fun download(algorithmId: String) {
         val entry = remoteEntries.find { it.info.id == algorithmId }
@@ -282,6 +304,8 @@ class AlgorithmCatalogController @Inject constructor(
                 )
             }
             installResult.onSuccess { record ->
+                // 下载成功即清除升级提示（该包已不在升级候选中）
+                mutableState.update { it.copy(pendingUpgradePrompt = null) }
                 val installed = target.copy(
                     origin = AlgorithmOrigin.INSTALLED,
                     isInstalled = true,
@@ -382,13 +406,13 @@ class AlgorithmCatalogController @Inject constructor(
         }
     }
 
-    /**
-     * 计算可升级计划（纯只读，不触发下载）。
-     *
-     * 跳过 [AlgorithmOrigin.BUILTIN] / [AlgorithmOrigin.BUNDLED]；
-     * 仅对远端同 id 更高 versionCode 且兼容、有信任锚的包给出可升级 id。
-     */
-    fun planUpgrades(): AlgorithmCatalogPure.UpgradePlan {
+    /** 清除升级提示（用户已处理/忽略）。 */
+    fun clearUpgradePrompt() {
+        mutableState.update { it.copy(pendingUpgradePrompt = null) }
+    }
+
+    /** 计算可升级计划（纯只读，不触发下载）。 */
+    private fun planUpgrades(): AlgorithmCatalogPure.UpgradePlan {
         val current = mutableState.value
         return AlgorithmCatalogPure.planUpgrades(
             installed = current.installed,
@@ -400,7 +424,7 @@ class AlgorithmCatalogController @Inject constructor(
      * 一键升级：按 [planUpgrades] 结果**顺序**触发下载。
      *
      * [download] 同时只允许一个任务；因此这里只启动队列中的**第一个**可升级包，
-     * 其余记入 [AlgorithmCatalogPure.UpgradeResult.queued]，避免「报告已升级但实际未启动」。
+     * 其余记入 [AlgorithmCatalogPure.UpgradeResult.queued]。
      * 实际下载/验签/安装异步；调用方以 [state] / `list_algorithms` 跟踪。
      */
     fun upgradeAll(): AlgorithmCatalogPure.UpgradeResult {

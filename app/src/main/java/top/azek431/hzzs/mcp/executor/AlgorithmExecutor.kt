@@ -53,18 +53,6 @@ class AlgorithmExecutor @Inject constructor(
         else -> throw IllegalArgumentException("未知工具：$tool")
     }
 
-    private suspend fun executeGetAlgorithmCatalogEntry(arguments: JSONObject): JSONObject {
-        val id = arguments.requireString("algorithmId")
-        bindCatalog()
-        val state = algorithmCatalog.state.value
-        val entry = state.installed.firstOrNull { it.id == id }
-            ?: state.remote.firstOrNull { it.id == id }
-        return JSONObject()
-            .put("found", true)
-            .put("location", if (state.installed.any { it.id == id }) "installed" else "remote")
-            .put("entry", entry?.toJson() ?: JSONObject.NULL)
-    }
-
     private suspend fun executeSetActiveAlgorithm(arguments: JSONObject): JSONObject {
         val id = arguments.requireString("algorithmId")
         val mode = enumValueOf<AlgorithmSelectionMode>(

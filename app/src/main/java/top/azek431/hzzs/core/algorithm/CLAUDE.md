@@ -64,11 +64,11 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 | 文件 | 大小 | 改动边界 |
 |---|---|---|
 | `AlgorithmActivationCoordinator.kt` | 11KB | **慎改**：两点激活语义 |
-| `AlgorithmCatalogController.kt` | 16KB（原 31KB） | 瘦身后只做 StateFlow 持有 + Android 边界 |
-| `AlgorithmNetworkClient.kt` | 10KB（原 16KB） | HTTPS 编排 + ZIP 白名单解压（0.1.0 暂无 Ed25519） |
+| `AlgorithmCatalogController.kt` | 16KB | StateFlow 持有 + Android 边界 |
+| `AlgorithmNetworkClient.kt` | 10KB | HTTPS 编排 + ZIP 白名单解压 |
 | `logic/AlgorithmCatalogPure.kt` | 15KB | 纯函数集（JVM 单测覆盖） |
 | `AlgorithmTraceSinks.kt` | 3KB | 追踪层注入适配器 |
-| `AlgorithmModels.kt` | 8KB | UI 模型 + 状态（无签名/信任锚字段） |
+| `AlgorithmModels.kt` | 8KB | UI 模型 + 状态 |
 | `AlgorithmIds.kt` | 1.4KB | Catalog/Runtime ID 映射 |
 | `AlgorithmPipelineTrace.kt` | 9KB | 管线阶段 object |
 | `AlgorithmRuntimeTrace.kt` | 12KB | 帧轨迹 object |

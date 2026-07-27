@@ -127,6 +127,7 @@ data class CatalogRemoteEntry(
  * @property active 当前解析出的激活包（可能仍是内置）
  * @property pendingActivation 已下载/已选择但尚未在分析会话中生效的包
  * @property analysisRunning 分析运行中时，切换仅能 pending
+ * @property pendingUpgradePrompt 检测到可升级包后触发的升级计划（null = 无弹窗）
  */
 data class AlgorithmCatalogState(
     val phase: AlgorithmCatalogPhase = AlgorithmCatalogPhase.Idle,
@@ -144,7 +145,16 @@ data class AlgorithmCatalogState(
     val downloads: Map<String, AlgorithmDownloadTask> = emptyMap(),
     val analysisRunning: Boolean = false,
     val message: String? = null,
-)
+    /** 升级弹窗数据：null = 无弹窗；非空时 candidates 非空才显示。 */
+    val pendingUpgradePrompt: UpgradePromptData? = null,
+) {
+    /** 升级弹窗用的简化数据（避免父包引用逻辑子包）。 */
+    data class UpgradePromptData(
+        val candidates: List<String>,
+        val skipped: List<String>,
+        val failed: List<Pair<String, String>>,
+    )
+}
 
 /**
  * 根据当前激活 / 待启用 / 最新兼容 ID 推导卡片状态。

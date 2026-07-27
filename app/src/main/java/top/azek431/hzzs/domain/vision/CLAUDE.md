@@ -69,7 +69,7 @@ core/algorithm/AlgorithmCatalogPure           ──→ 纯函数层（不反向
 - 可执行代码（`.so` / Dex / Jar / 脚本 / 模型权重）
 - 手势、点击、Root、包名白名单、自动化门禁字段
 
-违反 → `AlgorithmRulesParser` 忽略；`AlgorithmProfileValidator` 拒绝。⚠ 当前 0.1.0 已移除 `AlgorithmPackVerifier`（暂未启用 Ed25519 签名验签）。
+违反 → `AlgorithmRulesParser` 忽略；`AlgorithmProfileValidator` 拒绝。⚠ 当前 0.1.0 算法包校验走 HTTPS + size/sha256 + ZIP 白名单，暂未启用签名验签。
 
 ## 改这个包前必读
 

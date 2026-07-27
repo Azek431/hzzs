@@ -65,6 +65,8 @@ fun AlgorithmSettingsScreen(
     onCancelDownload: (String) -> Unit,
     onSelect: (String) -> Unit,
     onMessage: (String) -> Unit,
+    onUpgradeAll: () -> Unit,
+    onClearUpgradePrompt: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimensions = LocalHzzsDimensions.current
@@ -312,6 +314,44 @@ fun AlgorithmSettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { details = null }) { Text("关闭") }
+            },
+        )
+    }
+
+    // 检测到可升级包时弹窗确认
+    val upgradePlan = algorithmState.pendingUpgradePrompt
+    if (upgradePlan != null && upgradePlan.candidates.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { /* 不自动关闭，必须明确选择 */ },
+            title = { Text("发现算法更新") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "以下 ${upgradePlan.candidates.size} 个算法包可升级：",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    upgradePlan.candidates.forEach { id ->
+                        val pkg = algorithmState.installed.find { it.id == id }
+                            ?: algorithmState.remote.find { it.id == id }
+                        Text(
+                            "· ${pkg?.name ?: id} → v${pkg?.versionName ?: "?"}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (upgradePlan.skipped.isNotEmpty()) {
+                        Text(
+                            "${upgradePlan.skipped.size} 个已是当前版本（跳过）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = onUpgradeAll) { Text("一键升级") }
+            },
+            dismissButton = {
+                TextButton(onClick = onClearUpgradePrompt) { Text("忽略") }
             },
         )
     }

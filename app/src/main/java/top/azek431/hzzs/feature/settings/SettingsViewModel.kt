@@ -478,6 +478,16 @@ class SettingsViewModel @Inject constructor(
 
     fun cancelAlgorithmDownload(id: String) = algorithmCatalog.cancelDownload(id)
 
+    /** 一键升级：按目录控制器中的升级计划执行。 */
+    fun upgradeAlgorithms() {
+        algorithmCatalog.upgradeAll()
+    }
+
+    /** 清除升级提示（用户点了「忽略」）。 */
+    fun clearAlgorithmUpgradePrompt() {
+        algorithmCatalog.clearUpgradePrompt()
+    }
+
     /**
      * 钉选手动算法写入草稿预览；分析运行中由激活协调器在真正 [save] 后 pending。
      * 若包仅支持单一赛季且与当前赛季不一致，自动切换到该赛季，避免「钉选了海盐包仍跑竹影」。

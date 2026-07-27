@@ -370,6 +370,8 @@ private fun SettingsNavHost(
                 onCancelDownload = vm::cancelAlgorithmDownload,
                 onSelect = vm::selectAlgorithm,
                 onMessage = onMessage,
+                onUpgradeAll = vm::upgradeAlgorithms,
+                onClearUpgradePrompt = vm::clearAlgorithmUpgradePrompt,
             )
         }
         composable(SettingsCategory.DETECTION.route) {
