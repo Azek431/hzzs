@@ -483,6 +483,8 @@ class AlgorithmCatalogController @Inject constructor(
             return null
         }
         mutableState.update { current ->
+            val diskRecords = store.listInstalled()
+            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
             when {
                 analysisRunning -> current.copy(
                     pendingActivation = installed,
@@ -491,17 +493,20 @@ class AlgorithmCatalogController @Inject constructor(
                         message = "下次启动分析时应用",
                     ),
                     message = "已选择 ${installed.name}，下次启动分析时应用",
+                    allInstalledRecords = allInstalled,
                 )
                 current.active?.id == installed.id -> current.copy(
                     pendingActivation = null,
                     phase = AlgorithmCatalogPhase.Idle,
                     message = "已是当前算法",
+                    allInstalledRecords = allInstalled,
                 )
                 else -> current.copy(
                     // 未分析：不挂 pending 徽章；文案提示须保存才 configure Native
                     pendingActivation = null,
                     phase = AlgorithmCatalogPhase.Idle,
                     message = "已选择 ${installed.name}，保存后启用",
+                    allInstalledRecords = allInstalled,
                 )
             }
         }

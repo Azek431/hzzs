@@ -569,7 +569,7 @@ namespace {
 
 hzzs::vision_v3::SeaV3Config sparse_config_from_params(const SceneAlgorithmParamsNative& params) {
     hzzs::vision_v3::SeaV3Config config{};
-    config.mode = hzzs::vision_v3::SeaAlgorithmMode::SHADOW_COMPARE;
+    config.mode = hzzs::vision_v3::SeaAlgorithmMode::BUILTIN_FAST;
     config.exact.threshold = static_cast<std::uint8_t>(
         std::clamp(static_cast<int>(params.multicolor_threshold), 0, 255));
     config.exact.verification_metric = hzzs::vision_v3::VerifyMetric::BOX_PER_CHANNEL;
@@ -693,10 +693,6 @@ Result analyze_sea_salt_sparse(
     if (sea_result.primary.found) {
         push_soy_detection(out, sea_result.primary, 10);
     }
-
-    // 多点找色叠加（声明式模板，与现有 sea_salt 路径对齐）。
-    SceneAlgorithmParamsNative sea_params = params;
-    append_multicolor_detections(out, frame, enabled_kind_mask, sea_params, detail_out);
 
     // 有非玩家障碍时抬升场景置信度。
     int obstacle_n = 0;

@@ -1,9 +1,11 @@
 package top.azek431.hzzs.data.vision
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
-import android.os.SystemClock
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +26,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
@@ -55,7 +58,7 @@ import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
 import top.azek431.hzzs.domain.vision.withApproximateDisplayContour
-import top.azek431.hzzs.platform.compat.CaptureBackendResolution
+import top.azek431.hzzs.platform.compat.ShizukuHealthCheck
 import top.azek431.hzzs.platform.compat.GestureCapabilityResolver
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
@@ -150,6 +153,15 @@ class VisionRuntimeController @Inject constructor(
     private var lastOverlaySignature: Int = Int.MIN_VALUE
     private val triggerDistanceTuner = TriggerDistanceAutoTuner()
 
+    // Shizuku 持续监控相关字段
+    private var shizukuHealthCheckJob: Job? = null
+    private var shizukuLastHealthState: Boolean? = null
+    private companion object {
+        const val SHIZUKU_HEALTH_CHECK_INTERVAL_MS = 30_000L
+        const val SHIZUKU_NOTIFICATION_CHANNEL_ID = "shizuku_health_channel"
+        const val SHIZUKU_NOTIFICATION_ID = 1001
+    }
+
     init {
         scope.launch {
             // 主题/悬浮窗可跟 preview；自动操作与截图后端只跟已落盘 saved，
@@ -230,14 +242,45 @@ class VisionRuntimeController @Inject constructor(
                 )
             }
             val gestureResolution = resolveGestureBackend(config)
-            latestGestureBackend.set(gestureResolution.effective)
+
+            // 新增：Shizuku 健康检查与自动降级
+            var finalGestureBackend = gestureResolution.effective
+            var healthCheckReason: String? = null
+
+            if (finalGestureBackend == GestureBackend.SHIZUKU) {
+                // 异步检查 Shizuku 健康状况，如果问题严重则降级
+                // 这里使用 withContext(Dispatchers.IO) 避免阻塞主线程
+                val health = withContext(Dispatchers.IO) {
+                    runCatching { ShizukuHealthCheck.check() }.getOrNull()
+                }
+
+                if (health != null && !health.isHealthy) {
+                    healthCheckReason = health.reason
+                    AppLog.w("vision", "Shizuku health check failed: ${health.reason ?: "unknown"}")
+
+                    // 如果 Accessibility 可用，自动降级
+                    if (HzzsAccessibilityService.isConnected()) {
+                        finalGestureBackend = GestureBackend.ACCESSIBILITY
+                        healthCheckReason = "Shizuku 不可用，已自动降级至 ACCESSIBILITY"
+                        AppLog.i("vision", "Shizuku fallback to ACCESSIBILITY due to health check")
+                    } else {
+                        AppLog.w("vision", "No viable fallback for SHIZUKU; issues may manifest later")
+                    }
+                }
+            }
+
+            latestGestureBackend.set(finalGestureBackend)
+            // 使用降级后的有效后端创建新的 resolution 对象（用于日志）
+            val gestureResolutionWithFallBack = gestureResolution.copy(effective = finalGestureBackend)
+
             AppLog.i(
                 "vision",
                 "start session gen=$token backend=${backend.name} " +
                     "requested=${resolution.requested.name} scene=${config.selectedScene.name} " +
                     "overlay=${config.overlay.enabled} automation=${config.automation.enabled} " +
-                    "gesture=${gestureResolution.effective.name}" +
-                    (gestureResolution.fallbackReason?.let { " gestureNote=$it" } ?: ""),
+                    "gesture=${finalGestureBackend.name}" +
+                    (healthCheckReason?.let { " healthNote=$it" } ?: "") +
+                    (gestureResolutionWithFallBack.fallbackReason?.let { " gestureNote=$it" } ?: ""),
             )
             runCatching {
                 top.azek431.hzzs.mcp.McpEventBus.append(

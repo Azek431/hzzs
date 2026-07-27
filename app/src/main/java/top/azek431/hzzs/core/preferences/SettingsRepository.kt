@@ -3,6 +3,7 @@ package top.azek431.hzzs.core.preferences
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.Binds
@@ -112,6 +113,8 @@ class DataStoreSettingsRepository @Inject constructor(
     private val legacyMigratedKey = booleanPreferencesKey("legacy_migrated")
     /** 非空时覆盖 stored，供设置页预览。 */
     private val preview = MutableStateFlow<AppConfig?>(null)
+    private val openCountKey = intPreferencesKey("app_open_count")
+    private val donationPromptShownKey = booleanPreferencesKey("donation_prompt_shown")
     private val migrationMutex = Mutex()
     /**
      * 最近一次已解码的磁盘配置（不含 preview）。
@@ -214,9 +217,38 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun importJson(json: String): AppConfig = ConfigJson.decode(json).validated()
 
-    override fun exportJson(config: AppConfig): String = ConfigJson.encode(config.validated())
+    /** 获取当前打开次数 */
+    suspend fun getOpenCount(): Int {
+        return stored.first()[openCountKey] ?: 0
+    }
+
+    /** 递增打开次数并返回新值 */
+    suspend fun incrementOpenCount(): Int {
+        return context.settingsDataStore.edit { preferences ->
+            val count = preferences[openCountKey] ?: 0
+            preferences[openCountKey = count + 1]
+        }
+    }
+
+    /** 检查是否已显示过捐赠提示 */
+    suspend fun isDonationPromptShown(): Boolean {
+        return stored.first()[donationPromptShownKey] ?: false
+    }
+
+    /** 标记捐赠提示已显示 */
+    suspend fun markDonationPromptShown(): Unit = context.settingsDataStore.edit {
+        it[donationPromptShownKey = true]
+    }
 
     override fun exportJsonRedacted(config: AppConfig): String {
+        val safe = config.validated()
+        val redacted = safe.copy(
+            mcp = safe.mcp.copy(
+                authToken = if (safe.mcp.authToken.isNotBlank()) "***" else "",
+            ),
+        )
+        return ConfigJson.encode(redacted)
+    }
         val safe = config.validated()
         val redacted = safe.copy(
             mcp = safe.mcp.copy(

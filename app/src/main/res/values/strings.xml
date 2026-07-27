@@ -237,6 +237,7 @@
     <string name="about_support_title">支持开发</string>
     <string name="about_wechat">微信</string>
     <string name="about_alipay">支付宝</string>
+    <string name="about_iefdian">爱发电</string>
     <string name="about_github">GitHub</string>
     <string name="about_github_sub">源码、Issue 与版本记录</string>
     <string name="about_license">开源许可</string>
@@ -246,6 +247,12 @@
     <string name="about_donation_hint">可保存二维码到相册；长按图片也可快捷保存。</string>
     <string name="about_donation_qr_cd">赞赏二维码</string>
     <string name="about_open_link_failed">没有可打开此链接的应用</string>
+    <string name="about_donation_prompt_title">感谢使用 HZZS 🎉</string>
+    <string name="about_donation_prompt_body">你已经打开软件 10 次了！如果对你有所帮助，欢迎捐赠支持开发者。</string>
+    <string name="about_donation_prompt_wechat">微信打赏</string>
+    <string name="about_donation_prompt_alipay">支付宝打赏</string>
+    <string name="about_donation_prompt_iefdian">爱发电支持</string>
+    <string name="about_donation_prompt_cancel">稍后再说</string>
 
     <!-- 外观颜色 -->
     <string name="color_hex_hint_ok">颜色会立即应用并写入配置</string>

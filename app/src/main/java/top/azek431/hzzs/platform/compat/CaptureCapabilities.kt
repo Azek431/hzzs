@@ -136,7 +136,7 @@ class CaptureCapabilityResolver @Inject constructor(
         CaptureCapability(
             backend = CaptureBackend.SHIZUKU,
             supported = true,
-            ready = isShizukuReady(),
+            ready = isShizukuReady() && ShizukuHealthCheck.isFullyAvailable(),
             recommended = false,
             title = "Shizuku / ADB",
             summary = when {
@@ -147,8 +147,13 @@ class CaptureCapabilityResolver @Inject constructor(
                 runCatching { Shizuku.checkSelfPermission() }.getOrDefault(PackageManager.PERMISSION_DENIED) !=
                     PackageManager.PERMISSION_GRANTED ->
                     "Shizuku 已运行，请在首次使用时授予本应用 Shizuku 权限。"
-                else ->
-                    "Shizuku 可用。通过受限 shell 截图，延迟通常高于屏幕录制。"
+                else -> {
+                    if (ShizukuHealthCheck.isFullyAvailable()) {
+                        "Shizuku 可用（命令测试通过）。通过受限 shell 截图，延迟通常高于屏幕录制。"
+                    } else {
+                        "Shizuku 部分异常（binder 存在但不可用）。建议检查 Shizuku 状态或改用其他截图方式。"
+                    }
+                }
             },
         ),
         CaptureCapability(

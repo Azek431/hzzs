@@ -6,7 +6,9 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.Intent.ACTION_VIEW
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -100,6 +102,8 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var repository: SettingsRepository
+
     private var pendingDonation: DonationKind? = null
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -121,7 +125,70 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         maybeRequestPostNotifications()
+        handleAppOpenCount()
         setContent { HzzsRoot(onSaveDonation = ::saveDonationImage) }
+    }
+
+    /**
+     * 处理应用打开计数：达到10次且未显示过捐赠提示时弹出捐赠对话框。
+     */
+    private fun handleAppOpenCount() {
+        // 使用 lifecycleScope 异步处理计数逻辑
+        lifecycleScope.launch {
+            try {
+                val openCount = repository.incrementOpenCount()
+                val shown = repository.isDonationPromptShown()
+
+                if (openCount >= 10 && !shown) {
+                    // 在主线程展示对话框
+                    withContext(android.os.Looper.getMainLooper()) {
+                        showDonationPromptDialog()
+                        repository.markDonationPromptShown()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("HZZS_OpenCount", "Failed to handle app open count", e)
+            }
+        }
+    }
+
+    /**
+     * 显示捐赠提示对话框 - 模仿 RikkaHub 风格。
+     */
+    private fun showDonationPromptDialog() {
+        // 使用 MaterialAlertDialog 显示捐赠选项列表
+        val options = listOf(
+            getString(R.string.about_donation_prompt_wechat),
+            getString(R.string.about_donation_prompt_alipay),
+            getString(R.string.about_donation_prompt_iefdian)
+        )
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.about_donation_prompt_title))
+            .setMessage(getString(R.string.about_donation_prompt_body))
+            .setItems(options.toTypedArray) { which, _ ->
+                when (which) {
+                    0 -> saveDonationImage(DonationKind.WECHAT)
+                    1 -> saveDonationImage(DonationKind.ALIPAY)
+                    2 -> openIEFDianLink()
+                }
+            }
+            .setNegativeButton(getString(R.string.about_donation_prompt_cancel)) { dialog, _ ->
+                dialog.dismiss()
+            }
+        dialog.show()
+    }
+
+    /**
+     * 打开爱发电链接。
+     */
+    private fun openIEFDianLink() {
+        val url = "https://www.ifdian.net/a/Azek431"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, getString(R.string.about_open_link_failed), Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**

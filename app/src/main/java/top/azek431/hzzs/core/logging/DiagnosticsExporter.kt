@@ -9,10 +9,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
+import android.os.NotificationManager
+import androidx.core.app.NotificationCompat
 import top.azek431.hzzs.core.algorithm.AlgorithmPipelineTrace
 import top.azek431.hzzs.core.algorithm.AlgorithmRuntimeTrace
 import top.azek431.hzzs.core.model.AppConfig
 import top.azek431.hzzs.core.model.RuntimeStatus
+import top.azek431.hzzs.platform_compat.ShizukuHealthCheck
 import top.azek431.hzzs.platform.compat.SystemCapabilityAccess
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
@@ -154,6 +157,16 @@ object DiagnosticsExporter {
             appendLine(
                 "developer.forceCapture=${config.developer.forceCaptureBackend?.name ?: "FOLLOW"}",
             )
+            // 新增：Shizuku 健康检查诊断
+            val shizukuHealth = runCatching {
+                ShizukuHealthCheck.check()
+            }.getOrNull()
+            appendLine("shizuku_health.binder_alive=${shizukuHealth?.binderAlive ?: false}")
+            appendLine("shizuku_health.permission_granted=${shizukuHealth?.permissionGranted ?: false}")
+            appendLine("shizuku_health.can_execute=${shizukuHealth?.canExecute ?: false}")
+            appendLine("shizuku_health.is_healthy=${shizukuHealth?.isHealthy ?: false}")
+            shizukuHealth?.reason?.let { appendLine("shizuku_health.reason=${it}") }
+
             val captureResolution = resolveEffectiveCaptureBackend(
                 captureBackend = config.captureBackend,
                 developerEnabled = config.developer.enabled,

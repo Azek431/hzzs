@@ -7,6 +7,8 @@ import org.json.JSONObject
 import top.azek431.hzzs.core.logging.AppLog
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.SceneId
+import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
+import top.azek431.hzzs.domain.vision.AlgorithmRulesParser
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -525,6 +527,25 @@ class InstalledAlgorithmStore @Inject constructor(
         val catalogDir = File(installedDir, catalogId)
         catalogDir.delete()
         return true
+    }
+
+    /** 编码 AlgorithmRuntimeProfile 为轻量 JSON 快照（用于 profile.json）。 */
+    private fun encodeProfileStub(profile: AlgorithmRuntimeProfile): String =
+        JSONObject()
+            .put("algorithmId", profile.algorithmId)
+            .put("version", profile.version)
+            .put("schemaVersion", profile.schemaVersion)
+            .put("isBuiltin", profile.isBuiltin)
+            .toString(2)
+
+    /** 将 SceneId 数组转换为 Set<SceneId>（JSON 解析辅助）。 */
+    private fun JSONArray?.toSceneSet(): Set<SceneId> {
+        if (this == null) return emptySet()
+        val out = linkedSetOf<SceneId>()
+        for (i in 0 until length()) {
+            runCatching { SceneId.valueOf(getString(i)) }.getOrNull()?.let(out::add)
+        }
+        return out
     }
 
     /** 扩展：从目录名提取 catalogId（用于旧版兼容）。 */

@@ -69,6 +69,7 @@ object AlgorithmRulesParser {
             version = version,
             schemaVersion = AlgorithmRuntimeProfile.SCHEMA_VERSION,
             isBuiltin = false,
+            backendId = root.optString("backendId", ""),
             scenes = mergedParams,
         )
         val validated = AlgorithmProfileValidator.validate(profile).getOrThrow()
