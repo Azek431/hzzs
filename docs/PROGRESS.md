@@ -36,13 +36,13 @@
 | P1 | MCP 配置指纹变化才重启；overlay 签名补全；runtime 侧跳过 show | 已落地 |
 | P1 | 高级截图后端帧池复用 | 已落地 |
 | P1 | 应用内更新检查 / 下载 / 安装 UI | 已落地 |
-| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录/下载/验签安装路径；远端 release-index 目录尚未发布时为空态） |
+| P1 | 设置首页 + 分类子页重构（算法选择 / 网络更新） | 已落地（UI + 目录/下载/ZIP 白名单安装路径；远端 release-index 目录尚未发布时为空态） |
 | P1 | 文档、CHANGELOG、AGENTS 与代码一致 | 进行中（MCP 访问日志/schema 9/savedConfig 绑定、默认免鉴权 + 持久 Token、设置草稿等已对齐源码） |
-| P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（外装包需信任锚公钥 + release-index 目录；主路径颜色谓词仍部分硬编码） |
+| P1 | 声明式算法运行时（AlgorithmRuntimeProfile / 安全切换） | 已落地（外装包经 release-index 目录下载；主路径颜色谓词仍部分硬编码） |
 | P1 | 算法包闭环 M0 | 已落地：APK 安装前 verifyPackage、忽略版本不整稿保存、更新源偏好、UI/文档诚实 |
 | P1 | 算法包闭环 M1 | 已落地：rules v2 双段 tools/示例包、`AlgorithmRulesParser`、统一 `AlgorithmIds` |
-| P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、`AlgorithmPackVerifier` Ed25519、Catalog 接真链路；信任锚已写入 `hzzs-algorithm-official-1` 公钥（列表空时仍 fail-closed） |
-| P1 | 算法包闭环 M4 | 已落地：启动 `algorithm.autoCheck` 刷新目录；`autoDownload` 在有信任锚时尝试下载最新 |
+| P1 | 算法包闭环 M2–网络 | 已落地：`AlgorithmNetworkClient` HTTPS 目录/下载、ZIP 白名单解压、Catalog 接真链路。⚠ 当前 0.1.0 暂未启用 Ed25519 签名验签（`AlgorithmPackVerifier` / `AlgorithmTrustAnchors` 已移除），远端仅走 sha256 完整性校验。 |
+| P1 | 算法包闭环 M4 | 已落地：启动 `algorithm.autoCheck` 刷新目录；`autoDownload` 直接尝试下载最新（不再要求信任锚）。 |
 | P2 | 主路径参数化 | 部分：M3A confidence/floor；主路径尺寸窗**后过滤**；颜色谓词核心仍硬编码（legacy） |
 | P2 | Shizuku screencap 适配器（非 AUTO） | 已落地（需真机授权验证） |
 | P2 | 悬浮窗未变跳过重绘 / Tracker 上限 / MCP 启停 | 已落地 |

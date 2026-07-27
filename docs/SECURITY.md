@@ -87,7 +87,9 @@
 
 ## 官方算法包
 
-- `.hzzsalg` 使用**独立 Ed25519 密钥**，不得复用 APK keystore。
+> **当前实现状态（0.1.0）**：客户端暂未启用 Ed25519 官方签名验签（`AlgorithmTrustAnchors` / `AlgorithmPackVerifier` 已移除）。远端 `.hzzsalg` 经 HTTPS + size/sha256 + ZIP 白名单校验后落盘；下载不再因「未配置信任锚」而 fail-closed。签名相关约束（私钥/公钥/信任锚 fail-closed）以「⚠ 暂不启用」标注。
+
+- `.hzzsalg` 使用**独立 Ed25519 密钥**，不得复用 APK keystore。⚠ 暂不启用：当前 0.1.0 未启用签名，仅走 sha256 完整性校验。
 - 包内仅声明式 JSON / 文本；拒绝可执行扩展名、符号链接、路径穿越与 Zip 炸弹。
 - 目录 `algorithms/{channel}.json` 最后发布；资产哈希不一致时拒绝覆盖。
 - Secrets：`ALGORITHM_SIGNING_PRIVATE_KEY_B64`、`ALGORITHM_SIGNING_KEY_ID`（与 `ANDROID_KEYSTORE_*` 分离）。

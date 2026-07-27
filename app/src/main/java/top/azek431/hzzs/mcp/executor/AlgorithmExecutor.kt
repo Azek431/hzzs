@@ -142,7 +142,6 @@ class AlgorithmExecutor @Inject constructor(
             put("pendingActivationId", catalog.pendingActivation?.id ?: JSONObject.NULL)
             put("selectionMode", catalog.selectionMode.name)
             put("channel", catalog.channel.name)
-            put("trustAnchorsConfigured", catalog.trustAnchorsConfigured)
             put("analysisRunning", catalog.analysisRunning)
         }
     }
@@ -154,7 +153,6 @@ class AlgorithmExecutor @Inject constructor(
             put("message", state.message ?: JSONObject.NULL)
             put("selectionMode", state.selectionMode.name)
             put("channel", state.channel.name)
-            put("trustAnchorsConfigured", state.trustAnchorsConfigured)
             put("analysisRunning", state.analysisRunning)
             put("active", state.active?.toJson() ?: JSONObject.NULL)
             put("pendingActivation", state.pendingActivation?.toJson() ?: JSONObject.NULL)
@@ -230,7 +228,6 @@ class AlgorithmExecutor @Inject constructor(
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Empty -> "Empty"
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.OfflineWithCache -> "OfflineWithCache"
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.MirrorFallback -> "MirrorFallback"
-            is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.SecurityWarning -> "SecurityWarning"
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Downloading -> "Downloading"
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Verifying -> "Verifying"
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.PendingActivation -> "PendingActivation"
@@ -276,7 +273,6 @@ private fun top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo.toJson(): JSONO
         .put("versionCode", versionCode)
         .put("channel", channel.name)
         .put("origin", origin.name)
-        .put("signature", signature.name)
         .put("isCompatible", isCompatible)
         .put("isInstalled", isInstalled)
         .put("isBuiltin", isBuiltin)

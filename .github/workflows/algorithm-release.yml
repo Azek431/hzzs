@@ -1,8 +1,7 @@
 name: Publish official algorithm pack
 
-# push algorithm-packs on main → auto PATCH if content changed → sign + release-index
+# push algorithm-packs on main → auto PATCH if content changed → release-index
 # Default mirror: GitHub only. Optional dual-publish if GITEE_TOKEN is set.
-# Required Secrets: ALGORITHM_SIGNING_PRIVATE_KEY_B64, ALGORITHM_SIGNING_KEY_ID
 
 on:
   push:
@@ -67,15 +66,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: python3 -m pip install --disable-pip-version-check --quiet cryptography requests
+        run: python3 -m pip install --disable-pip-version-check --quiet requests
 
       - name: Unit tests
         run: python3 -m unittest discover -s tools/algorithm/tests -v
 
       - name: Prepare auto-bump and publish
         env:
-          ALGORITHM_SIGNING_PRIVATE_KEY_B64: ${{ secrets.ALGORITHM_SIGNING_PRIVATE_KEY_B64 }}
-          ALGORITHM_SIGNING_KEY_ID: ${{ secrets.ALGORITHM_SIGNING_KEY_ID }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -87,12 +84,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/algorithm/check_signing_secret.py
-          KEY_ID="${ALGORITHM_SIGNING_KEY_ID:-hzzs-algorithm-official-1}"
-          echo "key_id=$KEY_ID"
-          export ALGORITHM_SIGNING_PRIVATE_KEY_B64="$(
-            python3 -c 'import os; print("".join(os.environ.get("ALGORITHM_SIGNING_PRIVATE_KEY_B64","").split()), end="")'
-          )"
 
           EXECUTE=true
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "${INPUT_EXECUTE:-true}" != "true" ]]; then
@@ -116,7 +107,6 @@ jobs:
 
           ARGS=(
             --channel "${INPUT_CHANNEL:-auto}"
-            --key-id "$KEY_ID"
             --mirrors "$MIRRORS"
             --work-dir build/algorithm-prepare
             --results-json build/algorithm-prepare/results.json

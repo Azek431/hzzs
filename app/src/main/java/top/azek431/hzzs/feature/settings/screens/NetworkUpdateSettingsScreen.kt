@@ -4,7 +4,7 @@
  * 职责：下载来源、Wi‑Fi 策略、算法通道/自动检查、应用更新检查下载安装。
  * 数据流：偏好经 [update] 草稿预览；检查/下载/安装为 ViewModel 即时任务。
  * 边界：不绕过签名校验；不在 feature 内直接 HTTP。
- * 算法包检查/下载已接入：HTTPS 目录 + 哈希 + Ed25519；无信任锚时下载 fail-closed。
+ * 算法包检查/下载已接入：HTTPS 目录 + 哈希 + ZIP 白名单（当前暂未启用 Ed25519 签名验签）。
  */
 package top.azek431.hzzs.feature.settings.screens
 
@@ -141,19 +141,8 @@ fun NetworkUpdateSettingsScreen(
         item {
             SettingsSectionCard(
                 title = "算法更新",
-                description = "通道偏好可保存。目录 HTTPS 拉取；下载需官方公钥信任锚与验签后才落盘。",
+                description = "通道偏好可保存。目录 HTTPS 拉取；下载经 size/sha256 + ZIP 白名单校验后落盘（当前暂未启用 Ed25519 签名验签）。",
             ) {
-                if (!top.azek431.hzzs.core.algorithm.AlgorithmTrustAnchors.hasOfficialAnchors()) {
-                    SettingsWarningCard(
-                        title = "尚未配置官方算法公钥",
-                        body = "仍可检查目录并使用内置引擎与应用捆绑包。远端下载会被拒绝，直到客户端写入官方公钥。",
-                    )
-                } else {
-                    SettingsWarningCard(
-                        title = "远端算法已可验签安装",
-                        body = "目录与包体走 release-index 双源 HTTPS；安装前校验大小、哈希与官方签名。捆绑包不经此路径。",
-                    )
-                }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AlgorithmChannel.entries.forEach { channel ->
                         SettingsRadioCard(
@@ -177,7 +166,7 @@ fun NetworkUpdateSettingsScreen(
                 )
                 SettingsSwitchRow(
                     title = "自动下载算法更新",
-                    subtitle = "检查后自动下载兼容最新包（需信任锚；手动模式不自动激活）。",
+                    subtitle = "检查后自动下载兼容最新包（手动模式不自动激活）。",
                     checked = config.algorithm.autoDownload,
                     onCheckedChange = { value ->
                         update { it.copy(algorithm = it.algorithm.copy(autoDownload = value)) }

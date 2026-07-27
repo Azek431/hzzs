@@ -4,7 +4,7 @@
 
 ## 模块职责
 
-算法包系统 = 声明式视觉参数（`.hzzsalg`）的下载、验签、落盘、选择与激活。
+算法包系统 = 声明式视觉参数（`.hzzsalg`）的下载、ZIP 白名单校验、落盘、选择与激活。
 **算法只算数据（`Detection`/`bounds`），不控制手势、Root、包名白名单、自动化门禁**。
 
 ## 分层（5 层，依赖方向向下）
@@ -15,14 +15,14 @@ feature/settings (UI)                  ← AlgorithmSettingsScreen / AlgorithmPi
 core/algorithm (StateFlow + 激活)      ← AlgorithmCatalogController / AlgorithmActivationCoordinator
     ↓ 委托
 core/algorithm/logic (纯函数)          ← AlgorithmCatalogPure（JVM 单测直测）
-core/algorithm (网络 + 验签 + 落盘)    ← AlgorithmNetworkClient / AlgorithmPackVerifier / InstalledAlgorithmStore
+core/algorithm (网络 + ZIP 白名单 + 落盘)    ← AlgorithmNetworkClient / InstalledAlgorithmStore
 domain/vision (领域模型)               ← AlgorithmRuntimeProfile / AlgorithmRulesParser / AlgorithmProfileValidator
 ```
 
 | 层 | 关键文件 | 职责 |
 |---|---|---|
 | 领域层 | `domain/vision/AlgorithmRuntimeProfile.kt`、`AlgorithmRulesParser.kt`、`VisionModels.kt` | 声明式参数模型、rules.json 解析、Profile 校验（fail-closed 回退内置） |
-| 目录/安装层 | `AlgorithmCatalogController.kt`、`AlgorithmNetworkClient.kt`、`AlgorithmPackVerifier.kt`、`InstalledAlgorithmStore.kt`、`BundledAlgorithmInstaller.kt` | StateFlow 目录、HTTPS 下载、Ed25519 验签、磁盘落盘、APK 捆绑预装 |
+| 目录/安装层 | `AlgorithmCatalogController.kt`、`AlgorithmNetworkClient.kt`、`InstalledAlgorithmStore.kt`、`BundledAlgorithmInstaller.kt` | StateFlow 目录、HTTPS 下载、ZIP 白名单校验、磁盘落盘、APK 捆绑预装 |
 | 纯函数层 | `logic/AlgorithmCatalogPure.kt` | 所有决策逻辑（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog / versionToCode / builtinPackages） |
 | 激活层 | `AlgorithmActivationCoordinator.kt`、`data/vision/DefaultActiveAlgorithmProvider.kt` | 配置提交/启动两点安全切换；analysisRunning 时只 pending；generation 单调递增 |
 | 追踪/诊断层 | `AlgorithmPipelineTrace.kt`、`AlgorithmRuntimeTrace.kt`、`AlgorithmTraceSinks.kt` | 管线阶段、帧级 ring、决策时间线；sink 接口供 ViewModel 注入 |
@@ -48,11 +48,10 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 - 帧循环凭此检测算法变更并进入安全点
 - 回退内置也递增 generation
 
-### 3. fail-closed
+### 3. 完整性校验
 
-- 信任锚空 → 外装下载安装 fail-closed（`AlgorithmTrustAnchors.hasOfficialAnchors()`）
 - Profile 校验失败 → 回退内置（`DefaultActiveAlgorithmProvider.activate`）
-- 包内 `publicKeyDerB64` 仅调试对照，生产校验**只**认 `AlgorithmTrustAnchors.officialPublicKeyDerB64`
+- 远端 `.hzzsalg` 经 HTTPS + size/sha256 + ZIP 白名单校验后落盘（0.1.0 暂未启用 Ed25519 签名验签；签名约束将来启用时以「fail-closed」规则回滚）
 
 ### 4. 「待启用」语义
 
@@ -66,17 +65,15 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 |---|---|---|
 | `AlgorithmActivationCoordinator.kt` | 11KB | **慎改**：两点激活语义 |
 | `AlgorithmCatalogController.kt` | 16KB（原 31KB） | 瘦身后只做 StateFlow 持有 + Android 边界 |
-| `AlgorithmNetworkClient.kt` | 9KB（原 16KB） | 只留 HTTPS 编排 |
+| `AlgorithmNetworkClient.kt` | 10KB（原 16KB） | HTTPS 编排 + ZIP 白名单解压（0.1.0 暂无 Ed25519） |
 | `logic/AlgorithmCatalogPure.kt` | 15KB | 纯函数集（JVM 单测覆盖） |
 | `AlgorithmTraceSinks.kt` | 3KB | 追踪层注入适配器 |
-| `AlgorithmModels.kt` | 8KB | UI 模型 + 状态 |
+| `AlgorithmModels.kt` | 8KB | UI 模型 + 状态（无签名/信任锚字段） |
 | `AlgorithmIds.kt` | 1.4KB | Catalog/Runtime ID 映射 |
-| `AlgorithmTrustAnchors.kt` | 1.3KB | 信任锚（公钥 DER base64） |
 | `AlgorithmPipelineTrace.kt` | 9KB | 管线阶段 object |
 | `AlgorithmRuntimeTrace.kt` | 12KB | 帧轨迹 object |
-| `AlgorithmPackVerifier.kt` | 8KB | ZIP 白名单 + Ed25519 验签 |
 | `InstalledAlgorithmStore.kt` | 11KB | 磁盘落盘 |
-| `BundledAlgorithmInstaller.kt` | 7.6KB | APK 捆绑预装 |
+| `BundledAlgorithmInstaller.kt` | 7.6KB | APK 捆绑预装（不经外装验签） |
 
 ## 测试
 

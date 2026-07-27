@@ -2,7 +2,7 @@
 """Prepare packs for publish: auto PATCH bump when remote (id,version) content differs.
 
 Flow per source pack:
-1. validate + build/sign locally
+1. validate + build locally
 2. load remote channel catalog (best-effort)
 3. if remote has same (id, version) with same sha256 → skip (already published)
 4. if remote has same (id, version) with different sha256 → bump PATCH, rebuild
@@ -61,57 +61,48 @@ def _find_entry(
     return None
 
 
-def _local_signed_sha(
+def _local_unsigned_sha(
     source: Path,
     work_dir: Path,
     *,
     channel: str,
-    key_id: str,
-    private_key: Path | None,
-    private_key_b64: str | None,
 ) -> tuple[str, str, str]:
-    """Return (id, version, sha256) after dry-run build/sign into work_dir."""
+    """Return (id, version, sha256) after dry-run build into work_dir."""
     ns = argparse.Namespace(
         source=source,
         work_dir=work_dir,
         channel=channel,
         owner="Azek431",
         repo="hzzs",
-        private_key=private_key,
-        private_key_b64=private_key_b64,
-        key_id=key_id,
         generated_at=None,
         mirrors="github",
         execute=False,
     )
     code = publish(ns)
     if code != 0:
-        raise AlgorithmPackError(f"local sign failed for {source}")
+        raise AlgorithmPackError(f"local build failed for {source}")
     manifest = validate_source(source)["manifest"]
     pack_id = str(manifest["id"])
     version = str(manifest["version"])
-    # publish writes signed file as package_filename
+    # publish writes unsigned file as package_filename
     from common import package_filename
 
-    signed = work_dir / package_filename(pack_id, version)
-    if not signed.is_file():
+    unsigned = work_dir / package_filename(pack_id, version)
+    if not unsigned.is_file():
         # fallback: any hzzsalg in work_dir
         candidates = list(work_dir.glob("*.hzzsalg"))
         if not candidates:
-            raise AlgorithmPackError(f"no signed package in {work_dir}")
-        signed = candidates[0]
+            raise AlgorithmPackError(f"no unsigned package in {work_dir}")
+        unsigned = candidates[0]
     from common import sha256_file
 
-    return pack_id, version, sha256_file(signed)
+    return pack_id, version, sha256_file(unsigned)
 
 
 def prepare_one(
     source: Path,
     *,
     channel_force: str,
-    key_id: str,
-    private_key: Path | None,
-    private_key_b64: str | None,
     execute: bool,
     mirrors: str,
     auto_bump: bool,
@@ -125,13 +116,10 @@ def prepare_one(
         shutil.rmtree(work)
     work.mkdir(parents=True)
 
-    pack_id, version, sha = _local_signed_sha(
+    pack_id, version, sha = _local_unsigned_sha(
         source,
         work / "probe",
         channel=channel,
-        key_id=key_id,
-        private_key=private_key,
-        private_key_b64=private_key_b64,
     )
     remote = load_remote_catalog_algorithms(
         owner="Azek431",
@@ -174,13 +162,10 @@ def prepare_one(
         version = info["new_version"]
         # rebuild after bump
         shutil.rmtree(work / "probe", ignore_errors=True)
-        pack_id, version, sha = _local_signed_sha(
+        pack_id, version, sha = _local_unsigned_sha(
             source,
             work / "probe2",
             channel=channel,
-            key_id=key_id,
-            private_key=private_key,
-            private_key_b64=private_key_b64,
         )
         # if still colliding (unlikely), bump again once
         remote2 = load_remote_catalog_algorithms(
@@ -203,9 +188,6 @@ def prepare_one(
         channel=channel,
         owner="Azek431",
         repo="hzzs",
-        private_key=private_key,
-        private_key_b64=private_key_b64,
-        key_id=key_id,
         generated_at=None,
         mirrors=mirrors,
         execute=execute,
@@ -250,9 +232,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Pack source (repeatable). Default: all algorithm-packs/* with manifest+rules",
     )
     parser.add_argument("--channel", default="auto", choices=("auto", "stable", "beta"))
-    parser.add_argument("--key-id", default=os.environ.get("ALGORITHM_SIGNING_KEY_ID"))
-    parser.add_argument("--private-key", type=Path)
-    parser.add_argument("--private-key-b64")
     parser.add_argument("--mirrors", default=os.environ.get("ALGORITHM_PUBLISH_MIRRORS", "github"))
     parser.add_argument("--execute", action="store_true")
     parser.add_argument(
@@ -279,7 +258,6 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: no packs found", file=sys.stderr)
         return 1
 
-    key_id = args.key_id or "hzzs-algorithm-official-1"
     results: list[dict[str, Any]] = []
     args.work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -290,9 +268,6 @@ def main(argv: list[str] | None = None) -> int:
                 prepare_one(
                     source,
                     channel_force=args.channel,
-                    key_id=key_id,
-                    private_key=args.private_key,
-                    private_key_b64=args.private_key_b64,
                     execute=args.execute,
                     mirrors=args.mirrors,
                     auto_bump=auto_bump,

@@ -291,7 +291,6 @@ class McpActionRegistry @Inject constructor(
             put("pendingActivationId", catalog.pendingActivation?.id ?: JSONObject.NULL)
             put("selectionMode", catalog.selectionMode.name)
             put("channel", catalog.channel.name)
-            put("trustAnchorsConfigured", catalog.trustAnchorsConfigured)
             put("analysisRunning", catalog.analysisRunning)
         }
     }
@@ -303,7 +302,6 @@ class McpActionRegistry @Inject constructor(
             put("message", state.message ?: JSONObject.NULL)
             put("selectionMode", state.selectionMode.name)
             put("channel", state.channel.name)
-            put("trustAnchorsConfigured", state.trustAnchorsConfigured)
             put("analysisRunning", state.analysisRunning)
             put("active", state.active?.let { AlgorithmPackageInfoToJson(it) } ?: JSONObject.NULL)
             put("pendingActivation", state.pendingActivation?.let { AlgorithmPackageInfoToJson(it) } ?: JSONObject.NULL)
@@ -335,7 +333,6 @@ class McpActionRegistry @Inject constructor(
             .put("versionCode", info.versionCode)
             .put("channel", info.channel.name)
             .put("origin", info.origin.name)
-            .put("signature", info.signature.name)
             .put("isCompatible", info.isCompatible)
             .put("isInstalled", info.isInstalled)
             .put("isBuiltin", info.isBuiltin)
@@ -557,7 +554,6 @@ class McpActionRegistry @Inject constructor(
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Empty -> "Empty"
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.OfflineWithCache -> "OfflineWithCache"
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.MirrorFallback -> "MirrorFallback"
-        is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.SecurityWarning -> "SecurityWarning"
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Downloading -> "Downloading"
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Verifying -> "Verifying"
         is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.PendingActivation -> "PendingActivation"

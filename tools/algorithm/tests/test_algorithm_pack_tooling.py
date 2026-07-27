@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-import base64
 import json
-import os
 import shutil
 import sys
 import tempfile
@@ -20,8 +18,6 @@ if str(ALG) not in sys.path:
 
 from build_algorithm_catalog import (  # noqa: E402
     build_catalog_payload,
-    sign_catalog,
-    verify_catalog_document,
 )
 from build_algorithm_pack import build_package  # noqa: E402
 from common import (  # noqa: E402
@@ -34,7 +30,6 @@ from common import (  # noqa: E402
     validate_rules,
     write_deterministic_zip,
 )
-from sign_algorithm_pack import load_private_key, sign_package  # noqa: E402
 from validate_algorithm_pack import validate_source  # noqa: E402
 from verify_algorithm_pack import verify_package  # noqa: E402
 
@@ -45,41 +40,6 @@ class AlgorithmPackToolingTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmpdir = Path(tempfile.mkdtemp(prefix="hzzs-alg-"))
         self.addCleanup(lambda: shutil.rmtree(self.tmpdir, ignore_errors=True))
-        self.private = self.tmpdir / "private.pem"
-        self.public = self.tmpdir / "public.pem"
-        # generate_keypair prints; capture via direct call
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        from cryptography.hazmat.primitives import serialization
-
-        key = Ed25519PrivateKey.generate()
-        self.private.write_bytes(
-            key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-        )
-        self.public.write_bytes(
-            key.public_key().public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo,
-            )
-        )
-        self.key_id = "hzzs-algorithm-official-1"
-
-    def _signed_official(self) -> Path:
-        unsigned = build_package(OFFICIAL, self.tmpdir / "out")
-        signed = self.tmpdir / package_filename("official-bamboo-baseline", "0.1.0")
-        # build_package may already write expected name into out dir
-        if unsigned.name != signed.name:
-            signed = self.tmpdir / "signed.hzzsalg"
-        sign_package(
-            unsigned,
-            signed,
-            private_key=load_private_key(private_key_path=self.private, private_key_b64=None),
-            key_id=self.key_id,
-        )
-        return signed
 
     def test_official_source_validates(self) -> None:
         result = validate_source(OFFICIAL)
@@ -141,37 +101,14 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         self.assertEqual(a.read_bytes(), b.read_bytes())
         self.assertEqual(sha256_file(a), sha256_file(b))
 
-    def test_sign_and_verify(self) -> None:
-        signed = self._signed_official()
-        result = verify_package(
-            signed,
-            public_key_path=self.public,
-            require_key_id=self.key_id,
-        )
+    def test_unsigned_package_builds_and_verifies(self) -> None:
+        """构建无符号包并验证完整性（清单/规则/变更日志 + 文件摘要）。"""
+        unsigned = build_package(OFFICIAL, self.tmpdir / "unsigned.hzzsalg")
+        result = verify_package(unsigned)
         self.assertEqual(result["id"], "official-bamboo-baseline")
         self.assertEqual(result["version"], "0.1.0")
-
-    def test_tampered_file_fails(self) -> None:
-        signed = self._signed_official()
-        entries = read_zip_entries(signed, allow_signature=True)
-        entries["CHANGELOG.txt"] = b"tampered\n"
-        bad = self.tmpdir / "tampered-file.hzzsalg"
-        write_deterministic_zip(bad, entries)
-        with self.assertRaises(AlgorithmPackError):
-            verify_package(bad, public_key_path=self.public, require_key_id=self.key_id)
-
-    def test_tampered_manifest_fails(self) -> None:
-        signed = self._signed_official()
-        entries = read_zip_entries(signed, allow_signature=True)
-        manifest = json.loads(entries["manifest.json"].decode("utf-8"))
-        manifest["description"] = "mutated description"
-        entries["manifest.json"] = (
-            json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-        ).encode("utf-8")
-        bad = self.tmpdir / "tampered-manifest.hzzsalg"
-        write_deterministic_zip(bad, entries)
-        with self.assertRaises(AlgorithmPackError):
-            verify_package(bad, public_key_path=self.public, require_key_id=self.key_id)
+        self.assertIn("sha256", result)
+        self.assertEqual(len(result["sha256"]), 64)
 
     def test_duplicate_path_rejected(self) -> None:
         path = self.tmpdir / "dup.hzzsalg"
@@ -180,14 +117,14 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             # ZipFile allows writing same name twice in some modes; force dual entries.
             archive.writestr("manifest.json", b"{}")
         with self.assertRaises(AlgorithmPackError):
-            read_zip_entries(path, allow_signature=False)
+            read_zip_entries(path)
 
     def test_path_traversal_rejected(self) -> None:
         path = self.tmpdir / "trav.hzzsalg"
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("../evil.json", b"{}")
         with self.assertRaises(AlgorithmPackError):
-            read_zip_entries(path, allow_signature=False)
+            read_zip_entries(path)
 
     def test_absolute_path_rejected(self) -> None:
         path = self.tmpdir / "abs.hzzsalg"
@@ -196,7 +133,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             info = zipfile.ZipInfo("/tmp/evil.json")
             archive.writestr(info, b"{}")
         with self.assertRaises(AlgorithmPackError):
-            read_zip_entries(path, allow_signature=False)
+            read_zip_entries(path)
 
     def test_zip_bomb_total_size_rejected(self) -> None:
         path = self.tmpdir / "bomb.hzzsalg"
@@ -205,7 +142,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", payload)
         with self.assertRaises(AlgorithmPackError):
-            read_zip_entries(path, allow_signature=False)
+            read_zip_entries(path)
 
     def test_oversized_file_rejected_on_source(self) -> None:
         source = self.tmpdir / "big-source"
@@ -231,31 +168,25 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
 
     def test_stable_beta_catalog_isolation(self) -> None:
-        signed = self._signed_official()
+        unsigned = build_package(OFFICIAL, self.tmpdir / "unsigned.hzzsalg")
         # Ensure filename matches expected package name for catalog entry
         expected = self.tmpdir / package_filename("official-bamboo-baseline", "0.1.0")
-        if signed != expected:
-            expected.write_bytes(signed.read_bytes())
-            signed = expected
-        private = load_private_key(private_key_path=self.private, private_key_b64=None)
+        if unsigned != expected:
+            expected.write_bytes(unsigned.read_bytes())
+            unsigned = expected
         from build_algorithm_catalog import algorithm_entry_from_package
 
         entry = algorithm_entry_from_package(
-            signed,
-            public_key=self.public,
-            public_key_b64_value=None,
-            key_id=self.key_id,
+            unsigned,
             channel="stable",
         )
         stable_payload = build_catalog_payload(
             channel="stable",
-            key_id=self.key_id,
             algorithms=[entry],
             generated_at="2026-07-21T00:00:00Z",
         )
         beta_payload = build_catalog_payload(
             channel="beta",
-            key_id=self.key_id,
             algorithms=[entry],
             generated_at="2026-07-21T00:00:00Z",
         )
@@ -265,10 +196,6 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             json.dumps(stable_payload, sort_keys=True),
             json.dumps(beta_payload, sort_keys=True),
         )
-        stable_doc = sign_catalog(stable_payload, private, self.key_id)
-        beta_doc = sign_catalog(beta_payload, private, self.key_id)
-        verify_catalog_document(stable_doc, public_key_path=self.public, require_key_id=self.key_id)
-        verify_catalog_document(beta_doc, public_key_path=self.public, require_key_id=self.key_id)
 
     def test_revoked_flag_propagates(self) -> None:
         source = self.tmpdir / "revoked-source"
@@ -282,14 +209,12 @@ class AlgorithmPackToolingTest(unittest.TestCase):
             encoding="utf-8",
         )
         unsigned = build_package(source, self.tmpdir / "revoked-unsigned.hzzsalg")
-        signed = self.tmpdir / package_filename("official-bamboo-baseline", "1.0.1")
-        sign_package(
-            unsigned,
-            signed,
-            private_key=load_private_key(private_key_path=self.private, private_key_b64=None),
-            key_id=self.key_id,
-        )
-        result = verify_package(signed, public_key_path=self.public, require_key_id=self.key_id)
+        # 重命名为预期文件名
+        expected = self.tmpdir / package_filename("official-bamboo-baseline", "1.0.1")
+        if unsigned != expected:
+            expected.write_bytes(unsigned.read_bytes())
+            unsigned = expected
+        result = verify_package(unsigned)
         self.assertTrue(result["revoked"])
 
     def test_publish_dry_run(self) -> None:
@@ -301,10 +226,6 @@ class AlgorithmPackToolingTest(unittest.TestCase):
                 str(OFFICIAL),
                 "--work-dir",
                 str(self.tmpdir / "publish"),
-                "--private-key",
-                str(self.private),
-                "--key-id",
-                self.key_id,
                 "--channel",
                 "stable",
                 "--generated-at",
@@ -313,60 +234,16 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         work = self.tmpdir / "publish"
-        signed = work / package_filename("official-bamboo-baseline", "0.1.0")
-        self.assertTrue(signed.is_file())
+        # 无符号包直接放在 work 目录下
+        unsigned = work / package_filename("official-bamboo-baseline", "0.1.0")
+        self.assertTrue(unsigned.is_file())
         self.assertTrue((work / "stable.json").is_file())
         self.assertTrue((work / "SHA256SUMS").is_file())
         catalog = json.loads((work / "stable.json").read_text(encoding="utf-8"))
-        self.assertIn("catalogSignature", catalog)
+        self.assertNotIn("catalogSignature", catalog)
         self.assertEqual(catalog["channel"], "stable")
         # dry-run must not require network tokens
         self.assertNotIn("execute", sys.argv)
-
-    def test_private_key_b64_env_style(self) -> None:
-        pem = self.private.read_bytes()
-        b64 = base64.b64encode(pem).decode("ascii")
-        key = load_private_key(private_key_path=None, private_key_b64=b64)
-        self.assertIsNotNone(key)
-
-    def test_private_key_double_base64_autoheal(self) -> None:
-        """GitHub Secret 常见误配：对已是 base64 的 txt 再 ToBase64 一次。"""
-        from sign_algorithm_pack import decode_private_key_pem_from_secret
-
-        pem = self.private.read_bytes()
-        once = base64.b64encode(pem).decode("ascii")
-        twice = base64.b64encode(once.encode("ascii")).decode("ascii")
-        key = load_private_key(private_key_path=None, private_key_b64=twice)
-        self.assertIsNotNone(key)
-        decoded, diag = decode_private_key_pem_from_secret(twice)
-        self.assertTrue(diag.get("autoheal_double_base64"))
-        self.assertEqual(diag.get("form"), "double_base64_pem")
-        self.assertEqual(decoded, pem)
-
-    def test_private_key_raw_pem_secret(self) -> None:
-        pem = self.private.read_bytes().decode("ascii")
-        key = load_private_key(private_key_path=None, private_key_b64=pem)
-        self.assertIsNotNone(key)
-
-    def test_check_signing_secret_accepts_double_base64(self) -> None:
-        import subprocess
-
-        pem = self.private.read_bytes()
-        once = base64.b64encode(pem).decode("ascii")
-        twice = base64.b64encode(once.encode("ascii")).decode("ascii")
-        script = ALG / "check_signing_secret.py"
-        env = os.environ.copy()
-        env["ALGORITHM_SIGNING_PRIVATE_KEY_B64"] = twice
-        completed = subprocess.run(
-            [sys.executable, str(script)],
-            capture_output=True,
-            text=True,
-            env=env,
-            check=False,
-        )
-        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-        self.assertIn("secret_shape_ok=true", completed.stdout)
-        self.assertIn("autoheal_double_base64=True", completed.stdout)
 
     def test_bump_algorithm_version_patch(self) -> None:
         from bump_algorithm_version import bump_pack, bump_semver

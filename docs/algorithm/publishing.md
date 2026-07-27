@@ -1,5 +1,7 @@
 # 算法包网络发布（无 Release tag）
 
+> **当前实现状态（0.1.0）**：为简化首发，客户端**暂未启用 Ed25519 官方签名验签**。`AlgorithmPackVerifier` / `AlgorithmTrustAnchors` 已移除；远端 `.hzzsalg` 仅走 HTTPS + size/sha256 + ZIP 白名单（`manifest.json` / `rules.json` / `CHANGELOG.txt`，无签名文件）校验后落盘。`release-index` 协议、目录 schema、发布流程、`tools/algorithm/` 脚本**保持原样**，待签名私钥就位后重新启用验签分支即可回滚。
+
 应用**检测算法更新**只读 `release-index` 分支上的目录 JSON，**不**扫 GitHub Release、**不**要求 `alg-…` tag。完整流程见根 `CLAUDE.md`（历史真相源）。
 
 ## 真相源与路径

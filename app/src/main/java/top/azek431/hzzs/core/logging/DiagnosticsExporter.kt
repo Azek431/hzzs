@@ -319,7 +319,7 @@ object DiagnosticsExporter {
             appendLine("- Debug frame pixels are not included.")
             appendLine("- Timestamps use the device local timezone with offset (not UTC Z).")
             appendLine("- Overlay DEBUG_HUD / FPS / diagnostics toggles live under Overlay settings.")
-            appendLine("- External algorithm packs need release-index catalog + AlgorithmTrustAnchors public key.")
+            appendLine("- External algorithm packs need release-index catalog + sha256 verification (Ed25519 official signing not yet enabled in 0.1.0).")
             appendLine(
                 "- Algorithm frame AppLog tags: algo.frame / algo.det / algo.track / algo.decision " +
                     "(developer on + logLevel≤DEBUG for frames; decisions INFO on skip/plan/dispatch/calc). " +

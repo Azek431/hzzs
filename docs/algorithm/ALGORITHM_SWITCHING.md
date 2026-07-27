@@ -1,5 +1,7 @@
 # 算法切换真相源（ALGORITHM_SWITCHING）
 
+> **当前实现状态（0.1.0）**：客户端暂未启用 Ed25519 签名验签（`AlgorithmPackVerifier` / `AlgorithmTrustAnchors` 已移除）。远端 `.hzzsalg` 经 HTTPS + size/sha256 + ZIP 白名单校验后落盘；下载不再因「未配置信任锚」而 fail-closed。签名相关分支（`SecurityWarning` 相位、`trustAnchorsConfigured`、`keyId` 校验）当前均未启用，下文以「⚠ 暂不启用」标注。
+
 本文是 **算法切换 / 激活** 的完整链路真相源，包含时序图与失败/回退边界表。
 代理改算法切换相关代码前**必读**；包级导航见目录级 `CLAUDE.md`。
 

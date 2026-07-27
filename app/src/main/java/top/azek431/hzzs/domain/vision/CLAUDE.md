@@ -69,14 +69,14 @@ core/algorithm/AlgorithmCatalogPure           ──→ 纯函数层（不反向
 - 可执行代码（`.so` / Dex / Jar / 脚本 / 模型权重）
 - 手势、点击、Root、包名白名单、自动化门禁字段
 
-违反 → `AlgorithmRulesParser` 忽略；`AlgorithmProfileValidator` 拒绝；`AlgorithmPackVerifier` 拒绝。
+违反 → `AlgorithmRulesParser` 忽略；`AlgorithmProfileValidator` 拒绝。⚠ 当前 0.1.0 已移除 `AlgorithmPackVerifier`（暂未启用 Ed25519 签名验签）。
 
 ## 改这个包前必读
 
 - **扩展 `Avoidance` 枚举**（CC-2）：同步四方 —— 本文件 `Avoidance`、`core/model/DisplayNames.kt`、`data/vision/VisionRuntimeController.planGestures`、C++ `vision_types.h` 与 `ObstacleKind`。
 - **扩展 `ObjectKind`**：同步 Kotlin 枚举、场景过滤、JNI 位掩码、C++ 类别、数据集报告（见 `app/CLAUDE.md` 「Avoidance 枚举扩展」）。
 - **修改 `SceneAlgorithmParams` 字段**：必须同步 `AlgorithmRulesParser.mergeEngine` 的 key 名、`AlgorithmProfileValidator.validateScene` 的范围、`AlgorithmRuntimeProfile.builtin()` 三处赛季默认值。字段若被「算法包网络更新」使用，还需同步 `docs/ALGORITHM_SYSTEM_V1.md`。
-- **算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 若清空，外装「官方」包须 fail-closed（私钥永不入库）。
+- **算法信任锚**：⚠ 当前 0.1.0 暂未启用签名验签（`AlgorithmTrustAnchors` 已移除），远端仅走 sha256 完整性校验。将来若启用：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 若清空，外装「官方」包须 fail-closed（私钥永不入库）。
 
 ## 测试
 

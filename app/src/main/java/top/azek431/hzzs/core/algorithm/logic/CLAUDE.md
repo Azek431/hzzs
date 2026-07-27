@@ -20,12 +20,12 @@
 
 | 函数 | 输入 | 输出 | 用途 |
 | --- | --- | --- | --- |
-| `parseCatalog(raw, channel, source, appVersionCode, trustAnchorsConfigured)` | 目录 JSON 文本 + 元数据 | `List<CatalogRemoteEntry>` | 目录 JSON → 模型；校验 schema/id/文件名/sha256 |
+| `parseCatalog(raw, channel, source, appVersionCode)` | 目录 JSON 文本 + 元数据 | `List<CatalogRemoteEntry>` | 目录 JSON → 模型；校验 schema/id/文件名/sha256 |
 | `resolveActive(installed, pinned, mode, scene)` | 已装列表 + 钉选 ID + 模式 + 场景 | `AlgorithmPackageInfo?` | MANUAL 钉选优先 → builtin；AUTO 场景兼容最新 |
 | `previousOf(installed, activeId)` | 已装列表 + 当前激活 ID | `AlgorithmPackageInfo?` | 回滚按钮候选（最高 version 非内置非当前） |
 | `mergeInstalled(current, extras)` | 两个列表 | `List<AlgorithmPackageInfo>` | 按 id 去重，bundled/已安装覆盖远端 |
 | `mergeDiskInstalled(records)` | `List<InstalledAlgorithmRecord>` | `List<AlgorithmPackageInfo>` | 磁盘记录 → UI 模型（纯映射） |
-| `planUpgrades(installed, remote, trustAnchorsConfigured)` | 已装 + 远端 + 锚 | `UpgradePlan` | 可升级包（纯计划，不触发下载） |
+| `planUpgrades(installed, remote)` | 已装 + 远端 | `UpgradePlan` | 可升级包（纯计划，不触发下载） |
 | `computePending(pendingFromUi, activeId, pinnedId, mode, analysisRunning)` | pending 上下文 | `AlgorithmPackageInfo?` | 推导「待启用」包（分析中保留，未分析且钉选已激活则清） |
 | `catalogPhaseAfter(current, remoteInfos, installed, catalog)` | 相位上下文 | `AlgorithmCatalogPhase` | 由远端/已装列表推导目录相位 |
 | `sortInstalled(installed, activeId, scene)` | 列表 + 当前 ID + 场景 | `Comparator<AlgorithmPackageInfo>` | 已安装排序 |

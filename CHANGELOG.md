@@ -76,9 +76,9 @@
 - **MCP 服务仅跟已保存配置启停**：`savedConfig` 驱动前台服务；设置草稿改端口/鉴权/LAN **不**重启 socket。工具策略 `tools/list` 仍跟 `current()`（含预览），并缓存避免 `runBlocking`。
 - **MCP 可选局域网绑定**：设置页「允许局域网访问」经风险确认后 `bindLocalhostOnly=false`，服务绑 `0.0.0.0`；探测 IPv4 供复制。默认仍 loopback；导入默认不得静默开局域网，可经 `ExternalIngestElevations` 用户确认放行。Origin 仍拒绝非 loopback 浏览器跨源。
 
-- **算法官方钥轮换**：`hzzs-algorithm-official-1` 公钥与 `official-public-keys/` 对齐到新 Ed25519 钥；`AlgorithmTrustAnchors` 同步。须用配对私钥配置 GitHub Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64`；已装旧公钥 APK 无法验签新包，需装含新锚的版本。
+- **算法官方钥轮换**：`hzzs-algorithm-official-1` 公钥与 `official-public-keys/` 对齐到新 Ed25519 钥；`AlgorithmTrustAnchors` 同步。须用配对私钥配置 GitHub Secret `ALGORITHM_SIGNING_PRIVATE_KEY_B64`；已装旧公钥 APK 无法验签新包，需装含新锚的版本。⚠ 当前 0.1.0 暂未启用签名验签（`AlgorithmTrustAnchors` / `AlgorithmPackVerifier` 已移除），远端仅走 sha256 完整性校验。
 - **算法与绘制职责表述对齐**：明确算法（含多点找色）只算 `Detection` 数据，屏幕呈现由通用 Overlay/`displayContour` 完成（数据关联、职责分离）；文档与关键注释同步，避免「算法无绘制」被误解为「屏幕不该有框」。行为未改。
-- **算法 push 自动发布（GitHub）**：`algorithm-release.yml` 在 `main` 上变更 `algorithm-packs/**` 时自动签 `.hzzsalg` 并写入 `release-index`；默认仅 GitHub 镜像（可选 Gitee）。`publish_algorithm_release.py` 支持 `--mirrors github`。手机保持 `algorithm.autoCheck` 即可检查/下载（需配置算法签名 Secrets）。
+- **算法 push 自动发布（GitHub）**：`algorithm-release.yml` 在 `main` 上变更 `algorithm-packs/**` 时自动签 `.hzzsalg` 并写入 `release-index`；默认仅 GitHub 镜像（可选 Gitee）。`publish_algorithm_release.py` 支持 `--mirrors github`。手机保持 `algorithm.autoCheck` 即可检查/下载（需配置算法签名 Secrets）。⚠ 当前 0.1.0 暂未启用签名：CI 不再需要 `ALGORITHM_SIGNING_*` Secrets，发布 unsigned 包 + 无签名目录。
 - **触发距离运行时自调**：`AutomationConfig.autoAdjustTriggerDistance` 默认开启。分析中若有可行动障碍却因距离略远 `no_candidate`，按 `nearGap` 缓升玩家宽度倍数（冷却与单步上限）；规划成功且间隙偏近时向滑条基线缓降；约 4s 节流写回配置。设置「自动操作」可关；**不**静默开自动操作。
 - **首次引导 5 步重构**：欢迎（产品+隐私合并）→ 赛季 → 截图（与设置同源 `CaptureCapability`，仅 AUTO/录屏/无障碍）→ 权限（可稍后）→ 完成（外观预览 + 折叠高级自动操作）。对齐 Design System 2.0（HeroCard / SectionCard / Callout / RadioCard）；步骤点指示；自动操作默认关，折叠区开启仍走倒计时+免责声明。
 - **设置草稿预览 + 显式保存**：开关/选项写入进程内 preview（可即时预览主题/悬浮窗等），顶栏右上角「保存并应用」才落盘；分类间切换保留草稿；离开设置或切走主导航时若有未保存更改则弹窗（保存并离开 / 丢弃 / 取消）。手动开启自动操作仍走风险倒计时+免责声明；导入/迁移/MCP 外部摄入仍不得静默开启自动操作。首页分组/搜索保持。
@@ -90,7 +90,7 @@
 - **MCP 默认免鉴权 + 持久 Token**：`requireAuth` 默认 `false`（同机 RikkaHub 免填 Header）；开启鉴权时使用配置中持久化的 `authToken`，**不**在每次服务启动轮换，仅设置页「轮换 Token」主动更换。外部摄入不得静默关鉴权或改写令牌；Bearer 前缀比较大小写不敏感。
 - **算法运行轨迹日志**：新增 `AlgorithmRuntimeTrace`（最近 32 帧 ring，无像素）。帧循环写入识别摘要 / 检测明细 / Tracker 稳定帧 / 自动操作决策与 dispatch 结果；AppLog 标签 `algo.frame` / `algo.det` / `algo.track` / `algo.decision`，仅在开发者开启且 `logLevel≤DEBUG` 时输出，并按「状态变化或每 12 帧」节流。诊断导出附带算法 pipeline 快照与最近帧轨迹。
 - **APK 捆绑声明式算法**：`assets/algorithms/*` 经 `BundledAlgorithmInstaller` 预装到 `InstalledAlgorithmStore`（不经外装 Ed25519）。同 id 的 **bundled** 在 assets 更高 version 时可升级覆盖；网络外装见「捆绑算法按版本升级」。首版捆绑 `official-bamboo-baseline` 与 `sea-salt-living-room-v1`（酱油）。
-- **官方算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 写入 `hzzs-algorithm-official-1` 公钥（DER base64）；公钥副本在 `algorithm-packs/official-public-keys/`。私钥仍仅 CI/本机。
+- **官方算法信任锚**：`AlgorithmTrustAnchors.officialPublicKeyDerB64` 写入 `hzzs-algorithm-official-1` 公钥（DER base64）；公钥副本在 `algorithm-packs/official-public-keys/`。私钥仍仅 CI/本机。⚠ 当前 0.1.0 暂未启用签名验签（`AlgorithmTrustAnchors` / `AlgorithmPackVerifier` 已移除），远端仅走 sha256 完整性校验。
 - **算法库 / 检测参数拆页**：设置「算法库」专注内置·捆绑·远端切换与通道；「检测参数」单独配置赛季/障碍/玩家基准/workWidth/置信度/稳定帧；自动操作页暴露三赛季触发距离与节流。卡片列表可直接「使用此版本」。
 
 ### 修复
@@ -123,7 +123,7 @@
 - **海盐场景置信度与自动操作门闩**：FIXED_RATIO 不再按「玩家失败」压低 `sceneConfidence`；有障碍/找色命中时至少抬到 0.85/0.88，避免稳定检出 `SEA_PIT` 却因 `0.68<0.82` 永不派发手势。
 - **海盐多点找色对齐酱油脚本**：按 AutoJS 源（设计 1272×2772、颜色 `0xAARRGGBB`）重录大/小断崖、矮/高沙丘、船锚五条模板；搜索带默认 0.438–0.881、阈值 10；船锚动作为 `SLIDE`（向下滑）；bounds 用点集包络而非专用绘制层；不移植「复活」UI 点击。
 - **算法 analysisRunning 同步**：`VisionRuntimeController` start/stop/异常路径经 `AlgorithmCatalogController.setAnalysisRunning`，避免分析中下载半热激活与 UI pending 文案错位。
-- **无信任锚时下载按钮降级**：算法卡 `canDownloadRemote` + 状态 `trustAnchorsConfigured`；远端不可装时禁用「下载/更新」并给出说明。
+- **无信任锚时下载按钮降级**：算法卡 `canDownloadRemote` + 状态 `trustAnchorsConfigured`；远端不可装时禁用「下载/更新」并给出说明。⚠ 当前 0.1.0 已移除该降级：远端包始终可下载（仅走 sha256 校验）。
 - **网络页算法文案**：去掉「演示 / 安装器未接入」过时表述；Wi‑Fi 策略说明覆盖算法包大文件下载。
 - **host 测试脚本执行权限**：`run_host_tests` / `evaluate_dataset` / `batch_recognize` 经 `host_build.py` 用 `bash`/`powershell` 调用构建脚本，不再直接 exec 可能无 `+x` 的 `build_host.sh`（GitHub Actions 上 `PermissionError`）。
 - **算法目录兼容与路径安全**：`AlgorithmNetworkClient` 使用本应用真实 `versionCode` 计算 `isCompatible`；校验算法 `id` / `sha256` 格式；staging 文件名仅用 SAFE_ID。

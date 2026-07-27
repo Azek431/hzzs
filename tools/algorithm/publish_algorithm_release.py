@@ -3,12 +3,12 @@
 
 Publishing order (atomic catalog last) — **no GitHub/Gitee Release tags**:
 1. Validate source
-2. Build + sign package
-3. Local verify
-4. Upload package (+ checksums + public key) to release-index branch under
+2. Build unsigned package
+3. Local verify (integrity only)
+4. Upload package (+ checksums) to release-index branch under
    algorithms/packages/
-5. Anonymous download both Gitee/GitHub raw mirrors, compare SHA-256 + verify signatures
-6. Build and sign catalog (stable.json / beta.json)
+5. Anonymous download both Gitee/GitHub raw mirrors, compare SHA-256 + verify integrity
+6. Build unsigned catalog (stable.json / beta.json)
 7. Publish catalog to release-index only after all prior steps succeed
 
 Network operations require explicit --execute. Default is dry-run.
@@ -29,8 +29,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from cryptography.hazmat.primitives import serialization
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -44,11 +42,8 @@ from common import (  # noqa: E402
 from build_algorithm_catalog import (  # noqa: E402
     algorithm_entry_from_package,
     build_catalog_payload,
-    sign_catalog,
-    verify_catalog_document,
 )
 from build_algorithm_pack import build_package  # noqa: E402
-from sign_algorithm_pack import load_private_key, public_key_b64, sign_package  # noqa: E402
 from validate_algorithm_pack import validate_source  # noqa: E402
 from verify_algorithm_pack import verify_package  # noqa: E402
 
@@ -58,7 +53,6 @@ def _redact(text: str) -> str:
         "GH_TOKEN",
         "GITHUB_TOKEN",
         "GITEE_TOKEN",
-        "ALGORITHM_SIGNING_PRIVATE_KEY_B64",
     ):
         value = os.environ.get(key)
         if value:
@@ -72,13 +66,6 @@ def _log(message: str) -> None:
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _public_pem(private_key) -> str:
-    return private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode("ascii")
 
 
 def anonymous_download(url: str, retries: int = 4) -> bytes:
@@ -342,37 +329,23 @@ def publish(arguments: argparse.Namespace) -> int:
     unsigned_dir.mkdir(parents=True, exist_ok=True)
     unsigned = build_package(source, unsigned_dir)
 
-    key_id = arguments.key_id or os.environ.get(
-        "ALGORITHM_SIGNING_KEY_ID", "hzzs-algorithm-official-1"
-    )
-    private_key = load_private_key(
-        private_key_path=arguments.private_key,
-        private_key_b64=arguments.private_key_b64,
-    )
     manifest = validate_source(source)["manifest"]
     filename = package_filename(manifest["id"], manifest["version"])
     asset_path = f"algorithms/packages/{filename}"
-    signed_path = out_dir / filename
-    sign_package(unsigned, signed_path, private_key=private_key, key_id=key_id)
+    # 无符号包直接作为发布包，放在 work 根目录
+    package_path = out_dir / filename
+    if unsigned != package_path:
+        import shutil
+        shutil.copy2(unsigned, package_path)
 
-    public_pem_path = out_dir / "algorithm-public-key.pem"
-    public_pem_path.write_text(_public_pem(private_key), encoding="utf-8")
-    public_b64_path = out_dir / "algorithm-public-key.der.b64"
-    public_b64_path.write_text(public_key_b64(private_key.public_key()) + "\n", encoding="utf-8")
-
-    verified = verify_package(
-        signed_path,
-        public_key_path=public_pem_path,
-        require_key_id=key_id,
-        allow_embedded_key=True,
-    )
+    verified = verify_package(package_path)
     _log(
         f"local verify OK id={verified['id']} version={verified['version']} "
         f"sha256={verified['sha256']}"
     )
 
     checksums = out_dir / "SHA256SUMS"
-    write_sha256sums([signed_path, public_b64_path], checksums)
+    write_sha256sums([package_path], checksums)
 
     channel = arguments.channel
     owner = arguments.owner
@@ -391,10 +364,10 @@ def publish(arguments: argparse.Namespace) -> int:
             raise AlgorithmPackError("GITEE_TOKEN required for gitee mirror")
 
     # 资产先上 release-index，再写目录（不创建 Release tag）
-    package_bytes = signed_path.read_bytes()
+    package_bytes = package_path.read_bytes()
     if dry_run:
         _log(
-            f"[dry-run] would upload {asset_path} (+ SHA256SUMS, public key) "
+            f"[dry-run] would upload {asset_path} (+ SHA256SUMS) "
             f"to release-index on {', '.join(mirrors)}"
         )
     else:
@@ -417,16 +390,6 @@ def publish(arguments: argparse.Namespace) -> int:
             gitee_token=gitee_token or "",
             mirrors=mirrors,
             message=f"更新算法包校验和 {manifest['id']} {manifest['version']}",
-        )
-        _publish_release_index_file(
-            owner=owner,
-            repo=repo,
-            path="algorithms/packages/algorithm-public-key.der.b64",
-            content=public_b64_path.read_bytes(),
-            gh_token=gh_token or "",
-            gitee_token=gitee_token or "",
-            mirrors=mirrors,
-            message="更新算法官方公钥",
         )
         _log(f"uploaded package to release-index {asset_path}")
 
@@ -453,21 +416,10 @@ def publish(arguments: argparse.Namespace) -> int:
             host = base.split("//", 1)[1].split("/", 1)[0]
             temp = out_dir / f"verify-{host}.hzzsalg"
             temp.write_bytes(data)
-            verify_package(
-                temp,
-                public_key_path=public_pem_path,
-                require_key_id=key_id,
-                allow_embedded_key=True,
-            )
+            verify_package(temp)
             _log(f"anonymous verify OK source={base} sha256={remote_sha}")
 
-    entry = algorithm_entry_from_package(
-        signed_path,
-        public_key=public_pem_path,
-        public_key_b64_value=None,
-        key_id=key_id,
-        channel=channel,
-    )
+    entry = algorithm_entry_from_package(package_path, channel=channel)
     if dry_run:
         existing_algorithms = load_remote_catalog_algorithms(
             owner=owner, repo=repo, channel=channel
@@ -497,18 +449,11 @@ def publish(arguments: argparse.Namespace) -> int:
     )
     catalog_payload = build_catalog_payload(
         channel=channel,
-        key_id=key_id,
         algorithms=merged_algorithms,
         generated_at=arguments.generated_at,
     )
-    catalog_doc = sign_catalog(catalog_payload, private_key, key_id)
     catalog_path = out_dir / f"{channel}.json"
-    write_json(catalog_path, catalog_doc)
-    verify_catalog_document(
-        catalog_doc,
-        public_key_path=public_pem_path,
-        require_key_id=key_id,
-    )
+    write_json(catalog_path, catalog_payload)
     _log(f"catalog built {catalog_path}")
 
     if dry_run:
@@ -539,9 +484,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--channel", choices=["stable", "beta"], default="stable")
     parser.add_argument("--owner", default="Azek431")
     parser.add_argument("--repo", default="hzzs")
-    parser.add_argument("--private-key", type=Path)
-    parser.add_argument("--private-key-b64")
-    parser.add_argument("--key-id", default=os.environ.get("ALGORITHM_SIGNING_KEY_ID"))
     parser.add_argument("--generated-at")
     parser.add_argument(
         "--mirrors",

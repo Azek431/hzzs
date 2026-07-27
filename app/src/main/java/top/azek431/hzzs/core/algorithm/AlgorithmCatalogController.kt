@@ -25,8 +25,7 @@ import javax.inject.Singleton
  * 算法目录与下载任务的 [StateFlow] 唯一所有者。
  *
  * - 目录：HTTPS 拉 `algorithms/{channel}.json`（Gitee/GitHub，尊重 sourcePreference）
- * - 下载：HTTPS 资产 + size/sha256 + [AlgorithmPackVerifier] + [InstalledAlgorithmStore]
- * - 官方公钥未配置时：目录可展示，但下载安装 fail-closed
+ * - 下载：HTTPS 资产 + size/sha256 + ZIP 白名单 + [InstalledAlgorithmStore]
  * - **「待启用」**：仅 [AlgorithmCatalogPhase.PendingActivation]——分析运行中改钉选时；
  *   真正 Native configure 在 [AlgorithmActivationCoordinator]（save / start 安全点），见
  *   `docs/navigation/KOTLIN.md` 与 `docs/ALGORITHM_SYSTEM_V1.md`
@@ -101,7 +100,6 @@ class AlgorithmCatalogController @Inject constructor(
                 channel = algorithm.channel,
                 sourcePreference = sourcePreference,
                 analysisRunning = analysisRunning,
-                trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
                 installed = installed.sortedWith(
                     AlgorithmCatalogPure.sortInstalled(installed, active?.id, selectedScene),
                 ),
@@ -135,7 +133,6 @@ class AlgorithmCatalogController @Inject constructor(
                     AlgorithmCatalogPure.sortInstalled(installed, active?.id, selectedScene),
                 ),
                 active = active,
-                trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
             )
         }
     }
@@ -160,7 +157,6 @@ class AlgorithmCatalogController @Inject constructor(
                 it.copy(
                     phase = AlgorithmCatalogPhase.Loading,
                     message = "正在检查算法目录…",
-                    trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
                 )
             }
             val result = runCatching {
@@ -253,17 +249,6 @@ class AlgorithmCatalogController @Inject constructor(
         if (entry == null) {
             // 已安装项：仅选择，不重复下载
             selectInstalled(algorithmId)
-            return
-        }
-        if (!AlgorithmTrustAnchors.hasOfficialAnchors()) {
-            mutableState.update {
-                it.copy(
-                    phase = AlgorithmCatalogPhase.SecurityWarning(
-                        "客户端尚未配置官方算法公钥，拒绝下载安装",
-                    ),
-                    message = "安全警告：未配置信任锚",
-                )
-            }
             return
         }
         if (downloadJob?.isActive == true) {
@@ -408,7 +393,6 @@ class AlgorithmCatalogController @Inject constructor(
         return AlgorithmCatalogPure.planUpgrades(
             installed = current.installed,
             remote = current.remote,
-            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
         )
     }
 
@@ -503,7 +487,6 @@ class AlgorithmCatalogController @Inject constructor(
             installed = builtin,
             remote = emptyList(),
             lastCheckedAtEpochMs = null,
-            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
         )
     }
 
@@ -515,7 +498,6 @@ class AlgorithmCatalogController @Inject constructor(
 
     private fun maybeAutoDownloadLatest() {
         if (!draftConfig.autoDownload) return
-        if (!AlgorithmTrustAnchors.hasOfficialAnchors()) return
         val latest = mutableState.value.remote
             .filter { it.isCompatible && selectedScene in it.supportedScenes }
             .maxByOrNull { it.versionCode }
@@ -542,7 +524,6 @@ class AlgorithmCatalogController @Inject constructor(
         }
         if (phase is AlgorithmCatalogPhase.OfflineWithCache ||
             phase is AlgorithmCatalogPhase.MirrorFallback ||
-            phase is AlgorithmCatalogPhase.SecurityWarning ||
             phase is AlgorithmCatalogPhase.Error ||
             phase is AlgorithmCatalogPhase.Incompatible ||
             phase is AlgorithmCatalogPhase.Empty

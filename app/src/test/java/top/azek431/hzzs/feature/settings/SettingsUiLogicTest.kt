@@ -8,7 +8,6 @@ import top.azek431.hzzs.core.algorithm.AlgorithmCardStatus
 import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
 import top.azek431.hzzs.core.algorithm.AlgorithmOrigin
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.algorithm.label
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AlgorithmConfig
@@ -158,8 +157,6 @@ class SettingsUiLogicTest {
         assertEquals("可更新", AlgorithmCardStatus.UPDATABLE.label())
         assertEquals("待启用", AlgorithmCardStatus.PENDING_ACTIVATION.label())
         assertEquals("不兼容", AlgorithmCardStatus.INCOMPATIBLE.label())
-        assertEquals("官方签名", AlgorithmSignatureState.OFFICIAL.label())
-        assertEquals("应用捆绑", AlgorithmSignatureState.BUNDLED.label())
         assertEquals("应用捆绑", AlgorithmOrigin.BUNDLED.label())
         assertEquals("内置引擎", AlgorithmDownloadSource.BUILTIN.label())
     }
@@ -188,7 +185,6 @@ class SettingsUiLogicTest {
         publishedAtEpochMs = published,
         sizeBytes = 1,
         origin = AlgorithmOrigin.REMOTE,
-        signature = AlgorithmSignatureState.OFFICIAL,
         downloadSource = AlgorithmDownloadSource.GITEE,
         isCompatible = compatible,
     )

@@ -31,7 +31,7 @@
 - **通道**：`beta` 测试 / `stable` 稳定；用户设置 `AlgorithmConfig.channel` 自选；未验证勿上 stable。
 - **发布**：`tools/algorithm/publish_algorithm_release.py`（默认 dry-run；`--execute` 上传 packages 后写目录）。**禁止**为算法包创建 `alg-…` tag（除非用户改协议）。CI：`algorithm-release.yml` push `algorithm-packs/**` 时跑 `prepare_algorithm_release.py --auto-bump`：内容变则 **自动 PATCH** 再签包写 `release-index`，并把新 version commit 回 main（需 `ALGORITHM_SIGNING_*` Secrets）。
 - **本地升版本**：`python tools/algorithm/bump_algorithm_version.py --source algorithm-packs/<id>`（默认 PATCH，同步 assets）。
-- **信任锚**：`AlgorithmTrustAnchors` 当前含 `hzzs-algorithm-official-1` 公钥；列表若空则外装 fail-closed。私钥永不入库。
+- **信任锚**：⚠ 当前 0.1.0 暂未启用签名验签（`AlgorithmTrustAnchors` / `AlgorithmPackVerifier` 已移除），远端仅走 sha256 完整性校验。私钥永不入库；签名约束将来启用时 fail-closed 回滚。
 - **客户端激活（「待启用」）**：
   - 点「使用此版本」→ 草稿 `pinnedAlgorithmId`（MANUAL）
   - **保存并应用** → `AlgorithmActivationCoordinator.onConfigCommitted`：未分析则立即 `configure`；**分析中**只记 `pendingCatalogId`，UI 可显示「待启用」

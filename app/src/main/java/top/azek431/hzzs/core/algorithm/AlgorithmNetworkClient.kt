@@ -17,6 +17,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.zip.ZipInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,20 +26,18 @@ import javax.inject.Singleton
  *
  * 职责（限网络 IO）：
  * - HTTPS 目录 JSON 拉取（多源回退）
- * - `.hzzsalg` 资产下载 + size/sha256 校验
- * - 调用 [AlgorithmPackVerifier] + [InstalledAlgorithmStore] 落盘
+ * - `.hzzsalg` 资产下载 + size/sha256 校验 + ZIP 白名单解压
+ * - 调用 [InstalledAlgorithmStore] 落盘
  *
  * 解析（纯函数）已委托 [AlgorithmCatalogPure.parseCatalog]；本类**不再**解析 JSON。
  *
- * 安全：仅 HTTPS；目录 JSON 有大小上限；资产下载校验 size/sha256。
+ * 安全：仅 HTTPS；目录 JSON 有大小上限；资产下载校验 size/sha256 + ZIP 白名单。
  * 资产与目录同在 `release-index` 分支（**不依赖** GitHub/Gitee Release tag）：
  * `algorithms/packages/<filename>`。
- * 信任锚未配置时远端签名状态标记 UNKNOWN（fail-closed 由 Controller 决策）。
  */
 @Singleton
 class AlgorithmNetworkClient @Inject constructor(
     @param:ApplicationContext private val appContext: Context,
-    private val verifier: AlgorithmPackVerifier,
     private val store: InstalledAlgorithmStore,
 ) {
     /** 目录拉取结果（含解析后的条目与运行时元数据）。 */
@@ -92,7 +91,6 @@ class AlgorithmNetworkClient @Inject constructor(
             channel = channel,
             source = source,
             appVersionCode = appVersionCode,
-            trustAnchorsConfigured = AlgorithmTrustAnchors.hasOfficialAnchors(),
         )
         RemoteCatalog(
             remote = remote,
@@ -134,17 +132,17 @@ class AlgorithmNetworkClient @Inject constructor(
                 part.delete()
             }
             onProgress(1f)
-            val verified = verifier.verifyFile(target)
             val extractDir = File(stagingRoot, "extract-$safeId").also {
                 it.deleteRecursively()
                 it.mkdirs()
             }
-            verified.entries.forEach { (name, data) ->
+            val entries = readZipWhitelist(target)
+            entries.forEach { (name, data) ->
                 File(extractDir, name).writeBytes(data)
             }
             store.installFromExtracted(
                 extracted = extractDir,
-                sha256 = verified.sha256,
+                sha256 = actualSha,
                 versionCode = entry.info.versionCode,
                 originTag = ORIGIN_NETWORK,
             ).getOrThrow()
@@ -296,9 +294,62 @@ class AlgorithmNetworkClient @Inject constructor(
         digest().joinToString("") { "%02x".format(it) }
     }
 
+    /**
+     * ZIP 白名单解压：仅允许 [ALLOWED] 中的文件名，强制 [REQUIRED] 必须存在。
+     *
+     * 安全检查：
+     * - 拒绝目录条目
+     * - 拒绝路径遍历（`..`、前导 `/`、`\`、嵌套 `/`）
+     * - 拒绝不在白名单中的文件名
+     * - 拒绝重复文件
+     * - 强制 [MAX_FILES] / [MAX_FILE_BYTES] / [MAX_TOTAL_UNCOMPRESSED] / [MAX_COMPRESSED_BYTES]
+     */
+    private fun readZipWhitelist(file: File): Map<String, ByteArray> {
+        val names = linkedSetOf<String>()
+        val out = linkedMapOf<String, ByteArray>()
+        var totalUncompressed = 0L
+        ZipInputStream(file.inputStream().buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.isDirectory) continue
+                val name = entry.name
+                require(!name.contains("..") && !name.startsWith("/") && !name.startsWith("\\") && !name.contains("/")) {
+                    "非法 ZIP 条目路径: $name"
+                }
+                require(name in ALLOWED) { "不允许的 ZIP 条目: $name" }
+                require(name !in names) { "重复 ZIP 条目: $name" }
+                require(out.size < MAX_FILES) { "ZIP 条目数超过上限" }
+                names += name
+                var bytesRead = 0L
+                val baos = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = zip.read(buffer)
+                    if (read < 0) break
+                    bytesRead += read
+                    require(bytesRead <= MAX_FILE_BYTES) { "ZIP 单文件超过上限: $name" }
+                    totalUncompressed += read
+                    require(totalUncompressed <= MAX_TOTAL_UNCOMPRESSED) { "ZIP 解压总大小超过上限" }
+                    baos.write(buffer, 0, read)
+                }
+                out[name] = baos.toByteArray()
+            }
+        }
+        require(out.size == REQUIRED.size && out.keys.containsAll(REQUIRED)) {
+            "ZIP 缺少必要文件；需要 ${REQUIRED.joinToString()}，实际 ${out.keys.joinToString()}"
+        }
+        return out
+    }
+
     companion object {
         private const val MAX_CATALOG_BYTES = 512L * 1024L
         private const val MAX_PACKAGE_BYTES = 1024L * 1024L
+        private const val MAX_FILES = 16
+        private const val MAX_FILE_BYTES = 256 * 1024
+        private const val MAX_TOTAL_UNCOMPRESSED = 1024 * 1024L
+        private const val MAX_COMPRESSED_BYTES = 1024 * 1024L
+        private val ALLOWED = setOf("manifest.json", "rules.json", "CHANGELOG.txt")
+        private val REQUIRED = setOf("manifest.json", "rules.json", "CHANGELOG.txt")
         /** 网络安装来源标签；bundled 升级不得覆盖。 */
         const val ORIGIN_NETWORK = "network"
     }

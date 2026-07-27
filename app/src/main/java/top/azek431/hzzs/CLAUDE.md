@@ -23,7 +23,7 @@
 - **算法库 / 热更 /「待启用」**（改 `core/algorithm` 或算法设置页时必读）：
   - 检查更新 → `AlgorithmCatalogController` + `AlgorithmNetworkClient`（只认 `release-index`，无 Release tag）
   - **决策逻辑纯函数化**：所有决策（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog / versionToCode）已委托给 `core/algorithm/logic/AlgorithmCatalogPure`（JVM 单测直测）；Controller / Client 只做 StateFlow 持有 + HTTPS 编排
-  - 下载 → 验签 + `InstalledAlgorithmStore`；`AlgorithmTrustAnchors` 空则远端 fail-closed
+  - 下载 → `InstalledAlgorithmStore`（HTTPS + size/sha256 + ZIP 白名单；0.1.0 暂未启用 Ed25519 签名验签）
   - 「使用此版本」→ 草稿 `pinnedAlgorithmId`（MANUAL）；**保存** → `AlgorithmActivationCoordinator.onConfigCommitted`
   - 未分析：立即 Native configure；分析中：`pendingCatalogId` + UI「待启用」，下次 start `ensureConfigured`
   - 「待启用」≠ 自动操作关 / 分析未开；诊断看 activation `id` 与 `pendingCatalogId`

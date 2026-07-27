@@ -123,7 +123,6 @@ fun AlgorithmSettingsScreen(
                             is AlgorithmCatalogPhase.Error -> phase.message.take(80)
                             is AlgorithmCatalogPhase.OfflineWithCache -> phase.message.take(80)
                             is AlgorithmCatalogPhase.MirrorFallback -> phase.reason.take(80)
-                            is AlgorithmCatalogPhase.SecurityWarning -> phase.message.take(80)
                             is AlgorithmCatalogPhase.PendingActivation -> phase.message
                             is AlgorithmCatalogPhase.Loading -> "正在检查…"
                             else -> algorithmState.message?.take(80) ?: "就绪"
@@ -159,22 +158,6 @@ fun AlgorithmSettingsScreen(
         }
 
         item { PhaseBanner(algorithmState.phase, onRefresh) }
-
-        if (!algorithmState.trustAnchorsConfigured) {
-            item {
-                SettingsWarningCard(
-                    title = "远端安装暂不可用",
-                    body = "客户端尚未配置官方算法公钥时，仍可自由切换内置引擎与应用捆绑包（如酱油海盐包）。远端下载按钮已禁用，避免「能点却装不上」。",
-                )
-            }
-        } else {
-            item {
-                SettingsWarningCard(
-                    title = "算法库说明",
-                    body = "内置引擎与应用捆绑包可直接切换；远端包经 HTTPS 双源目录下载，并校验哈希与官方签名。分析运行中切换只会排队，停止或下次启动分析时生效。检测阈值请到「检测参数」。",
-                )
-            }
-        }
 
         item {
             SettingsSectionCard(title = "选择方式", description = null) {
@@ -283,22 +266,13 @@ fun AlgorithmSettingsScreen(
                         status = status,
                         download = algorithmState.downloads[info.id],
                         manualMode = true,
-                        canDownloadRemote = algorithmState.trustAnchorsConfigured,
                         onDownload = {
-                            if (!algorithmState.trustAnchorsConfigured) {
-                                onMessage("未配置官方公钥，无法下载远端算法")
-                            } else {
-                                onDownload(info.id)
-                                onMessage("开始下载 ${info.name}")
-                            }
+                            onDownload(info.id)
+                            onMessage("开始下载 ${info.name}")
                         },
                         onUpdate = {
-                            if (!algorithmState.trustAnchorsConfigured) {
-                                onMessage("未配置官方公钥，无法更新远端算法")
-                            } else {
-                                onDownload(info.id)
-                                onMessage("开始更新 ${info.name}")
-                            }
+                            onDownload(info.id)
+                            onMessage("开始更新 ${info.name}")
                         },
                         onSelect = {
                             onSelect(info.id)
@@ -330,7 +304,6 @@ fun AlgorithmSettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("版本：${info.versionName} (${info.versionCode})")
                     Text("通道：${info.channel.displayName()}")
-                    Text("签名：${info.signature.label()}")
                     Text("来源：${info.downloadSource.label()}")
                     info.author?.let { Text("作者：$it") }
                     Text("场景：${info.supportedScenes.joinToString { it.displayName() }}")
@@ -366,9 +339,6 @@ private fun PhaseBanner(phase: AlgorithmCatalogPhase, onRefresh: () -> Unit) {
         }
         is AlgorithmCatalogPhase.MirrorFallback -> {
             SettingsWarningCard(title = "已切换镜像", body = phase.reason.take(160))
-        }
-        is AlgorithmCatalogPhase.SecurityWarning -> {
-            SettingsWarningCard(title = "安全提示", body = phase.message.take(160))
         }
         is AlgorithmCatalogPhase.Error -> {
             SettingsErrorBanner(message = phase.message, actionLabel = "重试", onAction = onRefresh)

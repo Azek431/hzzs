@@ -14,7 +14,6 @@ import top.azek431.hzzs.core.algorithm.AlgorithmCatalogState
 import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
 import top.azek431.hzzs.core.algorithm.AlgorithmOrigin
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.designsystem.HzzsTheme
 import top.azek431.hzzs.core.model.AlgorithmChannel
 import top.azek431.hzzs.core.model.AppConfig
@@ -124,7 +123,6 @@ private fun previewPackage() = AlgorithmPackageInfo(
     publishedAtEpochMs = 1_750_000_000_000L,
     sizeBytes = 0,
     origin = AlgorithmOrigin.BUILTIN,
-    signature = AlgorithmSignatureState.OFFICIAL,
     downloadSource = AlgorithmDownloadSource.BUILTIN,
     isBuiltin = true,
     isInstalled = true,

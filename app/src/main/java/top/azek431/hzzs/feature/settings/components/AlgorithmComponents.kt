@@ -2,7 +2,7 @@
  * 算法目录相关 Compose 组件。
  *
  * 职责：算法卡、来源徽标、下载进度；动作经回调交给 SettingsViewModel/目录控制器。
- * 边界：不直接下载或写仓库；签名不可信仅展示限制提示。
+ * 边界：不直接下载或写仓库。
  */
 package top.azek431.hzzs.feature.settings.components
 
@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import top.azek431.hzzs.core.algorithm.AlgorithmCardStatus
 import top.azek431.hzzs.core.algorithm.AlgorithmDownloadTask
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.algorithm.formatByteSize
 import top.azek431.hzzs.core.algorithm.label
 import top.azek431.hzzs.core.model.displayName
@@ -112,7 +111,6 @@ fun AlgorithmCard(
                     SettingsStatusChip(formatPublished(info.publishedAtEpochMs))
                 }
                 AlgorithmSourceBadge(info)
-                SettingsStatusChip(info.signature.label())
                 if (info.sizeBytes > 0) {
                     SettingsStatusChip(formatByteSize(info.sizeBytes))
                 }
@@ -147,15 +145,7 @@ fun AlgorithmCard(
                             TextButton(onClick = onDetails) { Text("查看详情") }
                         }
                         AlgorithmCardStatus.UPDATABLE -> {
-                            if (canDownloadRemote) {
-                                Button(onClick = onUpdate) { Text("更新") }
-                            } else {
-                                Text(
-                                    "需公钥后更新",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Button(onClick = onUpdate) { Text("更新") }
                             if (manualMode && info.isInstalled) {
                                 OutlinedButton(onClick = onSelect) { Text("使用此版本") }
                             }
@@ -163,15 +153,7 @@ fun AlgorithmCard(
                         }
                         AlgorithmCardStatus.DOWNLOADABLE, AlgorithmCardStatus.LATEST -> {
                             if (!info.isInstalled) {
-                                if (canDownloadRemote) {
-                                    Button(onClick = onDownload) { Text("下载并使用") }
-                                } else {
-                                    Text(
-                                        "需公钥后下载",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                                Button(onClick = onDownload) { Text("下载并使用") }
                             } else if (manualMode) {
                                 Button(onClick = onSelect) { Text("使用此版本") }
                             }
@@ -185,13 +167,6 @@ fun AlgorithmCard(
                         }
                     }
                 }
-            }
-            if (info.signature == AlgorithmSignatureState.UNTRUSTED) {
-                Text(
-                    "签名不可信，已限制安装。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
             }
         }
     }

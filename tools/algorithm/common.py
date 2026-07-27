@@ -30,7 +30,6 @@ ALLOWED_FILENAMES = frozenset(
         "manifest.json",
         "rules.json",
         "CHANGELOG.txt",
-        "signature.json",
     }
 )
 REQUIRED_UNSIGNED = frozenset({"manifest.json", "rules.json", "CHANGELOG.txt"})
@@ -86,7 +85,6 @@ SAFE_ID = re.compile(r"^[a-z][a-z0-9-]{1,62}[a-z0-9]$")
 SAFE_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]{1,32})?$")
 SAFE_FILENAME = re.compile(r"^[A-Za-z0-9._+-]{1,160}$")
 SAFE_TAG = re.compile(r"^alg-[a-z][a-z0-9-]{1,62}-v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]{1,32})?$")
-SAFE_KEY_ID = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 SAFE_SCENE = re.compile(r"^[A-Z][A-Z0-9_]{1,47}$")
 SAFE_ENGINE_ID = re.compile(r"^[a-z][a-z0-9-]{1,46}[a-z0-9]$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -99,12 +97,9 @@ ZIP_COMPRESSLEVEL = 9
 SUPPORTED_SCENES = frozenset({"SWEET_FACTORY", "BAMBOO_BOOKSTORE", "SEA_SALT_LIVING_ROOM"})
 CHANNELS = frozenset({"stable", "beta"})
 
-SIGNATURE_ALGORITHM = "Ed25519"
-SIGNATURE_FILE = "signature.json"
-
 
 class AlgorithmPackError(ValueError):
-    """Raised for validation, packaging or signature failures."""
+    """Raised for validation, packaging failures."""
 
 
 @dataclass(frozen=True)
@@ -127,7 +122,7 @@ def sha256_file(path: Path) -> str:
 
 
 def canonical_json(value: Any) -> str:
-    """Stable JSON used for signing and digests."""
+    """Stable JSON used for digests."""
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
@@ -193,9 +188,6 @@ def list_source_files(source_dir: Path) -> list[Path]:
         if not child.is_file():
             raise AlgorithmPackError(f"unsupported source entry: {child.name}")
         ensure_relative_safe_name(child.name)
-        if child.name == SIGNATURE_FILE:
-            # Signature is produced by the signer, never taken from source tree.
-            raise AlgorithmPackError("source tree must not contain signature.json")
         files.append(child)
     if len(files) > MAX_FILES:
         raise AlgorithmPackError(f"too many files: {len(files)} > {MAX_FILES}")
@@ -663,7 +655,7 @@ def digests_for_mapping(files: Mapping[str, bytes]) -> list[FileDigest]:
     return digests
 
 
-def read_zip_entries(path: Path, *, allow_signature: bool) -> dict[str, bytes]:
+def read_zip_entries(path: Path) -> dict[str, bytes]:
     if not path.is_file():
         raise AlgorithmPackError(f"package missing: {path}")
     reject_symlink(path)
@@ -700,16 +692,11 @@ def read_zip_entries(path: Path, *, allow_signature: bool) -> dict[str, bytes]:
             if len(payload) != info.file_size:
                 raise AlgorithmPackError(f"zip entry size mismatch: {name}")
             entries[name] = payload
-    required = set(REQUIRED_UNSIGNED)
-    if allow_signature:
-        required.add(SIGNATURE_FILE)
-    missing = required - set(entries)
+    missing = REQUIRED_UNSIGNED - set(entries)
     if missing:
         raise AlgorithmPackError(f"package missing required entries: {sorted(missing)}")
-    if not allow_signature and SIGNATURE_FILE in entries:
+    if "signature.json" in entries:
         raise AlgorithmPackError("unsigned package must not contain signature.json")
-    if allow_signature and SIGNATURE_FILE not in entries:
-        raise AlgorithmPackError("signed package requires signature.json")
     return entries
 
 
@@ -743,18 +730,6 @@ def write_deterministic_zip(path: Path, files: Mapping[str, bytes]) -> None:
     if final_size <= 0 or final_size > MAX_COMPRESSED_BYTES:
         path.unlink(missing_ok=True)
         raise AlgorithmPackError(f"produced package size invalid: {final_size}")
-
-
-def unsigned_payload_from_entries(entries: Mapping[str, bytes]) -> dict[str, Any]:
-    files = {name: data for name, data in entries.items() if name != SIGNATURE_FILE}
-    digests = digests_for_mapping(files)
-    return {
-        "schemaVersion": SCHEMA_VERSION,
-        "files": [
-            {"name": item.name, "sha256": item.sha256, "size": item.size}
-            for item in digests
-        ],
-    }
 
 
 def env_flag(name: str, default: bool = False) -> bool:

@@ -13,7 +13,7 @@ import top.azek431.hzzs.core.update.UpdateSourceId
  * - 本文件：目录条目、卡片状态、下载任务、页面聚合状态（给设置页）
  * - domain：真正进入 Native 的声明式参数快照
  *
- * 远端安装链路：HTTPS 目录 + size/sha256 + Ed25519 验签 + 磁盘落盘；
+ * 远端安装链路：HTTPS 目录 + size/sha256 + ZIP 白名单 + 磁盘落盘；
  * APK 还可捆绑声明式包（不经外装验签）。
  */
 
@@ -39,20 +39,6 @@ enum class AlgorithmCardStatus {
     DOWNLOADABLE,
     INCOMPATIBLE,
     PENDING_ACTIVATION,
-}
-
-/**
- * 官方签名校验状态。
- *
- * [UNTRUSTED] 必须阻止下载；UI 展示对应安全警告。
- */
-enum class AlgorithmSignatureState {
-    OFFICIAL,
-    /** APK 捆绑声明式包：不经外装验签，视为应用本体。 */
-    BUNDLED,
-    UNSIGNED,
-    UNTRUSTED,
-    UNKNOWN,
 }
 
 /** 下载来源徽章（展示用，不等于信任根）。 */
@@ -82,7 +68,6 @@ data class AlgorithmPackageInfo(
     val publishedAtEpochMs: Long,
     val sizeBytes: Long,
     val origin: AlgorithmOrigin,
-    val signature: AlgorithmSignatureState,
     val downloadSource: AlgorithmDownloadSource,
     val releaseNotes: String = "",
     val isBuiltin: Boolean = false,
@@ -103,7 +88,6 @@ sealed class AlgorithmCatalogPhase {
     data object Empty : AlgorithmCatalogPhase()
     data class OfflineWithCache(val message: String) : AlgorithmCatalogPhase()
     data class MirrorFallback(val reason: String, val activeSource: UpdateSourceId) : AlgorithmCatalogPhase()
-    data class SecurityWarning(val message: String) : AlgorithmCatalogPhase()
     data class Downloading(val algorithmId: String, val progress: Float) : AlgorithmCatalogPhase()
     data class Verifying(val algorithmId: String) : AlgorithmCatalogPhase()
     data class PendingActivation(val algorithmId: String, val message: String) : AlgorithmCatalogPhase()
@@ -123,7 +107,6 @@ data class AlgorithmDownloadTask(
  * 远端目录条目。
  *
  * release-index 分支上的清单项 + 资产路径；解析自 `algorithms/{channel}.json`。
- * 信任锚未配置时 [AlgorithmPackageInfo.signature] 为 UNKNOWN（仅阻断下载，不阻断展示）。
  *
  * 解析由 [top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure.parseCatalog] 产出；
  * 本数据类作为客户端通用模型保留在 `core.algorithm` 包。
@@ -161,8 +144,6 @@ data class AlgorithmCatalogState(
     val downloads: Map<String, AlgorithmDownloadTask> = emptyMap(),
     val analysisRunning: Boolean = false,
     val message: String? = null,
-    /** 客户端是否已配置官方公钥；无锚时远端下载按钮应禁用。 */
-    val trustAnchorsConfigured: Boolean = false,
 )
 
 /**
@@ -198,15 +179,6 @@ fun AlgorithmCardStatus.label(): String = when (this) {
     AlgorithmCardStatus.DOWNLOADABLE -> "可下载"
     AlgorithmCardStatus.INCOMPATIBLE -> "不兼容"
     AlgorithmCardStatus.PENDING_ACTIVATION -> "待启用"
-}
-
-/** 签名状态中文标签。 */
-fun AlgorithmSignatureState.label(): String = when (this) {
-    AlgorithmSignatureState.OFFICIAL -> "官方签名"
-    AlgorithmSignatureState.BUNDLED -> "应用捆绑"
-    AlgorithmSignatureState.UNSIGNED -> "未签名"
-    AlgorithmSignatureState.UNTRUSTED -> "不可信"
-    AlgorithmSignatureState.UNKNOWN -> "未知"
 }
 
 /** 下载来源中文标签。 */

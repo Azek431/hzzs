@@ -5,7 +5,6 @@ import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
 import top.azek431.hzzs.core.algorithm.AlgorithmIds
 import top.azek431.hzzs.core.algorithm.AlgorithmOrigin
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.algorithm.BundledAlgorithmInstaller
 import top.azek431.hzzs.core.algorithm.CatalogRemoteEntry
 import top.azek431.hzzs.core.algorithm.InstalledAlgorithmStore
@@ -36,7 +35,7 @@ import org.json.JSONObject
  * 协议边界（见 `docs/ALGORITHM_SYSTEM_V1.md`）：
  * - 目录仅 HTTPS，schemaVersion=1
  * - 资产路径仅限 `algorithms/packages/<safe-name>`
- * - 信任锚未配置时远端包签名状态为 UNKNOWN（不阻断目录展示，仅阻断下载）
+ * - 远端包安装仅走 HTTPS + size/sha256 + ZIP 白名单（当前暂未启用 Ed25519 签名验签）
  *
  * 安全常量（与 `tools/algorithm/common.py` 对齐）集中在本对象，作为单一真相源；
  * `AlgorithmNetworkClient` 与 [top.azek431.hzzs.core.algorithm.AlgorithmCatalogController]
@@ -62,14 +61,12 @@ object AlgorithmCatalogPure {
      * @param channel STABLE / BETA（写入返回条目）
      * @param source 实际拉取源（Gitee / GitHub）
      * @param appVersionCode 当前应用 longVersionCode（用于 isCompatible 判定）
-     * @param trustAnchorsConfigured 是否已配置官方公钥（用于 signature 字段）
      */
     fun parseCatalog(
         raw: String,
         channel: AlgorithmChannel,
         source: UpdateSourceId,
         appVersionCode: Long,
-        trustAnchorsConfigured: Boolean,
     ): List<top.azek431.hzzs.core.algorithm.CatalogRemoteEntry> {
         val root = JSONObject(raw)
         require(root.optInt("schemaVersion") == 1) { "不支持的算法目录 schema" }
@@ -108,7 +105,6 @@ object AlgorithmCatalogPure {
                 publishedAtEpochMs = 0L,
                 sizeBytes = size,
                 origin = AlgorithmOrigin.REMOTE,
-                signature = if (trustAnchorsConfigured) AlgorithmSignatureState.OFFICIAL else AlgorithmSignatureState.UNKNOWN,
                 downloadSource = downloadSource,
                 releaseNotes = item.optString("changelog"),
                 isCompatible = appVersionCode >= minApp,
@@ -214,11 +210,6 @@ object AlgorithmCatalogPure {
             publishedAtEpochMs = record.installedAtEpochMs,
             sizeBytes = 0,
             origin = if (isBundled) AlgorithmOrigin.BUNDLED else AlgorithmOrigin.INSTALLED,
-            signature = if (isBundled) {
-                AlgorithmSignatureState.BUNDLED
-            } else {
-                AlgorithmSignatureState.OFFICIAL
-            },
             downloadSource = if (isBundled) {
                 AlgorithmDownloadSource.BUNDLED
             } else {
@@ -241,7 +232,6 @@ object AlgorithmCatalogPure {
     fun planUpgrades(
         installed: List<AlgorithmPackageInfo>,
         remote: List<AlgorithmPackageInfo>,
-        trustAnchorsConfigured: Boolean,
     ): UpgradePlan {
         val remoteById = remote.associateBy { it.id }
         val candidates = mutableListOf<String>()
@@ -256,7 +246,6 @@ object AlgorithmCatalogPure {
                     when {
                         remoteEntry == null -> skipped.add(pkg.id)
                         !remoteEntry.isCompatible -> failed.add(pkg.id to "不兼容当前应用版本")
-                        !trustAnchorsConfigured -> failed.add(pkg.id to "未配置信任锚")
                         remoteEntry.versionCode <= pkg.versionCode -> skipped.add(pkg.id)
                         else -> candidates.add(pkg.id)
                     }
@@ -344,7 +333,6 @@ object AlgorithmCatalogPure {
                 publishedAtEpochMs = 0L,
                 sizeBytes = 0,
                 origin = AlgorithmOrigin.BUILTIN,
-                signature = AlgorithmSignatureState.OFFICIAL,
                 downloadSource = AlgorithmDownloadSource.BUILTIN,
                 isBuiltin = true,
                 isInstalled = true,

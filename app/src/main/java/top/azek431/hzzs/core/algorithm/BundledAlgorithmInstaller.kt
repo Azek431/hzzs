@@ -15,7 +15,7 @@ import javax.inject.Singleton
  * 将 APK `assets/algorithms/<id>/` 中的声明式算法包预装到 [InstalledAlgorithmStore]。
  *
  * 与网络下载路径分离：捆绑包视为应用本体的一部分，不经 Ed25519 外装验签；
- * 远端 `.hzzsalg` 仍必须过 [AlgorithmPackVerifier] 与信任锚。
+ * 远端 `.hzzsalg` 走 HTTPS + size/sha256 + ZIP 白名单校验后落盘（当前暂未启用 Ed25519 签名验签）。
  *
  * 升级策略：
  * - 未安装 → 安装

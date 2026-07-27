@@ -12,7 +12,6 @@ import top.azek431.hzzs.core.algorithm.AlgorithmDownloadSource
 import top.azek431.hzzs.core.algorithm.AlgorithmIds
 import top.azek431.hzzs.core.algorithm.AlgorithmOrigin
 import top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo
-import top.azek431.hzzs.core.algorithm.AlgorithmSignatureState
 import top.azek431.hzzs.core.algorithm.InstalledAlgorithmStore
 import top.azek431.hzzs.core.algorithm.statusAgainst
 import top.azek431.hzzs.core.model.AlgorithmChannel
@@ -54,7 +53,6 @@ class AlgorithmCatalogPureTest {
         publishedAtEpochMs = 0L,
         sizeBytes = 0L,
         origin = if (isInstalled) AlgorithmOrigin.INSTALLED else AlgorithmOrigin.REMOTE,
-        signature = AlgorithmSignatureState.OFFICIAL,
         downloadSource = if (isInstalled) AlgorithmDownloadSource.CACHE else AlgorithmDownloadSource.GITHUB,
         isInstalled = isInstalled,
         isCompatible = compatible,
@@ -160,25 +158,16 @@ class AlgorithmCatalogPureTest {
             net("b", 1000L).copy(origin = AlgorithmOrigin.BUNDLED),
         )
         val remote = emptyList<AlgorithmPackageInfo>()
-        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote, trustAnchorsConfigured = true)
+        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote)
         assertTrue(plan.candidates.isEmpty())
         assertEquals(2, plan.skipped.size)
-    }
-
-    @Test
-    fun planUpgrades_flagsLackOfTrustAnchor() {
-        val installed = listOf(net("x", 1000L))
-        val remote = listOf(net("x", 2000L))
-        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote, trustAnchorsConfigured = false)
-        assertTrue(plan.candidates.isEmpty())
-        assertTrue(plan.failed.any { it.first == "x" && it.second.contains("信任锚") })
     }
 
     @Test
     fun planUpgrades_candidatesHigherRemote() {
         val installed = listOf(net("x", 1000L))
         val remote = listOf(net("x", 2000L))
-        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote, trustAnchorsConfigured = true)
+        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote)
         assertEquals(listOf("x"), plan.candidates)
     }
 
@@ -186,7 +175,7 @@ class AlgorithmCatalogPureTest {
     fun planUpgrades_skipsWhenSameVersion() {
         val installed = listOf(net("x", 1000L))
         val remote = listOf(net("x", 1000L))
-        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote, trustAnchorsConfigured = true)
+        val plan = AlgorithmCatalogPure.planUpgrades(installed, remote)
         assertTrue(plan.candidates.isEmpty())
         assertTrue(plan.skipped.contains("x"))
     }
@@ -449,7 +438,6 @@ class AlgorithmCatalogPureTest {
             channel = top.azek431.hzzs.core.model.AlgorithmChannel.STABLE,
             source = UpdateSourceId.GITHUB,
             appVersionCode = 1L,
-            trustAnchorsConfigured = true,
         )
         assertEquals(1, out.size)
         val entry = out.first()
@@ -460,7 +448,7 @@ class AlgorithmCatalogPureTest {
     }
 
     @Test
-    fun parseCatalog_marksUnknownSignatureWithoutAnchor() {
+    fun parseCatalog_parsesRemoteEntryWithoutSignature() {
         val raw = """
             {
               "schemaVersion": 1,
@@ -480,11 +468,9 @@ class AlgorithmCatalogPureTest {
             channel = top.azek431.hzzs.core.model.AlgorithmChannel.BETA,
             source = UpdateSourceId.GITEE,
             appVersionCode = 1L,
-            trustAnchorsConfigured = false,
         )
         assertEquals(1, out.size)
-        // 未配置信任锚时，远端包签名状态必须标记 UNKNOWN（fail-closed 由 Controller 决策）。
-        assertEquals(AlgorithmSignatureState.UNKNOWN, out.first().info.signature)
+        // 远端包 info 正常解析（签名验证已移除）。
         assertNotNull(out.first().info)
     }
 
@@ -496,7 +482,6 @@ class AlgorithmCatalogPureTest {
             channel = top.azek431.hzzs.core.model.AlgorithmChannel.STABLE,
             source = UpdateSourceId.GITEE,
             appVersionCode = 1L,
-            trustAnchorsConfigured = true,
         )
     }
 
@@ -521,7 +506,6 @@ class AlgorithmCatalogPureTest {
             channel = top.azek431.hzzs.core.model.AlgorithmChannel.STABLE,
             source = UpdateSourceId.GITEE,
             appVersionCode = 1L,
-            trustAnchorsConfigured = true,
         )
     }
 
