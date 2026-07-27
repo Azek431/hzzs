@@ -183,6 +183,31 @@ SceneAlgorithmParamsNative bamboo_builtin_params() {
     return p;
 }
 
+SceneAlgorithmParamsNative sea_salt_native_vision_params() {
+    SceneAlgorithmParamsNative p = sweet_builtin_params();
+    p.scene_confidence_floor = 0.80f;
+    p.fixed_player_width_divisor = 18;
+    p.ground_search_top = 0.54f;
+    p.ground_search_bottom = 0.84f;
+    p.ground_confidence_min = 0.26f;
+    p.statue_width_max = 0.40f;
+    p.statue_height_max = 0.42f;
+    p.gap_width_min = 0.12f;
+    p.gap_width_max = 0.80f;
+    p.gap_wide_width_ratio = 0.24f;
+    p.brush_width_min = 0.04f;
+    p.brush_width_max = 0.28f;
+    p.brush_height_max = 0.58f;
+    // 酱油 region 竖直带 + 识别率 10
+    p.search_region_top_ratio = 0.438f;
+    p.search_region_bottom_ratio = 0.881f;
+    p.multicolor_threshold = 10.0f;
+    p.colors.cake_blue_max = 170;
+    p.colors.brush_dark_max = 100;
+    p.colors.statue_chroma_max = 55;
+    return p;
+}
+
 SceneAlgorithmParamsNative sea_salt_builtin_params() {
     SceneAlgorithmParamsNative p = sweet_builtin_params();
     p.scene_confidence_floor = 0.80f;
@@ -213,7 +238,6 @@ SceneAlgorithmParamsNative sea_salt_builtin_params() {
 AlgorithmRuntimeProfileNative make_builtin_profile(int64_t generation) {
     AlgorithmRuntimeProfileNative profile{};
     copy_cstr(profile.algorithm_id, sizeof(profile.algorithm_id), "builtin.hzzs.base");
-    // 与 Kotlin AlgorithmRuntimeProfile.BUILTIN_VERSION / AlgorithmIds.BUILTIN_VERSION 对齐。
     copy_cstr(profile.version, sizeof(profile.version), "0.1.0");
     profile.schema_version = kAlgorithmSchemaVersion;
     profile.is_builtin = 1;
@@ -221,6 +245,20 @@ AlgorithmRuntimeProfileNative make_builtin_profile(int64_t generation) {
     profile.scenes[0] = sweet_builtin_params();
     profile.scenes[1] = bamboo_builtin_params();
     profile.scenes[2] = sea_salt_builtin_params();
+    return profile;
+}
+
+AlgorithmRuntimeProfileNative make_native_vision_profile(int64_t generation) {
+    AlgorithmRuntimeProfileNative profile{};
+    copy_cstr(profile.algorithm_id, sizeof(profile.algorithm_id), "builtin.hzzs.native_vision");
+    copy_cstr(profile.version, sizeof(profile.version), "1.0.0");
+    profile.schema_version = kAlgorithmSchemaVersion;
+    profile.is_builtin = 1;
+    profile.generation = generation;
+    copy_cstr(profile.backend_id, sizeof(profile.backend_id), kBackendNativeVision);
+    profile.scenes[0] = sweet_builtin_params();
+    profile.scenes[1] = bamboo_builtin_params();
+    profile.scenes[2] = sea_salt_native_vision_params();
     return profile;
 }
 
@@ -239,8 +277,13 @@ bool validate_profile(const AlgorithmRuntimeProfileNative& profile, std::string*
         if (error) *error = "generation must be positive";
         return false;
     }
-    for (int scene = 0; scene < kSceneCount; ++scene) {
-        if (!validate_scene(scene, profile.scenes[scene], error)) return false;
+    if (!validate_scene(scene, profile.scenes[scene], error)) return false;
+    }
+    const char* backend = profile.backend_id;
+    if (backend[0] != '\0' &&
+        std::strcmp(backend, kBackendNativeVision) != 0) {
+        if (error) *error = std::string("unknown backend_id: ") + backend;
+        return false;
     }
     return true;
 }

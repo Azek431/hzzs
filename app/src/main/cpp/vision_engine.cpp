@@ -8,6 +8,7 @@
 
 #include "HzzsVisionCore.h"
 #include "BambooVisionCore.h"
+#include "sea_salt_v3.h"
 
 #include <algorithm>
 #include <chrono>
@@ -401,7 +402,13 @@ Result analyze_with_profile(
     StageTiming timing;
     int64_t t0 = enable_stage_timing ? now_ns() : 0;
     Result result;
-    if (scene == 2) {
+    const VisionBackend backend = backend_from_profile(profile);
+    if (scene == 2 && backend == VisionBackend::NATIVE_VISION) {
+        // HZZS Native Vision 1.0.0 后端：海盐走 vision_v3 SeaSaltV3Engine。
+        result = analyze_sea_salt_sparse(
+            frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,
+            enable_multicolor_diag ? &result.multicolor_diag : nullptr);
+    } else if (scene == 2) {
         // 仅诊断开关开时采样多点找色明细；关则传 nullptr，避免每帧分配。
         result = analyze_sea_salt(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,

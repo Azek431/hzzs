@@ -19,10 +19,11 @@ import top.azek431.hzzs.core.model.SceneId
 /**
  * 算法运行时快照。
  *
- * @property algorithmId 包 ID，如 `builtin.hzzs.base`
+ * @property algorithmId 包 ID，如 `builtin.hzzs.base` 或 `builtin.hzzs.native_vision`
  * @property version 语义化版本字符串
  * @property schemaVersion 固定为 [SCHEMA_VERSION]
  * @property isBuiltin 是否内置回退算法
+ * @property backendId 可选引擎后端标识（`"native_vision"` 等）；空字符串使用默认主路径
  * @property scenes 各赛季独立参数；必须覆盖全部 [SceneId]
  */
 data class AlgorithmRuntimeProfile(
@@ -30,6 +31,7 @@ data class AlgorithmRuntimeProfile(
     val version: String,
     val schemaVersion: Int,
     val isBuiltin: Boolean,
+    val backendId: String = "",
     val scenes: Map<SceneId, SceneAlgorithmParams>,
 ) {
     init {
@@ -56,6 +58,8 @@ data class AlgorithmRuntimeProfile(
     companion object {
         const val SCHEMA_VERSION = 1
         const val BUILTIN_ID = "builtin.hzzs.base"
+        /** Native Vision 内置算法 ID。 */
+        const val NATIVE_VISION_ID = "builtin.hzzs.native_vision"
         /** 首版内置算法语义化版本；与 [top.azek431.hzzs.core.algorithm.AlgorithmIds.BUILTIN_VERSION] 对齐。 */
         const val BUILTIN_VERSION = "0.1.0"
 
@@ -73,12 +77,37 @@ data class AlgorithmRuntimeProfile(
             version = BUILTIN_VERSION,
             schemaVersion = SCHEMA_VERSION,
             isBuiltin = true,
+            backendId = "",
             scenes = mapOf(
                 SceneId.SWEET_FACTORY to SceneAlgorithmParams.sweetBuiltin(),
                 SceneId.BAMBOO_BOOKSTORE to SceneAlgorithmParams.bambooBuiltin(),
                 SceneId.SEA_SALT_LIVING_ROOM to SceneAlgorithmParams.seaSaltBuiltin(),
             ),
         )
+
+        /**
+         * HZZS Native Vision 1.0.0：海盐客厅走 SeaSaltSparseDetector（vision_v3），
+         * 其余赛季回退当前主路径参数。
+         */
+        fun nativeVision(): AlgorithmRuntimeProfile = AlgorithmRuntimeProfile(
+            algorithmId = NATIVE_VISION_ID,
+            version = "1.0.0",
+            schemaVersion = SCHEMA_VERSION,
+            isBuiltin = true,
+            backendId = "native_vision",
+            scenes = mapOf(
+                SceneId.SWEET_FACTORY to SceneAlgorithmParams.sweetBuiltin(),
+                SceneId.BAMBOO_BOOKSTORE to SceneAlgorithmParams.bambooBuiltin(),
+                SceneId.SEA_SALT_LIVING_ROOM to SceneAlgorithmParams.seaSaltNativeVision(),
+            ),
+        )
+
+        /** 当前激活 profile 的工厂：按 runtimeId 分发。 */
+        fun forRuntimeId(runtimeId: String): AlgorithmRuntimeProfile = when (runtimeId) {
+            NATIVE_VISION_ID -> nativeVision()
+            BUILTIN_ID -> builtin()
+            else -> builtin()
+        }
     }
 }
 
@@ -267,6 +296,48 @@ data class SceneAlgorithmParams(
             searchRegionBottomRatio = 0.881f,
             multicolorThreshold = 10f,
         )
+
+        /** 海盐客厅赛季 Native Vision 参数（走 vision_v3 SeaSaltV3Engine，THREE_SLOT_SHADOW 模式）。 */
+        fun seaSaltNativeVision() = SceneAlgorithmParams(
+            sceneConfidenceFloor = 0.80f,
+            playerConfidenceFloor = 0.45f,
+            fixedPlayerTop = 0.70f,
+            fixedPlayerBottom = 0.94f,
+            fixedPlayerWidthDivisor = 18,
+            fallbackSceneConfidenceMax = 0.20f,
+            fallbackMaxDetections = 1,
+            groundSearchTop = 0.54f,
+            groundSearchBottom = 0.84f,
+            groundConfidenceMin = 0.26f,
+            bottleWidthMin = 0.028f,
+            bottleWidthMax = 0.19f,
+            bottleHeightMin = 0.045f,
+            bottleHeightMax = 0.28f,
+            cakeWidthMin = 0.105f,
+            cakeWidthMax = 0.60f,
+            cakeHeightMin = 0.10f,
+            cakeWideWidthRatio = 0.22f,
+            statueWidthMin = 0.05f,
+            statueWidthMax = 0.40f,
+            statueHeightMin = 0.08f,
+            statueHeightMax = 0.42f,
+            gapWidthMin = 0.12f,
+            gapWidthMax = 0.80f,
+            gapHeightMin = 0.10f,
+            gapWideWidthRatio = 0.24f,
+            brushWidthMin = 0.04f,
+            brushWidthMax = 0.28f,
+            brushHeightMin = 0.12f,
+            brushHeightMax = 0.58f,
+            spikeWidthMin = 0.09f,
+            spikeWidthMax = 0.42f,
+            spikeHeightMin = 0.16f,
+            spikeHeightMax = 0.54f,
+            colors = SceneColorThresholds.seaSaltNativeVision(),
+            searchRegionTopRatio = 0.438f,
+            searchRegionBottomRatio = 0.881f,
+            multicolorThreshold = 10f,
+        )
     }
 }
 
@@ -350,6 +421,25 @@ data class SceneColorThresholds(
             brushDarkMax = 100,
             statueChromaMax = 55,
         )
+
+        fun seaSaltNativeVision() = SceneColorThresholds(
+            bottleGreenMin = 72,
+            bottleGreenOverRed = 1.08f,
+            bottleGreenOverBlue = 1.18f,
+            bottleRedMax = 170,
+            cakeRedMin = 145,
+            cakeGreenMin = 90,
+            cakeBlueMax = 170,
+            spikeRedMin = 150,
+            spikeBlueMin = 88,
+            spikeRedOverGreen = 1.14f,
+            bambooGreenMin = 80,
+            bambooGreenOverRed = 0.78f,
+            bambooGreenOverBlue = 1.25f,
+            bambooBlueMax = 125,
+            brushDarkMax = 100,
+            statueChromaMax = 55,
+        )
     }
 }
 
@@ -391,7 +481,7 @@ object AlgorithmProfileValidator {
         fun requireOrdered(minName: String, min: Float, maxName: String, max: Float) {
             requireFinite(minName, min)
             requireFinite(maxName, max)
-            require(min <= max) { "$scene.$minName ($min) > $maxName ($max)" }
+            require(min <= max) { "$scene.$minName ($min) > $scene.$maxName ($max)" }
         }
 
         fun requireChannel(name: String, value: Int) {

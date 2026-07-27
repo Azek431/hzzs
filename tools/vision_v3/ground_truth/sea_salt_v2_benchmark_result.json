@@ -5,21 +5,54 @@
   "positives": 54,
   "negatives": 60,
   "geometry_gated_positives": 51,
-  "read_failures": 114,
+  "read_failures": 0,
   "threshold": 10,
   "metric": "box",
   "algorithm": "reference_detect (Python, same PATTERNS as SoySauceExactEngine)",
   "results": {
     "false_positives": 0,
-    "false_negatives": 0,
+    "false_negatives": 11,
     "wrong_class": 0,
     "action_edge_over_1pct": 0,
-    "recall": 1.0,
+    "recall": 0.7963,
     "precision": 1.0,
-    "class_accuracy": 1.0,
+    "class_accuracy": 0.7963,
     "geometry_pass_rate": 1.0
   },
-  "per_kind": {},
+  "per_kind": {
+    "小断崖": {
+      "ground_truth_count": 9,
+      "correct": 7,
+      "false_negative": 2,
+      "wrong_class": 0,
+      "edge_over_1pct": 0,
+      "recall": 0.7778
+    },
+    "矮沙丘": {
+      "ground_truth_count": 29,
+      "correct": 23,
+      "false_negative": 6,
+      "wrong_class": 0,
+      "edge_over_1pct": 0,
+      "recall": 0.7931
+    },
+    "高沙丘": {
+      "ground_truth_count": 7,
+      "correct": 5,
+      "false_negative": 2,
+      "wrong_class": 0,
+      "edge_over_1pct": 0,
+      "recall": 0.7143
+    },
+    "船锚": {
+      "ground_truth_count": 9,
+      "correct": 8,
+      "false_negative": 1,
+      "wrong_class": 0,
+      "edge_over_1pct": 0,
+      "recall": 0.8889
+    }
+  },
   "edge_errors": {
     "count": 0,
     "mean_ratio": 0.0,
@@ -28,478 +61,143 @@
   },
   "detections": {
     "大断崖": 0,
-    "小断崖": 0,
-    "矮沙丘": 0,
-    "高沙丘": 0,
-    "船锚": 0,
+    "小断崖": 7,
+    "矮沙丘": 23,
+    "高沙丘": 5,
+    "船锚": 8,
     "复活": 0
   },
   "errors": [
     {
-      "file": "Screenshot_2026-07-21-10-14-06-60_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-11-92_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-13-37_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-13-57_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-15-36_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-17-16_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-49-10_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-51-90_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-52-17_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-54-86_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-55-17_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-56-57_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-56-84_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-14-58-97_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
       "file": "Screenshot_2026-07-21-10-15-02-56_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-04-80_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-05-00_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 140,
+        "anchor_y": 1015,
+        "action_edge_x_ratio": 0.19444444444444445,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-15-07-84_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-09-71_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-09-91_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-11-84_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-12-07_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-14-53_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-14-73_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-17-04_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 124,
+        "anchor_y": 1012,
+        "action_edge_x_ratio": 0.17222222222222222,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-15-17-22_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-15-19-35_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102518793.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102520734.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "船锚",
+        "anchor_x": 78,
+        "anchor_y": 780,
+        "action_edge_x_ratio": 0.10833333333333334,
+        "geometry_gate": false
+      }
     },
     {
       "file": "Screenshot_20260721_102524424.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102652421.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102656762.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102706906.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102709001.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102713622.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102717630.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "高沙丘",
+        "anchor_x": 183,
+        "anchor_y": 1205,
+        "action_edge_x_ratio": 0.21328671328671328,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_20260721_102721338.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "高沙丘",
+        "anchor_x": 139,
+        "anchor_y": 1209,
+        "action_edge_x_ratio": 0.16200466200466201,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_20260721_102724981.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "小断崖",
+        "anchor_x": 188,
+        "anchor_y": 1224,
+        "action_edge_x_ratio": 0.2191142191142191,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_20260721_102728992.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102734269.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102738335.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102745969.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102747819.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102751863.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102754084.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_20260721_102756523.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-03-84_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-04-00_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-04-42_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-04-66_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-05-18_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-06-43_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-12-82_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-12-99_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-13-22_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-13-53_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-19-42_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-19-56_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-21-12_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "小断崖",
+        "anchor_x": 154,
+        "anchor_y": 1214,
+        "action_edge_x_ratio": 0.1794871794871795,
+        "geometry_gate": false
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-26-21-32_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-23-82_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-24-04_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-25-81_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-26-06_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-28-59_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-28-78_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-31-22_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-39-59_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-39-77_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-45-21_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-48-79_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 142,
+        "anchor_y": 1015,
+        "action_edge_x_ratio": 0.19722222222222222,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-26-53-18_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 113,
+        "anchor_y": 1013,
+        "action_edge_x_ratio": 0.15694444444444444,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-26-54-67_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-26-55-48_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-05-29_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-05-48_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-05-69_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-05-91_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-06-13_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-06-33_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-06-56_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-06-77_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-06-96_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-07-21_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 589,
+        "anchor_y": 1013,
+        "action_edge_x_ratio": 0.8180555555555555,
+        "geometry_gate": true
+      }
     },
     {
       "file": "Screenshot_2026-07-21-10-27-09-38_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-09-56_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-09-76_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-09-97_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-10-20_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-10-71_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-10-89_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-11-14_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-00_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-14_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-33_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-55_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-79_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-13-96_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-14-13_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-14-32_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-15-70_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-15-90_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-16-15_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-16-37_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-16-55_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-18-32_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-18-52_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-18-73_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-20-14_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-20-35_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-22-25_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-22-79_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-26-57_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
-    },
-    {
-      "file": "Screenshot_2026-07-21-10-27-28-44_73230ea9d8560975a5358fd7bd043f47.jpg",
-      "error": "read_failed"
+      "error": "false_negative",
+      "expected": {
+        "kind": "矮沙丘",
+        "anchor_x": 11,
+        "anchor_y": 1008,
+        "action_edge_x_ratio": 0.015277777777777777,
+        "geometry_gate": false
+      }
     }
   ],
   "timing": {
     "per_frame_median": {
-      "p50_ms": 0.0,
-      "p95_ms": 0.0,
-      "p99_ms": 0.0,
-      "max_ms": 0.0
+      "p50_ms": 232.55,
+      "p95_ms": 587.06,
+      "p99_ms": 1097.65,
+      "max_ms": 1130.28
     },
-    "total_elapsed_s": 0.09
+    "total_elapsed_s": 158.4
   },
   "limitations": [
     "no positive large-cliff frame",

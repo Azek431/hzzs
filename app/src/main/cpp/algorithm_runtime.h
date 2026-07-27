@@ -23,6 +23,11 @@ constexpr int32_t kAlgorithmSchemaVersion = 1;
 constexpr int32_t kSceneCount = 3;
 constexpr int32_t kMaxAlgorithmIdLen = 64;
 constexpr int32_t kMaxAlgorithmVersionLen = 32;
+constexpr int32_t kMaxBackendIdLen = 32;
+
+/** 引擎后端标识；空字符串 = 默认主路径（sweet/bamboo/sea_salt 现有检测器）。 */
+constexpr const char* kBackendDefault = "";
+constexpr const char* kBackendNativeVision = "native_vision";
 
 struct SceneColorThresholdsNative {
     int32_t bottle_green_min{72};
@@ -96,6 +101,8 @@ struct AlgorithmRuntimeProfileNative {
     int32_t schema_version{kAlgorithmSchemaVersion};
     int32_t is_builtin{1};
     int64_t generation{1};
+    /** 引擎后端标识（空 = 默认主路径）。 */
+    char backend_id[kMaxBackendIdLen + 1]{""};
     SceneAlgorithmParamsNative scenes[kSceneCount]{};
 };
 
@@ -108,6 +115,9 @@ struct AlgorithmConfigResult {
 
 /** 内置 profile：固化当前识别行为。 */
 AlgorithmRuntimeProfileNative make_builtin_profile(int64_t generation);
+
+/** Native Vision 内置 profile（HZZS Native Vision 1.0.0）。 */
+AlgorithmRuntimeProfileNative make_native_vision_profile(int64_t generation);
 
 /** 校验并规范化；失败时 error 非空。 */
 bool validate_profile(const AlgorithmRuntimeProfileNative& profile, std::string* error);

@@ -6,10 +6,30 @@
 namespace hzzs {
 
 /**
+ * 引擎后端选择。
+ *
+ * DEFAULT = 现有主路径（sweet/bamboo/sea_salt 检测器）；
+ * NATIVE_VISION = HZZS Native Vision 1.0（海盐走 vision_v3 SeaSaltV3Engine）。
+ */
+enum class VisionBackend : std::uint8_t {
+    DEFAULT = 0,
+    NATIVE_VISION = 1,
+};
+
+inline VisionBackend backend_from_profile(const AlgorithmRuntimeProfileNative& profile) noexcept {
+    if (profile.backend_id[0] == '\0') return VisionBackend::DEFAULT;
+    if (std::strcmp(profile.backend_id, kBackendNativeVision) == 0) {
+        return VisionBackend::NATIVE_VISION;
+    }
+    return VisionBackend::DEFAULT;
+}
+
+/**
  * 视觉引擎入口（算法引擎调度 + 历史路径 fallback）。
  *
  * - 甜品/竹影：优先 legacy_main 主路径，过弱时启发式回退。
- * - 海盐：算法引擎参数驱动路径（sea_salt_living_room）。
+ * - 海盐 DEFAULT 后端：现有 sea_salt 主路径（analyze_sea_salt）。
+ * - 海盐 NATIVE_VISION 后端：vision_v3 SeaSaltV3Engine（三槽 shadow/exact/fast）。
  *
  * 线程：JNI 层用互斥串行化 analyze / configure / reset。
  * 帧路径禁止读文件、解析 JSON、分配大型规则对象。
@@ -25,13 +45,17 @@ Result analyze_bamboo(const FrameView& frame, int work_width, int enabled_kind_m
                       bool detect_player, float fixed_player_x_ratio,
                       const SceneAlgorithmParamsNative& params);
 
-/** 海盐客厅赛季分析（参数驱动主路径）。
- * @param detail_out 非空时写入多点找色明细；仅开发者诊断开关开启时由调用方传入
- */
+/** 海盐客厅赛季分析（参数驱动主路径）。 */
 Result analyze_sea_salt(const FrameView& frame, int work_width, int enabled_kind_mask,
                         bool detect_player, float fixed_player_x_ratio,
                         const SceneAlgorithmParamsNative& params,
                         std::vector<MulticolorDiag>* detail_out = nullptr);
+
+/** 海盐客厅赛季 Native Vision 1.0 后端（SeaSaltV3Engine 三槽引擎）。 */
+Result analyze_sea_salt_sparse(const FrameView& frame, int work_width, int enabled_kind_mask,
+                               bool detect_player, float fixed_player_x_ratio,
+                               const SceneAlgorithmParamsNative& params,
+                               std::vector<MulticolorDiag>* detail_out = nullptr);
 
 /**
  * 使用当前 AlgorithmRuntime 快照分析。

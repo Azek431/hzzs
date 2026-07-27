@@ -100,62 +100,37 @@ class AlgorithmActivationCoordinator @Inject constructor(
         scene: String?,
     ): Result<AlgorithmActivation> {
         AlgorithmPipelineTrace.beginActivationAttempt()
-        AlgorithmPipelineTrace.setContext(catalogId, selectionMode, scene)
-        AlgorithmPipelineTrace.markRunning("resolve", "catalogId=$catalogId")
-        AppLog.i("algorithm", "resolve catalogId=$catalogId")
+        val runtimeId = AlgorithmIds.runtimeIdForCatalog(catalogId)
+        AlgorithmPipelineTrace.setContext(
+            catalogId = catalogId,
+            selectionMode = selectionMode,
+            selectedScene = scene,
+        )
+        AlgorithmPipelineTrace.markRunning("resolve", "catalogId=$catalogId runtimeId=$runtimeId")
+        AppLog.i("algorithm", "resolve catalogId=$catalogId runtimeId=$runtimeId")
 
-        val isBuiltin = AlgorithmIds.isBuiltinCatalog(catalogId)
-        val installed = if (isBuiltin) null else store.get(catalogId)
-        val profile: AlgorithmRuntimeProfile
-        val profileSource: String
-        when {
-            isBuiltin -> {
-                profile = AlgorithmRuntimeProfile.builtin()
-                profileSource = "builtin"
-                AlgorithmPipelineTrace.markSuccess(
-                    "resolve",
-                    "内置 catalog → runtime=${profile.algorithmId} v${profile.version}",
-                )
-                AlgorithmPipelineTrace.markSuccess(
-                    "profile",
-                    "builtin schema=${profile.schemaVersion} scenes=${profile.scenes.size}",
-                )
-            }
-            installed != null -> {
-                profile = installed.profile
-                profileSource = "installed"
-                AlgorithmPipelineTrace.markSuccess(
-                    "resolve",
-                    "已安装 ${installed.displayName} runtime=${installed.runtimeId} v${installed.version}",
-                )
-                AlgorithmPipelineTrace.markSuccess(
-                    "profile",
-                    "disk schema=${profile.schemaVersion} scenes=${profile.scenes.keys.joinToString { it.name }} " +
-                        "sha=${installed.sha256?.take(12) ?: "-"}",
-                )
-                AppLog.i(
-                    "algorithm",
-                    "profile loaded catalog=$catalogId runtime=${installed.runtimeId} " +
-                        "ver=${installed.version} code=${installed.versionCode} " +
-                        "scenes=${installed.supportedScenes.joinToString { it.name }}",
-                )
+        val profile = AlgorithmRuntimeProfile.forRuntimeId(runtimeId)
+        val profileSource = when {
+            AlgorithmIds.isBuiltinCatalog(catalogId) -> when (runtimeId) {
+                AlgorithmIds.NATIVE_VISION_RUNTIME_ID -> "builtin-native-vision"
+                else -> "builtin"
             }
             else -> {
-                profile = AlgorithmRuntimeProfile.builtin()
-                profileSource = "missing→builtin"
-                AlgorithmPipelineTrace.markWarning(
-                    "resolve",
-                    "catalog 缺失 id=$catalogId → 回退内置",
-                )
-                AlgorithmPipelineTrace.markWarning(
-                    "profile",
-                    "使用 builtin.hzzs.base（原 catalog 不存在）",
-                )
-                AppLog.w("algorithm", "catalog missing id=$catalogId → fallback builtin profile")
+                val installed = store.get(catalogId)
+                if (installed != null) "installed" else "missing→builtin"
             }
         }
 
-        AlgorithmPipelineTrace.markRunning("validate", "id=${profile.algorithmId}")
+        val finalProfile = if (profileSource == "installed") {
+            store.get(catalogId)?.profile ?: profile
+        } else {
+            profile
+        }
+
+        AlgorithmPipelineTrace.markRunning(
+            "validate",
+            "id=${finalProfile.algorithmId} ver=${finalProfile.version} backend=${finalProfile.backendId}",
+        )
         AlgorithmPipelineTrace.markRunning("activate", "source=$profileSource")
         AlgorithmPipelineTrace.markRunning(
             "native",
@@ -166,7 +141,7 @@ class AlgorithmActivationCoordinator @Inject constructor(
             },
         )
 
-        return engine.configureAlgorithm(profile).also { result ->
+        return engine.configureAlgorithm(finalProfile).also { result ->
             result.onSuccess { activation ->
                 pendingCatalogId.set(null)
                 val sceneHint = scene?.let { " scene=$it" }.orEmpty()
@@ -232,20 +207,23 @@ class AlgorithmActivationCoordinator @Inject constructor(
                 if (pinned != null &&
                     (AlgorithmIds.isBuiltinCatalog(pinned) || store.get(pinned) != null)
                 ) {
-                    if (AlgorithmIds.isBuiltinCatalog(pinned)) AlgorithmIds.BUILTIN_CATALOG_ID else pinned
+                    pinned // 保留原始 catalogId（可能是 builtin-hzzs-native-vision-*）
                 } else {
                     AlgorithmIds.BUILTIN_CATALOG_ID
                 }
             }
             AlgorithmSelectionMode.AUTO -> {
-                store.listInstalled()
+                val installed = store.listInstalled()
                     .filter { selectedScene in it.supportedScenes }
                     .maxWithOrNull(
                         compareBy<InstalledAlgorithmStore.InstalledAlgorithmRecord> { it.versionCode }
                             .thenBy { it.installedAtEpochMs },
                     )
-                    ?.catalogId
-                    ?: AlgorithmIds.BUILTIN_CATALOG_ID
+                when {
+                    installed != null -> installed.catalogId
+                    // AUTO 默认基础引擎；Native Vision 仅 MANUAL 钉选用。
+                    else -> AlgorithmIds.BUILTIN_CATALOG_ID
+                }
             }
         }
     }
