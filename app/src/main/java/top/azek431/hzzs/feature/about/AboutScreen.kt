@@ -103,7 +103,7 @@ import top.azek431.hzzs.mcp.McpUiBridge
 import top.azek431.hzzs.nativevision.NativeVision
 import javax.inject.Inject
 
-enum class DonationKind { WECHAT, ALIPAY, IEF_DIAN }
+enum class DonationKind { WECHAT, ALIPAY }
 
 /** 关于页状态：配置流、调试帧计数、Native 自检；开发者 UI 复用设置模块组件。 */
 @HiltViewModel
@@ -408,11 +408,6 @@ fun AboutScreen(
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.about_alipay))
                     }
-                    FilledTonalButton(onClick = { donation = DonationKind.IEF_DIAN }) {
-                        Icon(Icons.Rounded.Code, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.about_iefdian))
-                    }
                 }
             }
             item {
@@ -441,7 +436,7 @@ fun AboutScreen(
                 onSaveQr(kind)
             }
             DonationKind.IEF_DIAN -> {
-                // 打开爱发电链接
+                onDismiss()
                 val url = "https://www.ifdian.net/a/Azek431"
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                 if (intent.resolveActivity(context.packageManager) != null) {

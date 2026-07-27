@@ -88,6 +88,7 @@ void push_multicolor_detection(
     det.actionable = pat.avoidance != Avoidance::NONE;
     det.diagnostic_only = false;
     det.avoidance = pat.avoidance;
+    det.source = DetectionSource::MULTICOLOR;
     out.detections.push_back(det);
 }
 

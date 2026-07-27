@@ -18,6 +18,7 @@ import top.azek431.hzzs.domain.vision.AlgorithmProfileValidator
 import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
 import top.azek431.hzzs.domain.vision.Avoidance
 import top.azek431.hzzs.domain.vision.Detection
+import top.azek431.hzzs.domain.vision.DetectionSource  // 新增：检测来源
 import top.azek431.hzzs.domain.vision.FilterReason
 import top.azek431.hzzs.domain.vision.FilteredDetection
 import top.azek431.hzzs.domain.vision.MulticolorDiag
@@ -128,6 +129,12 @@ class NativeVisionEngine @Inject constructor(
             val confidence = raw.confidence.takeIf(Float::isFinite)?.coerceIn(0f, 1f)
                 ?: return@mapNotNull null
             val avoidance = Avoidance.entries.getOrNull(raw.avoidance) ?: Avoidance.NONE
+            // 将 source ordinal 转换为 DetectionSource（越界时默认 DEFAULT_HEURISTIC）
+            val source = try {
+                DetectionSource.values()[raw.source]
+            } catch (e: IndexOutOfBoundsException) {
+                DetectionSource.DEFAULT_HEURISTIC
+            }
             Detection(
                 id = raw.trackHint.toLong().coerceAtLeast(0),
                 kind = kind,
@@ -136,6 +143,7 @@ class NativeVisionEngine @Inject constructor(
                 actionable = raw.actionable && avoidance != Avoidance.NONE,
                 diagnosticOnly = raw.diagnosticOnly,
                 avoidance = avoidance,
+                source = source,  // 新增 source 参数
             )
         }.toList()
         val rawCount = detections.size

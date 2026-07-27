@@ -563,9 +563,16 @@ Result analyze_sea_salt(
 
         if (best_pit_score > 0.f) {
             const float w = normalized_width(best_pit, f);
-            out.detections.push_back(
-                {hint++, pit_kind, norm(best_pit, f), .83f, true, false,
-                 w > pit_wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
+            out.detections.push_back({
+                hint++,                                     // track_hint
+                DetectionSource::DEFAULT_HEURISTIC,         // source
+                pit_kind,                                   // kind
+                norm(best_pit, f),                          // bounds
+                .83f,                                       // confidence
+                true,                                       // actionable
+                false,                                      // diagnostic_only
+                w > pit_wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP  // avoidance
+            });
         }
     }
 
