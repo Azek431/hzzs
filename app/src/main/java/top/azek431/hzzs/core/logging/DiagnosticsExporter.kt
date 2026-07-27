@@ -157,10 +157,8 @@ object DiagnosticsExporter {
             appendLine(
                 "developer.forceCapture=${config.developer.forceCaptureBackend?.name ?: "FOLLOW"}",
             )
-            // 新增：Shizuku 健康检查诊断
-            val shizukuHealth = runCatching {
-                ShizukuHealthCheck.check()
-            }.getOrNull()
+            // 新增：Shizuku 健康检查诊断（使用轻量同步检查，避免阻塞）
+            val shizukuHealth = runCatching { ShizukuHealthCheck.checkLight() }.getOrNull()
             appendLine("shizuku_health.binder_alive=${shizukuHealth?.binderAlive ?: false}")
             appendLine("shizuku_health.permission_granted=${shizukuHealth?.permissionGranted ?: false}")
             appendLine("shizuku_health.can_execute=${shizukuHealth?.canExecute ?: false}")

@@ -120,6 +120,15 @@ fun ObjectKind.asObstacleKind(): ObstacleKind? = when (this) {
  */
 enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE, PRESS, SWIPE_UP }
 
+/** 检测来源标识，用于区分不同算法路径产出的检测。 */
+enum class DetectionSource {
+    DEFAULT_HEURISTIC,  // 启发式主路径 (default backend)
+    MULTICOLOR,         // 多点找色检测
+    SOY_EXACT,          // Exact模式检测
+    SEA_FAST,           // Fast模式检测
+    NATIVE_SPARSE,      // Native Vision稀疏检测
+}
+
 /**
  * 单次检测结果。
  *
@@ -129,6 +138,7 @@ enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE, PRESS, SWIPE_UP }
  * @property actionable 是否允许进入自动操作规划
  * @property diagnosticOnly 仅调试展示，不可与 actionable 同时为 true
  * @property avoidance 建议规避；actionable 为 true 时不得为 [Avoidance.NONE]
+ * @property source 检测来源算法路径（用于诊断和验证）
  * @property displayContour HUD 显示轮廓；动作与跟踪不得读取
  */
 data class Detection(
@@ -139,6 +149,7 @@ data class Detection(
     val actionable: Boolean,
     val diagnosticOnly: Boolean = false,
     val avoidance: Avoidance = Avoidance.NONE,
+    val source: DetectionSource = DetectionSource.DEFAULT_HEURISTIC,  // 新增：检测来源
     /** HUD 显示轮廓；动作与跟踪不得读取。 */
     val displayContour: List<NormalizedPoint> = emptyList(),
 ) {

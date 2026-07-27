@@ -133,6 +133,65 @@ object ShizukuHealthCheck {
     }
 
     /**
+     * 轻量同步检查：仅检查包、binder 存活和权限，不执行命令测试。
+     * 适用于需要快速响应的场景（如诊断报告导出）。
+     */
+    fun checkLight(): ShizukuHealthResult {
+        val hasPackage = runCatching {
+            @Suppress("DEPRECATION")
+            Shizuku::class.java.classLoader?.loadClass("moe.shizuku.privileged.api.Shizuku") != null
+        }.getOrDefault(false)
+        if (!hasPackage) {
+            return ShizukuHealthResult(
+                isHealthy = false,
+                binderAlive = false,
+                serviceRunning = false,
+                permissionGranted = false,
+                canExecute = false,
+                reason = "Shizuku 未安装",
+            )
+        }
+
+        val binderAlive = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
+        if (!binderAlive) {
+            return ShizukuHealthResult(
+                isHealthy = false,
+                binderAlive = false,
+                serviceRunning = false,
+                permissionGranted = runCatching {
+                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+                }.getOrDefault(false),
+                canExecute = false,
+                reason = "Shizuku binder 未存活",
+            )
+        }
+
+        val permissionGranted = runCatching {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+        if (!permissionGranted) {
+            return ShizukuHealthResult(
+                isHealthy = false,
+                binderAlive = true,
+                serviceRunning = true,
+                permissionGranted = false,
+                canExecute = false,
+                reason = "权限未授予",
+            )
+        }
+
+        // 轻量检查通过（未测试命令执行）
+        return ShizukuHealthResult(
+            isHealthy = true,
+            binderAlive = true,
+            serviceRunning = true,
+            permissionGranted = true,
+            canExecute = false,
+            reason = "轻量检查通过（命令执行未测试）",
+        )
+    }
+
+    /**
      * 辅助判断：Shizuku 是否完全可用（适合用于决策）。
      * 只有当 isHealthy 为 true 时才返回 true。
      *

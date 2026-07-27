@@ -1,6 +1,7 @@
 package top.azek431.hzzs.nativevision
 
 import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
+import top.azek431.hzzs.domain.vision.DetectionSource
 
 /**
  * C++ 视觉引擎的薄 JNI 边界；加载失败不得拖垮进程。
@@ -35,9 +36,12 @@ object NativeVision {
             error.message?.take(240) ?: error.javaClass.simpleName
         }
 
+    import top.azek431.hzzs.domain.vision.DetectionSource
+
     data class Detection(
         val trackHint: Int,
         val kind: Int,
+        val source: DetectionSource,  // 新增：检测来源
         val left: Float,
         val top: Float,
         val right: Float,

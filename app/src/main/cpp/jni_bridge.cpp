@@ -73,7 +73,7 @@ private:
 jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
     jclass detection_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$Detection");
     if (!detection_class || clear_if_exception(env)) return nullptr;
-    jmethodID detection_ctor = env->GetMethodID(detection_class, "<init>", "(IIFFFFFZZI)V");
+    jmethodID detection_ctor = env->GetMethodID(detection_class, "<init>", "(IIIFFFFFZZI)V");
     if (!detection_ctor || clear_if_exception(env)) {
         env->DeleteLocalRef(detection_class);
         return nullptr;
@@ -92,6 +92,7 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
             detection_ctor,
             d.track_hint,
             static_cast<jint>(d.kind),
+            static_cast<jint>(d.source),  // 新增：source字段
             d.bounds.left,
             d.bounds.top,
             d.bounds.right,

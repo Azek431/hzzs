@@ -63,11 +63,23 @@ struct StageTiming {
 };
 
 /**
+ * 检测来源标识；用于区分不同算法路径产出的检测，帮助调试和验证算法切换。
+ */
+enum class DetectionSource : int32_t {
+    DEFAULT_HEURISTIC = 0,  // 启发式主路径 (default backend)
+    MULTICOLOR = 1,         // 多点找色检测
+    SOY_EXACT = 2,          // Exact模式检测
+    SEA_FAST = 3,           // Fast模式检测
+    NATIVE_SPARSE = 4,      // Native Vision稀疏检测
+};
+
+/**
  * 单次检测。
  * track_hint 仅为引擎侧临时提示，跨帧稳定 ID 由 Kotlin MultiObjectTracker 分配。
  */
 struct Detection {
     int32_t track_hint{};
+    DetectionSource source{DetectionSource::DEFAULT_HEURISTIC};
     Kind kind{Kind::PLAYER};
     Rect bounds{};
     float confidence{};

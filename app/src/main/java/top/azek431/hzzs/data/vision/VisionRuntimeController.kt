@@ -325,6 +325,8 @@ class VisionRuntimeController @Inject constructor(
 
             try {
                 source.start()
+                // 启动 Shizuku 健康监控（仅在自动化开启时有效，由 check 函数内部判断）
+                startShizukuHealthMonitoring()
                 runtimeJob = scope.launch {
                     runLoop(
                         token = token,
@@ -347,6 +349,7 @@ class VisionRuntimeController @Inject constructor(
             }
         }
     }
+}
 
     /** 停止后重新启动；用于截图后端等需要换源的配置变更。 */
     suspend fun restart() {
@@ -378,6 +381,7 @@ class VisionRuntimeController @Inject constructor(
         }
         algorithmCatalog.setAnalysisRunning(false)
         VisionAnalysisForegroundService.stop(appContext)
+        stopShizukuHealthMonitoring() // 新增：停止健康监控
         mutableStatus.value = mutableStatus.value.copy(
             running = false,
             captureReady = false,
@@ -385,6 +389,113 @@ class VisionRuntimeController @Inject constructor(
             overlayBlockReason = null,
             fps = 0f,
         )
+    }
+
+    /**
+     * 启动持续的健康监控（Shizuku 可用性定期检查）。
+     * 在 start() 中调用，stop() 中停止。
+     */
+    private fun startShizukuHealthMonitoring() {
+        shizukuHealthCheckJob = scope.launch {
+            while (currentCoroutineContext().isActive) {
+                withContext(Dispatchers.IO) {
+                    checkShizukuHealthAndMaybeDowngrade()
+                }
+                delay(SHIZUKU_HEALTH_CHECK_INTERVAL_MS)
+            }
+        }
+    }
+
+    /**
+     * 停止健康监控。
+     */
+    private fun stopShizukuHealthMonitoring() {
+        shizukuHealthCheckJob?.cancelAndJoin()
+        shizukuHealthCheckJob = null
+        // 问题解决后取消通知
+        cancelShizukuNotification()
+    }
+
+    /**
+     * 检查 Shizuku 健康状态，如果不可用且当前使用 SHIZUKU 则降级到 ACCESSIBILITY。
+     */
+    private suspend fun checkShizukuHealthAndMaybeDowngrade() {
+        val currentConfig = latestConfig.get()
+        if (!currentConfig.automation.enabled) return
+
+        val effectiveBackend = latestGestureBackend.get()
+        if (effectiveBackend != GestureBackend.SHIZUKU) return
+
+        val health = runCatching { ShizukuHealthCheck.check() }.getOrNull()
+        if (health == null) return
+
+        val isNowHealthy = health.isHealthy
+        val wasHealthy = shizukuLastHealthState
+
+        shizukuLastHealthState = isNowHealthy
+
+        if (!isNowHealthy) {
+            // Shizuku 不健康了
+            val reason = health.reason ?: "unknown"
+            AppLog.w("vision", "Shizuku became unhealthy during runtime: $reason")
+
+            // 如果之前是健康的（首次发现不健康），则尝试降级
+            if (wasHealthy == null || wasHealthy) {
+                if (HzzsAccessibilityService.isConnected()) {
+                    val oldBackend = effectiveBackend
+                    latestGestureBackend.set(GestureBackend.ACCESSIBILITY)
+                    mutableStatus.update { it.copy(lastError = "Shizuku 不可用，已自动降级至 ACCESSIBILITY") }
+                    AppLog.i("vision", "Shizuku runtime fallback to ACCESSIBILITY, was $oldBackend")
+                    showShizukuIssueNotification("Shizuku 运行时失效，已降级至 ACCESSIBILITY", reason)
+                } else {
+                    showShizukuIssueNotification("Shizuku 不可用，无有效降级方案", reason)
+                }
+            } else {
+                // 之前就是不健康的，只是持续记录
+                AppLog.d("vision", "Shizuku still unhealthy, state unchanged")
+            }
+        } else {
+            // Shizuku 恢复了
+            AppLog.i("vision", "Shizuku health restored during runtime")
+            // 注意：恢复后不会自动切回 SHIZUKU，需要用户手动重启分析或切换后端
+            cancelShizukuNotification()
+        }
+    }
+
+    /**
+     * 显示 Shizuku 问题通知。
+     */
+    private fun showShizukuIssueNotification(title: String, detail: String?) {
+        val notificationManager = NotificationManagerCompat.from(appContext)
+
+        // 创建通知渠道（API 26+）
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                SHIZUKU_NOTIFICATION_CHANNEL_ID,
+                "Shizuku 问题通知",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            channel.description = "当 Shizuku 后端出现异常时显示"
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val builder = NotificationCompat.Builder(appContext, SHIZUKU_NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_splash_flame)
+            .setContentTitle(title)
+            .setContentText(detail ?: "Shizuku 服务出现异常")
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(false)
+
+        notificationManager.notify(SHIZUKU_NOTIFICATION_ID, builder.build())
+    }
+
+    /**
+     * 取消 Shizuku 问题通知。
+     */
+    private fun cancelShizukuNotification() {
+        val notificationManager = NotificationManagerCompat.from(appContext)
+        notificationManager.cancel(SHIZUKU_NOTIFICATION_ID)
     }
 
     /** 取消在飞动作与动作协程（fail-closed），不清除帧循环状态。 */

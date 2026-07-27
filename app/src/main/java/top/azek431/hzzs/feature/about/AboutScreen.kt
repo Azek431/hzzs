@@ -460,7 +460,6 @@ fun AboutScreen(
 }
 
 @Composable
-@Composable
 private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: () -> Unit) {
     val isIEFDian = kind == DonationKind.IEF_DIAN
     AlertDialog(
@@ -502,7 +501,7 @@ private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: ()
                     )
                 } else {
                     Text(
-                        string = "访问爱发电页面支持开发者",
+                        string = stringResource(R.string.about_support_iefdian_desc),
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
