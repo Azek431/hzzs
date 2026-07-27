@@ -57,6 +57,11 @@ Result analyze_sea_salt_sparse(const FrameView& frame, int work_width, int enabl
                                const SceneAlgorithmParamsNative& params,
                                std::vector<MulticolorDiag>* detail_out = nullptr);
 
+/** 在分析末尾追加声明式多点找色检测结果（定义于 sea_salt_living_room.cpp）。 */
+void append_multicolor_detections(Result& out, const FrameView& frame, int enabled_kind_mask,
+                                  const SceneAlgorithmParamsNative& params,
+                                  std::vector<MulticolorDiag>* detail_out = nullptr);
+
 /**
  * 使用当前 AlgorithmRuntime 快照分析。
  * @param scene 0=甜品，1=竹影，2=海盐（与 Kotlin SceneId 序一致）

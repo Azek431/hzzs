@@ -10,6 +10,9 @@ add_library(hzzs_vision SHARED
     bamboo_bookstore.cpp
     sea_salt_living_room.cpp
     multicolor_detector.cpp
+    vision_v3/sea_salt_v3.cpp
+    vision_v3/sea_salt_fast.cpp
+    vision_v3/soy_sauce_exact.cpp
     legacy_main/vision2/HzzsVisionCore.cpp
     legacy_main/vision_bamboo/BambooVisionCore.cpp
     legacy_main/vision_bamboo/BambooVisionEngine.cpp

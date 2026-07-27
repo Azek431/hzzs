@@ -601,24 +601,24 @@ struct SparseEngineCache {
     }
 };
 
-ObjectKind soy_kind_to_object(hzzs::SoyObstacleKind kind) {
+Kind soy_kind_to_object(hzzs::vision_v3::SoyObstacleKind kind) {
     switch (kind) {
-        case hzzs::SoyObstacleKind::LARGE_CLIFF: return ObjectKind::SEA_PIT;
-        case hzzs::SoyObstacleKind::SMALL_CLIFF: return ObjectKind::PIT;
-        case hzzs::SoyObstacleKind::LOW_SANDCASTLE:
-        case hzzs::SoyObstacleKind::HIGH_SANDCASTLE: return ObjectKind::SAND_CASTLE;
-        case hzzs::SoyObstacleKind::ANCHOR: return ObjectKind::HANGING_ANCHOR;
-        case hzzs::SoyObstacleKind::REVIVE: return ObjectKind::HANGING_ANCHOR;
-        default: return ObjectKind::SAND_CASTLE;
+        case hzzs::vision_v3::SoyObstacleKind::LARGE_CLIFF: return Kind::SEA_PIT;
+        case hzzs::vision_v3::SoyObstacleKind::SMALL_CLIFF: return Kind::PIT;
+        case hzzs::vision_v3::SoyObstacleKind::LOW_SANDCASTLE:
+        case hzzs::vision_v3::SoyObstacleKind::HIGH_SANDCASTLE: return Kind::SAND_CASTLE;
+        case hzzs::vision_v3::SoyObstacleKind::ANCHOR: return Kind::HANGING_ANCHOR;
+        case hzzs::vision_v3::SoyObstacleKind::REVIVE: return Kind::HANGING_ANCHOR;
+        default: return Kind::SAND_CASTLE;
     }
 }
 
-Avoidance soy_action_to_avoidance(hzzs::SoyActionType action) {
+Avoidance soy_action_to_avoidance(hzzs::vision_v3::SoyActionType action) {
     switch (action) {
-        case hzzs::SoyActionType::JUMP: return Avoidance::JUMP;
-        case hzzs::SoyActionType::DOUBLE_JUMP: return Avoidance::DOUBLE_JUMP;
-        case hzzs::SoyActionType::SLIDE: return Avoidance::SLIDE;
-        case hzzs::SoyActionType::REVIVE: return Avoidance::PRESS;
+        case hzzs::vision_v3::SoyActionType::JUMP: return Avoidance::JUMP;
+        case hzzs::vision_v3::SoyActionType::DOUBLE_JUMP: return Avoidance::DOUBLE_JUMP;
+        case hzzs::vision_v3::SoyActionType::SLIDE: return Avoidance::SLIDE;
+        case hzzs::vision_v3::SoyActionType::REVIVE: return Avoidance::PRESS;
         default: return Avoidance::NONE;
     }
 }
@@ -629,7 +629,7 @@ float soy_confidence(bool found, bool action_allowed) {
     return 0.0f;
 }
 
-void push_soy_detection(Result& out, const hzzs::SoyDetection& det, int track_hint) {
+void push_soy_detection(Result& out, const hzzs::vision_v3::SoyDetection& det, int track_hint) {
     if (!det.found) return;
     const float vl = std::clamp(det.visual_bounds.left, 0.0f, 1.0f);
     const float vt = std::clamp(det.visual_bounds.top, 0.0f, 1.0f);
@@ -648,9 +648,9 @@ void push_soy_detection(Result& out, const hzzs::SoyDetection& det, int track_hi
 
 Result analyze_sea_salt_sparse(
     const FrameView& frame,
-    int work_width,
+    [[maybe_unused]] int work_width,
     int enabled_kind_mask,
-    bool detect_player,
+    [[maybe_unused]] bool detect_player,
     float fixed_player_x_ratio,
     const SceneAlgorithmParamsNative& params,
     std::vector<MulticolorDiag>* detail_out) {

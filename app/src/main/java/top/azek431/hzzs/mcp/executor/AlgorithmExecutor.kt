@@ -8,6 +8,7 @@ import top.azek431.hzzs.core.preferences.SettingsRepository
 import top.azek431.hzzs.data.vision.VisionRuntimeController
 import top.azek431.hzzs.domain.vision.VisionEngine
 import javax.inject.Inject
+import top.azek431.hzzs.mcp.ok
 import top.azek431.hzzs.mcp.requireString
 
 /**

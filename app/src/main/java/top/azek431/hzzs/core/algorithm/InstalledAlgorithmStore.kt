@@ -70,7 +70,7 @@ class InstalledAlgorithmStore @Inject constructor(
     }
 
     fun getProfile(catalogId: String): AlgorithmRuntimeProfile =
-        AlgorithmRuntimeProfile.forRuntimeId(runtimeIdForCatalog(catalogId))
+        AlgorithmRuntimeProfile.forRuntimeId(AlgorithmIds.runtimeIdForCatalog(catalogId))
 
     /**
      * 从已解压的包目录安装（staging 内容须含 manifest.json + rules.json）。
