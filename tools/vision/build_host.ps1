@@ -22,6 +22,9 @@ $sources = @(
     (Join-Path $Cpp "bamboo_bookstore.cpp"),
     (Join-Path $Cpp "sea_salt_living_room.cpp"),
     (Join-Path $Cpp "multicolor_detector.cpp"),
+    (Join-Path $Cpp "vision_v3\sea_salt_v3.cpp"),
+    (Join-Path $Cpp "vision_v3\soy_sauce_exact.cpp"),
+    (Join-Path $Cpp "vision_v3\sea_salt_fast.cpp"),
     (Join-Path $Cpp "legacy_main\vision2\HzzsVisionCore.cpp"),
     (Join-Path $Cpp "legacy_main\vision_bamboo\BambooVisionCore.cpp"),
     (Join-Path $Cpp "legacy_main\vision_bamboo\BambooVisionEngine.cpp"),
@@ -33,7 +36,8 @@ $args = @(
     "-std=c++17", "-O3", "-DNDEBUG", "-shared",
     "-I$Cpp",
     "-I$(Join-Path $Cpp 'legacy_main\vision2')",
-    "-I$(Join-Path $Cpp 'legacy_main\vision_bamboo')"
+    "-I$(Join-Path $Cpp 'legacy_main\vision_bamboo')",
+    "-I$(Join-Path $Cpp 'vision_v3')"
 ) + $sources + @("-o", $outLib)
 
 Write-Host "+ $compiler $($args -join ' ')"
