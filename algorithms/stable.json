@@ -19,14 +19,29 @@
         "BAMBOO_BOOKSTORE"
       ],
       "version": "0.1.0"
+    },
+    {
+      "assetPath": "algorithms/packages/official-bamboo-baseline-v0.1.1.hzzsalg",
+      "author": "HZZS Official",
+      "changelog": "## 0.1.1 (2026-07-27)\n- 内容变更自动 PATCH（远端同 version 哈希不同）。\n\n官方竹影书屋基线算法包 0.1.0\n\n- 首版对外算法包基线（语义化版本从 0.1.0 起）。\n- 基于应用内置 VisionThresholds / SceneAlgorithmParams 竹影默认导出。\n- 仅支持 BAMBOO_BOOKSTORE（竹影书屋）。\n- 声明式 JSON 参数，不含脚本、模型权重或可执行文件。\n- 不包含准确率、召回率或全机型覆盖声明。\n- rules.json schemaVersion=2：userThresholds + engineParams 双段。\n- 供工具链校验、签名、目录发布与客户端安装流程联调。",
+      "description": "官方示例算法包，镜像应用内置竹影书屋默认视觉阈值。仅参数描述，不包含可执行代码，也不宣称准确率或机型覆盖。",
+      "displayName": "官方竹影书屋基线",
+      "engineApiVersion": 1,
+      "engineId": "native-vision",
+      "filename": "official-bamboo-baseline-v0.1.1.hzzsalg",
+      "id": "official-bamboo-baseline",
+      "minimumAppVersionCode": 1,
+      "releaseDate": "2026-07-21",
+      "revoked": false,
+      "sha256": "5aa0fea2132ce8f22de60c4e667ed3e751b879c88529abdbeb15a0914679d64e",
+      "size": 1960,
+      "supportedScenes": [
+        "BAMBOO_BOOKSTORE"
+      ],
+      "version": "0.1.1"
     }
   ],
-  "catalogSignature": "i34f0QxDEsj+CsOy/b8P8GTSwttvhBdmFTRueg6SNe31JWYbJYbUlamoiaoL8MmyTNyeZjwVUsiIpnqCyc1dAA==",
   "channel": "stable",
-  "generatedAt": "2026-07-24T10:57:02Z",
-  "keyId": "hzzs-algorithm-official-1",
-  "publicKeyDerB64": "MCowBQYDK2VwAyEA4m6ILZkzhIW4nkjlpbNh+ny/tXqJqakVgCty09RBWsA=",
-  "schemaVersion": 1,
-  "signatureAlgorithm": "Ed25519",
-  "signedPayload": "{\"algorithms\":[{\"assetPath\":\"algorithms/packages/official-bamboo-baseline-v0.1.0.hzzsalg\",\"author\":\"HZZS Official\",\"changelog\":\"官方竹影书屋基线算法包 0.1.0\\n\\n- 首版对外算法包基线（语义化版本从 0.1.0 起）。\\n- 基于应用内置 VisionThresholds / SceneAlgorithmParams 竹影默认导出。\\n- 仅支持 BAMBOO_BOOKSTORE（竹影书屋）。\\n- 声明式 JSON 参数，不含脚本、模型权重或可执行文件。\\n- 不包含准确率、召回率或全机型覆盖声明。\\n- rules.json schemaVersion=2：userThresholds + engineParams 双段。\\n- 供工具链校验、签名、目录发布与客户端安装流程联调。\",\"description\":\"官方示例算法包，镜像应用内置竹影书屋默认视觉阈值。仅参数描述，不包含可执行代码，也不宣称准确率或机型覆盖。\",\"displayName\":\"官方竹影书屋基线\",\"engineApiVersion\":1,\"engineId\":\"native-vision\",\"filename\":\"official-bamboo-baseline-v0.1.0.hzzsalg\",\"id\":\"official-bamboo-baseline\",\"minimumAppVersionCode\":1,\"releaseDate\":\"2026-07-21\",\"revoked\":false,\"sha256\":\"10b156842d619ff631e9632d1c0c4d98da8cea6760f4b83fc599b420fcacbd66\",\"size\":2528,\"supportedScenes\":[\"BAMBOO_BOOKSTORE\"],\"version\":\"0.1.0\"}],\"channel\":\"stable\",\"generatedAt\":\"2026-07-24T10:57:02Z\",\"keyId\":\"hzzs-algorithm-official-1\",\"schemaVersion\":1}"
+  "generatedAt": "2026-07-27T04:01:26Z",
+  "schemaVersion": 1
 }
