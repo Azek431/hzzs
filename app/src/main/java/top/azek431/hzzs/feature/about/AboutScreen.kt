@@ -430,21 +430,42 @@ fun AboutScreen(
     }
 
     donation?.let { kind ->
-        DonationDialog(kind, onDismiss = { donation = null }, onSave = { onSaveQr(kind) })
+        val context = LocalContext.current
+        val onSaveAction = when (kind) {
+            DonationKind.WECHAT, DonationKind.ALIPAY -> {
+                onSaveQr(kind)
+            }
+            DonationKind.IEF_DIAN -> {
+                onDismiss()
+                val url = "https://www.ifdian.net/a/Azek431"
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                } else {
+                    Toast.makeText(
+                        context,
+                        R.string.about_open_link_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+        DonationDialog(kind, onDismiss = { donation = null }, onSave = onSaveAction)
     }
 }
 
 @Composable
 private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: () -> Unit) {
+    val isIEFDian = kind == DonationKind.IEF_DIAN
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (kind == DonationKind.WECHAT) {
-                    stringResource(R.string.about_donation_wechat)
-                } else {
-                    stringResource(R.string.about_donation_alipay)
-                },
+                when (kind) {
+                    DonationKind.WECHAT -> stringResource(R.string.about_donation_wechat)
+                    DonationKind.ALIPAY -> stringResource(R.string.about_donation_alipay)
+                    DonationKind.IEF_DIAN -> stringResource(R.string.about_donation_prompt_iefdian)
+                }
             )
         },
         text = {
@@ -452,37 +473,57 @@ private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: ()
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                val id = if (kind == DonationKind.WECHAT) {
-                    R.drawable.donation_wechat
+                if (!isIEFDian) {
+                    val id = if (kind == DonationKind.WECHAT) {
+                        R.drawable.donation_wechat
+                    } else {
+                        R.drawable.donation_alipay
+                    }
+                    Image(
+                        bitmap = androidx.compose.ui.graphics.ImageBitmap.imageResource(id),
+                        contentDescription = stringResource(R.string.about_donation_qr_cd),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .sizeIn(maxWidth = 340.dp, maxHeight = 460.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(onLongPress = { onSave() })
+                            },
+                    )
+                    Text(
+                        stringResource(R.string.about_donation_hint),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 } else {
-                    R.drawable.donation_alipay
+                    Text(
+                        string = stringResource(R.string.about_support_iefdian_desc),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        string = "https://www.ifdian.net/a/Azek431",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-                Image(
-                    bitmap = androidx.compose.ui.graphics.ImageBitmap.imageResource(id),
-                    contentDescription = stringResource(R.string.about_donation_qr_cd),
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .sizeIn(maxWidth = 340.dp, maxHeight = 460.dp)
-                        .pointerInput(Unit) {
-                            detectTapGestures(onLongPress = { onSave() })
-                        },
-                )
-                Text(
-                    stringResource(R.string.about_donation_hint),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
             }
         },
         confirmButton = {
-            Button(onClick = onSave) {
-                Text(stringResource(R.string.action_save_to_gallery))
+            if (isIEFDian) {
+                Button(onClick = onSave) {
+                    Text(stringResource(R.string.action_open_link))
+                }
+            } else {
+                Button(onClick = onSave) {
+                    Text(stringResource(R.string.action_save_to_gallery))
+                }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_close))
-            }
+            },
         },
     )
 }

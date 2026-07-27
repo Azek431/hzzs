@@ -129,6 +129,7 @@ enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE, PRESS, SWIPE_UP }
  * @property actionable 是否允许进入自动操作规划
  * @property diagnosticOnly 仅调试展示，不可与 actionable 同时为 true
  * @property avoidance 建议规避；actionable 为 true 时不得为 [Avoidance.NONE]
+ * @property source 检测来源（用于区分不同算法路径）
  * @property displayContour HUD 显示轮廓；动作与跟踪不得读取
  */
 data class Detection(
@@ -139,6 +140,7 @@ data class Detection(
     val actionable: Boolean,
     val diagnosticOnly: Boolean = false,
     val avoidance: Avoidance = Avoidance.NONE,
+    val source: DetectionSource = DetectionSource.DEFAULT_HEURISTIC,
     /** HUD 显示轮廓；动作与跟踪不得读取。 */
     val displayContour: List<NormalizedPoint> = emptyList(),
 ) {

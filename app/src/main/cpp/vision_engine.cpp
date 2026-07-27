@@ -63,6 +63,7 @@ Rect normalize_px(int left, int top, int right, int bottom, int width, int heigh
 void push_if_enabled(
     Result& out,
     int enabled_kind_mask,
+    DetectionSource source,  // 新增：检测来源
     Kind kind,
     Avoidance avoidance,
     int track_hint,
@@ -84,6 +85,7 @@ void push_if_enabled(
     detection.actionable = actionable && avoidance != Avoidance::NONE;
     detection.diagnostic_only = false;
     detection.avoidance = avoidance;
+    detection.source = source;  // 设置检测来源
     if (detection.bounds.right <= detection.bounds.left ||
         detection.bounds.bottom <= detection.bounds.top) {
         detection.actionable = false;
@@ -143,6 +145,7 @@ Result analyze_sweet_main(
         Detection player{};
         player.track_hint = 1;
         player.kind = Kind::PLAYER;
+        player.source = DetectionSource::DEFAULT_HEURISTIC;
         if (detect_player) {
             player.bounds = normalize_px(
                 player_left, player_top, player_right, player_bottom, frame.width, frame.height);
@@ -159,6 +162,7 @@ Result analyze_sweet_main(
     if (raw.bottle.found) {
         push_if_enabled(
             out,
+            DetectionSource::DEFAULT_HEURISTIC,  // 新增：检测来源
             enabled_kind_mask,
             Kind::GREEN_BOTTLE,
             Avoidance::JUMP,
@@ -177,6 +181,7 @@ Result analyze_sweet_main(
         const Kind cake_kind = wide ? Kind::PIT : Kind::CAKE_STRUCTURE;
         push_if_enabled(
             out,
+            DetectionSource::DEFAULT_HEURISTIC,  // 新增：检测来源
             enabled_kind_mask,
             cake_kind,
             wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
@@ -205,6 +210,12 @@ Result analyze_sweet_main(
             frame.height,
             raw.spike.scorePermille / 1000.0f,
             true);
+    }
+    // Set all detections to DEFAULT_HEURISTIC source
+    for (auto& det : out.detections) {
+        if (det.kind != Kind::PLAYER) {
+            det.source = DetectionSource::DEFAULT_HEURISTIC;
+        }
     }
     return out;
 }
@@ -248,6 +259,7 @@ Result analyze_bamboo_main(
         Detection player{};
         player.track_hint = 1;
         player.kind = Kind::PLAYER;
+        player.source = DetectionSource::DEFAULT_HEURISTIC;
         player.bounds = normalize_px(
             player_left, player_top, player_right, player_bottom, frame.width, frame.height);
         player.confidence = finite_confidence(std::max(player_conf, 0.88f));
@@ -256,8 +268,8 @@ Result analyze_bamboo_main(
         Detection player{};
         player.track_hint = 1;
         player.kind = Kind::PLAYER;
-        player.bounds =
-            fixed_player_bounds(frame.width, frame.height, fixed_player_x_ratio, params);
+        player.source = DetectionSource::DEFAULT_HEURISTIC;
+        player.bounds = fixed_player_bounds(frame.width, frame.height, fixed_player_x_ratio, params);
         player.confidence = 1.0f;
         out.detections.push_back(player);
     }
@@ -315,6 +327,12 @@ Result analyze_bamboo_main(
             frame.height,
             raw.overhead.scorePermille / 1000.0f,
             true);
+    }
+    // Set all non-player detections to DEFAULT_HEURISTIC source
+    for (auto& det : out.detections) {
+        if (det.kind != Kind::PLAYER) {
+            det.source = DetectionSource::DEFAULT_HEURISTIC;
+        }
     }
     return out;
 }
@@ -629,7 +647,7 @@ float soy_confidence(bool found, bool action_allowed) {
     return 0.0f;
 }
 
-void push_soy_detection(Result& out, const hzzs::vision_v3::SoyDetection& det, int track_hint) {
+void push_soy_detection(Result& out, const hzzs::vision_v3::SoyDetection& det, int track_hint, DetectionSource source) {
     if (!det.found) return;
     const float vl = std::clamp(det.visual_bounds.left, 0.0f, 1.0f);
     const float vt = std::clamp(det.visual_bounds.top, 0.0f, 1.0f);
@@ -637,6 +655,7 @@ void push_soy_detection(Result& out, const hzzs::vision_v3::SoyDetection& det, i
     const float vb = std::clamp(det.visual_bounds.bottom, vt, 1.0f);
     out.detections.push_back({
         track_hint,
+        source,
         soy_kind_to_object(det.kind),
         Rect{vl, vt, vr, vb},
         soy_confidence(det.found, det.action_triggered),
@@ -675,7 +694,7 @@ Result analyze_sea_salt_sparse(
         out.scene_confidence = 0.82f;
     }
 
-    // 玩家：检测器不产出 PLAYER；用固定参考框。
+    // 玩家：检测器不产出 PLAYER；用固定参考框，来源为 DEFAULT_HEURISTIC
     {
         const int fixed_right = static_cast<int>(frame.width *
             std::clamp(fixed_player_x_ratio, 0.05f, 0.45f));
@@ -683,20 +702,24 @@ Result analyze_sea_salt_sparse(
         const int fixed_left = std::max(0, fixed_right - std::max(8, frame.width / divisor));
         const int top = static_cast<int>(frame.height * params.fixed_player_top);
         const int bottom = static_cast<int>(frame.height * params.fixed_player_bottom);
-        out.detections.push_back({
-            1, Kind::PLAYER,
-            normalize_px(fixed_left, top, fixed_right, bottom, frame.width, frame.height),
-            1.0f, false, false, Avoidance::NONE});
+        Detection player{};
+        player.track_hint = 1;
+        player.source = DetectionSource::DEFAULT_HEURISTIC;
+        player.kind = Kind::PLAYER;
+        player.bounds = normalize_px(fixed_left, top, fixed_right, bottom, frame.width, frame.height);
+        player.confidence = 1.0f;
+        player.actionable = false;
+        player.diagnostic_only = false;
+        player.avoidance = Avoidance::NONE;
+        out.detections.push_back(player);
     }
 
-    // 映射 SeaSaltV3Engine 输出为管线 Detection。
+    // 映射 SeaSaltV3Engine 输出为管线 Detection，来源为 NATIVE_SPARSE
     if (sea_result.primary.found) {
-        push_soy_detection(out, sea_result.primary, 10);
+        push_soy_detection(out, sea_result.primary, sea_result.primary.track_hint, DetectionSource::NATIVE_SPARSE);
     }
 
-    // 多点找色叠加（声明式模板，与现有 sea_salt 路径对齐）。
-    SceneAlgorithmParamsNative sea_params = params;
-    append_multicolor_detections(out, frame, enabled_kind_mask, sea_params, detail_out);
+    // Native Vision 不叠加多点找色检测，保持路径纯净
 
     // 有非玩家障碍时抬升场景置信度。
     int obstacle_n = 0;

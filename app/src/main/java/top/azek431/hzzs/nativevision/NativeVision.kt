@@ -38,6 +38,7 @@ object NativeVision {
     data class Detection(
         val trackHint: Int,
         val kind: Int,
+        val source: Int,  // 新增：检测来源（DetectionSource 的 ordinal 值）
         val left: Float,
         val top: Float,
         val right: Float,
