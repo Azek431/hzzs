@@ -34,6 +34,7 @@ from validate_algorithm_pack import validate_source  # noqa: E402
 from verify_algorithm_pack import verify_package  # noqa: E402
 
 OFFICIAL = ROOT / "algorithm-packs" / "official-bamboo-baseline"
+OFFICIAL_VERSION = json.loads((OFFICIAL / "manifest.json").read_text(encoding="utf-8"))["version"]
 
 
 class AlgorithmPackToolingTest(unittest.TestCase):
@@ -106,7 +107,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         unsigned = build_package(OFFICIAL, self.tmpdir / "unsigned.hzzsalg")
         result = verify_package(unsigned)
         self.assertEqual(result["id"], "official-bamboo-baseline")
-        self.assertEqual(result["version"], "0.1.0")
+        self.assertEqual(result["version"], OFFICIAL_VERSION)
         self.assertIn("sha256", result)
         self.assertEqual(len(result["sha256"]), 64)
 
@@ -170,7 +171,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
     def test_stable_beta_catalog_isolation(self) -> None:
         unsigned = build_package(OFFICIAL, self.tmpdir / "unsigned.hzzsalg")
         # Ensure filename matches expected package name for catalog entry
-        expected = self.tmpdir / package_filename("official-bamboo-baseline", "0.1.0")
+        expected = self.tmpdir / package_filename("official-bamboo-baseline", OFFICIAL_VERSION)
         if unsigned != expected:
             expected.write_bytes(unsigned.read_bytes())
             unsigned = expected
@@ -235,7 +236,7 @@ class AlgorithmPackToolingTest(unittest.TestCase):
         self.assertEqual(code, 0)
         work = self.tmpdir / "publish"
         # 无符号包直接放在 work 目录下
-        unsigned = work / package_filename("official-bamboo-baseline", "0.1.0")
+        unsigned = work / package_filename("official-bamboo-baseline", OFFICIAL_VERSION)
         self.assertTrue(unsigned.is_file())
         self.assertTrue((work / "stable.json").is_file())
         self.assertTrue((work / "SHA256SUMS").is_file())
