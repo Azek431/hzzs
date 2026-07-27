@@ -87,7 +87,7 @@ function Resolve-HzzsAdbSerial {
     #>
     $serial = [Environment]::GetEnvironmentVariable('ANDROID_SERIAL')
     if ($serial) { return $serial }
-    $raw = Invoke-HzzsAdb -AdbArgs @('devices') -IgnoreFailure
+    $raw = & adb @('devices') 2>&1
     $online = @($raw | Where-Object { $_ -match '	device$' })
     if ($online.Count -le 1) { return $null }
     $first = $online[0]
