@@ -317,15 +317,16 @@ object AlgorithmCatalogPure {
         return major * 1_000_000L + minor * 1_000L + patch
     }
 
-    /** 内置算法种子（仅一条）。 */
+    /** 内置算法种子（基础引擎 + Native Vision）。 */
     fun builtinPackages(): List<AlgorithmPackageInfo> {
-        val versionCode = versionToCode(AlgorithmIds.BUILTIN_VERSION) // 0.1.0 → 100
+        val baseVersionCode = versionToCode(AlgorithmIds.BUILTIN_VERSION)
+        val nvVersionCode = versionToCode("1.0.0")
         return listOf(
             AlgorithmPackageInfo(
                 id = AlgorithmIds.BUILTIN_CATALOG_ID,
                 name = "内置算法",
                 versionName = AlgorithmIds.BUILTIN_VERSION,
-                versionCode = versionCode,
+                versionCode = baseVersionCode,
                 channel = AlgorithmChannel.STABLE,
                 summary = "随应用分发的三赛季默认识别引擎（runtime ${AlgorithmIds.BUILTIN_RUNTIME_ID} v${AlgorithmIds.BUILTIN_VERSION}）。",
                 supportedScenes = SceneId.entries.toSet(),
@@ -337,6 +338,24 @@ object AlgorithmCatalogPure {
                 isBuiltin = true,
                 isInstalled = true,
                 isCompatible = true,
+            ),
+            AlgorithmPackageInfo(
+                id = AlgorithmIds.NATIVE_VISION_CATALOG_ID,
+                name = "HZZS Native Vision",
+                versionName = "1.0.0",
+                versionCode = nvVersionCode,
+                channel = AlgorithmChannel.BETA,
+                summary = "海盐客厅走 SeaSaltSparseDetector（vision_v3 三槽引擎），其余赛季回退主路径。",
+                supportedScenes = setOf(SceneId.SEA_SALT_LIVING_ROOM),
+                minAppVersionCode = 1,
+                publishedAtEpochMs = 0L,
+                sizeBytes = 0,
+                origin = AlgorithmOrigin.BUILTIN,
+                downloadSource = AlgorithmDownloadSource.BUILTIN,
+                isBuiltin = true,
+                isInstalled = true,
+                isCompatible = true,
+                author = "hzzs",
             ),
         )
     }

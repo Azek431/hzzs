@@ -69,12 +69,8 @@ class InstalledAlgorithmStore @Inject constructor(
         return cache[catalogId]
     }
 
-    fun getProfile(catalogId: String): AlgorithmRuntimeProfile? =
-        if (AlgorithmIds.isBuiltinCatalog(catalogId)) {
-            AlgorithmRuntimeProfile.builtin()
-        } else {
-            get(catalogId)?.profile
-        }
+    fun getProfile(catalogId: String): AlgorithmRuntimeProfile =
+        AlgorithmRuntimeProfile.forRuntimeId(runtimeIdForCatalog(catalogId))
 
     /**
      * 从已解压的包目录安装（staging 内容须含 manifest.json + rules.json）。

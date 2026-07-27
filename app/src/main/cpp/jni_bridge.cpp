@@ -439,6 +439,10 @@ bool map_profile(JNIEnv* env, jobject profile_obj, hzzs::AlgorithmRuntimeProfile
         env->DeleteLocalRef(cls);
         return false;
     }
+    if (!read_string_field(env, profile_obj, cls, "backendId", out->backend_id, sizeof(out->backend_id))) {
+        env->DeleteLocalRef(cls);
+        return false;
+    }
     out->generation = 1;
 
     // scenes: Map<SceneId, SceneAlgorithmParams>

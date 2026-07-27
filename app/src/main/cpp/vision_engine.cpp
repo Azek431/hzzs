@@ -565,4 +565,136 @@ void reset() {
     AlgorithmRuntime::instance().reset();
 }
 
+namespace {
+
+hzzs::vision_v3::SeaV3Config sparse_config_from_params(const SceneAlgorithmParamsNative& params) {
+    hzzs::vision_v3::SeaV3Config config{};
+    config.mode = hzzs::vision_v3::SeaAlgorithmMode::SHADOW_COMPARE;
+    config.exact.threshold = static_cast<std::uint8_t>(
+        std::clamp(static_cast<int>(params.multicolor_threshold), 0, 255));
+    config.exact.verification_metric = hzzs::vision_v3::VerifyMetric::BOX_PER_CHANNEL;
+    config.exact.visual_margin_permille = 10;
+    config.fast.anchor_threshold = static_cast<std::uint8_t>(
+        std::clamp(static_cast<int>(params.multicolor_threshold), 0, 255));
+    config.fast.verify_threshold = config.fast.anchor_threshold;
+    config.fast.verification_metric = hzzs::vision_v3::VerifyMetric::BOX_PER_CHANNEL;
+    config.fast.neighborhood_radius = 1;
+    config.fast.enforce_source_anchor_region = false;
+    config.fast.require_exact_anchor_pattern = false;
+    config.fast.horizontal_samples = 360;
+    config.fast.minimum_scan_x_permille = 150;
+    config.shadow_edge_tolerance_permille = 10;
+    return config;
+}
+
+hzzs::SoyObstacleKind map_sea_kind(Kind kind) {
+    switch (kind) {
+        case Kind::SAND_CASTLE: return hzzs::SoyObstacleKind::LOW_SANDCASTLE;
+        case Kind::HANGING_ANCHOR: return hzzs::SoyObstacleKind::ANCHOR;
+        case Kind::SEA_PIT: return hzzs::SoyObstacleKind::LARGE_CLIFF;
+        case Kind::PIT: return hzzs::SoyObstacleKind::SMALL_CLIFF;
+        default: return hzzs::SoyObstacleKind::LARGE_CLIFF;
+    }
+}
+
+Avoidance map_sea_avoidance(hzzs::SoyActionType action) {
+    switch (action) {
+        case hzzs::SoyActionType::JUMP: return Avoidance::JUMP;
+        case hzzs::SoyActionType::DOUBLE_JUMP: return Avoidance::DOUBLE_JUMP;
+        case hzzs::SoyActionType::SLIDE: return Avoidance::SLIDE;
+        case hzzs::SoyActionType::REVIVE: return Avoidance::PRESS;
+        default: return Avoidance::NONE;
+    }
+}
+
+float soy_score_to_confidence(hzzs::SoyObstacleKind kind, const hzzs::SoyDetection& det) {
+    if (!det.found) return 0.0f;
+    // Shadow mode: action_triggered is the primary signal; fall back to presence.
+    if (det.action_triggered) return 0.85f;
+    return 0.72f;
+}
+
+}  // namespace
+
+Result analyze_sea_salt_sparse(
+    const FrameView& frame,
+    int work_width,
+    int enabled_kind_mask,
+    bool detect_player,
+    float fixed_player_x_ratio,
+    const SceneAlgorithmParamsNative& params,
+    std::vector<MulticolorDiag>* detail_out) {
+    Result out;
+    if (frame.pixels == nullptr || frame.width < 32 || frame.height < 64) {
+        out.error = "invalid frame";
+        return out;
+    }
+
+    hzzs::vision_v3::SeaV3Config cfg = sparse_config_from_params(params);
+    hzzs::vision_v3::SeaSaltV3Engine engine{cfg};
+    hzzs::vision_v3::ArgbFrameView argb_view{
+        frame.pixels, frame.width, frame.height,
+        frame.width};  // row_stride = width for contiguous ARGB
+
+    const auto sea_result = engine.detect(argb_view);
+    if (!sea_result.primary.found) {
+        out.scene_confidence = 0.55f;
+    } else {
+        out.scene_confidence = 0.82f;
+    }
+
+    // 玩家：检测器不产出 PLAYER；用固定参考框。
+    {
+        const int fixed_right = static_cast<int>(frame.width *
+            std::clamp(fixed_player_x_ratio, 0.05f, 0.45f));
+        const int divisor = std::max(8, params.fixed_player_width_divisor);
+        const int fixed_left = std::max(0, fixed_right - std::max(8, frame.width / divisor));
+        const int top = static_cast<int>(frame.height * params.fixed_player_top);
+        const int bottom = static_cast<int>(frame.height * params.fixed_player_bottom);
+        out.detections.push_back({
+            1, Kind::PLAYER,
+            normalize_px(fixed_left, top, fixed_right, bottom, frame.width, frame.height),
+            1.0f, false, false, Avoidance::NONE});
+    }
+
+    // 映射 SeaSaltV3Engine 输出为管线 Detection。
+    if (sea_result.primary.found) {
+        const float conf = soy_score_to_confidence(sea_result.primary.kind, sea_result.primary);
+        if (conf > 0.0f) {
+            const int ax = sea_result.primary.anchor_x;
+            const int ay = sea_result.primary.anchor_y;
+            const float vis_l = sea_result.primary.visual_bounds.left;
+            const float vis_t = sea_result.primary.visual_bounds.top;
+            const float vis_r = sea_result.primary.visual_bounds.right;
+            const float vis_b = sea_result.primary.visual_bounds.bottom;
+            out.detections.push_back({
+                10, Kind::SAND_CASTLE,
+                normalize_px(
+                    static_cast<int>(frame.width * vis_l),
+                    static_cast<int>(frame.height * vis_t),
+                    static_cast<int>(frame.width * vis_r),
+                    static_cast<int>(frame.height * vis_b),
+                    frame.width, frame.height),
+                conf, sea_result.action_allowed, false,
+                map_sea_avoidance(sea_result.primary.action)});
+        }
+    }
+
+    // 多点找色叠加（声明式模板，与现有 sea_salt 路径对齐）。
+    SceneAlgorithmParamsNative sea_params = params;
+    append_multicolor_detections(out, frame, enabled_kind_mask, sea_params, detail_out);
+
+    // 有非玩家障碍时抬升场景置信度。
+    int obstacle_n = 0;
+    for (const auto& d : out.detections) {
+        if (d.kind != Kind::PLAYER) ++obstacle_n;
+    }
+    if (obstacle_n > 0) {
+        out.scene_confidence =
+            std::max(out.scene_confidence, std::max(params.scene_confidence_floor, 0.85f));
+    }
+
+    return out;
+}
+
 }  // namespace hzzs
