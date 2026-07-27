@@ -15,6 +15,9 @@ constexpr int kSearchX = 290;
 constexpr int kSearchY = 1213;
 constexpr int kSearchWidth = 982;
 constexpr int kSearchHeight = 1229;
+// Left-pad the scaled search region so near-edge anchors (e.g. x≈113 px at 720w)
+// fall inside the scan window. 50 px covers all ground-truth left-edge obstacles.
+constexpr int kSearchPaddingLeft = 50;
 
 struct Rgb {
     std::uint8_t r;
@@ -429,12 +432,12 @@ SeaFastHit SeaSaltFastEngine::detect(const ArgbFrameView& frame) const noexcept 
         (frame.width + static_cast<int>(config_.horizontal_samples) - 1) /
             static_cast<int>(config_.horizontal_samples));
 
-    const int exact_x0 = std::clamp(
-        js_round_scaled(kSearchX, frame.width, kBaseWidth), 0, frame.width);
+    const int unscaled_x0 = js_round_scaled(kSearchX, frame.width, kBaseWidth);
+    const int exact_x0 = std::clamp(unscaled_x0 - kSearchPaddingLeft, 0, frame.width);
     const int exact_y0 = std::clamp(
         js_round_scaled(kSearchY, frame.height, kBaseHeight), 0, frame.height);
     const int exact_x1 = std::clamp(
-        exact_x0 + std::max(0, js_round_scaled(kSearchWidth, frame.width, kBaseWidth)),
+        unscaled_x0 + std::max(0, js_round_scaled(kSearchWidth, frame.width, kBaseWidth)),
         0,
         frame.width);
     const int exact_y1 = std::clamp(

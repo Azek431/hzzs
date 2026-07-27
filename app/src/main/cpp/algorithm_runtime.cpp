@@ -277,7 +277,8 @@ bool validate_profile(const AlgorithmRuntimeProfileNative& profile, std::string*
         if (error) *error = "generation must be positive";
         return false;
     }
-    if (!validate_scene(scene, profile.scenes[scene], error)) return false;
+    for (int scene = 0; scene < kSceneCount; ++scene) {
+        if (!validate_scene(scene, profile.scenes[scene], error)) return false;
     }
     const char* backend = profile.backend_id;
     if (backend[0] != '\0' &&

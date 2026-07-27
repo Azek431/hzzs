@@ -35,6 +35,7 @@ def load_image_cv2_compatible(path: Path) -> np.ndarray | None:
 
 # ── 从 reference_and_benchmark 复用 ──────────────────────────────
 BASE_W, BASE_H = 1272, 2772
+SEARCH_PADDING_LEFT = 50  # covers ground-truth left-edge anchors (x≥50 px)
 
 PATTERNS = [
     ("大断崖", -14134134, [(57, 86, -659994), (206, 17, -66830), (294, 65, -198418), (633, 88, -67343), (739, 168, -1514535), (733, 29, -12676910)]),
@@ -69,10 +70,12 @@ def reference_detect(image_bgr: np.ndarray, threshold: int = 10, metric: int = 0
     rgb = image_bgr[:, :, ::-1]
     h, w = rgb.shape[:2]
     sx, sy = w / BASE_W, h / BASE_H
-    rx = max(0, min(w, js_round(290 * sx)))
-    ry = max(0, min(h, js_round(1213 * sy)))
-    x2 = max(0, min(w, rx + max(0, js_round(982 * sx))))
-    y2 = max(0, min(h, ry + max(0, js_round(1229 * sy))))
+    rx = max(0, js_round(290 * sx) - SEARCH_PADDING_LEFT)
+    ry = max(0, js_round(1213 * sy))
+    # Keep the same right boundary as original (extend width by padding, not shift).
+    original_right = js_round(290 * sx) + max(0, js_round(982 * sx))
+    x2 = max(rx, min(w, original_right + SEARCH_PADDING_LEFT))
+    y2 = max(ry, min(h, ry + max(0, js_round(1229 * sy))))
     for kind, first, points in PATTERNS:
         target = int_to_rgb(first)
         roi = rgb[ry:y2, rx:x2]

@@ -19,6 +19,7 @@ target_include_directories(hzzs_vision PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/legacy_main/vision2
     ${CMAKE_CURRENT_SOURCE_DIR}/legacy_main/vision_bamboo
+    ${CMAKE_CURRENT_SOURCE_DIR}/vision_v3
 )
 
 target_compile_features(hzzs_vision PRIVATE cxx_std_17)

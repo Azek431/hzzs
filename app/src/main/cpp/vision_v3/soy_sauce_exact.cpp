@@ -17,6 +17,9 @@ constexpr int kSearchW = 982;
 constexpr int kSearchH = 1229;
 constexpr int kSlideDesignDy = 100;
 constexpr int kSlideBottomInsetDesign = 20;
+// Left-pad the scaled search region so near-edge anchors (e.g. x≈113 px at 720w)
+// fall inside the scan window. 50 px covers all ground-truth left-edge obstacles.
+constexpr int kSearchPaddingLeft = 50;
 
 struct Rgb {
     std::uint8_t r;
@@ -313,11 +316,12 @@ SoyDetection SoySauceExactEngine::detect(const ArgbFrameView& frame) const noexc
     SoyDetection output{};
     if (!frame.valid()) return output;
 
-    const int region_x = std::clamp(js_round_scaled(kSearchX, frame.width, kBaseWidth), 0, frame.width);
+    const int unscaled_x = js_round_scaled(kSearchX, frame.width, kBaseWidth);
+    const int region_x = std::clamp(unscaled_x - kSearchPaddingLeft, 0, frame.width);
     const int region_y = std::clamp(js_round_scaled(kSearchY, frame.height, kBaseHeight), 0, frame.height);
     const int region_w = std::max(0, js_round_scaled(kSearchW, frame.width, kBaseWidth));
     const int region_h = std::max(0, js_round_scaled(kSearchH, frame.height, kBaseHeight));
-    const int region_right = std::clamp(region_x + region_w, 0, frame.width);
+    const int region_right = std::clamp(unscaled_x + region_w, 0, frame.width);
     const int region_bottom = std::clamp(region_y + region_h, 0, frame.height);
     if (region_x >= region_right || region_y >= region_bottom) return output;
 

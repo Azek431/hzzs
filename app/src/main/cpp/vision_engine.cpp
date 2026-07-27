@@ -587,17 +587,33 @@ hzzs::vision_v3::SeaV3Config sparse_config_from_params(const SceneAlgorithmParam
     return config;
 }
 
-hzzs::SoyObstacleKind map_sea_kind(Kind kind) {
+struct SparseEngineCache {
+    hzzs::vision_v3::SeaSaltV3Engine engine{};
+    float last_multicolor_threshold{-1.0f};
+    bool initialized{false};
+
+    void ensure(const hzzs::vision_v3::SeaV3Config& cfg, float threshold) {
+        if (!initialized || last_multicolor_threshold != threshold) {
+            engine.set_config(cfg);
+            last_multicolor_threshold = threshold;
+            initialized = true;
+        }
+    }
+};
+
+ObjectKind soy_kind_to_object(hzzs::SoyObstacleKind kind) {
     switch (kind) {
-        case Kind::SAND_CASTLE: return hzzs::SoyObstacleKind::LOW_SANDCASTLE;
-        case Kind::HANGING_ANCHOR: return hzzs::SoyObstacleKind::ANCHOR;
-        case Kind::SEA_PIT: return hzzs::SoyObstacleKind::LARGE_CLIFF;
-        case Kind::PIT: return hzzs::SoyObstacleKind::SMALL_CLIFF;
-        default: return hzzs::SoyObstacleKind::LARGE_CLIFF;
+        case hzzs::SoyObstacleKind::LARGE_CLIFF: return ObjectKind::SEA_PIT;
+        case hzzs::SoyObstacleKind::SMALL_CLIFF: return ObjectKind::PIT;
+        case hzzs::SoyObstacleKind::LOW_SANDCASTLE:
+        case hzzs::SoyObstacleKind::HIGH_SANDCASTLE: return ObjectKind::SAND_CASTLE;
+        case hzzs::SoyObstacleKind::ANCHOR: return ObjectKind::HANGING_ANCHOR;
+        case hzzs::SoyObstacleKind::REVIVE: return ObjectKind::HANGING_ANCHOR;
+        default: return ObjectKind::SAND_CASTLE;
     }
 }
 
-Avoidance map_sea_avoidance(hzzs::SoyActionType action) {
+Avoidance soy_action_to_avoidance(hzzs::SoyActionType action) {
     switch (action) {
         case hzzs::SoyActionType::JUMP: return Avoidance::JUMP;
         case hzzs::SoyActionType::DOUBLE_JUMP: return Avoidance::DOUBLE_JUMP;
@@ -607,11 +623,25 @@ Avoidance map_sea_avoidance(hzzs::SoyActionType action) {
     }
 }
 
-float soy_score_to_confidence(hzzs::SoyObstacleKind kind, const hzzs::SoyDetection& det) {
-    if (!det.found) return 0.0f;
-    // Shadow mode: action_triggered is the primary signal; fall back to presence.
-    if (det.action_triggered) return 0.85f;
-    return 0.72f;
+float soy_confidence(bool found, bool action_allowed) {
+    if (found && action_allowed) return 0.88f;
+    if (found) return 0.72f;
+    return 0.0f;
+}
+
+void push_soy_detection(Result& out, const hzzs::SoyDetection& det, int track_hint) {
+    if (!det.found) return;
+    const float vl = std::clamp(det.visual_bounds.left, 0.0f, 1.0f);
+    const float vt = std::clamp(det.visual_bounds.top, 0.0f, 1.0f);
+    const float vr = std::clamp(det.visual_bounds.right, vl, 1.0f);
+    const float vb = std::clamp(det.visual_bounds.bottom, vt, 1.0f);
+    out.detections.push_back({
+        track_hint,
+        soy_kind_to_object(det.kind),
+        Rect{vl, vt, vr, vb},
+        soy_confidence(det.found, det.action_triggered),
+        det.action_triggered, false,
+        soy_action_to_avoidance(det.action)});
 }
 
 }  // namespace
@@ -630,13 +660,15 @@ Result analyze_sea_salt_sparse(
         return out;
     }
 
+    // 帧路径零堆分配：thread_local 缓存引擎 + dirty check 避免每帧重建 LUT。
+    static thread_local SparseEngineCache cache;
     hzzs::vision_v3::SeaV3Config cfg = sparse_config_from_params(params);
-    hzzs::vision_v3::SeaSaltV3Engine engine{cfg};
-    hzzs::vision_v3::ArgbFrameView argb_view{
-        frame.pixels, frame.width, frame.height,
-        frame.width};  // row_stride = width for contiguous ARGB
+    cache.ensure(cfg, params.multicolor_threshold);
 
-    const auto sea_result = engine.detect(argb_view);
+    hzzs::vision_v3::ArgbFrameView argb_view{
+        frame.pixels, frame.width, frame.height, frame.width};
+
+    const auto sea_result = cache.engine.detect(argb_view);
     if (!sea_result.primary.found) {
         out.scene_confidence = 0.55f;
     } else {
@@ -659,19 +691,7 @@ Result analyze_sea_salt_sparse(
 
     // 映射 SeaSaltV3Engine 输出为管线 Detection。
     if (sea_result.primary.found) {
-        const float conf = soy_score_to_confidence(sea_result.primary.kind, sea_result.primary);
-        if (conf > 0.0f) {
-            // visual_bounds 已是视口归一化 RatioRect，直接写入无需二次换算。
-            const float vl = std::clamp(sea_result.primary.visual_bounds.left, 0.0f, 1.0f);
-            const float vt = std::clamp(sea_result.primary.visual_bounds.top, 0.0f, 1.0f);
-            const float vr = std::clamp(sea_result.primary.visual_bounds.right, vl, 1.0f);
-            const float vb = std::clamp(sea_result.primary.visual_bounds.bottom, vt, 1.0f);
-            out.detections.push_back({
-                10, Kind::SAND_CASTLE,
-                Rect{vl, vt, vr, vb},
-                conf, sea_result.action_allowed, false,
-                map_sea_avoidance(sea_result.primary.action)});
-        }
+        push_soy_detection(out, sea_result.primary, 10);
     }
 
     // 多点找色叠加（声明式模板，与现有 sea_salt 路径对齐）。
