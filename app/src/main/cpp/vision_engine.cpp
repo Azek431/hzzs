@@ -661,20 +661,14 @@ Result analyze_sea_salt_sparse(
     if (sea_result.primary.found) {
         const float conf = soy_score_to_confidence(sea_result.primary.kind, sea_result.primary);
         if (conf > 0.0f) {
-            const int ax = sea_result.primary.anchor_x;
-            const int ay = sea_result.primary.anchor_y;
-            const float vis_l = sea_result.primary.visual_bounds.left;
-            const float vis_t = sea_result.primary.visual_bounds.top;
-            const float vis_r = sea_result.primary.visual_bounds.right;
-            const float vis_b = sea_result.primary.visual_bounds.bottom;
+            // visual_bounds 已是视口归一化 RatioRect，直接写入无需二次换算。
+            const float vl = std::clamp(sea_result.primary.visual_bounds.left, 0.0f, 1.0f);
+            const float vt = std::clamp(sea_result.primary.visual_bounds.top, 0.0f, 1.0f);
+            const float vr = std::clamp(sea_result.primary.visual_bounds.right, vl, 1.0f);
+            const float vb = std::clamp(sea_result.primary.visual_bounds.bottom, vt, 1.0f);
             out.detections.push_back({
                 10, Kind::SAND_CASTLE,
-                normalize_px(
-                    static_cast<int>(frame.width * vis_l),
-                    static_cast<int>(frame.height * vis_t),
-                    static_cast<int>(frame.width * vis_r),
-                    static_cast<int>(frame.height * vis_b),
-                    frame.width, frame.height),
+                Rect{vl, vt, vr, vb},
                 conf, sea_result.action_allowed, false,
                 map_sea_avoidance(sea_result.primary.action)});
         }
