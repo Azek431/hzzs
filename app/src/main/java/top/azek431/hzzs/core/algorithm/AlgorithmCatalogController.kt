@@ -60,23 +60,23 @@ class AlgorithmCatalogController @Inject constructor(
     private var remoteEntries: List<CatalogRemoteEntry> = emptyList()
     private var wifiOnly: Boolean = true
 
-    /** 检查可升级包，有候选则写入 state 触发 UI 弹窗。 */
+    /** 检查可升级包：有候选则写入 state 触发 UI 弹窗；无候选则清除（刷新目录后自动消退）。 */
     private fun maybeUpdateUpgradePrompt() {
         val current = mutableState.value
         val plan = AlgorithmCatalogPure.planUpgrades(
             installed = current.installed,
             remote = current.remote,
         )
-        if (plan.candidates.isNotEmpty()) {
-            mutableState.update {
-                it.copy(
-                    pendingUpgradePrompt = AlgorithmCatalogState.UpgradePromptData(
+        mutableState.update {
+            it.copy(
+                pendingUpgradePrompt = if (plan.candidates.isNotEmpty()) {
+                    AlgorithmCatalogState.UpgradePromptData(
                         candidates = plan.candidates,
                         skipped = plan.skipped,
                         failed = plan.failed,
-                    ),
-                )
-            }
+                    )
+                } else null,
+            )
         }
     }
 

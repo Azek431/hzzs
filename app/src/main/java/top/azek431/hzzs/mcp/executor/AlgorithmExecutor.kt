@@ -96,7 +96,7 @@ class AlgorithmExecutor @Inject constructor(
                     if (result.queued.isNotEmpty()) {
                         append("，队列 ${result.queued.size} 个（请 list_algorithms 跟踪后再次 upgrade）")
                     }
-                    append("（异步下载/验签/安装）")
+                    append("（异步下载/安装）")
                 },
             ).put("result", upgradeResultToJson(result))
         }
@@ -224,34 +224,41 @@ class AlgorithmExecutor @Inject constructor(
             is top.azek431.hzzs.core.algorithm.AlgorithmCatalogPhase.Incompatible -> "Incompatible"
         }
 
+    private fun upgradeSummaryToJson(
+        candidates: List<String> = emptyList(),
+        upgraded: List<String> = emptyList(),
+        queued: List<String> = emptyList(),
+        skipped: List<String> = emptyList(),
+        failed: List<Pair<String, String>> = emptyList(),
+    ): JSONObject = JSONObject().apply {
+        put("upgraded", org.json.JSONArray(upgraded))
+        put("queued", org.json.JSONArray(queued))
+        put("skipped", org.json.JSONArray(skipped))
+        put("candidates", org.json.JSONArray(candidates))
+        put(
+            "failed",
+            org.json.JSONArray().apply {
+                failed.forEach { (id, error) ->
+                    put(JSONObject().put("id", id).put("error", error))
+                }
+            },
+        )
+    }
+
     private fun upgradePlanToJson(plan: top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure.UpgradePlan): JSONObject =
-        JSONObject()
-            .put("candidates", org.json.JSONArray(plan.candidates))
-            .put("upgraded", org.json.JSONArray())
-            .put("queued", org.json.JSONArray())
-            .put("skipped", org.json.JSONArray(plan.skipped))
-            .put(
-                "failed",
-                org.json.JSONArray().apply {
-                    plan.failed.forEach { (id, error) ->
-                        put(JSONObject().put("id", id).put("error", error))
-                    }
-                },
-            )
+        upgradeSummaryToJson(
+            candidates = plan.candidates,
+            skipped = plan.skipped,
+            failed = plan.failed,
+        )
 
     private fun upgradeResultToJson(result: top.azek431.hzzs.core.algorithm.logic.AlgorithmCatalogPure.UpgradeResult): JSONObject =
-        JSONObject()
-            .put("upgraded", org.json.JSONArray(result.upgraded))
-            .put("queued", org.json.JSONArray(result.queued))
-            .put("skipped", org.json.JSONArray(result.skipped))
-            .put(
-                "failed",
-                org.json.JSONArray().apply {
-                    result.failed.forEach { (id, error) ->
-                        put(JSONObject().put("id", id).put("error", error))
-                    }
-                },
-            )
+        upgradeSummaryToJson(
+            upgraded = result.upgraded,
+            queued = result.queued,
+            skipped = result.skipped,
+            failed = result.failed,
+        )
 }
 
 private fun top.azek431.hzzs.core.algorithm.AlgorithmPackageInfo.toJson(): JSONObject =
