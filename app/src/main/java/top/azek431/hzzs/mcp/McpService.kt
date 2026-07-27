@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -57,6 +58,7 @@ class McpForegroundService : Service() {
     private val stopping = AtomicBoolean(false)
     private val runGeneration = AtomicLong(0)
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private val sessions = McpSessionManager()
     private lateinit var protocol: McpProtocol
     /** tools/list 过滤用：跟 current/preview 刷新，避免每次 list 都 runBlocking。 */
@@ -169,6 +171,21 @@ class McpForegroundService : Service() {
         }
     }
 
+    /** 持有 WifiLock，防止 WIKO/华为等关闭 Wi-Fi 省电后断连。 */
+    private fun acquireWifiLock() {
+        if (wifiLock != null) return
+        try {
+            val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
+            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "HZZS:MCP").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            AppLog.i("mcp", "wifi lock acquired")
+        } catch (e: Exception) {
+            AppLog.w("mcp", "wifi lock acquire failed: ${e.message}")
+        }
+    }
+
     private fun releaseWakeLock() {
         try {
             wakeLock?.let {
@@ -177,6 +194,17 @@ class McpForegroundService : Service() {
             wakeLock = null
         } catch (e: Exception) {
             AppLog.w("mcp", "wake lock release failed: ${e.message}")
+        }
+    }
+
+    private fun releaseWifiLock() {
+        try {
+            wifiLock?.let {
+                if (it.isHeld) it.release()
+            }
+            wifiLock = null
+        } catch (e: Exception) {
+            AppLog.w("mcp", "wifi lock release failed: ${e.message}")
         }
     }
 
@@ -270,8 +298,10 @@ class McpForegroundService : Service() {
             server = socket
             // 新绑定周期清空 LAN 缓存，避免沿用旧网卡列表。
             lanCache.set(LanCache())
-            // 服务启动后持有 PARTIAL_WAKE_LOCK：防止 OEM 电池优化在后台休眠 CPU 导致 accept 超时。
+            // 服务启动后持有 PARTIAL_WAKE_LOCK + WifiLock：
+            // 防止 OEM 电池优化在后台休眠 CPU / 关闭 Wi-Fi 导致 accept 超时或断连。
             acquireWakeLock()
+            acquireWifiLock()
             val lanIps = cachedLanAddresses(bindLocalhostOnly)
             val bindLabel = if (bindLocalhostOnly) {
                 "127.0.0.1:${config.port}"
@@ -680,12 +710,12 @@ class McpForegroundService : Service() {
 
     private fun stopServer() {
         if (!stopping.compareAndSet(false, true)) {
-            // 已在停止中：仍确保 generation 推进，避免陈旧 accept 循环写回。
             runGeneration.incrementAndGet()
             return
         }
         runGeneration.incrementAndGet()
         releaseWakeLock()
+        releaseWifiLock()
         uiBridge.rejectPendingApproval()
         sessions.clear()
         runCatching { server?.close() }
