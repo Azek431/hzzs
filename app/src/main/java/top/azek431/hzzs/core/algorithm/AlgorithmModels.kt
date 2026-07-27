@@ -134,7 +134,10 @@ data class AlgorithmCatalogState(
     val active: AlgorithmPackageInfo? = null,
     val pendingActivation: AlgorithmPackageInfo? = null,
     val previousRollback: AlgorithmPackageInfo? = null,
+    /** 每个 catalogId 的最新版本（已去重）。 */
     val installed: List<AlgorithmPackageInfo> = emptyList(),
+    /** 所有已安装的版本记录（包含同一算法的不同版本，用于展览/回滚）。 */
+    val allInstalledRecords: List<AlgorithmPackageInfo> = emptyList(),
     val remote: List<AlgorithmPackageInfo> = emptyList(),
     val selectionMode: AlgorithmSelectionMode = AlgorithmSelectionMode.AUTO,
     val channel: AlgorithmChannel = AlgorithmChannel.STABLE,
