@@ -76,6 +76,7 @@ def main() -> None:
         ctypes.c_int,
         ctypes.c_bool,
         ctypes.c_float,
+        ctypes.c_char_p,
         ctypes.POINTER(ctypes.c_float),
         ctypes.c_int,
     ]
@@ -103,6 +104,7 @@ def main() -> None:
         enabled_kind_mask: int,
         detect_player: bool,
         fixed_player_x_ratio: float = 0.185,
+        backend_id: bytes = b"",
     ):
         output = np.zeros(641, np.float32)
         count = analyze_config(
@@ -114,6 +116,7 @@ def main() -> None:
             enabled_kind_mask,
             detect_player,
             fixed_player_x_ratio,
+            backend_id,
             output.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
             64,
         )

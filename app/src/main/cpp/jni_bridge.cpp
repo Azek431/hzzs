@@ -73,7 +73,7 @@ private:
 jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
     jclass detection_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$Detection");
     if (!detection_class || clear_if_exception(env)) return nullptr;
-    jmethodID detection_ctor = env->GetMethodID(detection_class, "<init>", "(IIIFFFFFFZZI)V");
+    jmethodID detection_ctor = env->GetMethodID(detection_class, "<init>", "(IIIFFFFFZZI)V");
     if (!detection_ctor || clear_if_exception(env)) {
         env->DeleteLocalRef(detection_class);
         return nullptr;
@@ -158,11 +158,11 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
         }
     }
 
-    // FilteredDetection 数组：(trackHint, kind, left, top, right, bottom, confidence, actionable, diagnosticOnly, avoidance, reason)。
+    // FilteredDetection 数组：(trackHint, kind, source, left, top, right, bottom, confidence, actionable, diagnosticOnly, avoidance, reason)。
     jclass fd_class = env->FindClass("top/azek431/hzzs/nativevision/NativeVision$FilteredDetection");
     jobjectArray fd_array = nullptr;
     if (fd_class && !clear_if_exception(env)) {
-        jmethodID fd_ctor = env->GetMethodID(fd_class, "<init>", "(IIFFFFFZZII)V");
+        jmethodID fd_ctor = env->GetMethodID(fd_class, "<init>", "(IIIFFFFFZZII)V");
         if (fd_ctor && !clear_if_exception(env)) {
             const auto fd_count = static_cast<jsize>(native_result.filtered_out.size());
             fd_array = env->NewObjectArray(fd_count, fd_class, nullptr);
@@ -174,6 +174,7 @@ jobject make_result(JNIEnv* env, const hzzs::Result& native_result) {
                         fd_ctor,
                         static_cast<jint>(f.detection.track_hint),
                         static_cast<jint>(f.detection.kind),
+                        static_cast<jint>(f.detection.source),
                         f.detection.bounds.left,
                         f.detection.bounds.top,
                         f.detection.bounds.right,

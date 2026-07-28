@@ -9,6 +9,7 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-om
   -I"$CPP" \
   -I"$CPP/legacy_main/vision2" \
   -I"$CPP/legacy_main/vision_bamboo" \
+  -I"$CPP/vision_v3" \
   "$ROOT/app/src/test/cpp/native_tests.cpp" \
   "$CPP/algorithm_runtime.cpp" \
   "$CPP/vision_engine.cpp" \
@@ -16,8 +17,15 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-om
   "$CPP/bamboo_bookstore.cpp" \
   "$CPP/sea_salt_living_room.cpp" \
   "$CPP/multicolor_detector.cpp" \
+  "$CPP/vision_v3/sea_salt_v3.cpp" \
+  "$CPP/vision_v3/sea_salt_fast.cpp" \
+  "$CPP/vision_v3/soy_sauce_exact.cpp" \
   "$CPP/legacy_main/vision2/HzzsVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionEngine.cpp" \
   -o "$OUT"
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 "$OUT"
+asan_options="detect_leaks=1"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) asan_options="detect_leaks=0" ;;
+esac
+ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=print_stacktrace=1 "$OUT"

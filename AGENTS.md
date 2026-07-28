@@ -96,7 +96,7 @@ FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临�
        （ACCESSIBILITY dispatchGesture / SHIZUKU·ROOT input + dumpsys 前台）
 ```
 
-**算法 ↔ 绘制**：经 `Detection` 数据关联、职责分离——Native/算法包不算绘制；框是否出现由 `overlay.showBoxes` 等决定。动作 / 距离 / Tracker 几何只读 `Detection.bounds`。`displayContour` 不得参与规划。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md` 与根目录 `CLAUDE.md`。
+**算法 ↔ 绘制**：经 `Detection` 数据关联、职责分离——Native/算法包不算绘制；框是否出现由 `overlay.showBoxes` 等决定。动作 / 距离 / Tracker 几何只读 `Detection.bounds`。`Detection.source` 从 C++ 经 JNI 到 Kotlin 保留默认启发式 / 多点找色 / Native sparse 等产生路径，未知 native code 回退默认来源；过滤诊断不得丢失原来源。`displayContour` 不得参与规划。详见 `docs/vision/V09_COMPLETION_DRIVEN_CONTOURS.md` 与根目录 `CLAUDE.md`。
 
 ### 配置流
 

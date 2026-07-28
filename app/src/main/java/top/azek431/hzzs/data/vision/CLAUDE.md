@@ -48,6 +48,7 @@ SettingsRepository.config / savedConfig
 - 完成驱动取帧：**无固定 FPS sleep**，上一轮完成后直接 `nextFrame`；HUD 显示时临时 `INVISIBLE` 并等一次显示提交，MediaProjection/AUTO 再排空一张可能含旧合成层的帧。
 - 安全点：场景或算法 generation 变化时**必须**取消 actionJob、清 tracker/ledger/去重/玩家参考；**不允许**分析过程中半热切换算法。
 - 坐标：视觉结果与手势规划使用视口归一化 [0,1]；像素换算只在绘制层与手势分发层。
+- 来源：`Detection.source` 从 JNI 正常结果与 `FilteredDetection` 诊断映射后，经 Validator / Tracker / `AlgorithmDetectionTrace` 保留；未知 native code 回退 `DEFAULT_HEURISTIC`。
 - 自动操作默认关闭；启用后仍受免责声明版本门控；帧龄 ≤ `MAX_FRAME_AGE_MS=1000ms`。
 - 安全边界变化（场景/截图后端/自动操作/包名限制/手势后端）→ `cancelActions()`；手势后端切换额外 `clearShellCaches()`。
 - 设置收集器只替换不可变配置快照，不直接操作引擎。
@@ -71,7 +72,9 @@ SettingsRepository.config / savedConfig
 
 > 真实职责看调用链：帧循环、Tracker、JNI 适配三者强耦合组成运行时；上三者是运行时「借用」的协作者。详见 `docs/navigation/README.md`。
 
-## 算法激活：`configureAlgorithm` 失败必须回退 `AlgorithmRuntimeProfile.builtin()`，保持引擎可用。
+## 算法激活
+
+`configureAlgorithm` 失败必须回退 `AlgorithmRuntimeProfile.builtin()`，保持引擎可用。
 
 ## 测试
 

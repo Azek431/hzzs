@@ -129,12 +129,7 @@ class NativeVisionEngine @Inject constructor(
             val confidence = raw.confidence.takeIf(Float::isFinite)?.coerceIn(0f, 1f)
                 ?: return@mapNotNull null
             val avoidance = Avoidance.entries.getOrNull(raw.avoidance) ?: Avoidance.NONE
-            // 将 source ordinal 转换为 DetectionSource（越界时默认 DEFAULT_HEURISTIC）
-            val source = try {
-                DetectionSource.values()[raw.source]
-            } catch (e: IndexOutOfBoundsException) {
-                DetectionSource.DEFAULT_HEURISTIC
-            }
+            val source = DetectionSource.fromNative(raw.source)
             Detection(
                 id = raw.trackHint.toLong().coerceAtLeast(0),
                 kind = kind,
@@ -214,6 +209,7 @@ class NativeVisionEngine @Inject constructor(
         val filteredOut = native.filteredOut.asSequence().mapNotNull { f ->
             val conf = f.confidence.takeIf(Float::isFinite)?.coerceIn(0f, 1f) ?: return@mapNotNull null
             val kind = ObjectKind.entries.getOrNull(f.kind) ?: return@mapNotNull null
+            val source = DetectionSource.fromNative(f.source)
             NormalizedRect.fromUnchecked(f.left, f.top, f.right, f.bottom)?.let { cropBounds ->
                 val full = cropBounds.toFullScreen(viewport) ?: return@mapNotNull null
                 FilteredDetection(
@@ -226,6 +222,7 @@ class NativeVisionEngine @Inject constructor(
                         actionable = false,
                         diagnosticOnly = true,
                         avoidance = Avoidance.NONE,
+                        source = source,
                     ),
                     reason = FilterReason.fromOrdinal(f.reason) ?: FilterReason.SIZE_WIDTH_MIN,
                 )

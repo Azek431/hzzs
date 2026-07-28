@@ -133,7 +133,7 @@ FrameSource → VisionRuntimeController（完成驱动取帧；HUD 显示时临�
   → (自动操作门控通过后) GestureArbiter → 无障碍手势
 ```
 
-算法与绘制经 `Detection` 数据关联、职责分离：Native/算法包不绘制；是否画框由悬浮窗配置决定。
+算法与绘制经 `Detection` 数据关联、职责分离：Native/算法包不绘制；是否画框由悬浮窗配置决定。`Detection.source` 端到端标记默认启发式、多点找色与 Native sparse 等产生路径；JNI 使用稳定数值协议，未知值 fail-closed 回退默认来源。
 
 ## 构建
 

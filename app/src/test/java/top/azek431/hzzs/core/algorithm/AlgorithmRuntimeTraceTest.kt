@@ -71,6 +71,7 @@ class AlgorithmRuntimeTraceTest {
     fun detectionFormatIncludesTrackAndBounds() {
         val det = AlgorithmDetectionTrace(
             kind = "BOTTLE",
+            source = "MULTICOLOR",
             confidence = 0.88f,
             left = 0.10f,
             top = 0.20f,
@@ -83,7 +84,7 @@ class AlgorithmRuntimeTraceTest {
             stableFrames = 3,
         )
         val line = det.formatShort()
-        assertTrue(line.contains("BOTTLE@0.88"))
+        assertTrue(line.contains("BOTTLE/MULTICOLOR@0.88"))
         assertTrue(line.contains("t=7"))
         assertTrue(line.contains("s=3"))
         assertTrue(line.contains("JUMP"))
@@ -157,6 +158,7 @@ class AlgorithmRuntimeTraceTest {
             listOf(
                 AlgorithmDetectionTrace(
                     kind = "BOTTLE",
+                    source = "DEFAULT_HEURISTIC",
                     confidence = 0.7f,
                     left = 0.4f,
                     top = 0.5f,

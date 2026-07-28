@@ -6,7 +6,7 @@
 
 ## 职责
 
-- `SettingsRepository` 接口：`config`（preview 优先）/ `savedConfig`（仅已保存）/ `snapshot`/`current`/`preview`/`clearPreview`/`save`/`updateSavedPreservingPreview`/`importJson`/`exportJson`/`exportJsonRedacted`。
+- `SettingsRepository` 接口：`config`（preview 优先）/ `savedConfig`（仅已保存）/ `snapshot`/`current`/`preview`/`clearPreview`/`save`/`updateSavedPreservingPreview`/`importJson`/`exportJson`/`exportJsonRedacted`；打开计数与捐赠提示状态作为同一 DataStore 的独立元数据键，不进入 `AppConfig`/导入导出/schema。
 - `DataStoreSettingsRepository`：单例 DataStore 实现；预览用 `MutableStateFlow` 即时覆盖；`current`/`snapshot` 优先读解码缓存避免每次走 DataStore map。
 
 ## 入口

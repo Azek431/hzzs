@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** 单目标检测明细（归一化坐标，短格式）。 */
 data class AlgorithmDetectionTrace(
     val kind: String,
+    val source: String,
     val confidence: Float,
     val left: Float,
     val top: Float,
@@ -29,6 +30,8 @@ data class AlgorithmDetectionTrace(
 ) {
     fun formatShort(): String = buildString {
         append(kind)
+        append('/')
+        append(source)
         append('@')
         append("%.2f".format(confidence))
         append('[')

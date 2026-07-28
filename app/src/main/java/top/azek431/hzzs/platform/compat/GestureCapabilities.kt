@@ -109,7 +109,8 @@ class GestureCapabilityResolver @Inject constructor(
 ) {
     fun all(): List<GestureCapability> {
         val a11y = HzzsAccessibilityService.isConnected()
-        val shizukuReady = isShizukuReady()
+        val shizukuHealth = ShizukuHealthCheck.checkLight()
+        val shizukuReady = shizukuHealth.isHealthy
         return listOf(
             GestureCapability(
                 backend = GestureBackend.AUTO,
@@ -137,7 +138,7 @@ class GestureCapabilityResolver @Inject constructor(
             GestureCapability(
                 backend = GestureBackend.SHIZUKU,
                 supported = true,
-                ready = shizukuReady && ShizukuHealthCheck.isFullyAvailable(),
+                ready = shizukuReady,
                 recommended = false,
                 title = "Shizuku input",
                 summary = when {
@@ -149,14 +150,8 @@ class GestureCapabilityResolver @Inject constructor(
                         PackageManager.PERMISSION_DENIED,
                     ) != PackageManager.PERMISSION_GRANTED ->
                         "Shizuku 已运行，请先授予本应用权限（可在截图页选 Shizuku 触发授权，或于 Shizuku 应用中管理）。"
-                    else -> {
-                        // 使用更精确的健康检查
-                        if (ShizukuHealthCheck.isFullyAvailable()) {
-                            "Shizuku 可用（命令测试通过）。通过 input 注入点击/滑动；前台包由 dumpsys 探测。"
-                        } else {
-                            "Shizuku 部分异常（binder 存在但不可用）。建议改用无障碍或检查 Shizuku 状态。"
-                        }
-                    }
+                    else ->
+                        "Shizuku 已授权就绪（命令能力将在手势启动前验证）。通过 input 注入点击/滑动；前台包由 dumpsys 探测。"
                 },
                 riskLevel = "中高",
             ),

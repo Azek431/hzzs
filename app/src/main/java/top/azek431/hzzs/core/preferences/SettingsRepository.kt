@@ -43,29 +43,17 @@ import javax.inject.Singleton
  */
 private val Context.settingsDataStore by preferencesDataStore(name = "hzzs_settings_v5")
 
-/**
- * 应用配置的唯一真相源。
- *
- * 设置模块以 [preview] 编辑草稿、[save] 显式落盘；首次引导与 MCP 也可使用预览/保存路径。
- * 生效配置 = preview（若有）否则已保存快照。
- */
 interface SettingsRepository {
     /** 当前生效配置（预览优先，否则已保存）。 */
     val config: Flow<AppConfig>
 
-    /**
-     * 仅已保存配置流（不含 preview）。
-     * 用于 MCP 服务启停等「必须落盘才生效」的副作用。
-     */
+    /** 仅已保存配置流（不含 preview）。 */
     val savedConfig: Flow<AppConfig>
 
     /** 读取已保存快照（不含预览）。 */
     suspend fun snapshot(): AppConfig
 
-    /**
-     * 当前生效配置：有预览草稿时返回预览，否则与 [snapshot] 相同。
-     * MCP 权限仲裁、tools/list 过滤与设置 UI 必须读此值，避免「页面已改、服务/工具仍读磁盘旧值」。
-     */
+    /** 当前生效配置：有预览草稿时返回预览，否则与 [snapshot] 相同。 */
     suspend fun current(): AppConfig
 
     /** 设置内存预览；不写盘。 */
@@ -77,26 +65,25 @@ interface SettingsRepository {
     /** 校验后持久化，并清空预览。 */
     suspend fun save(config: AppConfig)
 
-    /**
-     * 仅更新已保存配置，**不**清空 [preview]。
-     *
-     * 供运行时自调触发距离等后台写盘路径使用，避免设置页未保存草稿被 `save()` 清掉。
-     * 若当前有 preview，会把 [transform] 后的 **automation 触发距离字段** 合并进 preview，
-     * 使后续「保存并应用」不会用过期草稿盖回自调结果。
-     */
+    /** 仅更新已保存配置，不清空预览。 */
     suspend fun updateSavedPreservingPreview(transform: (AppConfig) -> AppConfig): AppConfig
 
-    /** 解析外部 JSON 并校验；**不**自动 harden。MCP/导入 UI 须再调 [hardenedForExternalIngest]。 */
+    /** 解析外部 JSON 并校验。 */
     suspend fun importJson(json: String): AppConfig
+
+    /** 递增应用打开次数并返回新值。 */
+    suspend fun incrementOpenCount(): Int
+
+    /** 是否已经显示过捐赠提示。 */
+    suspend fun isDonationPromptShown(): Boolean
+
+    /** 标记捐赠提示已显示。 */
+    suspend fun markDonationPromptShown()
 
     /** 导出已校验配置的 JSON 文本。 */
     fun exportJson(config: AppConfig): String
 
-    /**
-     * MCP / 诊断通道导出：脱敏 [McpConfig.authToken]（有值时写 `***`），
-     * 避免 `get_settings` / `app://settings/current` 把 Bearer 明文交给 AI 客户端。
-     * 用户备份导出仍用 [exportJson] 完整写入。
-     */
+    /** 导出脱敏后的配置 JSON。 */
     fun exportJsonRedacted(config: AppConfig): String
 }
 
@@ -217,38 +204,27 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun importJson(json: String): AppConfig = ConfigJson.decode(json).validated()
 
-    /** 获取当前打开次数 */
-    suspend fun getOpenCount(): Int {
-        return stored.first()[openCountKey] ?: 0
+    override suspend fun incrementOpenCount(): Int {
+        var next = 0
+        context.settingsDataStore.edit { preferences ->
+            next = (preferences[openCountKey] ?: 0) + 1
+            preferences[openCountKey] = next
+        }
+        return next
     }
 
-    /** 递增打开次数并返回新值 */
-    suspend fun incrementOpenCount(): Int {
-        return context.settingsDataStore.edit { preferences ->
-            val count = preferences[openCountKey] ?: 0
-            preferences[openCountKey = count + 1]
+    override suspend fun isDonationPromptShown(): Boolean =
+        context.settingsDataStore.data.first()[donationPromptShownKey] ?: false
+
+    override suspend fun markDonationPromptShown() {
+        context.settingsDataStore.edit { preferences ->
+            preferences[donationPromptShownKey] = true
         }
     }
 
-    /** 检查是否已显示过捐赠提示 */
-    suspend fun isDonationPromptShown(): Boolean {
-        return stored.first()[donationPromptShownKey] ?: false
-    }
-
-    /** 标记捐赠提示已显示 */
-    suspend fun markDonationPromptShown(): Unit = context.settingsDataStore.edit {
-        it[donationPromptShownKey = true]
-    }
+    override fun exportJson(config: AppConfig): String = ConfigJson.encode(config.validated())
 
     override fun exportJsonRedacted(config: AppConfig): String {
-        val safe = config.validated()
-        val redacted = safe.copy(
-            mcp = safe.mcp.copy(
-                authToken = if (safe.mcp.authToken.isNotBlank()) "***" else "",
-            ),
-        )
-        return ConfigJson.encode(redacted)
-    }
         val safe = config.validated()
         val redacted = safe.copy(
             mcp = safe.mcp.copy(

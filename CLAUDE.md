@@ -47,6 +47,7 @@ HZZS（火崽崽奇妙屋）是本地 Android 画面分析工具：截图、C++ 
 
 - 视觉结果使用视口归一化坐标 `[0, 1]`；像素换算只允许在绘制层与手势分发层。
 - `Detection.bounds` 是动作、Tracker 与距离的几何真相源；`displayContour`（若有）**仅**供 HUD，不得参与规划。
+- `Detection.source` 使用显式 native code 从 C++ 经 JNI 映射到 Kotlin；正常结果与过滤诊断都必须保留来源，未知 code fail-closed 回退 `DEFAULT_HEURISTIC`。
 - **多点找色引擎**（`multicolor_detector.h/.cpp`）：模板坐标归一化；阈值/搜索带经 `SceneAlgorithmParams.multicolorThreshold` 与 `searchRegionTopRatio/BottomRatio`；不在帧路径解析 JSON。**算法只算数据**（`Detection`/`bounds`），**不**自带绘制；屏幕呈现由 App 通用 HUD 读取检测结果完成（二者经数据关联，职责分离）。
 - 截图帧有明确 `close()` 生命周期，禁止跨帧保存底层缓冲引用。
 - WindowManager / View / Accessibility 回调必须在主线程协调。

@@ -20,12 +20,12 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 ```
 
 | 层 | 关键文件 | 职责 |
-|---|---|---|
+| --- | --- | --- |
 | 领域层 | `domain/vision/AlgorithmRuntimeProfile.kt`、`AlgorithmRulesParser.kt`、`VisionModels.kt` | 声明式参数模型、rules.json 解析、Profile 校验（fail-closed 回退内置） |
 | 目录/安装层 | `AlgorithmCatalogController.kt`、`AlgorithmNetworkClient.kt`、`InstalledAlgorithmStore.kt`、`BundledAlgorithmInstaller.kt` | StateFlow 目录、HTTPS 下载、ZIP 白名单校验、磁盘落盘、APK 捆绑预装 |
 | 纯函数层 | `logic/AlgorithmCatalogPure.kt` | 所有决策逻辑（resolveActive / mergeInstalled / sort / planUpgrades / computePending / catalogPhaseAfter / parseCatalog / versionToCode / builtinPackages） |
 | 激活层 | `AlgorithmActivationCoordinator.kt`、`data/vision/DefaultActiveAlgorithmProvider.kt` | 配置提交/启动两点安全切换；analysisRunning 时只 pending；generation 单调递增 |
-| 追踪/诊断层 | `AlgorithmPipelineTrace.kt`、`AlgorithmRuntimeTrace.kt`、`AlgorithmTraceSinks.kt` | 管线阶段、帧级 ring、决策时间线；sink 接口供 ViewModel 注入 |
+| 追踪/诊断层 | `AlgorithmPipelineTrace.kt`、`AlgorithmRuntimeTrace.kt`、`AlgorithmTraceSinks.kt` | 管线阶段、帧级 ring、检测来源与决策时间线；sink 接口供 ViewModel 注入 |
 
 ## 关键不变量（代理必须遵守）
 
@@ -62,7 +62,7 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 ## 文件清单
 
 | 文件 | 大小 | 改动边界 |
-|---|---|---|
+| --- | --- | --- |
 | `AlgorithmActivationCoordinator.kt` | 11KB | **慎改**：两点激活语义 |
 | `AlgorithmCatalogController.kt` | 16KB | StateFlow 持有 + Android 边界 |
 | `AlgorithmNetworkClient.kt` | 10KB | HTTPS 编排 + ZIP 白名单解压 |
@@ -72,7 +72,7 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 | `AlgorithmIds.kt` | 1.4KB | Catalog/Runtime ID 映射 |
 | `AlgorithmPipelineTrace.kt` | 9KB | 管线阶段 object |
 | `AlgorithmRuntimeTrace.kt` | 12KB | 帧轨迹 object |
-| `InstalledAlgorithmStore.kt` | 11KB | 磁盘落盘 |
+| `InstalledAlgorithmStore.kt` | 11KB | 磁盘落盘；`installed/<catalogId>/versions/<versionCode>` 多版本共存，`current.json` 只决定当前版本，列表须区分 current 与全部版本 |
 | `BundledAlgorithmInstaller.kt` | 7.6KB | APK 捆绑预装（不经外装验签） |
 
 ## 测试
@@ -82,6 +82,7 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 ```
 
 相关单测：
+
 - `core/algorithm/logic/AlgorithmCatalogPureTest.kt`（纯函数，覆盖 resolveActive / mergeInstalled / sort / planUpgrades / computePending / versionToCode / parseCatalog / statusAgainst）
 - `domain/vision/AlgorithmRuntimeProfileTest.kt`（Profile 校验 + generation）
 - `core/algorithm/BundledAlgorithmInstallerTest.kt`（versionCode / decideBundledAction）
@@ -90,7 +91,7 @@ domain/vision (领域模型)               ← AlgorithmRuntimeProfile / Algorit
 ## 文档真相源
 
 | 用途 | 路径 |
-|---|---|
+| --- | --- |
 | 算法包格式 / 发布 | `docs/ALGORITHM_SYSTEM_V1.md` |
 | 算法切换完整链路 | `docs/algorithm/ALGORITHM_SWITCHING.md` |
 | 代理导航 | `docs/navigation/KOTLIN.md` |

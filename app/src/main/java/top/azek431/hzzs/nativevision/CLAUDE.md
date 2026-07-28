@@ -31,6 +31,7 @@ NativeVisionEngine.analyze
 - **像素缓冲仅在 JNI 调用期间借用**；native 不得缓存数组地址跨调用（`NativeVisionEngine.analyze` 注释：「JNI 仅借用 frame.argb，调用返回后不得再访问该数组地址」）。
 - 算法切换在帧循环**外**的安全点完成，不得与 `analyze` 半热交错；失败回退内置 profile。
 - native 坐标：视口裁剪内归一化 → 全屏归一化由 `NativeVisionEngine.toFullScreen` 映射（与 `jni_bridge` 一致）。
+- `NativeVision.Detection` / `FilteredDetection` 的 JNI 构造器描述符、参数顺序与 `DetectionSource.nativeCode` 是同一协议；正常结果与过滤诊断均需透传 source，改任一侧必须同步 C++ / Kotlin / 静态门禁。
 
 ## 改这个包前必读
 

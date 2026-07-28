@@ -11,7 +11,6 @@ import top.azek431.hzzs.domain.vision.AlgorithmRuntimeProfile
 import top.azek431.hzzs.domain.vision.AlgorithmRulesParser
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,10 +45,10 @@ class InstalledAlgorithmStore @Inject constructor(
     private val installedDir: File
         get() = File(root, "installed").also { it.mkdirs() }
 
-    private val stagingDir: File
-        get() = File(root, "staging").also { it.mkdirs() }
-
+    /** current.json 指向的当前版本，按 catalogId 索引。 */
     private val cache = ConcurrentHashMap<String, InstalledAlgorithmRecord>()
+    /** 全部已安装版本，key 为 `catalogId@versionCode`。 */
+    private val allVersions = ConcurrentHashMap<String, InstalledAlgorithmRecord>()
 
     /** 已扫描并迁移过的旧版目录缓存，避免每次启动重复迁移。 */
     private var legacyMigrated: Boolean = false
@@ -82,7 +81,9 @@ class InstalledAlgorithmStore @Inject constructor(
     /** 获取指定 catalogId 下的所有版本，按 versionCode 降序排列。 */
     fun listAllVersions(catalogId: String): List<InstalledAlgorithmRecord> {
         refreshFromDisk()
-        return cache.values.filter { it.catalogId == catalogId }.sortedByDescending { it.versionCode }
+        return allVersions.values
+            .filter { it.catalogId == catalogId }
+            .sortedByDescending { it.versionCode }
     }
 
     /** 获取当前激活版本（指向 current.json 中记录的版本）。 */
@@ -91,63 +92,91 @@ class InstalledAlgorithmStore @Inject constructor(
         return cache[catalogId]
     }
 
-    /** 刷新磁盘：扫描所有已安装目录，载入 cache。 */
+    /** 获取每个 catalogId 的 current.json 指向版本。 */
     fun listInstalled(): List<InstalledAlgorithmRecord> {
         refreshFromDisk()
         return cache.values.sortedByDescending { it.versionCode }
     }
 
-    /** 检查并迁移旧格式（如果存在）。 */
+    /** 获取磁盘中的全部版本，供版本管理与回滚列表使用。 */
+    fun listAllInstalledVersions(): List<InstalledAlgorithmRecord> {
+        refreshFromDisk()
+        return allVersions.values.sortedWith(
+            compareBy<InstalledAlgorithmRecord> { it.catalogId }
+                .thenByDescending { it.versionCode },
+        )
+    }
+
+    /** 将 v1 的 `<catalogId>/current/` 目录迁入同一 catalog 的多版本布局。 */
     private fun ensureLegacyMigration() {
         if (legacyMigrated) return
         legacyMigrated = true
-        val oldCurrentDir = File(installedDir, "current")
-        if (oldCurrentDir.isDirectory && oldCurrentDir.listFiles()?.isNotEmpty() == true) {
-            // 存在旧版 current/ 目录，需要迁移
-            migrateLegacyFormat()
+        val candidates = installedDir.listDirectories()
+            .mapNotNull { catalogDir ->
+                File(catalogDir, "current").takeIf { it.isDirectory }
+            }
+            .toMutableList()
+        // 兼容短暂存在过的错误全局 current/ 布局；必须由 meta 提供 catalogId。
+        File(installedDir, "current").takeIf { it.isDirectory }?.let(candidates::add)
+        candidates.forEach(::migrateLegacyDirectory)
+
+        // 兼容旧错误实现写出的全局 installed/versions/<versionCode>/。
+        File(installedDir, "versions").listDirectories().forEach { oldVersionDir ->
+            migrateGlobalVersionDirectory(oldVersionDir)
+        }
+        File(installedDir, "versions").takeIf { it.listDirectories().isEmpty() }?.delete()
+    }
+
+    private fun migrateGlobalVersionDirectory(oldVersionDir: File) {
+        val metaFile = File(oldVersionDir, "meta.json")
+        if (!metaFile.isFile) return
+        runCatching {
+            val meta = JSONObject(metaFile.readText(Charsets.UTF_8))
+            val catalogId = meta.getString("catalogId")
+            require(catalogId.isNotBlank() && !catalogId.contains('/') && !catalogId.contains('\\'))
+            val versionCode = meta.optLong("versionCode", oldVersionDir.name.toLongOrNull() ?: 1L)
+            val catalogDir = File(installedDir, catalogId).also { it.mkdirs() }
+            val target = File(File(catalogDir, "versions"), versionCode.toString())
+            if (!target.exists()) {
+                require(oldVersionDir.copyRecursively(target, overwrite = false)) {
+                    "无法复制全局旧版本目录"
+                }
+            }
+            val record = loadRecordFromMeta(meta, target)
+            val currentFile = File(catalogDir, "current.json")
+            if (!currentFile.isFile) writeCurrent(catalogDir, record)
+            oldVersionDir.deleteRecursively()
+            AppLog.i("algorithm", "迁移全局旧版本：$catalogId@$versionCode")
+        }.onFailure { error ->
+            AppLog.e("algorithm", "全局旧版本迁移失败: ${error.message}", error)
         }
     }
 
-    private fun migrateLegacyFormat() {
-        val oldCurrentDir = File(installedDir, "current")
-        if (!oldCurrentDir.isDirectory) return
-
-        AppLog.i("algorithm", "检测到旧版算法存储格式，自动迁移中...")
-        try {
-            // 读取 oldCurrentDir/meta.json 或重建元数据
-            val metaFile = File(oldCurrentDir, "meta.json")
-            var recordMeta: JSONObject? = null
-            if (metaFile.exists()) {
-                recordMeta = JSONObject(metaFile.readText(Charsets.UTF_8))
-            }
-
-            // 收集当前目录下的所有文件作为旧版内容
-            val files = oldCurrentDir.listFiles()?.toList() ?: emptyList()
-            // 创建版本目录（取 versionCode = 1，或从 meta 读取）
-            val versionCode = recordMeta?.optLong("versionCode", 1) ?: 1L
-            val versionDir = File(installedDir, "versions/$versionCode").also { it.mkdirs() }
-
-            // 迁移所有文件
-            files.forEach { file ->
-                val target = File(versionDir, file.name)
-                if (file.isDirectory) {
-                    file.copyRecursively(target, overwrite = true)
-                } else {
-                    file.copyTo(target, overwrite = true)
-                }
-            }
-
-            // 保留/migrate meta 到新目录
-            recordMeta?.let { meta ->
-                val metaJson = File(versionDir, "meta.json").writeText(meta.toString(), Charsets.UTF_8)
-            }
-
-            // 删除旧 current 目录
+    private fun migrateLegacyDirectory(oldCurrentDir: File) {
+        val metaFile = File(oldCurrentDir, "meta.json")
+        if (!metaFile.isFile) {
+            AppLog.w("algorithm", "跳过缺少 meta.json 的旧算法目录：$oldCurrentDir")
+            return
+        }
+        runCatching {
+            val meta = JSONObject(metaFile.readText(Charsets.UTF_8))
+            val catalogId = meta.optString("catalogId").takeIf { it.isNotBlank() }
+                ?: oldCurrentDir.parentFile?.name?.takeIf { it != "installed" }
+                ?: error("旧算法目录缺少 catalogId")
+            val catalogDir = File(installedDir, catalogId).also { it.mkdirs() }
+            val versionCode = meta.optLong("versionCode", 1L)
+            val versionDir = File(File(catalogDir, "versions"), versionCode.toString())
+            if (versionDir.exists()) versionDir.deleteRecursively()
+            require(
+                oldCurrentDir.copyRecursively(versionDir, overwrite = true),
+            ) { "无法复制旧算法版本" }
+            val record = loadRecordFromMeta(meta, versionDir)
+            require(record.catalogId == catalogId) { "旧算法 catalogId 不匹配" }
+            writeCurrent(catalogDir, record)
             oldCurrentDir.deleteRecursively()
-            AppLog.i("algorithm", "旧版格式迁移完成：current/ → versions/$versionCode/")
-        } catch (e: Exception) {
-            AppLog.e("algorithm", "旧版格式迁移失败: ${e.message ?: e.javaClass.simpleName}", e)
-            // 迁移失败不阻断旧功能，保留 current/ 目录继续工作
+            AppLog.i("algorithm", "旧版格式迁移完成：$catalogId/current → versions/$versionCode")
+        }.onFailure { error ->
+            AppLog.e("algorithm", "旧版格式迁移失败: ${error.message ?: error.javaClass.simpleName}", error)
         }
     }
 
@@ -188,20 +217,15 @@ class InstalledAlgorithmStore @Inject constructor(
             supportedScenes = scenes,
         ).getOrThrow()
 
-        // 安装到版本目录：installed/<catalogId>/versions/<versionCode>/
-        val versionDir = File(installedDir, "versions/$versionCode").also { it.mkdirs() }
         val catalogDir = File(installedDir, catalogId).also { it.mkdirs() }
+        val versionsDir = File(catalogDir, "versions").also { it.mkdirs() }
+        val versionDir = File(versionsDir, versionCode.toString())
+        val staging = File(catalogDir, "staging-$versionCode-${System.nanoTime()}")
+            .also { it.mkdirs() }
 
         try {
-            // 迁移已存在的 current 目录到新版本（如果有）
-            val oldCurrent = File(catalogDir, "current")
-            if (oldCurrent.exists()) {
-                oldCurrent.copyTo(File(versionDir, "current"), overwrite = true)
-            }
-
-            // 复制所有文件
             extracted.listFiles()?.forEach { src ->
-                val dest = File(versionDir, src.name)
+                val dest = File(staging, src.name)
                 if (src.isDirectory) {
                     src.copyRecursively(dest, overwrite = true)
                 } else {
@@ -227,23 +251,18 @@ class InstalledAlgorithmStore @Inject constructor(
                     "supportedScenes",
                     JSONArray().also { arr -> scenes.forEach { arr.put(it.name) } },
                 )
-            File(versionDir, "meta.json").writeText(meta.toString(2), Charsets.UTF_8)
+            File(staging, "meta.json").writeText(meta.toString(2), Charsets.UTF_8)
 
-            // 写入 profile.json（供快速读取，避免每次启动都解析 rules.json）
-            File(versionDir, "profile.json").writeText(
+            File(staging, "profile.json").writeText(
                 encodeProfileStub(parsed.profile),
                 Charsets.UTF_8,
             )
 
-            // 更新 current.json 指向最新版本
-            val currentJson = File(catalogDir, "current.json")
-            currentJson.writeText(
-                JSONObject()
-                    .put("versionCode", versionCode)
-                    .put("installedAtEpochMs", installedAt)
-                    .toString(2),
-                Charsets.UTF_8,
-            )
+            if (versionDir.exists()) versionDir.deleteRecursively()
+            require(staging.renameTo(versionDir) || staging.copyRecursively(versionDir, overwrite = true)) {
+                "无法晋升算法版本目录"
+            }
+            if (staging.exists()) staging.deleteRecursively()
 
             val record = InstalledAlgorithmRecord(
                 catalogId = catalogId,
@@ -262,45 +281,48 @@ class InstalledAlgorithmStore @Inject constructor(
                 originTag = originTag,
             )
 
+            writeCurrent(catalogDir, record)
+            allVersions[versionKey(catalogId, versionCode)] = record
             cache[catalogId] = record
             record
         } catch (error: Throwable) {
-            // 清理半包版本
-            versionDir.deleteRecursively()
+            staging.deleteRecursively()
             throw error
         }
     }
 
-    /**
-     * 卸载指定 catalogId 的指定版本（或全部版本）。
-     * @param catalogId 算法 id
-     * @param versionCode 版本码（null 表示卸载所有版本）
-     */
     fun uninstall(catalogId: String, versionCode: Long? = null): Boolean {
         if (AlgorithmIds.isBuiltinCatalog(catalogId)) return false
 
         refreshFromDisk()
-        val versionsToKeep = if (versionCode != null) {
-            cache.values.filter { it.catalogId == catalogId && it.versionCode != versionCode }
-        } else {
-            cache.values.filter { it.catalogId == catalogId }
+        val catalogDir = File(installedDir, catalogId)
+        val target = versionCode?.let { allVersions[versionKey(catalogId, it)] }
+        if (versionCode == null) {
+            val existed = catalogDir.exists()
+            val deleted = catalogDir.deleteRecursively()
+            cache.remove(catalogId)
+            allVersions.entries.removeIf { it.value.catalogId == catalogId }
+            return existed && deleted
         }
+        target ?: return false
+        val deleted = target.directory.deleteRecursively()
+        if (!deleted) return false
+        allVersions.remove(versionKey(catalogId, versionCode))
 
-        // 如果要卸载的目录还存在，删除它
-        versionCode?.let { vc ->
-            val dirToDelete = File(installedDir, "versions/$vc")
-            dirToDelete.deleteRecursively()
-        }
-
-        // 移除缓存
-        val removed = if (versionCode != null) {
-            cache.remove(catalogId)?.let { if (it.versionCode == versionCode) 1 else 0 } ?: 0
-        } else {
-            cache.values.filter { it.catalogId == catalogId }.size.also {
-                cache.removeAll { it.catalogId == catalogId }
+        val current = cache[catalogId]
+        if (current?.versionCode == versionCode) {
+            val replacement = allVersions.values
+                .filter { it.catalogId == catalogId }
+                .maxByOrNull { it.versionCode }
+            if (replacement == null) {
+                cache.remove(catalogId)
+                File(catalogDir, "current.json").delete()
+            } else {
+                cache[catalogId] = replacement
+                writeCurrent(catalogDir, replacement)
             }
         }
-        removed > 0
+        return true
     }
 
     /** 获取 catalogId 对应的当前激活版本（current.json 指向的）。 */
@@ -309,87 +331,68 @@ class InstalledAlgorithmStore @Inject constructor(
         return cache[catalogId]
     }
 
-    /**
-     * 将 current.json 指向的版本标记为激活（即设置当前版本）。
-     * 实际不需要，因为 installFromExtracted 已自动更新 current.json。
-     * 此方法为遗留接口兼容，直接生效。
-     */
     fun setActiveVersion(catalogId: String, versionCode: Long): Boolean {
         refreshFromDisk()
-        val versionDir = File(installedDir, "versions/$versionCode")
-        if (!versionDir.exists() || !versionDir.isDirectory) return false
-
         val catalogDir = File(installedDir, catalogId)
-        val currentJson = File(catalogDir, "current.json")
-        try {
-            currentJson.writeText(
-                JSONObject()
-                    .put("versionCode", versionCode)
-                    .toString(2),
-                Charsets.UTF_8,
+        val versionDir = File(File(catalogDir, "versions"), versionCode.toString())
+        if (!versionDir.isDirectory) return false
+
+        return runCatching {
+            val metaFile = File(versionDir, "meta.json")
+            if (!metaFile.isFile) return false
+            val record = loadRecordFromMeta(
+                JSONObject(metaFile.readText(Charsets.UTF_8)),
+                versionDir,
             )
-            // 从 cache 中更新指向
-            cache[catalogId]?.let { record ->
-                val newRecord = versionDir.findRecord(versionCode, catalogId)
-                if (newRecord != null) {
-                    cache[catalogId] = newRecord
-                    return true
-                }
-            }
-            return true
-        } catch (e: Exception) {
-            AppLog.e("algorithm", "SetActiveVersion 失败: ${e.message}", e)
-            return false
+            if (record.catalogId != catalogId) return false
+
+            writeCurrent(catalogDir, record)
+            cache[catalogId] = record
+            allVersions[versionKey(catalogId, versionCode)] = record
+            true
+        }.getOrElse { error ->
+            AppLog.e("algorithm", "SetActiveVersion 失败: ${error.message}", error)
+            false
         }
     }
 
-    /** 从磁盘刷新已安装记录。 */
+    /** 从磁盘刷新全部版本，并按 current.json 建立当前版本索引。 */
     private fun refreshFromDisk() {
+        ensureLegacyMigration()
         cache.clear()
-        val versionDirs = File(installedDir, "versions").listDirectories() ?: emptyList()
-        versionDirs.forEach { versionDir ->
-            try {
-                val metaFile = File(versionDir, "meta.json")
-                if (metaFile.exists()) {
-                    val meta = JSONObject(metaFile.readText(Charsets.UTF_8))
-                    val catalogId = meta.optString("catalogId")
-                    if (catalogId.isNotBlank()) {
-                        val record = loadRecordFromMeta(meta, versionDir)
-                        cache[catalogId] = record
-                    }
-                } else {
-                    // 尝试从旧版 manifest.json/rules.json 加载
-                    loadLegacyRecord(versionDir)?.let {
-                        val catalogId = it.catalogId
-                        cache[catalogId] = it
-                    }
-                }
-            } catch (e: Exception) {
-                AppLog.w("algorithm", "跳过损坏的目录 $versionDir: ${e.message}", e)
-            }
-        }
-
-        // 加载 current.json（用于获取活跃版本）
-        val catalogDirs = File(installedDir).listDirectories()?.filter { it.name != "staging" } ?: emptyList()
+        allVersions.clear()
+        val catalogDirs = installedDir.listDirectories()
+            .filter { it.name != "staging" && it.name != "current" }
         catalogDirs.forEach { catalogDir ->
-            val currentJson = File(catalogDir, "current.json")
-            if (currentJson.exists()) {
-                try {
-                    val meta = JSONObject(currentJson.readText(Charsets.UTF_8))
-                    val versionCode = meta.optLong("versionCode", -1)
-                    if (versionCode >= 0) {
-                        val versionDir = File(installedDir, "versions/$versionCode")
-                        if (versionDir.exists()) {
-                            val metaFile = File(versionDir, "meta.json")
-                            if (metaFile.exists()) {
-                                val recordMeta = JSONObject(metaFile.readText(Charsets.UTF_8))
-                                val record = loadRecordFromMeta(recordMeta, versionDir)
-                                cache[catalogDir.name] = record
-                            }
-                        }
+            val versionDirs = File(catalogDir, "versions").listDirectories()
+            versionDirs.forEach { versionDir ->
+                runCatching {
+                    val record = File(versionDir, "meta.json").takeIf(File::isFile)?.let { metaFile ->
+                        loadRecordFromMeta(JSONObject(metaFile.readText(Charsets.UTF_8)), versionDir)
+                    } ?: loadLegacyRecord(versionDir)
+                    if (record != null && record.catalogId == catalogDir.name) {
+                        allVersions[versionKey(record.catalogId, record.versionCode)] = record
                     }
-                } catch (e: Exception) {
-                    AppLog.w("algorithm", "current.json 解析失败: ${e.message}", e)
+                }.onFailure { error ->
+                    AppLog.w("algorithm", "跳过损坏的版本目录 $versionDir: ${error.message}", error)
+                }
+            }
+
+            val currentVersionCode = runCatching {
+                JSONObject(File(catalogDir, "current.json").readText(Charsets.UTF_8))
+                    .optLong("versionCode", -1L)
+            }.getOrDefault(-1L)
+            val current = allVersions[versionKey(catalogDir.name, currentVersionCode)]
+                ?: allVersions.values
+                    .filter { it.catalogId == catalogDir.name }
+                    .maxByOrNull { it.versionCode }
+            if (current != null) {
+                cache[catalogDir.name] = current
+                if (current.versionCode != currentVersionCode) {
+                    runCatching { writeCurrent(catalogDir, current) }
+                        .onFailure { error ->
+                            AppLog.w("algorithm", "修复 current.json 失败：${error.message}", error)
+                        }
                 }
             }
         }
@@ -411,7 +414,7 @@ class InstalledAlgorithmStore @Inject constructor(
             catalogId = meta.getString("catalogId"),
             runtimeId = runtimeId,
             version = meta.getString("version"),
-            versionCode = meta.getLong("versionCode"),
+            versionCode = meta.optLong("versionCode", directory.name.toLongOrNull() ?: 1L),
             displayName = meta.optString("displayName", meta.getString("catalogId")),
             supportedScenes = scenes,
             profile = parsed.profile,
@@ -477,13 +480,12 @@ class InstalledAlgorithmStore @Inject constructor(
     /** 获取指定 catalogId 的总版本数。 */
     fun getVersionCount(catalogId: String): Int {
         refreshFromDisk()
-        return cache.values.filter { it.catalogId == catalogId }.count()
+        return allVersions.values.count { it.catalogId == catalogId }
     }
 
     /** 扩展：读取指定版本的 CHANGELOG.txt。 */
-    fun readChelog(catalogId: String, versionCode: Long): String? {
-        val record = get(catalogId) ?: return null
-        if (record.versionCode != versionCode) return null
+    fun readChangelog(catalogId: String, versionCode: Long): String? {
+        val record = getVersion(catalogId, versionCode) ?: return null
         return runCatching {
             File(record.directory, "CHANGELOG.txt").let {
                 if (it.exists()) it.readText(Charsets.UTF_8) else ""
@@ -493,8 +495,7 @@ class InstalledAlgorithmStore @Inject constructor(
 
     /** 扩展：读取指定版本的 rules.json 摘要。 */
     fun readRulesSummary(catalogId: String, versionCode: Long): String? {
-        val record = get(catalogId) ?: return null
-        if (record.versionCode != versionCode) return null
+        val record = getVersion(catalogId, versionCode) ?: return null
         return runCatching {
             File(record.directory, "rules.json").readText(Charsets.UTF_8)
         }.getOrNull()
@@ -509,24 +510,24 @@ class InstalledAlgorithmStore @Inject constructor(
         return cache[catalogId]
     }
 
-    /**
-     * 卸载指定 catalogId 的所有版本（包括内置不允许卸载）。
-     */
-    fun uninstallAll(catalogId: String): Boolean {
-        if (AlgorithmIds.isBuiltinCatalog(catalogId)) return false
-        cache.remove(catalogId)
-        // 删除所有版本目录
-        val versionsDir = File(installedDir, "versions")
-        versionsDir.listFiles()?.forEach { versionDir ->
-            val catalogDirName = versionDir.nameTake { it.contains(catalogId) }
-            if (catalogDirName.contains(catalogId)) {
-                versionDir.deleteRecursively()
-            }
-        }
-        // 也删除 catalog 目录下的 current.json
-        val catalogDir = File(installedDir, catalogId)
-        catalogDir.delete()
-        return true
+    private fun getVersion(catalogId: String, versionCode: Long): InstalledAlgorithmRecord? {
+        refreshFromDisk()
+        return allVersions[versionKey(catalogId, versionCode)]
+    }
+
+    fun uninstallAll(catalogId: String): Boolean = uninstall(catalogId)
+
+    private fun versionKey(catalogId: String, versionCode: Long): String = "$catalogId@$versionCode"
+
+    private fun writeCurrent(catalogDir: File, record: InstalledAlgorithmRecord) {
+        catalogDir.mkdirs()
+        File(catalogDir, "current.json").writeText(
+            JSONObject()
+                .put("versionCode", record.versionCode)
+                .put("installedAtEpochMs", record.installedAtEpochMs)
+                .toString(2),
+            Charsets.UTF_8,
+        )
     }
 
     /** 编码 AlgorithmRuntimeProfile 为轻量 JSON 快照（用于 profile.json）。 */
@@ -548,24 +549,6 @@ class InstalledAlgorithmStore @Inject constructor(
         return out
     }
 
-    /** 扩展：从目录名提取 catalogId（用于旧版兼容）。 */
-    private fun File.listDirectories(): List<File>? {
-        return this.listFiles()?.filter { it.isDirectory } ?: emptyList()
-    }
-
-    /** 扩展：从字符串中取出包含目标子串的部分（仅用于兼容）。 */
-    private fun String.contains(substring: Boolean): Boolean {
-        // 占位，实际逻辑在 loadLegacyRecord 中硬编码实现
-        return true
-    }
-}
-
-/** 扩展：从 File 获取名称中的 catalogId 部分（兼容旧命名约定）。 */
-private fun File.catalogIdFromPath(): String {
-    return this.name
-}
-
-/** 安全扩展：字符串截取，取第一个 @ 之前的部分（兼容旧版本 id 格式）。 */
-private fun String.takeBeforeAt(): String {
-    return this.split('@').first()
+    private fun File.listDirectories(): List<File> =
+        listFiles()?.filter(File::isDirectory).orEmpty()
 }

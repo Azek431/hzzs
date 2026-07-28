@@ -3,6 +3,7 @@
 #include "../../main/cpp/vision_engine.h"
 
 #include <atomic>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -22,6 +23,87 @@ hzzs::AlgorithmRuntimeProfileNative valid_network_profile() {
     profile.scenes[1].gap_width_min = 0.12f;
     profile.scenes[1].player_confidence_floor = 0.40f;
     return profile;
+}
+
+void put_pixel(
+    std::vector<uint32_t>& pixels,
+    int width,
+    int height,
+    int x,
+    int y,
+    int32_t argb) {
+    assert(x >= 0 && x < width && y >= 0 && y < height);
+    pixels[static_cast<size_t>(y) * width + x] = static_cast<uint32_t>(argb);
+}
+
+void draw_low_sandcastle(
+    std::vector<uint32_t>& pixels,
+    int width,
+    int height,
+    int x,
+    int y) {
+    put_pixel(pixels, width, height, x, y, -400963);
+    put_pixel(pixels, width, height, x + 70, y - 188, -399674);
+    put_pixel(pixels, width, height, x + 121, y - 210, -268857);
+    put_pixel(pixels, width, height, x + 198, y - 171, -1720697);
+    put_pixel(pixels, width, height, x + 225, y + 2, -4088705);
+}
+
+void test_native_sparse_respects_kind_mask_and_source() {
+    using namespace hzzs;
+    constexpr int width = 1272;
+    constexpr int height = 2772;
+    std::vector<uint32_t> pixels(static_cast<size_t>(width) * height, 0xff000000u);
+    draw_low_sandcastle(pixels, width, height, 500, 1800);
+    const FrameView frame{pixels.data(), width, height};
+    const auto params = make_native_vision_profile(1).scenes[2];
+    const int sandcastle_mask = 1 << static_cast<int>(Kind::SAND_CASTLE);
+
+    const auto enabled = analyze_sea_salt_sparse(
+        frame, 320, sandcastle_mask, false, 0.185f, params, nullptr);
+    const auto obstacle = std::find_if(
+        enabled.detections.begin(),
+        enabled.detections.end(),
+        [](const Detection& detection) { return detection.kind != Kind::PLAYER; });
+    assert(obstacle != enabled.detections.end());
+    assert(obstacle->kind == Kind::SAND_CASTLE);
+    assert(obstacle->source == DetectionSource::NATIVE_SPARSE);
+    assert(obstacle->track_hint == 10);
+
+    const auto disabled = analyze_sea_salt_sparse(
+        frame, 320, 0, false, 0.185f, params, nullptr);
+    assert(std::none_of(
+        disabled.detections.begin(),
+        disabled.detections.end(),
+        [](const Detection& detection) { return detection.kind != Kind::PLAYER; }));
+}
+
+void test_detection_source_contract() {
+    using namespace hzzs;
+    static_assert(static_cast<int32_t>(DetectionSource::DEFAULT_HEURISTIC) == 0);
+    static_assert(static_cast<int32_t>(DetectionSource::MULTICOLOR) == 1);
+    static_assert(static_cast<int32_t>(DetectionSource::SOY_EXACT) == 2);
+    static_assert(static_cast<int32_t>(DetectionSource::SEA_FAST) == 3);
+    static_assert(static_cast<int32_t>(DetectionSource::NATIVE_SPARSE) == 4);
+
+    const Detection detection{
+        7,
+        DetectionSource::MULTICOLOR,
+        Kind::SAND_CASTLE,
+        Rect{0.1f, 0.2f, 0.3f, 0.4f},
+        0.8f,
+        true,
+        false,
+        Avoidance::JUMP,
+    };
+    assert(detection.track_hint == 7);
+    assert(detection.source == DetectionSource::MULTICOLOR);
+    assert(detection.kind == Kind::SAND_CASTLE);
+    assert(detection.bounds.left == 0.1f);
+    assert(detection.confidence == 0.8f);
+    assert(detection.actionable);
+    assert(!detection.diagnostic_only);
+    assert(detection.avoidance == Avoidance::JUMP);
 }
 
 void test_builtin_and_validate() {
@@ -149,6 +231,8 @@ void test_concurrent_analyze_and_switch() {
 }  // namespace
 
 int main() {
+    test_detection_source_contract();
+    test_native_sparse_respects_kind_mask_and_source();
     test_builtin_and_validate();
     test_configure_and_generation();
     test_analyze_uses_snapshot_and_reset();

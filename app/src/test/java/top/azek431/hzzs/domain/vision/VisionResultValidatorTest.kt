@@ -10,6 +10,17 @@ import top.azek431.hzzs.core.model.SceneId
 
 class VisionResultValidatorTest {
     @Test
+    fun detectionSourceUsesStableNativeCodesAndFailsClosed() {
+        assertEquals(DetectionSource.DEFAULT_HEURISTIC, DetectionSource.fromNative(0))
+        assertEquals(DetectionSource.MULTICOLOR, DetectionSource.fromNative(1))
+        assertEquals(DetectionSource.SOY_EXACT, DetectionSource.fromNative(2))
+        assertEquals(DetectionSource.SEA_FAST, DetectionSource.fromNative(3))
+        assertEquals(DetectionSource.NATIVE_SPARSE, DetectionSource.fromNative(4))
+        assertEquals(DetectionSource.DEFAULT_HEURISTIC, DetectionSource.fromNative(-1))
+        assertEquals(DetectionSource.DEFAULT_HEURISTIC, DetectionSource.fromNative(Int.MAX_VALUE))
+    }
+
+    @Test
     fun disabledObstacleNeverLeavesValidator() {
         val config = SceneConfig(
             sceneId = SceneId.SWEET_FACTORY,

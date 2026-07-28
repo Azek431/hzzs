@@ -162,8 +162,8 @@ Result analyze_sweet_main(
     if (raw.bottle.found) {
         push_if_enabled(
             out,
-            DetectionSource::DEFAULT_HEURISTIC,  // 新增：检测来源
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             Kind::GREEN_BOTTLE,
             Avoidance::JUMP,
             hint++,
@@ -181,8 +181,8 @@ Result analyze_sweet_main(
         const Kind cake_kind = wide ? Kind::PIT : Kind::CAKE_STRUCTURE;
         push_if_enabled(
             out,
-            DetectionSource::DEFAULT_HEURISTIC,  // 新增：检测来源
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             cake_kind,
             wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
             hint++,
@@ -199,6 +199,7 @@ Result analyze_sweet_main(
         push_if_enabled(
             out,
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             Kind::HANGING_SPIKE,
             Avoidance::SLIDE,
             hint++,
@@ -210,12 +211,6 @@ Result analyze_sweet_main(
             frame.height,
             raw.spike.scorePermille / 1000.0f,
             true);
-    }
-    // Set all detections to DEFAULT_HEURISTIC source
-    for (auto& det : out.detections) {
-        if (det.kind != Kind::PLAYER) {
-            det.source = DetectionSource::DEFAULT_HEURISTIC;
-        }
     }
     return out;
 }
@@ -280,6 +275,7 @@ Result analyze_bamboo_main(
         push_if_enabled(
             out,
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             Kind::PANDA_STATUE,
             large ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
             hint++,
@@ -300,6 +296,7 @@ Result analyze_bamboo_main(
         push_if_enabled(
             out,
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             gap_kind,
             wide ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP,
             hint++,
@@ -316,6 +313,7 @@ Result analyze_bamboo_main(
         push_if_enabled(
             out,
             enabled_kind_mask,
+            DetectionSource::DEFAULT_HEURISTIC,
             Kind::HANGING_BRUSH,
             Avoidance::SLIDE,
             hint++,
@@ -327,12 +325,6 @@ Result analyze_bamboo_main(
             frame.height,
             raw.overhead.scorePermille / 1000.0f,
             true);
-    }
-    // Set all non-player detections to DEFAULT_HEURISTIC source
-    for (auto& det : out.detections) {
-        if (det.kind != Kind::PLAYER) {
-            det.source = DetectionSource::DEFAULT_HEURISTIC;
-        }
     }
     return out;
 }
@@ -420,23 +412,27 @@ Result analyze_with_profile(
     StageTiming timing;
     int64_t t0 = enable_stage_timing ? now_ns() : 0;
     Result result;
+    std::vector<MulticolorDiag> multicolor_diag;
     const VisionBackend backend = backend_from_profile(profile);
     if (scene == 2 && backend == VisionBackend::NATIVE_VISION) {
         // HZZS Native Vision 1.0.0 后端：海盐走 vision_v3 SeaSaltV3Engine。
         result = analyze_sea_salt_sparse(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,
-            enable_multicolor_diag ? &result.multicolor_diag : nullptr);
+            enable_multicolor_diag ? &multicolor_diag : nullptr);
     } else if (scene == 2) {
         // 仅诊断开关开时采样多点找色明细；关则传 nullptr，避免每帧分配。
         result = analyze_sea_salt(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params,
-            enable_multicolor_diag ? &result.multicolor_diag : nullptr);
+            enable_multicolor_diag ? &multicolor_diag : nullptr);
     } else if (scene == 1) {
         result = analyze_bamboo_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
     } else {
         result = analyze_sweet_main(
             frame, work_width, enabled_kind_mask, detect_player, fixed_player_x_ratio, params);
+    }
+    if (enable_multicolor_diag) {
+        result.multicolor_diag = std::move(multicolor_diag);
     }
     int64_t t1 = enable_stage_timing ? now_ns() : 0;
     if (enable_stage_timing) timing.detect_ns = t1 - t0;
@@ -672,7 +668,7 @@ Result analyze_sea_salt_sparse(
     [[maybe_unused]] bool detect_player,
     float fixed_player_x_ratio,
     const SceneAlgorithmParamsNative& params,
-    std::vector<MulticolorDiag>* detail_out) {
+    [[maybe_unused]] std::vector<MulticolorDiag>* detail_out) {
     Result out;
     if (frame.pixels == nullptr || frame.width < 32 || frame.height < 64) {
         out.error = "invalid frame";
@@ -715,8 +711,14 @@ Result analyze_sea_salt_sparse(
     }
 
     // 映射 SeaSaltV3Engine 输出为管线 Detection，来源为 NATIVE_SPARSE
-    if (sea_result.primary.found) {
-        push_soy_detection(out, sea_result.primary, sea_result.primary.track_hint, DetectionSource::NATIVE_SPARSE);
+    if (sea_result.primary.found &&
+        kind_enabled(enabled_kind_mask, soy_kind_to_object(sea_result.primary.kind))) {
+        constexpr int kSparsePrimaryTrackHint = 10;
+        push_soy_detection(
+            out,
+            sea_result.primary,
+            kSparsePrimaryTrackHint,
+            DetectionSource::NATIVE_SPARSE);
     }
 
     // Native Vision 不叠加多点找色检测，保持路径纯净

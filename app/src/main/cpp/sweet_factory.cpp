@@ -28,8 +28,16 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
         const auto players = player_candidates(f, work_width, ground.y, true);
         player_found = choose_player(f, players, ground.y, &player_component);
         if (player_found) {
-            out.detections.push_back(
-                {1, Kind::PLAYER, norm(player_component, f), .88f, false, false, Avoidance::NONE});
+            Detection player{};
+            player.track_hint = 1;
+            player.source = DetectionSource::DEFAULT_HEURISTIC;
+            player.kind = Kind::PLAYER;
+            player.bounds = norm(player_component, f);
+            player.confidence = .88f;
+            player.actionable = false;
+            player.diagnostic_only = false;
+            player.avoidance = Avoidance::NONE;
+            out.detections.push_back(player);
         }
     }
     const int player_right =
@@ -64,7 +72,7 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
                 continue;
             }
             out.detections.push_back(
-                {hint++, Kind::GREEN_BOTTLE, norm(c, f), .84f, true, false, Avoidance::JUMP});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::GREEN_BOTTLE, norm(c, f), .84f, true, false, Avoidance::JUMP});
         }
     }
 
@@ -131,7 +139,7 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
                 continue;
             }
             out.detections.push_back(
-                {hint++, Kind::HANGING_SPIKE, norm(c, f), .88f, true, false, Avoidance::SLIDE});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::HANGING_SPIKE, norm(c, f), .88f, true, false, Avoidance::SLIDE});
         }
     }
 
@@ -157,8 +165,7 @@ Result analyze_sweet(const FrameView& f, int work_width, int enabled_kind_mask, 
             }
             if (c.right <= player_right) continue;
             out.detections.push_back(
-                {hint++, Kind::CAKE_STRUCTURE, norm(c, f), .79f, true, false,
-                 w > params.cake_wide_width_ratio ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::CAKE_STRUCTURE, norm(c, f), .79f, true, false, w > params.cake_wide_width_ratio ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
         }
     }
     return out;

@@ -121,6 +121,30 @@ fun ObjectKind.asObstacleKind(): ObstacleKind? = when (this) {
 enum class Avoidance { NONE, JUMP, DOUBLE_JUMP, SLIDE, PRESS, SWIPE_UP }
 
 /**
+ * 检测产生路径；native code 必须与 C++ `DetectionSource` 的显式值一致。
+ *
+ * 不使用枚举 ordinal 作为 JNI 契约，避免将来调整声明顺序时静默串位。
+ */
+enum class DetectionSource(val nativeCode: Int) {
+    DEFAULT_HEURISTIC(0),
+    MULTICOLOR(1),
+    SOY_EXACT(2),
+    SEA_FAST(3),
+    NATIVE_SPARSE(4);
+
+    companion object {
+        fun fromNative(code: Int): DetectionSource = when (code) {
+            DEFAULT_HEURISTIC.nativeCode -> DEFAULT_HEURISTIC
+            MULTICOLOR.nativeCode -> MULTICOLOR
+            SOY_EXACT.nativeCode -> SOY_EXACT
+            SEA_FAST.nativeCode -> SEA_FAST
+            NATIVE_SPARSE.nativeCode -> NATIVE_SPARSE
+            else -> DEFAULT_HEURISTIC
+        }
+    }
+}
+
+/**
  * 单次检测结果。
  *
  * @property id 引擎侧临时 ID；跨帧稳定 ID 由 Tracker 分配

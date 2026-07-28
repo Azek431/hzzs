@@ -104,7 +104,9 @@ data class CaptureCapability(
 class CaptureCapabilityResolver @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
-    fun all(): List<CaptureCapability> = listOf(
+    fun all(): List<CaptureCapability> {
+        val shizukuHealth = ShizukuHealthCheck.checkLight()
+        return listOf(
         CaptureCapability(
             backend = CaptureBackend.AUTO,
             supported = true,
@@ -136,7 +138,7 @@ class CaptureCapabilityResolver @Inject constructor(
         CaptureCapability(
             backend = CaptureBackend.SHIZUKU,
             supported = true,
-            ready = isShizukuReady() && ShizukuHealthCheck.isFullyAvailable(),
+            ready = shizukuHealth.isHealthy,
             recommended = false,
             title = "Shizuku / ADB",
             summary = when {
@@ -147,13 +149,8 @@ class CaptureCapabilityResolver @Inject constructor(
                 runCatching { Shizuku.checkSelfPermission() }.getOrDefault(PackageManager.PERMISSION_DENIED) !=
                     PackageManager.PERMISSION_GRANTED ->
                     "Shizuku 已运行，请在首次使用时授予本应用 Shizuku 权限。"
-                else -> {
-                    if (ShizukuHealthCheck.isFullyAvailable()) {
-                        "Shizuku 可用（命令测试通过）。通过受限 shell 截图，延迟通常高于屏幕录制。"
-                    } else {
-                        "Shizuku 部分异常（binder 存在但不可用）。建议检查 Shizuku 状态或改用其他截图方式。"
-                    }
-                }
+                else ->
+                    "Shizuku 已授权就绪（命令能力将在启动截图时验证）。通过受限 shell 截图，延迟通常高于屏幕录制。"
             },
         ),
         CaptureCapability(
@@ -165,12 +162,7 @@ class CaptureCapabilityResolver @Inject constructor(
             summary = "最高权限实验后端。每帧 PNG 截图不一定比屏幕录制更快，且兼容风险最高。",
         ),
     )
-
-    private fun isShizukuReady(): Boolean = runCatching {
-        hasPackage("moe.shizuku.privileged.api") &&
-            Shizuku.pingBinder() &&
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-    }.getOrDefault(false)
+    }
 
     private fun hasPackage(packageName: String): Boolean = runCatching {
         @Suppress("DEPRECATION")

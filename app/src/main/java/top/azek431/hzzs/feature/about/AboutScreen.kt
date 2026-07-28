@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeveloperMode
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Tag
@@ -103,7 +104,7 @@ import top.azek431.hzzs.mcp.McpUiBridge
 import top.azek431.hzzs.nativevision.NativeVision
 import javax.inject.Inject
 
-enum class DonationKind { WECHAT, ALIPAY }
+enum class DonationKind { WECHAT, ALIPAY, IEF_DIAN }
 
 /** 关于页状态：配置流、调试帧计数、Native 自检；开发者 UI 复用设置模块组件。 */
 @HiltViewModel
@@ -408,6 +409,11 @@ fun AboutScreen(
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.about_alipay))
                     }
+                    FilledTonalButton(onClick = { donation = DonationKind.IEF_DIAN }) {
+                        Icon(Icons.Rounded.Favorite, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.about_donation_prompt_iefdian))
+                    }
                 }
             }
             item {
@@ -430,27 +436,31 @@ fun AboutScreen(
     }
 
     donation?.let { kind ->
-        val context = LocalContext.current
-        val onSaveAction = when (kind) {
-            DonationKind.WECHAT, DonationKind.ALIPAY -> {
-                onSaveQr(kind)
-            }
-            DonationKind.IEF_DIAN -> {
-                onDismiss()
-                val url = "https://www.ifdian.net/a/Azek431"
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                if (intent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(intent)
-                } else {
-                    Toast.makeText(
-                        context,
-                        R.string.about_open_link_failed,
-                        Toast.LENGTH_SHORT
-                    ).show()
+        DonationDialog(
+            kind = kind,
+            onDismiss = { donation = null },
+            onSave = {
+                when (kind) {
+                    DonationKind.WECHAT, DonationKind.ALIPAY -> onSaveQr(kind)
+                    DonationKind.IEF_DIAN -> {
+                        donation = null
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://www.ifdian.net/a/Azek431"),
+                        )
+                        if (intent.resolveActivity(toastContext.packageManager) != null) {
+                            toastContext.startActivity(intent)
+                        } else {
+                            Toast.makeText(
+                                toastContext,
+                                R.string.about_open_link_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
                 }
-            }
-        }
-        DonationDialog(kind, onDismiss = { donation = null }, onSave = onSaveAction)
+            },
+        )
     }
 }
 
@@ -496,13 +506,13 @@ private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: ()
                     )
                 } else {
                     Text(
-                        string = stringResource(R.string.about_support_iefdian_desc),
+                        text = stringResource(R.string.about_support_iefdian_desc),
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        string = "https://www.ifdian.net/a/Azek431",
+                        text = "https://www.ifdian.net/a/Azek431",
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -523,7 +533,7 @@ private fun DonationDialog(kind: DonationKind, onDismiss: () -> Unit, onSave: ()
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_close))
-            },
+            }
         },
     )
 }

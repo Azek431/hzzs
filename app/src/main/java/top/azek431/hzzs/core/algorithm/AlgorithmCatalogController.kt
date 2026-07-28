@@ -99,10 +99,11 @@ class AlgorithmCatalogController @Inject constructor(
         this.wifiOnly = wifiOnly
         mutableState.update { current ->
             val diskRecords = store.listInstalled()
-            // installed: 每个 catalogId 的最新版本（去重）
+            val allDiskRecords = store.listAllInstalledVersions()
+            // installed: 每个 catalogId 的当前版本
             val installed = AlgorithmCatalogPure.mergeInstalled(current.installed, AlgorithmCatalogPure.mergeDiskInstalled(diskRecords))
             // allInstalledRecords: 所有版本（包括多版本）
-            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
+            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(allDiskRecords)
             val active = AlgorithmCatalogPure.resolveActive(
                 installed = installed,
                 pinned = algorithm.pinnedAlgorithmId,
@@ -148,10 +149,11 @@ class AlgorithmCatalogController @Inject constructor(
             }
         mutableState.update { current ->
             val diskRecords = store.listInstalled()
-            // installed: 每个 catalogId 的最新版本（去重）
+            val allDiskRecords = store.listAllInstalledVersions()
+            // installed: 每个 catalogId 的当前版本
             val installed = AlgorithmCatalogPure.mergeInstalled(current.installed, AlgorithmCatalogPure.mergeDiskInstalled(diskRecords))
             // allInstalledRecords: 所有版本
-            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
+            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(allDiskRecords)
             val active = AlgorithmCatalogPure.resolveActive(
                 installed = installed,
                 pinned = draftConfig.pinnedAlgorithmId,
@@ -351,8 +353,9 @@ class AlgorithmCatalogController @Inject constructor(
                     } else {
                         current.active
                     }
-                    val diskRecords = store.listInstalled()
-                    val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
+                    val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(
+                        store.listAllInstalledVersions(),
+                    )
                     current.copy(
                         installed = nextInstalled,
                         allInstalledRecords = allInstalled,
@@ -483,8 +486,9 @@ class AlgorithmCatalogController @Inject constructor(
             return null
         }
         mutableState.update { current ->
-            val diskRecords = store.listInstalled()
-            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(diskRecords)
+            val allInstalled = AlgorithmCatalogPure.mergeDiskInstalled(
+                store.listAllInstalledVersions(),
+            )
             when {
                 analysisRunning -> current.copy(
                     pendingActivation = installed,

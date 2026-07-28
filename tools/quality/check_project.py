@@ -326,6 +326,71 @@ for token in ("enabledKindMask", "detectPlayer", "fixedPlayerXRatio", "NativeVis
 native_diag = read("app/src/main/cpp/jni_bridge.cpp")
 for token in ("StageTiming", "MulticolorDiag", "FilteredDetection", "now_ns"):
     check(token in native_diag, f"native-diag:{token}", "algorithm diagnostic bridge invariant missing")
+native_diag_without_line_comments = re.sub(r"//.*", "", native_diag)
+native_diag_compact = re.sub(r"\s+", "", native_diag_without_line_comments)
+for owner, descriptor in (
+    ("detection_class", "(IIIFFFFFZZI)V"),
+    ("fd_class", "(IIIFFFFFZZII)V"),
+):
+    expected_ctor = f'env->GetMethodID({owner},"<init>","{descriptor}")'
+    check(
+        expected_ctor in native_diag_compact,
+        f"native-jni-descriptor:{owner}",
+        "DetectionSource JNI constructor descriptor is out of sync",
+    )
+for stale_descriptor in ("(IIIFFFFFFZZI)V", "(IIFFFFFZZII)V"):
+    check(
+        stale_descriptor not in native_diag_compact,
+        f"native-jni-no-stale-descriptor:{stale_descriptor}",
+        "stale DetectionSource JNI constructor descriptor remains",
+    )
+for name, expected_args in (
+    (
+        "detection",
+        "env->NewObject(detection_class,detection_ctor,d.track_hint,"
+        "static_cast<jint>(d.kind),static_cast<jint>(d.source),"
+        "d.bounds.left,d.bounds.top,d.bounds.right,d.bounds.bottom,d.confidence,"
+        "static_cast<jboolean>(d.actionable),static_cast<jboolean>(d.diagnostic_only),"
+        "static_cast<jint>(d.avoidance))",
+    ),
+    (
+        "filtered-detection",
+        "env->NewObject(fd_class,fd_ctor,static_cast<jint>(f.detection.track_hint),"
+        "static_cast<jint>(f.detection.kind),static_cast<jint>(f.detection.source),"
+        "f.detection.bounds.left,f.detection.bounds.top,f.detection.bounds.right,"
+        "f.detection.bounds.bottom,f.detection.confidence,"
+        "static_cast<jboolean>(f.detection.actionable),"
+        "static_cast<jboolean>(f.detection.diagnostic_only),"
+        "static_cast<jint>(f.detection.avoidance),"
+        "static_cast<jint>(static_cast<int32_t>(f.reason)))",
+    ),
+):
+    check(
+        expected_args in native_diag_compact,
+        f"native-jni-args:{name}",
+        "DetectionSource JNI argument order is out of sync",
+    )
+
+native_boundary_compact = re.sub(r"\s+", "", re.sub(r"//.*", "", native_boundary))
+for name, expected_layout in (
+    (
+        "detection",
+        "dataclassDetection(valtrackHint:Int,valkind:Int,valsource:Int,valleft:Float,"
+        "valtop:Float,valright:Float,valbottom:Float,valconfidence:Float,"
+        "valactionable:Boolean,valdiagnosticOnly:Boolean,valavoidance:Int,)",
+    ),
+    (
+        "filtered-detection",
+        "dataclassFilteredDetection(valtrackHint:Int,valkind:Int,valsource:Int,valleft:Float,"
+        "valtop:Float,valright:Float,valbottom:Float,valconfidence:Float,"
+        "valactionable:Boolean,valdiagnosticOnly:Boolean,valavoidance:Int,valreason:Int,)",
+    ),
+):
+    check(
+        expected_layout in native_boundary_compact,
+        f"native-kotlin-layout:{name}",
+        "NativeVision DetectionSource field order is out of sync",
+    )
 
 jni = read("app/src/main/cpp/jni_bridge.cpp")
 engine = read("app/src/main/cpp/vision_engine.cpp")
@@ -358,16 +423,44 @@ for host_script in ("tools/vision/run_native_sanitizers.sh", "tools/vision/build
     for token in (
         "legacy_main/vision2",
         "legacy_main/vision_bamboo",
+        "vision_v3",
         "HzzsVisionCore.cpp",
         "BambooVisionCore.cpp",
         "BambooVisionEngine.cpp",
+        "sea_salt_v3.cpp",
+        "sea_salt_fast.cpp",
+        "soy_sauce_exact.cpp",
     ):
         check(token in host_text, f"host-native:{host_script}:{token}", "host build diverged from CMake")
     check(
-        "legacy_main/vision2" in cmake_native and "legacy_main/vision_bamboo" in cmake_native,
-        "host-native:cmake-legacy-main",
-        "CMake missing legacy_main sources",
+        all(path in cmake_native for path in (
+            "legacy_main/vision2",
+            "legacy_main/vision_bamboo",
+            "vision_v3/sea_salt_v3.cpp",
+            "vision_v3/sea_salt_fast.cpp",
+            "vision_v3/soy_sauce_exact.cpp",
+        )),
+        "host-native:cmake-sources",
+        "CMake missing legacy_main or vision_v3 sources",
     )
+
+host_api = re.sub(r"\s+", "", read("tools/vision/host_api.cpp"))
+host_tests = re.sub(r"\s+", "", read("tools/vision/run_host_tests.py"))
+expected_host_cpp_abi = (
+    'extern"C"inthzzs_analyze_host_config(intscene,constuint32_t*pixels,intwidth,intheight,'
+    'intwork_width,intenabled_kind_mask,booldetect_player,floatfixed_player_x_ratio,'
+    'constchar*backend_id,float*output,intmax_detections)'
+)
+expected_host_ctypes_abi = (
+    "analyze_config.argtypes=[ctypes.c_int,ctypes.POINTER(ctypes.c_uint32),ctypes.c_int,"
+    "ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_bool,ctypes.c_float,ctypes.c_char_p,"
+    "ctypes.POINTER(ctypes.c_float),ctypes.c_int,]"
+)
+check(
+    expected_host_cpp_abi in host_api and expected_host_ctypes_abi in host_tests,
+    "host-native:backend-id-abi",
+    "host C++ and ctypes argument order diverged",
+)
 
 result = {"status": "PASS" if not ERRORS else "FAIL", "checks": len(CHECKS), "errors": ERRORS}
 print(json.dumps(result, ensure_ascii=False, indent=2))

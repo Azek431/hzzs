@@ -49,7 +49,7 @@ Release（需签名配置，见 README「Release 构建与签名」）：
 ### 质量脚本
 
 | 脚本 | 作用 |
-|---|---|
+| --- | --- |
 | `tools/quality/check_resources.py` | 资源 XML、图标、赞赏图等静态检查 |
 | `tools/quality/check_project.py` | 单模块架构、manifest 导出面、MCP loopback、AUTO 不升权等不变量 |
 
@@ -86,7 +86,7 @@ Windows 可改用 `tools/vision/build_host.ps1`。Python 入口（`run_host_test
 - 数据集路径也可通过环境变量 `HZZS_TEST_DATASET` 或目录 `test_images/`、`.test-data/` 提供。
 - **无人工真值时只报告稳定性与耗时，不报告准确率。**
 
-`app/src/test/cpp/native_tests.cpp` 由 sanitizer 脚本编译运行（须链接 `sea_salt_living_room.cpp` 等与 `CMakeLists.txt` 一致的源；含 scene 0..`kSceneCount-1` 边界断言）。
+`app/src/test/cpp/native_tests.cpp` 由 sanitizer 脚本编译运行（须链接 `sea_salt_living_room.cpp`、`vision_v3/*` 等并与 `CMakeLists.txt` 保持同一源清单；含 scene 0..`kSceneCount-1` 边界与 `DetectionSource` 数值协议断言）。Windows/MSYS 保留 ASan/UBSan，但因平台不支持 LeakSanitizer 而仅关闭 `detect_leaks`；Linux CI 继续开启泄漏检测。
 
 ## Android 场景矩阵
 

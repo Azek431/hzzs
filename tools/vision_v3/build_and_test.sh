@@ -45,12 +45,16 @@ COMMON=(
 "$OUT/sea_salt_v3_test"
 
 if [[ "${SANITIZE:-1}" == "1" ]]; then
+  asan_options="detect_leaks=1"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) asan_options="detect_leaks=0" ;;
+  esac
   SAN_FLAGS=(-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined)
   "$CXX" "${COMMON[@]}" "${SAN_FLAGS[@]}" \
     "$CPP/soy_sauce_exact.cpp" \
     "$CPP/soy_sauce_exact_test.cpp" \
     -o "$OUT/soy_sauce_exact_sanitized_test"
-  ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
+  ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=halt_on_error=1 \
     "$OUT/soy_sauce_exact_sanitized_test"
 
   "$CXX" "${COMMON[@]}" "${SAN_FLAGS[@]}" \
@@ -58,7 +62,7 @@ if [[ "${SANITIZE:-1}" == "1" ]]; then
     "$CPP/sea_salt_fast.cpp" \
     "$CPP/sea_salt_fast_test.cpp" \
     -o "$OUT/sea_salt_fast_sanitized_test"
-  ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
+  ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=halt_on_error=1 \
     "$OUT/sea_salt_fast_sanitized_test"
 
   "$CXX" "${COMMON[@]}" "${SAN_FLAGS[@]}" \
@@ -67,14 +71,14 @@ if [[ "${SANITIZE:-1}" == "1" ]]; then
     "$CPP/sea_salt_v3.cpp" \
     "$CPP/sea_salt_v3_test.cpp" \
     -o "$OUT/sea_salt_v3_sanitized_test"
-  ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
+  ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=halt_on_error=1 \
     "$OUT/sea_salt_v3_sanitized_test"
 
   "$CXX" "${COMMON[@]}" "${SAN_FLAGS[@]}" -pthread \
     "$ROOT/app/src/main/cpp/hud_v3/hud_snapshot.cpp" \
     "$ROOT/app/src/main/cpp/hud_v3/hud_snapshot_test.cpp" \
     -o "$OUT/hud_snapshot_sanitized_test"
-  ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
+  ASAN_OPTIONS="$asan_options" UBSAN_OPTIONS=halt_on_error=1 \
     "$OUT/hud_snapshot_sanitized_test"
 fi
 

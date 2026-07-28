@@ -292,8 +292,16 @@ Result analyze_sea_salt(
         const auto players = player_candidates(f, work_width, best_y, true);
         player_found = choose_player(f, players, best_y, &player_component);
         if (player_found) {
-            out.detections.push_back(
-                {1, Kind::PLAYER, norm(player_component, f), .88f, false, false, Avoidance::NONE});
+            Detection player{};
+            player.track_hint = 1;
+            player.source = DetectionSource::DEFAULT_HEURISTIC;
+            player.kind = Kind::PLAYER;
+            player.bounds = norm(player_component, f);
+            player.confidence = .88f;
+            player.actionable = false;
+            player.diagnostic_only = false;
+            player.avoidance = Avoidance::NONE;
+            out.detections.push_back(player);
         }
     }
 
@@ -305,9 +313,16 @@ Result analyze_sea_salt(
         const int top = static_cast<int>(f.height * params.fixed_player_top);
         const int bottom = static_cast<int>(f.height * params.fixed_player_bottom);
         Component fixed{fixed_left, top, fixed_right, bottom, 1};
-        out.detections.push_back(
-            {1, Kind::PLAYER, norm(fixed, f), detect_player ? .55f : 1.0f, false, false,
-             Avoidance::NONE});
+        Detection player{};
+        player.track_hint = 1;
+        player.source = DetectionSource::DEFAULT_HEURISTIC;
+        player.kind = Kind::PLAYER;
+        player.bounds = norm(fixed, f);
+        player.confidence = detect_player ? .55f : 1.0f;
+        player.actionable = false;
+        player.diagnostic_only = false;
+        player.avoidance = Avoidance::NONE;
+        out.detections.push_back(player);
         player_component = fixed;
     }
 
@@ -361,8 +376,8 @@ Result analyze_sea_salt(
             }
             const bool tall = h > 0.16f || w > 0.22f;
             out.detections.push_back(
-                {hint++, Kind::SAND_CASTLE, norm(c, f), .84f, true, false,
-                 tall ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::SAND_CASTLE, norm(c, f), .84f, true, false,
+                          tall ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
         }
     }
 
@@ -409,7 +424,7 @@ Result analyze_sea_salt(
             box.top = std::max(0.0f, box.top - .015f);
             box.bottom = std::min(1.0f, box.bottom + .05f);
             out.detections.push_back(
-                {hint++, Kind::HANGING_ANCHOR, box, .82f, true, false, Avoidance::SLIDE});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::HANGING_ANCHOR, box, .82f, true, false, Avoidance::SLIDE});
         }
     }
 

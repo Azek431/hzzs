@@ -26,8 +26,16 @@ Result analyze_bamboo(const FrameView& f, int work_width, int enabled_kind_mask,
         const auto players = player_candidates(f, work_width, ground.y, false);
         player_found = choose_player(f, players, ground.y, &player_component);
         if (player_found) {
-            out.detections.push_back(
-                {1, Kind::PLAYER, norm(player_component, f), .88f, false, false, Avoidance::NONE});
+            Detection player{};
+            player.track_hint = 1;
+            player.source = DetectionSource::DEFAULT_HEURISTIC;
+            player.kind = Kind::PLAYER;
+            player.bounds = norm(player_component, f);
+            player.confidence = .88f;
+            player.actionable = false;
+            player.diagnostic_only = false;
+            player.avoidance = Avoidance::NONE;
+            out.detections.push_back(player);
         }
     }
     const int player_right =
@@ -71,7 +79,7 @@ Result analyze_bamboo(const FrameView& f, int work_width, int enabled_kind_mask,
             box.bottom = std::min(1.0f, box.bottom + .10f);
             brush_regions.push_back(box);
             out.detections.push_back(
-                {hint++, Kind::HANGING_BRUSH, box, .84f, true, false, Avoidance::SLIDE});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::HANGING_BRUSH, box, .84f, true, false, Avoidance::SLIDE});
         }
     }
 
@@ -111,7 +119,7 @@ Result analyze_bamboo(const FrameView& f, int work_width, int enabled_kind_mask,
                 f, c, [](int r, int g, int b) { return r < 105 && g < 105 && b < 110; });
             if (neutral < .13f || dark < .025f) continue;
             out.detections.push_back(
-                {hint++, Kind::PANDA_STATUE, norm(c, f), .86f, true, false, Avoidance::JUMP});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::PANDA_STATUE, norm(c, f), .86f, true, false, Avoidance::JUMP});
         }
     }
 
@@ -143,8 +151,8 @@ Result analyze_bamboo(const FrameView& f, int work_width, int enabled_kind_mask,
             if (continuous_ground > .34f) continue;
             if (c.right <= player_right) continue;
             out.detections.push_back(
-                {hint++, Kind::BAMBOO_GAP, norm(c, f), .85f, true, false,
-                 w > params.gap_wide_width_ratio ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
+                Detection{hint++, DetectionSource::DEFAULT_HEURISTIC, Kind::BAMBOO_GAP, norm(c, f), .85f, true, false,
+                          w > params.gap_wide_width_ratio ? Avoidance::DOUBLE_JUMP : Avoidance::JUMP});
         }
     }
     return out;

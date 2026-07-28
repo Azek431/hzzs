@@ -57,6 +57,7 @@ core/algorithm/AlgorithmCatalogPure           ──→ 纯函数层（不反向
 - 坐标：除特别说明外，矩形均为**全屏归一化 [0,1]**。像素换算**只允许**发生在绘制层（`OverlayController`）与手势分发层（`service.automation`）。本包不做任何像素换算。
 - 尺寸上限：`MAX_FRAME_DIMENSION = 4096`、`MAX_FRAME_PIXELS ≈ 8MP`，与 C++/JNI 一致。
 - `Detection.init`：`confidence ∈ [0,1]`、`actionable 与 diagnosticOnly 不可同 true`、`actionable ⇒ avoidance ≠ NONE`。
+- `DetectionSource.nativeCode` 与 C++ `DetectionSource` 显式值逐项对齐；JNI 未知 code 回退 `DEFAULT_HEURISTIC`，正常检测与 `FilteredDetection` 诊断都必须保留来源。
 - `NormalizedRect`：四边 finite 且 ∈[0,1]、`left<right`、`top<bottom`。外部输入走 `fromUnchecked`（非法→null），禁止把脏数据推入业务。
 - 算法 profile 生命周期：**解析并校验一次 → 写入 Native 不可变快照 → 帧循环只读**。禁止每帧解析 JSON / 读文件 / 分配大型规则对象。
 - `AlgorithmProfileValidator`：finite / 有序区间 / 通道 0..255 / 比例安全窗；失败必须回退 `AlgorithmRuntimeProfile.builtin()`，**不得带脏参数进 Native**。

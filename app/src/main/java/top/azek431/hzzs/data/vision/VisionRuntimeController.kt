@@ -1,11 +1,12 @@
 package top.azek431.hzzs.data.vision
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,6 +29,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import top.azek431.hzzs.R
 import top.azek431.hzzs.core.algorithm.AlgorithmActivationCoordinator
 import top.azek431.hzzs.core.algorithm.AlgorithmCatalogController
 import top.azek431.hzzs.core.algorithm.AlgorithmDetectionTrace
@@ -58,8 +60,9 @@ import top.azek431.hzzs.domain.vision.VisionEngine
 import top.azek431.hzzs.domain.vision.VisionFrame
 import top.azek431.hzzs.domain.vision.VisionResult
 import top.azek431.hzzs.domain.vision.withApproximateDisplayContour
-import top.azek431.hzzs.platform.compat.ShizukuHealthCheck
+import top.azek431.hzzs.platform.compat.CaptureBackendResolution
 import top.azek431.hzzs.platform.compat.GestureCapabilityResolver
+import top.azek431.hzzs.platform.compat.ShizukuHealthCheck
 import top.azek431.hzzs.platform.compat.resolveEffectiveCaptureBackend
 import top.azek431.hzzs.platform.compat.resolveEffectiveGestureBackend
 import top.azek431.hzzs.service.automation.AccessibilityForegroundProbe
@@ -76,6 +79,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 /**
  * 视觉运行时控制器：帧循环的唯一所有者。
@@ -156,12 +160,7 @@ class VisionRuntimeController @Inject constructor(
     // Shizuku 持续监控相关字段
     private var shizukuHealthCheckJob: Job? = null
     private var shizukuLastHealthState: Boolean? = null
-    private companion object {
-        const val SHIZUKU_HEALTH_CHECK_INTERVAL_MS = 30_000L
-        const val SHIZUKU_NOTIFICATION_CHANNEL_ID = "shizuku_health_channel"
-        const val SHIZUKU_NOTIFICATION_ID = 1001
-    }
-
+    private var shizukuSessionSelected = false
     init {
         scope.launch {
             // 主题/悬浮窗可跟 preview；自动操作与截图后端只跟已落盘 saved，
@@ -247,7 +246,10 @@ class VisionRuntimeController @Inject constructor(
             var finalGestureBackend = gestureResolution.effective
             var healthCheckReason: String? = null
 
-            if (finalGestureBackend == GestureBackend.SHIZUKU) {
+            // 新会话重新建立健康基线，避免上一会话状态抑制本次降级。
+            shizukuLastHealthState = null
+            shizukuSessionSelected = finalGestureBackend == GestureBackend.SHIZUKU
+            if (shizukuSessionSelected) {
                 // 异步检查 Shizuku 健康状况，如果问题严重则降级
                 // 这里使用 withContext(Dispatchers.IO) 避免阻塞主线程
                 val health = withContext(Dispatchers.IO) {
@@ -270,8 +272,7 @@ class VisionRuntimeController @Inject constructor(
             }
 
             latestGestureBackend.set(finalGestureBackend)
-            // 使用降级后的有效后端创建新的 resolution 对象（用于日志）
-            val gestureResolutionWithFallBack = gestureResolution.copy(effective = finalGestureBackend)
+            val gestureFallbackReason = healthCheckReason ?: gestureResolution.fallbackReason
 
             AppLog.i(
                 "vision",
@@ -280,7 +281,7 @@ class VisionRuntimeController @Inject constructor(
                     "overlay=${config.overlay.enabled} automation=${config.automation.enabled} " +
                     "gesture=${finalGestureBackend.name}" +
                     (healthCheckReason?.let { " healthNote=$it" } ?: "") +
-                    (gestureResolutionWithFallBack.fallbackReason?.let { " gestureNote=$it" } ?: ""),
+                    (gestureFallbackReason?.let { " gestureNote=$it" } ?: ""),
             )
             runCatching {
                 top.azek431.hzzs.mcp.McpEventBus.append(
@@ -320,7 +321,7 @@ class VisionRuntimeController @Inject constructor(
                 running = true,
                 activeScene = config.selectedScene,
                 activeBackend = backend,
-                activeGestureBackend = gestureResolution.effective,
+                activeGestureBackend = finalGestureBackend,
             )
 
             try {
@@ -349,7 +350,6 @@ class VisionRuntimeController @Inject constructor(
             }
         }
     }
-}
 
     /** 停止后重新启动；用于截图后端等需要换源的配置变更。 */
     suspend fun restart() {
@@ -391,28 +391,23 @@ class VisionRuntimeController @Inject constructor(
         )
     }
 
-    /**
-     * 启动持续的健康监控（Shizuku 可用性定期检查）。
-     * 在 start() 中调用，stop() 中停止。
-     */
+    /** 启动持续健康监控；仅本会话原始手势路径选择 Shizuku 时运行。 */
     private fun startShizukuHealthMonitoring() {
+        if (!shizukuSessionSelected) return
         shizukuHealthCheckJob = scope.launch {
             while (currentCoroutineContext().isActive) {
-                withContext(Dispatchers.IO) {
-                    checkShizukuHealthAndMaybeDowngrade()
-                }
+                checkShizukuHealthAndMaybeDowngrade()
                 delay(SHIZUKU_HEALTH_CHECK_INTERVAL_MS)
             }
         }
     }
 
-    /**
-     * 停止健康监控。
-     */
-    private fun stopShizukuHealthMonitoring() {
+    /** 停止健康监控并清空跨会话状态。 */
+    private suspend fun stopShizukuHealthMonitoring() {
         shizukuHealthCheckJob?.cancelAndJoin()
         shizukuHealthCheckJob = null
-        // 问题解决后取消通知
+        shizukuLastHealthState = null
+        shizukuSessionSelected = false
         cancelShizukuNotification()
     }
 
@@ -421,13 +416,9 @@ class VisionRuntimeController @Inject constructor(
      */
     private suspend fun checkShizukuHealthAndMaybeDowngrade() {
         val currentConfig = latestConfig.get()
-        if (!currentConfig.automation.enabled) return
+        if (!currentConfig.automation.enabled || !shizukuSessionSelected) return
 
-        val effectiveBackend = latestGestureBackend.get()
-        if (effectiveBackend != GestureBackend.SHIZUKU) return
-
-        val health = runCatching { ShizukuHealthCheck.check() }.getOrNull()
-        if (health == null) return
+        val health = runCatching { ShizukuHealthCheck.check() }.getOrNull() ?: return
 
         val isNowHealthy = health.isHealthy
         val wasHealthy = shizukuLastHealthState
@@ -435,29 +426,30 @@ class VisionRuntimeController @Inject constructor(
         shizukuLastHealthState = isNowHealthy
 
         if (!isNowHealthy) {
-            // Shizuku 不健康了
             val reason = health.reason ?: "unknown"
-            AppLog.w("vision", "Shizuku became unhealthy during runtime: $reason")
-
-            // 如果之前是健康的（首次发现不健康），则尝试降级
             if (wasHealthy == null || wasHealthy) {
-                if (HzzsAccessibilityService.isConnected()) {
-                    val oldBackend = effectiveBackend
-                    latestGestureBackend.set(GestureBackend.ACCESSIBILITY)
-                    mutableStatus.update { it.copy(lastError = "Shizuku 不可用，已自动降级至 ACCESSIBILITY") }
-                    AppLog.i("vision", "Shizuku runtime fallback to ACCESSIBILITY, was $oldBackend")
-                    showShizukuIssueNotification("Shizuku 运行时失效，已降级至 ACCESSIBILITY", reason)
-                } else {
-                    showShizukuIssueNotification("Shizuku 不可用，无有效降级方案", reason)
-                }
-            } else {
-                // 之前就是不健康的，只是持续记录
-                AppLog.d("vision", "Shizuku still unhealthy, state unchanged")
+                AppLog.w("vision", "Shizuku became unhealthy during runtime: $reason")
             }
-        } else {
-            // Shizuku 恢复了
+
+            if (
+                latestGestureBackend.get() == GestureBackend.SHIZUKU &&
+                HzzsAccessibilityService.isConnected()
+            ) {
+                val oldBackend = latestGestureBackend.getAndSet(GestureBackend.ACCESSIBILITY)
+                mutableStatus.update {
+                    it.copy(
+                        activeGestureBackend = GestureBackend.ACCESSIBILITY,
+                        lastError = "Shizuku 不可用，已自动降级至 ACCESSIBILITY",
+                    )
+                }
+                AppLog.i("vision", "Shizuku runtime fallback to ACCESSIBILITY, was $oldBackend")
+                showShizukuIssueNotification("Shizuku 运行时失效，已降级至 ACCESSIBILITY", reason)
+            } else if (wasHealthy == null || wasHealthy) {
+                showShizukuIssueNotification("Shizuku 不可用，无有效降级方案", reason)
+            }
+        } else if (wasHealthy != true) {
             AppLog.i("vision", "Shizuku health restored during runtime")
-            // 注意：恢复后不会自动切回 SHIZUKU，需要用户手动重启分析或切换后端
+            // 恢复后不自动切回 Shizuku，避免运行中半热切换手势后端。
             cancelShizukuNotification()
         }
     }
@@ -1074,6 +1066,7 @@ class VisionRuntimeController @Inject constructor(
                 val d = item.detection
                 AlgorithmDetectionTrace(
                     kind = d.kind.name,
+                    source = d.source.name,
                     confidence = d.confidence,
                     left = d.bounds.left,
                     top = d.bounds.top,
@@ -1090,6 +1083,7 @@ class VisionRuntimeController @Inject constructor(
             result.detections.map { d ->
                 AlgorithmDetectionTrace(
                     kind = d.kind.name,
+                    source = d.source.name,
                     confidence = d.confidence,
                     left = d.bounds.left,
                     top = d.bounds.top,
@@ -1783,6 +1777,9 @@ class VisionRuntimeController @Inject constructor(
         const val DISABLED_SCENE_BACKOFF_MS = 250L
         /** 自动复活连点冷却（与用户确认 0.3s 对齐）。 */
         const val AUTO_REVIVE_COOLDOWN_MS = 300L
+        const val SHIZUKU_HEALTH_CHECK_INTERVAL_MS = 30_000L
+        const val SHIZUKU_NOTIFICATION_CHANNEL_ID = "shizuku_health_channel"
+        const val SHIZUKU_NOTIFICATION_ID = 1001
         /** 账本用固定 track，避免与障碍 track 冲突。 */
         const val AUTO_REVIVE_TRACK_ID = Long.MAX_VALUE - 7L
         val AUTO_REVIVE_LABELS: List<String> = listOf("原地复活", "重新冒险")

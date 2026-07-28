@@ -6,7 +6,6 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.content.Intent.ACTION_VIEW
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -55,6 +54,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -125,89 +125,70 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         maybeRequestPostNotifications()
-        handleAppOpenCount()
+        if (savedInstanceState == null) handleAppOpenCount()
         setContent { HzzsRoot(onSaveDonation = ::saveDonationImage) }
     }
 
-    /**
-     * 处理应用打开计数：达到10次且未显示过捐赠提示时弹出捐赠对话框。
-     */
+    /** 处理打开计数：第 10 次打开后只提示一次捐赠入口。 */
     private fun handleAppOpenCount() {
-        // 使用 lifecycleScope 异步处理计数逻辑
         lifecycleScope.launch {
-            try {
+            runCatching {
                 val openCount = repository.incrementOpenCount()
-                val shown = repository.isDonationPromptShown()
-
-                if (openCount >= 10 && !shown) {
-                    // 在主线程展示对话框
-                    withContext(android.os.Looper.getMainLooper()) {
-                        showDonationPromptDialog()
-                        repository.markDonationPromptShown()
-                    }
+                if (openCount >= 10 && !repository.isDonationPromptShown()) {
+                    showDonationPromptDialog()
+                    repository.markDonationPromptShown()
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("HZZS_OpenCount", "Failed to handle app open count", e)
+            }.onFailure { error ->
+                android.util.Log.e("HZZS_OpenCount", "Failed to handle app open count", error)
             }
         }
     }
 
-    /**
-     * 显示捐赠提示对话框 - 模仿 RikkaHub 风格。
-     */
     private fun showDonationPromptDialog() {
-        // 使用 MaterialAlertDialog 显示捐赠选项列表
-        val options = listOf(
+        val options = arrayOf(
             getString(R.string.about_donation_prompt_wechat),
             getString(R.string.about_donation_prompt_alipay),
-            getString(R.string.about_donation_prompt_iefdian)
+            getString(R.string.about_donation_prompt_iefdian),
         )
-        val dialog = android.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.about_donation_prompt_title))
-            .setMessage(getString(R.string.about_donation_prompt_body))
-            .setItems(options.toTypedArray) { which, _ ->
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.about_donation_prompt_title)
+            .setMessage(R.string.about_donation_prompt_body)
+            .setItems(options) { _, which ->
                 when (which) {
                     0 -> saveDonationImage(DonationKind.WECHAT)
                     1 -> saveDonationImage(DonationKind.ALIPAY)
                     2 -> openIEFDianLink()
                 }
             }
-            .setNegativeButton(getString(R.string.about_donation_prompt_cancel)) { dialog, _ ->
-                dialog.dismiss()
-            }
-        dialog.show()
+            .setNegativeButton(R.string.about_donation_prompt_cancel, null)
+            .show()
     }
 
-    /**
-     * 打开爱发电链接。
-     */
     private fun openIEFDianLink() {
-        val url = "https://www.ifdian.net/a/Azek431"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.ifdian.net/a/Azek431"))
         if (intent.resolveActivity(packageManager) != null) {
             startActivity(intent)
         } else {
-            Toast.makeText(this, getString(R.string.about_open_link_failed), Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.about_open_link_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
-    /**
-     * API 33+ 前台服务（录屏/MCP）依赖通知可见性；未授权时系统可能限制通知展示。
-     * 不阻塞主流程；用户拒绝后仍可使用（部分 OEM 体验降级）。
-     */
+    /** API 33+ 请求通知权限；拒绝不阻塞主流程。 */
     private fun maybeRequestPostNotifications() {
         if (Build.VERSION.SDK_INT < 33) return
         val granted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        if (!granted) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     @SuppressLint("ResourceType")
     private fun saveDonationImage(kind: DonationKind) {
+        if (kind == DonationKind.IEF_DIAN) {
+            openIEFDianLink()
+            return
+        }
         if (
             Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
@@ -265,67 +246,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * 处理应用打开计数：达到10次且未显示过捐赠提示时弹出捐赠对话框。
-     */
-    private fun handleAppOpenCount() {
-        // 使用 lifecycleScope 异步处理计数逻辑
-        lifecycleScope.launch {
-            try {
-                val openCount = repository.incrementOpenCount()
-                val shown = repository.isDonationPromptShown()
-
-                if (openCount >= 10 && !shown) {
-                    // 在主线程展示对话框
-                    withContext(android.os.Looper.getMainLooper()) {
-                        showDonationPromptDialog()
-                        repository.markDonationPromptShown()
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("HZZS_OpenCount", "Failed to handle app open count", e)
-            }
-        }
-    }
-
-    /**
-     * 显示捐赠提示对话框 - 模仿 RikkaHub 风格。
-     */
-    private fun showDonationPromptDialog() {
-        // 使用 MaterialAlertDialog 显示捐赠选项列表
-        val options = listOf(
-            getString(R.string.about_donation_prompt_wechat),
-            getString(R.string.about_donation_prompt_alipay),
-            getString(R.string.about_donation_prompt_iefdian)
-        )
-        val dialog = android.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.about_donation_prompt_title))
-            .setMessage(getString(R.string.about_donation_prompt_body))
-            .setItems(options.toTypedArray) { which, _ ->
-                when (which) {
-                    0 -> saveDonationImage(DonationKind.WECHAT)
-                    1 -> saveDonationImage(DonationKind.ALIPAY)
-                    2 -> openIEFDianLink()
-                }
-            }
-            .setNegativeButton(getString(R.string.about_donation_prompt_cancel)) { dialog, _ ->
-                dialog.dismiss()
-            }
-        dialog.show()
-    }
-
-    /**
-     * 打开爱发电链接。
-     */
-    private fun openIEFDianLink() {
-        val url = "https://www.ifdian.net/a/Azek431"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        if (intent.resolveActivity(packageManager) != null) {
-            startActivity(intent)
-        } else {
-            Toast.makeText(this, getString(R.string.about_open_link_failed), Toast.LENGTH_SHORT).show()
-        }
-    }
 }
 
 /**

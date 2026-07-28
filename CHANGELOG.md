@@ -25,6 +25,9 @@
 
 ### 修复
 
+- **DetectionSource 端到端协议**：补齐三场景 Detection 聚合初始化、主路径 source 参数与 Native sparse 临时 track hint；恢复 Kotlin `DetectionSource` 显式 native code 映射，修正 JNI Detection 构造器描述符，并让过滤诊断与帧级 trace 保留原始来源；Native sparse 同步执行类别位掩码。
+- **合并编译与行为回归**：清理捐赠入口重复实现，恢复微信/支付宝二维码与爱发电三渠道、第 10 次打开一次性提示及 DataStore 独立元数据；修复 About Compose 回调在组合期提前执行；恢复 Shizuku 健康监控的同步/异步边界、实际后端状态与降级恢复；修正算法存储 v2 为 `catalogId/versions/versionCode` 多版本布局并区分 current/全部版本。
+- **Native 宿主门禁同步**：Bash host/sanitizer 补链 `vision_v3` include 与三份源文件；Windows/MSYS 仅关闭不受支持的 LeakSanitizer，仍执行 ASan/UBSan，Linux CI 继续启用泄漏检测；静态门禁锁定 JNI 描述符与 CMake/host 源清单。
 - **切后台「不识别」根因**：诊断显示分析仍在跑，但手势被 `package_gate` 拦、海盐 `scene_conf=0.58` 假阴性、OEM 后台杀进程。本次：① HUD DEBUG 直接展示 `lastAutomationDecision` 中文（`humanizeAutomationDecision` 抽到 `core/model` 复用）；② 海盐 `player_ok` 系数 `0.55→0.72`，`minimumSceneConfidence` 默认 `0.82→0.55`；③ 新增 `VisionAnalysisForegroundService`（`dataSync`）分析启停绑定前台通知，降低后台被杀概率。
 
 ### 变更

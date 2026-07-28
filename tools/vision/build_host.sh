@@ -8,12 +8,16 @@ g++ -std=c++17 -O3 -DNDEBUG -fPIC -shared \
   -I"$CPP" \
   -I"$CPP/legacy_main/vision2" \
   -I"$CPP/legacy_main/vision_bamboo" \
+  -I"$CPP/vision_v3" \
   "$CPP/algorithm_runtime.cpp" \
   "$CPP/vision_engine.cpp" \
   "$CPP/sweet_factory.cpp" \
   "$CPP/bamboo_bookstore.cpp" \
   "$CPP/sea_salt_living_room.cpp" \
   "$CPP/multicolor_detector.cpp" \
+  "$CPP/vision_v3/sea_salt_v3.cpp" \
+  "$CPP/vision_v3/sea_salt_fast.cpp" \
+  "$CPP/vision_v3/soy_sauce_exact.cpp" \
   "$CPP/legacy_main/vision2/HzzsVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionCore.cpp" \
   "$CPP/legacy_main/vision_bamboo/BambooVisionEngine.cpp" \

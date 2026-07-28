@@ -10,7 +10,7 @@ platform 仅通过接口向运行时暴露能力
 ```
 
 | 包 | 职责 |
-|---|---|
+| --- | --- |
 | `core` | 稳定模型、DataStore、主题、设计系统、更新库、`logging` 诊断门面 |
 | `domain` | 与 Android 无关的视觉与手势规则（可 JVM 测试） |
 | `data/vision` | 帧循环所有者、JNI 适配、追踪、调试帧 |
@@ -24,7 +24,7 @@ platform 仅通过接口向运行时暴露能力
 
 1. `FrameSourceFactory` 根据已保存后端创建截图源。
 2. `VisionRuntimeController` **完成驱动**拉取最新帧（不再按固定 FPS 主动丢帧），校验视口与配置并调用引擎。
-3. `NativeVisionEngine` 经 `NativeVision` JNI 调用 C++，再映射为领域模型。
+3. `NativeVisionEngine` 经 `NativeVision` JNI 调用 C++，再映射为领域模型；`Detection.source` 使用显式 native code 贯穿正常结果与过滤诊断，未知 code fail-closed 回退 `DEFAULT_HEURISTIC`。
 4. `VisionResultValidator` 应用类别过滤、置信度与坐标不变量。
 5. `MultiObjectTracker` 做跨帧稳定；稳定帧序号按已分析帧计数，避免 CONFLATED/排空导致跳跃。
 6. Tracker 之后可为障碍附加仅 HUD 使用的 `displayContour`（App 呈现增强 / 近似模板，非算法绘制、非 C++ 像素轮廓）；动作仍只读 `bounds`。
@@ -35,7 +35,7 @@ platform 仅通过接口向运行时暴露能力
 ## 截图
 
 | 后端 | 行为 |
-|---|---|
+| --- | --- |
 | AUTO | **仅** MediaProjection，永不升权 |
 | MEDIA_PROJECTION | VirtualDisplay + ImageReader + 帧池租约 |
 | ACCESSIBILITY | API 30+ `takeScreenshot`，有频率限制 |

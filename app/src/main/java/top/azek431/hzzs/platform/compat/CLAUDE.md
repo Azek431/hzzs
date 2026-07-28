@@ -26,6 +26,7 @@ SystemCapabilityAccess.openOverlayPermissionSettings / openAccessibilitySettings
 
 - `CaptureBackend.AUTO` **只**走 MediaProjection，不探测 Root/Shizuku/无障碍。
 - `GestureBackend.AUTO` 优先无障碍；仅无障碍未连接且 Shizuku **已授权就绪** 时用 Shizuku；**永不**静默升 Root / 不在 AUTO 路径弹 Shizuku 授权。
+- Shizuku 同步能力列表只做 binder + 权限轻量检查，不在 UI 路径执行 shell；完整 `id` 命令健康探测仅在分析启动前/运行时 IO 协程执行。运行中降级后 `RuntimeStatus.activeGestureBackend` 必须报告实际后端，恢复不半热切回。
 - 本机 API 不支持请求后端时 **fail-soft** 回退到可用的用户主配置或 MediaProjection，写入诊断 `capture.requested/effective/fallbackReason`。
 - 系统「指针位置」经 `SystemCapabilityAccess`：可点授权 Shizuku（主线程）→ **绝对路径** `/system/bin/settings` 首成功即停并缓存前缀（与 input 同源）→ `WRITE_SETTINGS` / Root；写后延迟回读 system/secure；不写入 AppConfig；诊断含指针/Shizuku/`shell.prefix`。
 - 手势与截图后端正交。
